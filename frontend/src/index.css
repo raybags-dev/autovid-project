@@ -1,0 +1,63 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap");
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background: #080c14;
+  color: #e8edf5;
+  font-family: "DM Mono", "Fira Code", "Courier New", monospace;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e2a3a;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3a4a;
+}
+
+/* Placeholder */
+::placeholder {
+  color: #3a4a5a;
+}
+
+/* Remove default button styles */
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Remove default input styles */
+input,
+textarea,
+select {
+  font-family: inherit;
+  outline: none;
+}
+
+/* Links */
+a {
+  color: inherit;
+}

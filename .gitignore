@@ -1,0 +1,35 @@
+# Environment — NEVER commit these
+backend/.env
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/output/
+backend/output/*
+backend/quota_tracker.json
+backend/token.json
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# env
+.env
+
+# Media & temp files
+*.mp4
+*.mp3
+*.wav
+*.jpg
+*.png
+output/
+
+# OS
+.DS_Store
+*.pyc
+backend/token.json
+backend/client_secrets.json
+
+# YouTube OAuth — NEVER commit
+backend/token.json
+backend/youtube_token.json
+backend/client_secrets.json
