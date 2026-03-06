@@ -3,8 +3,14 @@ import axios from "axios";
 // Always go through Vite proxy (/api → http://localhost:8000)
 // This avoids all CORS issues since the request appears same-origin to the browser.
 // In production, Nginx serves the same proxy role.
+
+// const api = axios.create({
+//   baseURL: "/api",
+//   timeout: 60000,
+// });
+
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
   timeout: 60000,
 });
 
