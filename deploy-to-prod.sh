@@ -64,6 +64,7 @@ rsync -avz --progress \
   --exclude='frontend/node_modules' \
   --exclude='frontend/dist' \
   --exclude='.git' \
+  --exclude='.env' \
   --exclude='*.pyc' \
   --exclude='.DS_Store' \
   ./ $SERVER:$SERVER_DIR/
@@ -76,6 +77,8 @@ print_step "Rebuilding and restarting on server"
 ssh $SERVER << REMOTE
   set -e
   cd $SERVER_DIR
+
+  # .env is never overwritten by rsync — back it up and restore
 
   echo "→ Pulling latest images and rebuilding..."
   docker compose down

@@ -35,3 +35,4 @@ backend/youtube_token.json
 backend/client_secrets.json
 frontend/.env.local
 frontend/.env.production
+frontend/.env.production

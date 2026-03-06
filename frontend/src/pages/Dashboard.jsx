@@ -577,7 +577,7 @@ export default function Dashboard() {
     // Local path → serve via backend static mount
     const filename = filePath.split("/").pop();
     if (filename && filename.endsWith(".mp4"))
-      return `http://localhost:8000/local-videos/${filename}`;
+      return `http://157.180.67.199:8000/local-videos/${filename}`;
     return null;
   };
 
