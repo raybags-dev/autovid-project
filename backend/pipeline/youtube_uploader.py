@@ -149,7 +149,7 @@ def upload_video(
         "snippet": {
             "title": title,
             "description": f"{description}\n\n#AutoVid #AI #Generated\n\nTags: {', '.join(labels)}",
-            "tags": tags + ["funny", "AI generated", "comedy"],
+            "tags": tags + ["funny", "comedy"],
             "categoryId": category_id,
             "defaultLanguage": "en",
         },
