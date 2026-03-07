@@ -1,3 +1,4 @@
+
 """
 AutoVid — YouTube Shorts Generator
 Two modes:
@@ -39,8 +40,20 @@ def create_short_from_video(video_path: str, video_id: str) -> str:
     Takes an existing landscape video, finds the most energetic 59s,
     crops to 9:16 portrait, and returns the path to the short.
     """
-    output_dir = Path(video_path).parent
-    short_path = str(output_dir / f"{video_id}_short.mp4")
+    import urllib.request
+    import tempfile
+
+    _temp_download = None
+
+    # If video is a remote URL (Supabase), download it first
+    if video_path.startswith("http://") or video_path.startswith("https://"):
+        print(f"⬇️  Downloading video for short creation...")
+        _temp_download = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+        urllib.request.urlretrieve(video_path, _temp_download.name)
+        video_path = _temp_download.name
+        print(f"   Downloaded to: {video_path}")
+
+    short_path = str(Path(tempfile.gettempdir()) / f"{video_id}_short.mp4")
 
     # Get video duration
     duration = _get_duration(video_path)
@@ -85,6 +98,11 @@ def create_short_from_video(video_path: str, video_id: str) -> str:
         raise RuntimeError(f"FFmpeg crop failed: {result.stderr[-500:]}")
 
     print(f"✅ Short created: {Path(short_path).name} ({os.path.getsize(short_path)/1024/1024:.1f} MB)")
+
+    # Clean up temp download
+    if _temp_download and os.path.exists(_temp_download.name):
+        os.unlink(_temp_download.name)
+
     return short_path
 
 
@@ -488,3 +506,4 @@ def _frames_to_mp4(frames: list, output_path: str, fps: int = 30):
     proc.wait()
     if proc.returncode != 0:
         raise RuntimeError(f"FFmpeg write failed: {proc.stderr.read().decode()[-300:]}")
+

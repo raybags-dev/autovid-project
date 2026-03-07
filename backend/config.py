@@ -54,7 +54,8 @@ ELEVENLABS_API_KEY  = os.getenv("ELEVENLABS_API_KEY", "")
 # Arnold  VR6AewLTigWG4xSOukaG  — authoritative, crisp
 # Antoni  ErXwobaYiN019PkySvjV  — well-rounded, natural
 # Sam     yoZ06aMxZJJ28mfd3POQ  — energetic, engaging
-ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")  # Adam
+ELEVENLABS_VOICE_ID         = os.getenv("ELEVENLABS_VOICE_ID",         "NFG5qt843uXKj4pFvR7C")
+DEFAULT_ELEVENLABS_VOICE_ID = os.getenv("DEFAULT_ELEVENLABS_VOICE_ID", "rUwfJCzlNVSupX1xyzzX")
 
 # ── Database ─────────────────────────────────────────────────────────────────
 SUPABASE_URL         = os.getenv("SUPABASE_URL", "")
@@ -118,3 +119,4 @@ def debug():
 
 if __name__ == "__main__":
     debug()
+

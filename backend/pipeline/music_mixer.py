@@ -163,11 +163,134 @@ def _make_upbeat(duration: float) -> np.ndarray:
     return out
 
 
+
+def _make_piano(duration: float) -> np.ndarray:
+    """Gentle solo piano — soft looping phrases, warm and intimate."""
+    sr  = SAMPLE_RATE
+    n   = int(sr * duration)
+    out = np.zeros(n)
+
+    def piano_note(freq, dur, amp=0.06):  # amp kept low — mixed on top of voice
+        t   = np.linspace(0, dur, int(sr * dur))
+        env = np.exp(-t * 3.5) * 0.6 + np.exp(-t * 0.4) * 0.4
+        tone  = np.sin(2 * np.pi * freq * t)
+        tone += np.sin(2 * np.pi * freq * 2 * t) * 0.25
+        tone += np.sin(2 * np.pi * freq * 3 * t) * 0.08
+        return tone * env * amp
+
+    # One full phrase (~24s) that loops seamlessly for any video length
+    phrase_melody = [
+        (261.63, 1.8), (329.63, 1.4), (392.00, 2.0), (329.63, 1.2),
+        (261.63, 2.4), (220.00, 1.6), (196.00, 2.8), (261.63, 1.8),
+        (293.66, 1.4), (349.23, 2.0), (392.00, 1.6), (261.63, 3.0),
+    ]
+    phrase_bass = [
+        (130.81, 3.0), (164.81, 3.0), (98.00, 4.0), (130.81, 4.0),
+    ]
+
+    # Build one phrase into a buffer then tile to fill duration
+    phrase_dur = sum(d for _, d in phrase_melody) + 1.0   # +1s silence at end
+    phrase_n   = int(sr * phrase_dur)
+    phrase_buf = np.zeros(phrase_n)
+
+    pos = int(sr * 0.8)
+    for freq, note_dur in phrase_melody:
+        note = piano_note(freq, note_dur + 0.6)
+        end  = min(phrase_n, pos + len(note))
+        if pos >= phrase_n:
+            break
+        phrase_buf[pos:end] += note[:end - pos]
+        pos += int(sr * note_dur * 0.85)
+
+    bass_pos = int(sr * 1.2)
+    for freq, note_dur in phrase_bass:
+        note = piano_note(freq, note_dur, amp=0.03)
+        end  = min(phrase_n, bass_pos + len(note))
+        if bass_pos >= phrase_n:
+            break
+        phrase_buf[bass_pos:end] += note[:end - bass_pos]
+        bass_pos += int(sr * note_dur * 1.8)
+
+    # Tile phrase across full duration
+    reps = (n // phrase_n) + 2
+    tiled = np.tile(phrase_buf, reps)[:n]
+    out += tiled
+
+    # Fade in (2s) and fade out (3s)
+    fade_in  = min(int(sr * 2.0), n)
+    fade_out = min(int(sr * 3.0), n)
+    out[:fade_in]  *= np.linspace(0, 1, fade_in)
+    out[-fade_out:] *= np.linspace(1, 0, fade_out)
+
+    return out.astype(np.float32)
+
+
+def _make_violin(duration: float) -> np.ndarray:
+    """Gentle solo violin — soft looping phrases, warm and emotional."""
+    sr  = SAMPLE_RATE
+    n   = int(sr * duration)
+    out = np.zeros(n)
+
+    def violin_note(freq, dur, amp=0.05):  # amp kept low — sits behind voice
+        nt  = np.linspace(0, dur, int(sr * dur))
+        attack  = np.clip(nt / 0.15, 0, 1)
+        release = np.clip((dur - nt) / 0.2, 0, 1)
+        env     = attack * release
+        tone  = np.sin(2 * np.pi * freq * nt)
+        tone += np.sin(2 * np.pi * freq * 2 * nt) * 0.45
+        tone += np.sin(2 * np.pi * freq * 3 * nt) * 0.20
+        tone += np.sin(2 * np.pi * freq * 4 * nt) * 0.10
+        tone += np.sin(2 * np.pi * freq * 5 * nt) * 0.05
+        vibrato = 1 + 0.012 * np.sin(2 * np.pi * 5.8 * nt) * np.clip(nt / 0.4, 0, 1)
+        tone *= vibrato
+        return tone * env * amp
+
+    # One full phrase (~28s) that loops for any video length
+    phrase_melody = [
+        (293.66, 2.2), (349.23, 1.8), (440.00, 2.8), (349.23, 1.4),
+        (293.66, 3.0), (261.63, 2.0), (220.00, 3.4), (246.94, 2.0),
+        (293.66, 2.4), (329.63, 1.8), (293.66, 4.0),
+    ]
+
+    phrase_dur = sum(d for _, d in phrase_melody) + 2.0   # +2s silence between loops
+    phrase_n   = int(sr * phrase_dur)
+    phrase_buf = np.zeros(phrase_n)
+
+    pos = int(sr * 1.0)
+    for freq, note_dur in phrase_melody:
+        note = violin_note(freq, note_dur + 0.5)
+        end  = min(phrase_n, pos + len(note))
+        if pos >= phrase_n:
+            break
+        phrase_buf[pos:end] += note[:end - pos]
+        pos += int(sr * note_dur * 0.88)
+
+    # Tile phrase across full duration
+    reps  = (n // phrase_n) + 2
+    tiled = np.tile(phrase_buf, reps)[:n]
+
+    # Soft warm pad underneath (very quiet)
+    t   = np.linspace(0, duration, n)
+    lfo = (np.sin(2 * np.pi * 0.06 * t) + 1) / 2
+    pad = np.sin(2 * np.pi * 146.83 * t) * 0.015 * lfo
+    pad += np.sin(2 * np.pi * 220.00 * t) * 0.008 * lfo
+    out = tiled + pad
+
+    # Fade in (2s) and fade out (3s)
+    fade_in  = min(int(sr * 2.0), n)
+    fade_out = min(int(sr * 3.0), n)
+    out[:fade_in]  *= np.linspace(0, 1, fade_in)
+    out[-fade_out:] *= np.linspace(1, 0, fade_out)
+
+    return out.astype(np.float32)
+
 MUSIC_GENERATORS = {
     'lofi':      _make_lofi,
     'ambient':   _make_ambient,
     'cinematic': _make_cinematic,
     'upbeat':    _make_upbeat,
+    'piano':     _make_piano,
+    'violin':    _make_violin,
 }
 
 
@@ -217,10 +340,10 @@ def generate_music(style: str, duration: float, video_id: str) -> str | None:
 
 
 def mix_audio(voice_path: str, music_path: str | None, output_path: str,
-              music_volume: float = 0.18) -> str:
+              music_volume: float = 0.10) -> str:
     """
     Mix narration voice with background music.
-    music_volume: 0.0–1.0 relative to voice (0.18 = music at 18% of voice level)
+    music_volume: 0.0–1.0 relative to voice (0.10 = music at 10% of voice level)
     Returns output_path.
     """
     if not music_path:
@@ -244,3 +367,4 @@ def mix_audio(voice_path: str, music_path: str | None, output_path: str,
 
     print(f"✅ Mixed audio: {Path(output_path).name}")
     return output_path
+

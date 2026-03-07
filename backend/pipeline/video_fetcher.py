@@ -145,6 +145,113 @@ CONCEPT_EXPANSIONS = {
 }
 
 
+
+# ── Visual Mood Overrides ─────────────────────────────────────────────────────
+# When user picks a mood, each segment's visual_query is enriched with these
+# cinematic Pexels search terms to guarantee beautiful, on-brand footage.
+
+MOOD_QUERIES = {
+    "ocean": [
+        "ocean waves slow motion cinematic",
+        "sea waves crashing rocks sunset",
+        "calm ocean surface aerial",
+        "underwater light rays ocean",
+        "waves shore peaceful",
+    ],
+    "candle": [
+        "candle flame darkness closeup",
+        "candlelight warm bokeh",
+        "single candle burning night",
+        "candle wax melting slow",
+        "warm candlelight hands",
+    ],
+    "forest": [
+        "forest light rays morning fog",
+        "sunlight through trees slow motion",
+        "misty forest path cinematic",
+        "forest floor autumn leaves",
+        "trees wind gentle nature",
+    ],
+    "stars": [
+        "night sky stars timelapse",
+        "milky way galaxy cinematic",
+        "stars twinkling dark sky",
+        "moon night clouds slow",
+        "starfield space deep",
+    ],
+    "hands": [
+        "hands holding closeup warm",
+        "elderly hands wrinkled gentle",
+        "hands prayer soft light",
+        "person hands table contemplative",
+        "mother child hands tender",
+    ],
+    "mountains": [
+        "mountain fog mist cinematic",
+        "mountains clouds aerial drone",
+        "misty mountain valley sunrise",
+        "mountain peak clouds rolling",
+        "foggy mountain landscape peaceful",
+    ],
+}
+
+# Topic keywords that map to a mood automatically
+TOPIC_TO_MOOD = {
+    "grief":      "candle",
+    "loss":       "candle",
+    "death":      "candle",
+    "mourning":   "candle",
+    "healing":    "ocean",
+    "peace":      "ocean",
+    "calm":       "ocean",
+    "hope":       "forest",
+    "growth":     "forest",
+    "nature":     "forest",
+    "meaning":    "mountains",
+    "purpose":    "mountains",
+    "journey":    "mountains",
+    "love":       "hands",
+    "connection": "hands",
+    "family":     "hands",
+    "night":      "stars",
+    "universe":   "stars",
+    "infinity":   "stars",
+    "soul":       "stars",
+}
+
+
+def get_mood_for_topic(topic: str) -> str | None:
+    """Auto-detect best mood from the video topic/title."""
+    topic_lower = topic.lower()
+    for keyword, mood in TOPIC_TO_MOOD.items():
+        if keyword in topic_lower:
+            return mood
+    return None
+
+
+def enrich_segments_with_mood(segments: list, mood: str) -> list:
+    """
+    Override each segment's visual_query with mood-appropriate Pexels terms.
+    Cycles through the mood's query list so each segment gets variety.
+    Falls back gracefully if mood is unknown.
+    """
+    queries = MOOD_QUERIES.get(mood)
+    if not queries:
+        return segments
+
+    enriched = []
+    for i, seg in enumerate(segments):
+        new_seg = dict(seg)
+        # Blend original query with mood query for best results
+        original = seg.get("visual_query", "")
+        mood_q   = queries[i % len(queries)]
+        # Use mood query as primary, original as context hint
+        new_seg["visual_query"] = mood_q
+        new_seg["mood_hint"]    = original   # keep original for fallback
+        enriched.append(new_seg)
+
+    return enriched
+
 def _expand_query(query: str) -> list[str]:
     """Return a list of fallback search queries for abstract/conceptual topics."""
     q = query.lower().strip()
@@ -264,3 +371,4 @@ if __name__ == "__main__":
     result = fetch_all_clips(segments, "test-001")
     for r in result:
         print(f"  [{r['visual_query']}] → {r['clip_path']}")
+

@@ -163,3 +163,37 @@ def get_stats() -> dict:
         "total_views": sum(v.get("views_count", 0) for v in posted),
         "total_likes": sum(v.get("likes_count", 0) for v in posted),
     }
+
+
+# ── Compilations ──────────────────────────────────────────────────────────────
+
+def create_compilation(title: str, source_ids: list) -> dict:
+    """Insert a compilation video record. Reuses videos table with type flag."""
+    db = get_client()
+    data = {
+        "prompt":    title,
+        "title":     title,
+        "status":    "generating",
+        "labels":    ["compilation"],
+        "views_count": 0,
+        "likes_count": 0,
+        "description": f"Compilation of {len(source_ids)} videos",
+        "script":    ",".join(source_ids),   # store source IDs in script field
+    }
+    result = db.table("videos").insert(data).execute()
+    row = result.data[0]
+    print(f"📼 Created compilation record: {row['id']}")
+    return row
+
+
+def list_compilations(limit: int = 50) -> list[dict]:
+    """List all compilation videos (identified by 'compilation' label)."""
+    db = get_client()
+    result = (db.table("videos")
+               .select("*")
+               .contains("labels", ["compilation"])
+               .order("created_at", desc=True)
+               .limit(limit)
+               .execute())
+    return result.data or []
+

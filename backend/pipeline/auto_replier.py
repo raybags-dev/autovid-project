@@ -1,62 +1,109 @@
 """
 AutoVid — Auto Reply Service
-For every posted video that has unread comments, posts one AI-generated
-reply per comment thread. Runs on a schedule every 2 hours.
+
+Rules:
+- Runs ONCE per day (not every 2 hours)
+- Only replies to comments that have NO existing reply from our channel
+- Checks YouTube directly for existing replies (not just in-memory)
+- Persists replied IDs to disk so container restarts don't cause duplicates
+- Stops for 24h on any quota error
+- Respects frontend on/off toggle
 """
+import json
 import time
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 import database as db
 import config
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
-CHECK_INTERVAL_SECONDS = 7200   # every 2 hours
-ACTIVE_HOURS = (8, 23)          # only reply between 8 AM – 11 PM UTC
+GROQ_MODEL            = "llama-3.3-70b-versatile"
+RUN_HOUR_UTC          = 10          # run once daily at 10:00 AM UTC
+QUOTA_BACKOFF_SECONDS = 86400       # 24h backoff on quota error
+REPLIED_IDS_FILE      = Path("./auto_reply_state.json")
 
-# Track which comment IDs we've already replied to so we don't double-reply
-_replied_ids: set = set()
-_lock = threading.Lock()
+_quota_exceeded_until: float = 0.0
+_lock                        = threading.Lock()
+_scheduler_started           = False   # prevent double-start
 
 
-def _already_replied(comment_id: str) -> bool:
+# ── Persistence ───────────────────────────────────────────────────────────────
+
+def _load_state() -> dict:
+    """Load persisted state: {replied_ids: [], last_run_date: 'YYYY-MM-DD'}"""
+    if REPLIED_IDS_FILE.exists():
+        try:
+            return json.loads(REPLIED_IDS_FILE.read_text())
+        except Exception:
+            pass
+    return {"replied_ids": [], "last_run_date": None}
+
+
+def _save_state(state: dict):
+    try:
+        REPLIED_IDS_FILE.write_text(json.dumps(state, indent=2))
+    except Exception as e:
+        print(f"⚠️  Could not save auto-reply state: {e}")
+
+
+def _already_replied(thread_id: str, state: dict) -> bool:
+    return thread_id in state.get("replied_ids", [])
+
+
+def _mark_replied(thread_id: str, state: dict):
+    if thread_id not in state["replied_ids"]:
+        state["replied_ids"].append(thread_id)
+
+
+def _already_ran_today(state: dict) -> bool:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return state.get("last_run_date") == today
+
+
+# ── Quota ─────────────────────────────────────────────────────────────────────
+
+def _set_quota_backoff():
+    global _quota_exceeded_until
     with _lock:
-        return comment_id in _replied_ids
+        _quota_exceeded_until = time.time() + QUOTA_BACKOFF_SECONDS
+    resume = datetime.fromtimestamp(
+        _quota_exceeded_until, tz=timezone.utc
+    ).strftime("%Y-%m-%d %H:%M UTC")
+    print(f"⏸️  Auto-reply paused 24h — quota exceeded. Resumes: {resume}")
 
 
-def _mark_replied(comment_id: str):
+def _quota_backed_off() -> bool:
     with _lock:
-        _replied_ids.add(comment_id)
+        return time.time() < _quota_exceeded_until
 
 
-def _within_active_hours() -> bool:
-    hour = datetime.now(timezone.utc).hour
-    return ACTIVE_HOURS[0] <= hour < ACTIVE_HOURS[1]
+def _is_quota_error(e: Exception) -> bool:
+    err = str(e).lower()
+    return any(k in err for k in [
+        "quotaexceeded", "quota_exceeded", "uploadlimitexceeded",
+        "ratelimitexceeded", "dailylimitexceeded",
+        "exceeded your", "httperror 403", " 403 ",
+    ])
 
 
-def _generate_reply(video_title: str, comment_text: str) -> str:
-    """Use Groq to generate a warm, authentic reply to a comment."""
+# ── Reply generation ──────────────────────────────────────────────────────────
+
+def _generate_reply(video_title: str, comment_text: str, author_name: str) -> str:
     import groq as groq_sdk
     client = groq_sdk.Groq(api_key=config.GROQ_API_KEY)
 
-    system_prompt = """You are the creator of a YouTube channel focused on grief, loss, love, 
-and the meaning of life. Your tone is warm, genuine, and deeply human — never corporate or 
-robotic. You reply to comments as yourself: present, caring, and real.
+    system_prompt = """You are the creator of a YouTube channel about grief, loss, love and the meaning of life.
+Your tone is warm, genuine, deeply human — never corporate or robotic.
 
 Rules:
+- Address the commenter by their first name if it looks like a real name (skip if it's a handle like xXgamer99)
 - Keep replies to 1-3 sentences max
 - Never start with "Thank you for" or "Thanks for your comment"
-- Sound like a real person, not a brand
-- If the comment is emotional or vulnerable, meet them there gently
-- If the comment asks a question, answer it briefly or acknowledge it
-- Never use hashtags or emojis in replies
-- Never mention AI or that you are automated"""
+- Meet emotional comments with gentleness
+- Answer questions briefly if asked
+- No hashtags, no emojis, no mention of AI"""
 
-    prompt = f"""Video title: "{video_title}"
-
-Comment from viewer: "{comment_text}"
-
-Write a single genuine reply from the creator. No preamble, just the reply text."""
-
+    prompt = f'Video: "{video_title}"\nCommenter: "{author_name}"\nComment: "{comment_text}"\n\nWrite the reply:'
     resp = client.chat.completions.create(
         model=GROQ_MODEL,
         messages=[
@@ -69,11 +116,39 @@ Write a single genuine reply from the creator. No preamble, just the reply text.
     return resp.choices[0].message.content.strip().strip('"')
 
 
-def run_reply_cycle():
-    """Check all posted videos for unreplied comments and reply to them."""
-    if not _within_active_hours():
-        print("💬 Auto-reply: outside active hours, skipping")
+# ── Main cycle ────────────────────────────────────────────────────────────────
+
+def run_reply_cycle(force: bool = False):
+    """
+    Process unreplied comments across all posted videos.
+    Runs at most once per day unless force=True.
+    """
+    # Check frontend toggle
+    try:
+        import main as _main
+        if not getattr(_main, "_auto_reply_enabled", True):
+            print("💬 Auto-reply disabled via toggle — skipping")
+            return
+    except Exception:
+        pass
+
+    # Check quota backoff
+    if _quota_backed_off():
+        remaining_h = int((_quota_exceeded_until - time.time()) / 3600)
+        print(f"⏸️  Auto-reply quota backoff active ({remaining_h}h remaining) — skipping")
         return
+
+    # Load persistent state
+    state = _load_state()
+
+    # Only run once per day (unless forced via manual trigger)
+    if not force and _already_ran_today(state):
+        print("💬 Auto-reply already ran today — skipping")
+        return
+
+    print(f"\n{'='*50}")
+    print(f"[AUTO-REPLY] Daily cycle starting — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"{'='*50}")
 
     try:
         from pipeline.youtube_uploader import get_video_comments, reply_to_comment
@@ -81,11 +156,16 @@ def run_reply_cycle():
         print("⚠️  Auto-reply: YouTube uploader not available")
         return
 
+    # Get our own channel ID to detect self-replies
+    our_channel_id = getattr(config, "YOUTUBE_CHANNEL_ID", "").strip()
+
     videos = db.list_videos(status="posted")
     if not videos:
+        print("💬 No posted videos — nothing to reply to")
         return
 
     replied_count = 0
+    skipped_already_replied = 0
 
     for video in videos:
         if not video.get("youtube_id"):
@@ -94,62 +174,92 @@ def run_reply_cycle():
         try:
             comments = get_video_comments(video["youtube_id"])
         except Exception as e:
-            print(f"⚠️  Could not fetch comments for {video['id'][:8]}: {e}")
+            if _is_quota_error(e):
+                _set_quota_backoff()
+                _save_state(state)
+                return
+            print(f"⚠️  Could not fetch comments for '{video.get('title','?')[:30]}': {e}")
             continue
 
         for comment in comments:
             thread_id  = comment.get("id")
-            comment_id = comment.get("id")
             text       = comment.get("text", "").strip()
             author     = comment.get("author", "")
+            author_id  = comment.get("author_channel_id", "")
+            existing   = comment.get("existing_reply_authors", set())
 
             if not thread_id or not text:
                 continue
 
-            # Skip if we've already replied
-            if _already_replied(comment_id):
+            # Skip if we already replied (persisted state)
+            if _already_replied(thread_id, state):
+                skipped_already_replied += 1
                 continue
 
-            # Skip if comment is from the channel owner (don't reply to yourself)
-            channel_id = getattr(config, "YOUTUBE_CHANNEL_ID", "")
-            author_id  = comment.get("author_channel_id", "")
-            if channel_id and author_id and author_id == channel_id:
-                _mark_replied(comment_id)
+            # Skip own channel's top-level comments
+            if our_channel_id and author_id == our_channel_id:
+                _mark_replied(thread_id, state)
                 continue
 
-            # Skip very short spam-like comments
+            # Skip if our channel already has a reply in this thread (YouTube check)
+            if our_channel_id and our_channel_id in existing:
+                _mark_replied(thread_id, state)
+                skipped_already_replied += 1
+                continue
+
+            # Skip very short/spam comments
             if len(text) < 4:
-                _mark_replied(comment_id)
+                _mark_replied(thread_id, state)
                 continue
 
             try:
-                reply_text = _generate_reply(video.get("title", ""), text)
+                reply_text = _generate_reply(video.get("title", ""), text, author)
                 reply_to_comment(thread_id, reply_text)
-                _mark_replied(comment_id)
+                _mark_replied(thread_id, state)
                 replied_count += 1
-                print(f"💬 Replied to comment on '{video.get('title','?')[:40]}': {reply_text[:60]}...")
-                time.sleep(3)  # be gentle with the API
+                print(f"💬 Replied to {author}: {reply_text[:70]}...")
+                time.sleep(2)   # gentle pacing
             except Exception as e:
-                print(f"⚠️  Reply failed for comment {comment_id[:12]}: {e}")
+                if _is_quota_error(e):
+                    _set_quota_backoff()
+                    _save_state(state)
+                    return
+                print(f"⚠️  Reply failed for {thread_id[:12]}: {e}")
 
-    if replied_count:
-        print(f"✅ Auto-reply cycle complete — {replied_count} replies posted")
-    else:
-        print("💬 Auto-reply cycle complete — no new comments to reply to")
+    # Mark today as done and save state
+    state["last_run_date"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    _save_state(state)
 
+    print(f"✅ Auto-reply cycle complete — {replied_count} replied, {skipped_already_replied} already answered")
+    print(f"{'='*50}\n")
+
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
 
 def start_reply_scheduler():
-    """Start the background reply scheduler thread."""
+    """Start the background scheduler. Runs the cycle once at RUN_HOUR_UTC each day."""
+    global _scheduler_started
+    if _scheduler_started:
+        print("⚠️  Auto-reply scheduler already running — not starting again")
+        return
+    _scheduler_started = True
+
     def _loop():
-        # Wait 5 min after startup before first run
-        time.sleep(300)
+        print(f"💬 Auto-reply scheduler started — runs daily at {RUN_HOUR_UTC}:00 UTC")
+        time.sleep(60)   # wait 1 min after startup before first check
         while True:
             try:
-                run_reply_cycle()
+                now = datetime.now(timezone.utc)
+                if now.hour == RUN_HOUR_UTC:
+                    run_reply_cycle()
+                    # Sleep 61 min to avoid re-triggering within the same hour
+                    time.sleep(3660)
+                else:
+                    # Check every 10 minutes whether it's time
+                    time.sleep(600)
             except Exception as e:
                 print(f"⚠️  Auto-reply scheduler error: {e}")
-            time.sleep(CHECK_INTERVAL_SECONDS)
+                time.sleep(600)
 
     t = threading.Thread(target=_loop, daemon=True)
     t.start()
-    print(f"💬 Auto-reply scheduler started (checks every 2h, active hours: {ACTIVE_HOURS[0]}:00–{ACTIVE_HOURS[1]}:00 UTC)")

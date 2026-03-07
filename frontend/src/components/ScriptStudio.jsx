@@ -23,45 +23,53 @@ const PROFILES = [
   },
 ];
 
-const VISUALS = [
+const MOODS = [
+  { id: null, emoji: "🎯", label: "Auto", desc: "Matches your topic" },
   {
-    id: "gradient_wave",
+    id: "ocean",
     emoji: "🌊",
-    label: "Gradient Wave",
-    desc: "Flowing colour waves",
+    label: "Ocean & Water",
+    desc: "Waves, sea, calm water",
   },
   {
-    id: "particle_field",
-    emoji: "✨",
-    label: "Particle Field",
-    desc: "Floating light dots",
+    id: "candle",
+    emoji: "🕯️",
+    label: "Candle & Firelight",
+    desc: "Warm flame, dark backdrop",
   },
   {
-    id: "aurora",
+    id: "forest",
+    emoji: "🌲",
+    label: "Forest & Nature",
+    desc: "Light rays, misty trees",
+  },
+  {
+    id: "stars",
     emoji: "🌌",
-    label: "Aurora",
-    desc: "Northern lights effect",
+    label: "Night Sky & Stars",
+    desc: "Milky way, starfield",
   },
   {
-    id: "geometric_pulse",
-    emoji: "◈",
-    label: "Geometric Pulse",
-    desc: "Pulsing shapes loop",
+    id: "hands",
+    emoji: "🤝",
+    label: "Hands & People",
+    desc: "Human connection, warmth",
   },
   {
-    id: "colour_wash",
-    emoji: "🎨",
-    label: "Colour Wash",
-    desc: "Calm shifting hues",
+    id: "mountains",
+    emoji: "⛰️",
+    label: "Mountains & Fog",
+    desc: "Dramatic peaks, mist",
   },
-  { id: "starfield", emoji: "⭐", label: "Starfield", desc: "Deep space loop" },
 ];
 
 const MUSIC = [
   { id: "none", emoji: "🔇", label: "No Music", desc: "Voice only" },
-  { id: "lofi", emoji: "🎵", label: "Lo-Fi Beats", desc: "Chill background" },
-  { id: "cinematic", emoji: "🎻", label: "Cinematic", desc: "Epic & dramatic" },
   { id: "ambient", emoji: "🌙", label: "Ambient", desc: "Calm & atmospheric" },
+  { id: "piano", emoji: "🎹", label: "Solo Piano", desc: "Gentle & intimate" },
+  { id: "violin", emoji: "🎻", label: "Solo Violin", desc: "Warm & emotional" },
+  { id: "cinematic", emoji: "🎬", label: "Cinematic", desc: "Epic & dramatic" },
+  { id: "lofi", emoji: "🎵", label: "Lo-Fi Beats", desc: "Chill background" },
   { id: "upbeat", emoji: "🥁", label: "Upbeat", desc: "Energetic & punchy" },
 ];
 
@@ -78,7 +86,7 @@ export default function ScriptStudio({ T, showToast }) {
   const [title, setTitle] = useState("");
   const [script, setScript] = useState("");
   const [profile, setProfile] = useState("educational");
-  const [visual, setVisual] = useState("gradient_wave");
+  const [mood, setMood] = useState(null); // null = auto-detect from topic
   const [music, setMusic] = useState("ambient");
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep] = useState(0);
@@ -108,7 +116,7 @@ export default function ScriptStudio({ T, showToast }) {
         title: title.trim(),
         script: script.trim(),
         profile,
-        visual_style: visual,
+        visual_mood: mood,
         music_style: music,
       });
       setJobId(data.video_id);
@@ -361,7 +369,7 @@ export default function ScriptStudio({ T, showToast }) {
             </div>
           </div>
 
-          {/* Visual style */}
+          {/* Visual mood */}
           <div
             style={{
               background: T.bgCard,
@@ -375,10 +383,13 @@ export default function ScriptStudio({ T, showToast }) {
                 fontSize: 10,
                 color: T.textFaint,
                 letterSpacing: "0.1em",
-                marginBottom: 10,
+                marginBottom: 4,
               }}
             >
-              LOOPING VISUAL
+              VISUAL MOOD
+            </div>
+            <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 10 }}>
+              Real stock footage matched to your topic
             </div>
             <div
               style={{
@@ -387,17 +398,17 @@ export default function ScriptStudio({ T, showToast }) {
                 gap: 6,
               }}
             >
-              {VISUALS.map((v) => (
+              {MOODS.map((v) => (
                 <button
-                  key={v.id}
-                  onClick={() => setVisual(v.id)}
+                  key={String(v.id)}
+                  onClick={() => setMood(v.id)}
                   disabled={running}
                   style={{
                     padding: "8px 10px",
                     borderRadius: 8,
-                    border: `1px solid ${visual === v.id ? "#a060ff60" : T.border}`,
-                    background: visual === v.id ? "#a060ff12" : "transparent",
-                    color: visual === v.id ? "#a060ff" : T.textMid,
+                    border: `1px solid ${mood === v.id ? "#a060ff60" : T.border}`,
+                    background: mood === v.id ? "#a060ff12" : "transparent",
+                    color: mood === v.id ? "#a060ff" : T.textMid,
                     cursor: "pointer",
                     fontFamily: "inherit",
                     textAlign: "left",

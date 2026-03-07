@@ -1,4 +1,21 @@
+"""
+AutoVid Pipeline — Step 7: YouTube Uploader
 
+Uploads videos to YouTube using the YouTube Data API v3.
+Handles OAuth2 authentication with token refresh.
+
+FIRST-TIME SETUP:
+  1. Go to https://console.cloud.google.com
+  2. Create project → Enable "YouTube Data API v3"
+  3. Create OAuth 2.0 credentials (Desktop application type)
+  4. Download → save as client_secrets.json in project root
+  5. Run this file directly once: python youtube_uploader.py
+     → A browser window opens for you to authorize
+     → Token saved to youtube_token.json (auto-refreshes forever)
+
+QUOTA: 10,000 units/day free. Each upload costs ~1,600 units.
+       = ~6 uploads/day. Apply for quota increase (free, takes 2-3 days).
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,6 +39,11 @@ try:
 except ImportError:
     YOUTUBE_AVAILABLE = False
     print("⚠️  YouTube libraries not installed. Run: pip install google-api-python-client google-auth-oauthlib")
+
+import os as _os
+# Must be set before ANY oauth call — prevents crash when Google returns
+# a subset of requested scopes (e.g. after adding new scopes to consent screen)
+_os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",     # Upload videos
@@ -92,12 +114,6 @@ def get_authenticated_service():
             print("Listening on http://localhost:8085 for the callback...")
             print("="*60 + "\n")
 
-            import os as _os
-            # Disable oauthlib's strict scope checking — Google may return a subset
-            # of requested scopes if some aren't approved yet on the consent screen.
-            # The token still works for the scopes that WERE granted.
-            _os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
-
             creds = flow.run_local_server(
                 port=8085,
                 prompt="consent",
@@ -149,7 +165,7 @@ def upload_video(
         "snippet": {
             "title": title,
             "description": f"{description}\n\n#AutoVid #AI #Generated\n\nTags: {', '.join(labels)}",
-            "tags": tags + ["funny", "comedy"],
+            "tags": tags + ["funny", "AI generated", "comedy"],
             "categoryId": category_id,
             "defaultLanguage": "en",
         },
@@ -331,29 +347,46 @@ def get_video_details(youtube_id: str) -> dict:
 
 
 def get_video_comments(youtube_id: str, max_results: int = 50) -> list:
-    """Fetch top-level comments for a YouTube video."""
+    """
+    Fetch top-level comments for a YouTube video.
+    Also fetches existing replies per thread so we can check if
+    we already replied — preventing duplicate responses.
+    """
     service = get_authenticated_service()
     comments = []
     try:
         resp = service.commentThreads().list(
-            part="snippet",
+            part="snippet,replies",
             videoId=youtube_id,
             maxResults=min(max_results, 100),
             order="relevance"
         ).execute()
         for item in resp.get("items", []):
-            top = item["snippet"]["topLevelComment"]["snippet"]
+            top         = item["snippet"]["topLevelComment"]["snippet"]
+            reply_count = item["snippet"].get("totalReplyCount", 0)
+
+            # Collect authors who already replied in this thread
+            existing_reply_authors = set()
+            for reply in item.get("replies", {}).get("comments", []):
+                r_author_id = reply["snippet"].get("authorChannelId", {}).get("value", "")
+                r_author    = reply["snippet"].get("authorDisplayName", "")
+                existing_reply_authors.add(r_author_id)
+                existing_reply_authors.add(r_author.lower())
+
             comments.append({
-                "id":           item["id"],
-                "author":       top.get("authorDisplayName", ""),
-                "author_image": top.get("authorProfileImageUrl", ""),
-                "text":         top.get("textDisplay", ""),
-                "likes":        top.get("likeCount", 0),
-                "published_at": top.get("publishedAt", ""),
-                "reply_count":  item["snippet"].get("totalReplyCount", 0),
+                "id":                     item["id"],
+                "author":                 top.get("authorDisplayName", ""),
+                "author_channel_id":      top.get("authorChannelId", {}).get("value", ""),
+                "author_image":           top.get("authorProfileImageUrl", ""),
+                "text":                   top.get("textDisplay", ""),
+                "likes":                  top.get("likeCount", 0),
+                "published_at":           top.get("publishedAt", ""),
+                "reply_count":            reply_count,
+                "existing_reply_authors": existing_reply_authors,  # set of channel IDs/names
             })
     except Exception as e:
         print(f"⚠️  Could not fetch comments: {e}")
+        raise  # re-raise so caller can handle quota errors
     return comments
 
 

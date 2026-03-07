@@ -21,13 +21,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 import database as db
 import pipeline.tts as tts
-from pipeline.visual_generator import generate_visual
 from pipeline.music_mixer import generate_music, mix_audio
 
 try:
     import pipeline.caption as captioner
 except ModuleNotFoundError:
-    import pipeline.caption as captioner
+    import pipeline.captioner as captioner
 
 
 def _log(stage: str, msg: str, cb=None):
@@ -43,8 +42,8 @@ def run_script_pipeline(
     title:       str,
     script:      str,
     profile:     str = "educational",
-    visual_style: str = "gradient_wave",
-    music_style:  str = "ambient",
+    visual_mood: str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
+    music_style: str = "ambient",
     cb=None,
 ):
     """
@@ -55,7 +54,7 @@ def run_script_pipeline(
         title:        Video title
         script:       Full narration text from user
         profile:      Content profile (affects caption style, not script)
-        visual_style: One of the visual_generator styles
+        visual_mood:  Mood override for Pexels footage (None = auto-detect from title)
         music_style:  One of the music_mixer styles
         cb:           Optional callback(stage, message) for progress
     """
@@ -63,7 +62,7 @@ def run_script_pipeline(
     print(f"[SCRIPT PIPELINE] Starting | ID: {video_id[:8]}...")
     print(f"  Title:   {title}")
     print(f"  Words:   {len(script.split())}")
-    print(f"  Visual:  {visual_style}")
+    print(f"  Mood:    {visual_mood or 'auto'}")
     print(f"  Music:   {music_style}")
     print(f"{'='*60}\n")
 
@@ -81,10 +80,42 @@ def run_script_pipeline(
         duration     = voice_result["duration"]
         print(f"   Duration: {duration:.1f}s ({duration/60:.1f} min)")
 
-        # ── Step 2: Looping visual ────────────────────────────────────────────
-        _log("VISUAL", f"Generating {visual_style} loop ({duration:.0f}s)...", cb)
+        # ── Step 2: Fetch mood-matched stock footage from Pexels ─────────────
+        from pipeline.video_fetcher import MOOD_QUERIES, get_mood_for_topic, enrich_segments_with_mood
+        from pipeline.video_assembler import assemble_video as _assemble
+
+        _mood = visual_mood or get_mood_for_topic(title)
+        _log("VISUAL", f"Fetching Pexels footage (mood: {_mood or 'generic'}, {duration:.0f}s)...", cb)
         db.set_status(video_id, "assembled")
-        visual_path = generate_visual(visual_style, duration, video_id)
+
+        # Build synthetic segments timed to the audio duration
+        # Each segment gets a different query from the mood set for visual variety
+        queries = MOOD_QUERIES.get(_mood, [
+            "cinematic nature peaceful",
+            "calm landscape sunrise",
+            "soft light bokeh",
+        ]) if _mood else ["peaceful cinematic nature", "calm light bokeh", "landscape sunrise"]
+
+        num_segs = max(3, int(duration / 12))   # ~12s per clip
+        seg_dur  = duration / num_segs
+        synth_segments = []
+        for i in range(num_segs):
+            synth_segments.append({
+                "text":         "",
+                "visual_query": queries[i % len(queries)],
+                "start":        round(i * seg_dur, 2),
+                "end":          round((i + 1) * seg_dur, 2),
+                "duration":     round(seg_dur, 2),
+                "clip_path":    None,
+            })
+
+        # Fetch clips
+        import pipeline.video_fetcher as _vf
+        synth_segments = _vf.fetch_all_clips(synth_segments, video_id)
+
+        # Assemble clips into a video (uses voice just for timing — audio replaced later)
+        import pipeline.video_assembler as _va
+        visual_path = _va.assemble_video(synth_segments, voice_path, video_id)
 
         # ── Step 3: Background music ──────────────────────────────────────────
         _log("MUSIC", f"Generating {music_style} background track...", cb)
