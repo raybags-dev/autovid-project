@@ -5,6 +5,7 @@ services:
   backend-1:
     build: ./backend
     restart: unless-stopped
+    mem_limit: 800m
     env_file: .env
     volumes:
       - video_output:/app/output
@@ -15,6 +16,7 @@ services:
   backend-2:
     build: ./backend
     restart: unless-stopped
+    mem_limit: 800m
     env_file: .env
     volumes:
       - video_output:/app/output
@@ -25,6 +27,7 @@ services:
   backend-3:
     build: ./backend
     restart: unless-stopped
+    mem_limit: 800m
     env_file: .env
     volumes:
       - video_output:/app/output
@@ -35,6 +38,7 @@ services:
   backend-4:
     build: ./backend
     restart: unless-stopped
+    mem_limit: 800m
     env_file: .env
     volumes:
       - video_output:/app/output
