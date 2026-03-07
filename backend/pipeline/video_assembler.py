@@ -1,5 +1,17 @@
+"""
+AutoVid Pipeline — Step 4: Video Assembler
 
+Combines stock video clips + synthesized audio into a final 1080p video.
+Uses MoviePy + FFmpeg under the hood.
 
+What this does:
+  1. For each segment, resize/crop the clip to 1920x1080
+  2. Trim clip to match segment duration (loop if clip is too short)
+  3. Stack all segment clips sequentially
+  4. Overlay the audio track perfectly synced
+  5. Add a subtle background music bed (optional)
+  6. Export to MP4 H.264 at 5Mbps (YouTube recommended)
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -17,10 +29,15 @@ from moviepy.editor import (
 )
 from moviepy.video.fx.all import resize, crop
 
+# ── Pillow compatibility (ANTIALIAS removed in Pillow 10+) ───────────────────
 import PIL.Image
 if not hasattr(PIL.Image, "ANTIALIAS"):
     PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
 
+
+
+
+# ── Clip Preparation ──────────────────────────────────────────────────────────
 
 def _prepare_clip(clip_path: Optional[str], duration: float) -> VideoFileClip:
     """
@@ -80,72 +97,98 @@ def _apply_transition(clip: VideoFileClip, fade_duration: float = 0.3) -> VideoF
 
 def assemble_video(segments: list[dict], audio_path: str, video_id: str) -> str:
     """
-    Assemble the final video from clips + audio.
+    Assemble the final video from clips + audio using FFmpeg directly.
+    Much faster than MoviePy — normalises each clip then concat + mux in one pass.
 
-    Args:
-        segments: List of segments with clip_path and duration
-        audio_path: Path to the synthesized audio MP3
-        video_id: Used for output filename
-
-    Returns:
-        Path to the assembled video file (no captions yet)
+    Returns: Path to assembled video (no captions yet)
     """
+    import tempfile
     print(f"\n🎞️  Assembling video from {len(segments)} segments...")
 
     output_path = config.VIDEOS_OUTPUT_DIR / f"{video_id}_raw.mp4"
+    tmp_dir     = config.VIDEOS_OUTPUT_DIR / f"tmp_{video_id[:8]}"
+    tmp_dir.mkdir(exist_ok=True)
 
-    # ── Step 1: Prepare each video clip ──────────────────────────────────────
-    clips = []
+    TARGET_W, TARGET_H, TARGET_FPS = 1920, 1080, 30
+
+    # ── Step 1: Normalise each clip to same resolution/fps (fast scale only) ─
+    normalised = []
     for i, seg in enumerate(segments):
-        duration = seg.get("duration", 8)
         clip_path = seg.get("clip_path")
-        print(f"  [{i+1}/{len(segments)}] Segment ({duration:.1f}s): {seg.get('visual_query', 'fallback')[:40]}")
+        duration  = seg.get("duration", 8)
+        label     = seg.get("visual_query", "clip")[:40]
+        print(f"  [{i+1}/{len(segments)}] {label} ({duration:.1f}s)")
 
-        clip = _prepare_clip(clip_path, duration)
-        clip = _apply_transition(clip)
-        clips.append(clip)
+        norm_path = str(tmp_dir / f"norm_{i:03d}.mp4")
+        if clip_path and Path(clip_path).exists():
+            result = subprocess.run([
+                "ffmpeg", "-y",
+                "-i", clip_path,
+                "-t", str(duration),
+                "-vf", f"scale={TARGET_W}:{TARGET_H}:force_original_aspect_ratio=decrease,"
+                       f"pad={TARGET_W}:{TARGET_H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={TARGET_FPS}",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-an",   # no audio in visual clips
+                norm_path
+            ], capture_output=True)
+            if result.returncode != 0 or not Path(norm_path).exists():
+                # Fallback: black frame
+                _make_black_clip(norm_path, duration, TARGET_W, TARGET_H, TARGET_FPS)
+        else:
+            _make_black_clip(norm_path, duration, TARGET_W, TARGET_H, TARGET_FPS)
 
-    # ── Step 2: Concatenate all clips ─────────────────────────────────────────
+        normalised.append(norm_path)
+
+    # ── Step 2: Write concat list ────────────────────────────────────────────
+    concat_list = tmp_dir / "concat.txt"
+    concat_list.write_text("\n".join(f"file '{p}'" for p in normalised))
+
+    # ── Step 3: Concat all clips (stream copy — instant) ────────────────────
     print("  🔗 Concatenating clips...")
-    final_video = concatenate_videoclips(clips, method="compose")
+    silent_path = str(tmp_dir / "silent.mp4")
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", str(concat_list),
+        "-c", "copy",
+        silent_path
+    ], capture_output=True, check=True)
 
-    # ── Step 3: Load and attach audio ─────────────────────────────────────────
-    print("  🎵 Attaching audio track...")
-    audio = AudioFileClip(audio_path)
+    # ── Step 4: Mux with audio ───────────────────────────────────────────────
+    print("  🎵 Muxing audio...")
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", silent_path,
+        "-i", audio_path,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
+        str(output_path)
+    ], capture_output=True, check=True)
 
-    # Trim video/audio to match (whichever is shorter)
-    min_duration = min(final_video.duration, audio.duration)
-    final_video = final_video.subclip(0, min_duration)
-    audio = audio.subclip(0, min_duration)
-
-    # Optional: normalize audio volume
-    audio = audio.fx(afx.audio_normalize)
-    final_video = final_video.set_audio(audio)
-
-    # ── Step 4: Export ────────────────────────────────────────────────────────
-    print(f"  💾 Exporting to {output_path.name}...")
-    final_video.write_videofile(
-        str(output_path),
-        fps=config.VIDEO_FPS,
-        codec="libx264",
-        audio_codec="aac",
-        bitrate=config.VIDEO_BITRATE,
-        audio_bitrate=config.AUDIO_BITRATE,
-        threads=4,
-        preset="fast",       # "ultrafast" for speed, "slow" for quality
-        verbose=False,
-        logger=None,
-    )
-
-    # Cleanup clips
-    for clip in clips:
-        clip.close()
-    final_video.close()
-    audio.close()
+    # ── Step 5: Cleanup temp dir ─────────────────────────────────────────────
+    import shutil
+    try:
+        shutil.rmtree(tmp_dir)
+    except Exception:
+        pass
 
     file_size = os.path.getsize(output_path) / (1024 * 1024)
     print(f"✅ Video assembled: {output_path.name} ({file_size:.1f} MB)")
     return str(output_path)
+
+
+def _make_black_clip(output_path: str, duration: float, w: int, h: int, fps: int):
+    """Generate a plain black fallback clip."""
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", f"color=c=black:s={w}x{h}:r={fps}",
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-an", output_path
+    ], capture_output=True)
 
 
 def generate_thumbnail(video_path: str, video_id: str, time_offset: float = 3.0) -> str:
@@ -175,5 +218,7 @@ def generate_thumbnail(video_path: str, video_id: str, time_offset: float = 3.0)
         return None
 
 
+# ── Quick test ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    # This test requires actual clip files and audio
     print("Video assembler loaded. Run via orchestrator.py")

@@ -862,18 +862,30 @@ def startup():
     print("🚀 AutoVid API starting...")
 
     # ── Recover stuck videos ──────────────────────────────────────────────────
-    # If the container restarted mid-pipeline, videos get stuck in non-terminal
-    # statuses forever. Mark them as failed so the user can retry.
+    # Only fail videos stuck in an in-progress status for more than 30 minutes.
+    # This avoids nuking a video that just started when the server restarts.
     try:
-        stuck_statuses = ["scripted", "voiced", "assembled", "captioned", "labeled"]
-        recovered = 0
+        from datetime import datetime, timezone, timedelta
+        STUCK_THRESHOLD = timedelta(minutes=30)
+        stuck_statuses  = ["scripted", "voiced", "assembled", "captioned", "labeled"]
+        now             = datetime.now(timezone.utc)
+        recovered       = 0
         for status in stuck_statuses:
-            stuck = db.list_videos(status=status)
-            for v in stuck:
-                db.set_failed(v["id"], f"Pipeline interrupted (server restart while status={status})")
+            for v in db.list_videos(status=status):
+                created_raw = v.get("created_at", "")
+                try:
+                    created = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+                    age     = now - created
+                    if age < STUCK_THRESHOLD:
+                        continue  # still young — give it time
+                except Exception:
+                    pass  # can't parse timestamp — fail it to be safe
+                db.set_failed(v["id"], f"Pipeline interrupted — server restarted mid-run (was: {status}). Please retry.")
                 recovered += 1
         if recovered:
-            print(f"⚠️  Recovered {recovered} stuck video(s) — marked as failed so they can be retried")
+            print(f"⚠️  Recovered {recovered} stuck video(s) older than 30min — marked failed so they can be retried")
+        else:
+            print("✅ No stuck videos found at startup")
     except Exception as e:
         print(f"⚠️  Startup recovery check failed: {e}")
 
