@@ -860,6 +860,23 @@ def trigger_auto_reply(user: str = Depends(verify_token)):
 @app.on_event("startup")
 def startup():
     print("🚀 AutoVid API starting...")
+
+    # ── Recover stuck videos ──────────────────────────────────────────────────
+    # If the container restarted mid-pipeline, videos get stuck in non-terminal
+    # statuses forever. Mark them as failed so the user can retry.
+    try:
+        stuck_statuses = ["scripted", "voiced", "assembled", "captioned", "labeled"]
+        recovered = 0
+        for status in stuck_statuses:
+            stuck = db.list_videos(status=status)
+            for v in stuck:
+                db.set_failed(v["id"], f"Pipeline interrupted (server restart while status={status})")
+                recovered += 1
+        if recovered:
+            print(f"⚠️  Recovered {recovered} stuck video(s) — marked as failed so they can be retried")
+    except Exception as e:
+        print(f"⚠️  Startup recovery check failed: {e}")
+
     try:
         config.validate()
     except EnvironmentError as e:
@@ -921,5 +938,3 @@ def create_compilation(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-    

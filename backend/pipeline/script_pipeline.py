@@ -26,7 +26,7 @@ from pipeline.music_mixer import generate_music, mix_audio
 try:
     import pipeline.caption as captioner
 except ModuleNotFoundError:
-    import pipeline.captioner as captioner
+    import pipeline.caption as captioner
 
 
 def _log(stage: str, msg: str, cb=None):
@@ -35,6 +35,42 @@ def _log(stage: str, msg: str, cb=None):
     if cb:
         try: cb(stage, msg)
         except Exception: pass
+
+
+def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public_url):
+    """Safely delete all intermediate files for a video. Never raises."""
+    candidates = [
+        voice_path,
+        mixed_path,
+        visual_path,
+        str(config.AUDIO_OUTPUT_DIR / f"{video_id}_music.mp3"),
+        str(config.AUDIO_OUTPUT_DIR / f"{video_id}_music.raw"),
+        str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_captioned.mp4"),
+        str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_thumb.jpg"),
+    ]
+    # Only delete the final video if it was uploaded to storage
+    if public_url:
+        candidates.append(str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_final.mp4"))
+
+    for p in candidates:
+        if not p:
+            continue
+        try:
+            path = Path(p)
+            if path.exists():
+                path.unlink()
+                print(f"🧹 Cleaned: {path.name}")
+        except Exception as ex:
+            print(f"⚠️  Could not clean {p}: {ex}")
+
+    # Clean any leftover segment clips
+    try:
+        for seg in config.VIDEOS_OUTPUT_DIR.glob(f"seg_*_{video_id[:8]}*.mp4"):
+            seg.unlink(missing_ok=True)
+        for seg in config.VIDEOS_OUTPUT_DIR.glob(f"seg_*.mp4"):
+            pass  # leave other videos' segments alone
+    except Exception:
+        pass
 
 
 def run_script_pipeline(
@@ -86,7 +122,7 @@ def run_script_pipeline(
 
         _mood = visual_mood or get_mood_for_topic(title)
         _log("VISUAL", f"Fetching Pexels footage (mood: {_mood or 'generic'}, {duration:.0f}s)...", cb)
-        db.set_status(video_id, "assembled")
+        db.set_status(video_id, "scripted")  # fetching clips — not assembled yet
 
         # Build synthetic segments timed to the audio duration
         # Each segment gets a different query from the mood set for visual variety
@@ -116,6 +152,7 @@ def run_script_pipeline(
         # Assemble clips into a video (uses voice just for timing — audio replaced later)
         import pipeline.video_assembler as _va
         visual_path = _va.assemble_video(synth_segments, voice_path, video_id)
+        db.set_status(video_id, "assembled")  # clips fetched and assembled ✅
 
         # ── Step 3: Background music ──────────────────────────────────────────
         _log("MUSIC", f"Generating {music_style} background track...", cb)
@@ -190,25 +227,10 @@ def run_script_pipeline(
 
         print(f"\n✅ Script pipeline complete: {video_id[:8]}")
 
-        # ── Cleanup intermediates (safe — final video kept if no storage URL) ─
-        cleanup_paths = [voice_path, mixed_path, visual_path]
-        for path in cleanup_paths:
-            if path and Path(path).exists():
-                try:
-                    Path(path).unlink()
-                    print(f"🧹 Cleaned: {Path(path).name}")
-                except Exception:
-                    pass
-        # Clean music mp3 and captioned intermediate only if storage succeeded
-        if public_url:
-            for extra in [
-                config.AUDIO_OUTPUT_DIR / f"{video_id}_music.mp3",
-                config.VIDEOS_OUTPUT_DIR / f"{video_id}_captioned.mp4",
-            ]:
-                if extra.exists() and str(extra) != final_path:
-                    extra.unlink(missing_ok=True)
-        else:
-            print("⚠️  Storage upload failed — final video kept at:", final_path)
+        # ── Cleanup ALL intermediates ─────────────────────────────────────────
+        # Always clean up — if storage succeeded, the public URL is in DB
+        # If storage failed, the local path is in DB — still clean intermediates
+        _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public_url)
 
         return final_path
 
@@ -220,18 +242,9 @@ def run_script_pipeline(
         raise
 
     finally:
-        # Safety net — clean only raw music scratch file
+        # Safety net for error paths — _cleanup_intermediates handles success path
         try:
             raw = config.AUDIO_OUTPUT_DIR / f"{video_id}_music.raw"
             raw.unlink(missing_ok=True)
         except Exception:
             pass
-        # Clean music raw file
-        music_raw = config.AUDIO_OUTPUT_DIR / f"{video_id}_music.mp3"
-        if music_raw.exists():
-            music_raw.unlink(missing_ok=True)
-        # Clean captioned intermediate
-        cap_file = config.VIDEOS_OUTPUT_DIR / f"{video_id}_captioned.mp4"
-        if cap_file.exists():
-            cap_file.unlink(missing_ok=True)
-
