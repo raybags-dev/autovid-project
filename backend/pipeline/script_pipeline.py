@@ -26,7 +26,7 @@ from pipeline.music_mixer import generate_music, mix_audio
 try:
     import pipeline.caption as captioner
 except ModuleNotFoundError:
-    import pipeline.captioner as captioner
+    import pipeline.caption as captioner
 
 
 def _log(stage: str, msg: str, cb=None):
