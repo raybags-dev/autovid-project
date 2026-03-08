@@ -77,8 +77,11 @@ def step_align_segments(script_data: dict, audio_result: dict, cb=None) -> list:
     return tts.align_segments_to_audio(script_data, audio_result["path"])
 
 
-def step_fetch_clips(segments: list, video_id: str, cb=None) -> list:
+def step_fetch_clips(segments: list, video_id: str, mood: str = None, cb=None) -> list:
     _log("CLIPS", f"Fetching {len(segments)} stock video clips...", cb)
+    if mood:
+        from pipeline.video_fetcher import enrich_segments_with_mood
+        segments = enrich_segments_with_mood(segments, mood)
     return video_fetcher.fetch_all_clips(segments, video_id)
 
 
@@ -240,6 +243,7 @@ def run_pipeline(
     prompt: str,
     profile: str = 'funny',
     auto_upload: bool = True,
+    visual_mood: str = None, 
     progress_callback: Optional[Callable] = None,
 ) -> dict:
     """
@@ -276,8 +280,8 @@ def run_pipeline(
         segments = step_align_segments(script_data, audio_result, cb)
 
         # ── 5. Fetch clips ────────────────────────────────────────────────────
-        segments = step_fetch_clips(segments, video_id, cb)
-
+        _mood = visual_mood or video_fetcher.get_mood_for_topic(prompt)
+        segments = step_fetch_clips(segments, video_id, mood=_mood, cb=cb)
         # ── 6. Assemble raw video ─────────────────────────────────────────────
         raw_video_path = step_assemble_video(segments, audio_result, video_id, cb)
 

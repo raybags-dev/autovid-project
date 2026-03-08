@@ -44,6 +44,34 @@ def get_client() -> Client:
     return create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
 
 
+# ── App Settings (persistent key-value store) ─────────────────────────────────
+
+def get_setting(key: str, default=None):
+    """Read a setting from the app_settings table. Returns default if not found."""
+    try:
+        db = get_client()
+        row = db.table("app_settings").select("value").eq("key", key).execute()
+        if row.data:
+            return row.data[0]["value"]
+    except Exception as e:
+        print(f"⚠️  get_setting({key}) failed: {e}")
+    return default
+
+
+def set_setting(key: str, value) -> bool:
+    """Upsert a setting into the app_settings table. Returns True on success."""
+    try:
+        db = get_client()
+        db.table("app_settings").upsert(
+            {"key": key, "value": value, "updated_at": datetime.now(timezone.utc).isoformat()},
+            on_conflict="key"
+        ).execute()
+        return True
+    except Exception as e:
+        print(f"⚠️  set_setting({key}) failed: {e}")
+        return False
+
+
 # ── Create ────────────────────────────────────────────────────────────────────
 
 def create_video(prompt: str) -> dict:
@@ -196,4 +224,3 @@ def list_compilations(limit: int = 50) -> list[dict]:
                .limit(limit)
                .execute())
     return result.data or []
-

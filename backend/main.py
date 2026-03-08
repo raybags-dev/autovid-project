@@ -619,6 +619,64 @@ def get_billing(user: str = Depends(verify_token)):
         "pricing": "Free",
     }
 
+    # ── Hetzner VPS ───────────────────────────────────────────────────────────
+    hetzner_token = os.getenv("HETZNER_API_TOKEN", "")
+    if hetzner_token:
+        try:
+            import urllib.request as _req
+            import json as _json
+
+            def _hetzner(path):
+                r = _req.Request(
+                    f"https://api.hetzner.cloud/v1{path}",
+                    headers={"Authorization": f"Bearer {hetzner_token}"}
+                )
+                with _req.urlopen(r, timeout=8) as resp:
+                    return _json.loads(resp.read())
+
+            # Server info
+            servers = _hetzner("/servers")["servers"]
+            server  = next((s for s in servers if s.get("public_net", {}).get("ipv4", {}).get("ip") == "157.180.67.199"), servers[0] if servers else None)
+
+            if server:
+                st        = server.get("server_type", {})
+                loc       = server.get("datacenter", {}).get("location", {})
+                resources = server.get("resources", {})
+                net       = server.get("public_net", {})
+
+                # Billing — current month invoice estimate
+                billing_data = {}
+                try:
+                    inv = _hetzner("/invoices?status=pending")
+                    billing_data = inv.get("invoices", [{}])[0] if inv.get("invoices") else {}
+                except Exception:
+                    pass
+
+                result["hetzner"] = {
+                    "status":          "ok",
+                    "server_name":     server.get("name", "—"),
+                    "server_status":   server.get("status", "—"),       # running | off | restarting
+                    "server_type":     st.get("name", "—"),             # cx22, cpx31 etc
+                    "cpu_cores":       st.get("cores", "—"),
+                    "ram_gb":          st.get("memory", "—"),
+                    "disk_gb":         st.get("disk", "—"),
+                    "disk_type":       st.get("storage_type", "—"),     # local / network
+                    "location":        f"{loc.get('city','—')}, {loc.get('country','—')}",
+                    "ipv4":            net.get("ipv4", {}).get("ip", "—"),
+                    "monthly_cost":    f"€{st.get('prices', [{}])[0].get('price_monthly', {}).get('gross', '—')}",
+                    "included_traffic_tb": st.get("included_traffic", 0) / 1e12 if st.get("included_traffic") else "—",
+                    "outgoing_traffic_gb": round(server.get("outgoing_traffic", 0) / 1e9, 2),
+                    "ingoing_traffic_gb":  round(server.get("ingoing_traffic", 0) / 1e9, 2),
+                    "created":         server.get("created", "—")[:10],
+                    "estimated_invoice": billing_data.get("amount_due", None),
+                }
+            else:
+                result["hetzner"] = {"status": "error", "error": "No servers found on this account"}
+        except Exception as e:
+            result["hetzner"] = {"status": "error", "error": str(e)}
+    else:
+        result["hetzner"] = {"status": "no_token", "error": "Add HETZNER_API_TOKEN to .env"}
+
     return result
 
 
@@ -821,8 +879,21 @@ def run_short_pipeline(prompt: str, ambience: str = "stars"):
 
 
 
-# In-memory toggle — persists until container restart
-_auto_reply_enabled = True
+# Auto-reply toggle — loaded from DB on startup so it survives restarts
+def _get_auto_reply_enabled() -> bool:
+    try:
+        val = db.get_setting("auto_reply_enabled", default="true")
+        return str(val).lower() not in ("false", "0", "no")
+    except Exception:
+        return True  # safe default if DB unavailable
+
+def _set_auto_reply_enabled(enabled: bool):
+    try:
+        db.set_setting("auto_reply_enabled", str(enabled).lower())
+    except Exception as e:
+        print(f"⚠️  Could not persist auto_reply_enabled: {e}")
+
+_auto_reply_enabled = _get_auto_reply_enabled()
 
 
 @app.get("/auto-reply/status")
@@ -833,7 +904,7 @@ def get_auto_reply_status(user: str = Depends(verify_token)):
     backed_off = _quota_backed_off()
     resume_in_h = max(0, int((_quota_exceeded_until - time.time()) / 3600)) if backed_off else 0
     return {
-        "enabled": _auto_reply_enabled,
+        "enabled": _get_auto_reply_enabled(),   # always read live from DB
         "quota_backed_off": backed_off,
         "resume_in_hours": resume_in_h,
     }
@@ -841,12 +912,14 @@ def get_auto_reply_status(user: str = Depends(verify_token)):
 
 @app.post("/auto-reply/toggle")
 def toggle_auto_reply(body: dict, user: str = Depends(verify_token)):
-    """Enable or disable auto-reply. Body: {enabled: bool}"""
+    """Enable or disable auto-reply. Persisted to DB — survives restarts."""
     global _auto_reply_enabled
-    _auto_reply_enabled = bool(body.get("enabled", True))
-    state = "enabled" if _auto_reply_enabled else "disabled"
-    print(f"💬 Auto-reply {state} by user")
-    return {"enabled": _auto_reply_enabled, "message": f"Auto-reply {state}"}
+    enabled = bool(body.get("enabled", True))
+    _auto_reply_enabled = enabled
+    _set_auto_reply_enabled(enabled)   # persist to Supabase
+    state = "enabled" if enabled else "disabled"
+    print(f"💬 Auto-reply {state} by user — saved to DB")
+    return {"enabled": enabled, "message": f"Auto-reply {state}"}
 
 
 @app.post("/auto-reply/trigger")

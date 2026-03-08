@@ -3083,6 +3083,18 @@ export default function Dashboard() {
                                 billing.youtube.units_remaining || 0
                               ).toLocaleString(),
                             ],
+                            [
+                              "Upload Units",
+                              (
+                                billing.youtube.upload_units_used || 0
+                              ).toLocaleString(),
+                            ],
+                            [
+                              "Read Units",
+                              (
+                                billing.youtube.read_units_used || 0
+                              ).toLocaleString(),
+                            ],
                             ["Cost/Upload", "1,600 units"],
                           ].map(([k, v]) => (
                             <div
@@ -3510,6 +3522,258 @@ export default function Dashboard() {
                         >
                           PEXELS API DOCS →
                         </a>
+                      </div>
+                    )}
+
+                    {/* ── Hetzner VPS ── */}
+                    {billing.hetzner && (
+                      <div
+                        style={{
+                          background: T.bgCard,
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 14,
+                          padding: 20,
+                          gridColumn: "1/-1",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 16,
+                          }}
+                        >
+                          <div style={{ fontSize: 22 }}>🖥️</div>
+                          <div>
+                            <div
+                              style={{
+                                fontFamily: "'Syne',sans-serif",
+                                fontWeight: 700,
+                                fontSize: 13,
+                              }}
+                            >
+                              Hetzner VPS
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: T.textMid,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.08em",
+                              }}
+                            >
+                              {billing.hetzner.server_name || "Server"} ·{" "}
+                              {billing.hetzner.location || "—"}
+                            </div>
+                          </div>
+                          {billing.hetzner.status === "ok" ? (
+                            <div
+                              style={{
+                                marginLeft: "auto",
+                                fontSize: 10,
+                                padding: "3px 10px",
+                                borderRadius: 6,
+                                background:
+                                  billing.hetzner.server_status === "running"
+                                    ? "#00ff9020"
+                                    : "#ff505020",
+                                color:
+                                  billing.hetzner.server_status === "running"
+                                    ? "#00ff90"
+                                    : "#ff5050",
+                                border: `1px solid ${billing.hetzner.server_status === "running" ? "#00ff9040" : "#ff505040"}`,
+                              }}
+                            >
+                              ●{" "}
+                              {(
+                                billing.hetzner.server_status || "unknown"
+                              ).toUpperCase()}
+                            </div>
+                          ) : billing.hetzner.status === "no_token" ? (
+                            <div
+                              style={{
+                                marginLeft: "auto",
+                                fontSize: 10,
+                                padding: "3px 10px",
+                                borderRadius: 6,
+                                background: "#ffaa0015",
+                                color: "#ffaa00",
+                                border: "1px solid #ffaa0040",
+                              }}
+                            >
+                              ⚠ ADD TOKEN
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                marginLeft: "auto",
+                                fontSize: 10,
+                                padding: "3px 10px",
+                                borderRadius: 6,
+                                background: "#ff505020",
+                                color: "#ff5050",
+                                border: "1px solid #ff505040",
+                              }}
+                            >
+                              ● ERROR
+                            </div>
+                          )}
+                        </div>
+
+                        {billing.hetzner.status === "ok" ? (
+                          <>
+                            {/* Specs + Cost grid */}
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(4,1fr)",
+                                gap: 8,
+                                marginBottom: 14,
+                              }}
+                            >
+                              {[
+                                ["Type", billing.hetzner.server_type],
+                                ["CPU", `${billing.hetzner.cpu_cores} vCPU`],
+                                ["RAM", `${billing.hetzner.ram_gb} GB`],
+                                [
+                                  "Disk",
+                                  `${billing.hetzner.disk_gb} GB ${billing.hetzner.disk_type || ""}`,
+                                ],
+                                [
+                                  "Monthly",
+                                  billing.hetzner.monthly_cost || "—",
+                                ],
+                                ["Since", billing.hetzner.created || "—"],
+                                [
+                                  "Traffic In",
+                                  `${billing.hetzner.ingoing_traffic_gb || 0} GB`,
+                                ],
+                                [
+                                  "Traffic Out",
+                                  `${billing.hetzner.outgoing_traffic_gb || 0} GB`,
+                                ],
+                              ].map(([k, v]) => (
+                                <div
+                                  key={k}
+                                  style={{
+                                    background: T.bgBase,
+                                    borderRadius: 8,
+                                    padding: "8px 10px",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: 9,
+                                      color: T.textMid,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.06em",
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    {k}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: T.text,
+                                    }}
+                                  >
+                                    {v || "—"}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Traffic bar */}
+                            {billing.hetzner.included_traffic_tb &&
+                              billing.hetzner.included_traffic_tb !== "—" && (
+                                <div style={{ marginBottom: 14 }}>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      fontSize: 10,
+                                      color: T.textMid,
+                                      marginBottom: 5,
+                                    }}
+                                  >
+                                    <span>Outbound traffic this month</span>
+                                    <span>
+                                      {billing.hetzner.outgoing_traffic_gb} GB /{" "}
+                                      {billing.hetzner.included_traffic_tb *
+                                        1000}{" "}
+                                      GB included
+                                    </span>
+                                  </div>
+                                  <div
+                                    style={{
+                                      height: 5,
+                                      background: T.border,
+                                      borderRadius: 99,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        height: "100%",
+                                        borderRadius: 99,
+                                        background: "#00d4ff",
+                                        width: `${Math.min((billing.hetzner.outgoing_traffic_gb / (billing.hetzner.included_traffic_tb * 1000)) * 100, 100)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* IPv4 + console link */}
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  color: T.textFaint,
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {billing.hetzner.ipv4}
+                              </div>
+                              <a
+                                href="https://console.hetzner.cloud"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  fontSize: 10,
+                                  color: T.accent,
+                                  textDecoration: "none",
+                                  letterSpacing: "0.06em",
+                                }}
+                              >
+                                OPEN HETZNER CONSOLE →
+                              </a>
+                            </div>
+                          </>
+                        ) : (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color:
+                                billing.hetzner.status === "no_token"
+                                  ? "#ffaa00"
+                                  : "#ff5050",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {billing.hetzner.status === "no_token"
+                              ? "Add HETZNER_API_TOKEN to your server .env file to see live server stats. Create a Read-only token at console.hetzner.cloud → Security → API Tokens."
+                              : billing.hetzner.error}
+                          </div>
+                        )}
                       </div>
                     )}
 
