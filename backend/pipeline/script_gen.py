@@ -30,99 +30,123 @@ def get_groq() -> Groq:
 # ── Channel Profiles ─────────────────────────────────────────────────────────
 
 CHANNEL_PROFILES = {
-    "funny": {
-        "name": "Funny",
-        "description": "viral YouTube comedian",
-        "tone": "funny, energetic, and irreverent. Use wit, absurdist humour, comic timing, and unexpected punchlines. Keep it light — no dark or offensive jokes.",
+    "educational": {
+        "name": "Educational",
+        "description": "thoughtful essayist and knowledge communicator — think Kurzgesagt meets David Attenborough",
+        "tone": "curious, clear, emotionally resonant, and mind-expanding. Make complex ideas feel exciting and deeply human. Never cold or clinical.",
         "style_rules": [
-            "Open with a ridiculous hook that makes people laugh immediately",
-            "Use comic timing — short setup, big payoff",
-            "Self-aware, playful tone throughout",
-            "End on a laugh or a twist",
+            "Open with a question or observation that immediately reframes how the viewer sees the topic",
+            "Build the essay in layers — each segment adds a new dimension, not just a new fact",
+            "Use vivid analogies, real human examples, and sensory language",
+            "Let emotion live alongside information — this is not a lecture, it's an experience",
+            "End with a broader truth or implication the viewer will carry with them",
         ],
     },
     "serious": {
         "name": "Serious",
-        "description": "authoritative documentary-style narrator",
-        "tone": "clear, confident, and informative. No jokes. Deliver facts and insights with weight and credibility.",
+        "description": "authoritative documentary narrator with deep emotional intelligence",
+        "tone": "measured, weighty, and deeply human. No jokes, no fluff. Every word earns its place. Like a great documentary that stays with you.",
         "style_rules": [
-            "Open with a bold, compelling statement of fact",
-            "Build narrative with evidence and momentum",
-            "Measured, authoritative tone — no fluff",
-            "End with a strong takeaway or call to reflection",
-        ],
-    },
-    "educational": {
-        "name": "Educational",
-        "description": "engaging science/knowledge communicator like Kurzgesagt",
-        "tone": "curious, clear, and mind-expanding. Make complex ideas feel exciting and accessible.",
-        "style_rules": [
-            "Open with a surprising question or counterintuitive fact",
-            "Break down complex ideas into simple vivid language",
-            "Use analogies and real-world examples",
-            "End with a broader implication that makes viewers think",
+            "Open with a striking image, statistic, or human moment — no generic introductions",
+            "Build with deliberate momentum — each segment tightens the narrative",
+            "Use contrast: the small and the vast, the personal and the universal",
+            "Trust the viewer's intelligence — don't over-explain",
+            "End with something the viewer needs to sit with — a truth, not a summary",
         ],
     },
     "inspirational": {
         "name": "Inspirational",
-        "description": "motivational speaker and storyteller",
-        "tone": "warm, uplifting, and human. Speak directly to the viewer's emotions and ambitions.",
+        "description": "master storyteller who speaks to the human heart",
+        "tone": "warm, intimate, and emotionally powerful. Speak directly to the viewer's deepest experiences. Like a great TED talk — but more honest, less polished.",
         "style_rules": [
-            "Open with a relatable struggle or universal truth",
-            "Build emotional momentum through story",
-            "Use 'you' to speak directly to the viewer",
-            "End with a powerful, memorable call to action",
+            "Open with a moment of real human vulnerability or universal longing",
+            "Build the arc from struggle to understanding — not struggle to triumph, but struggle to wisdom",
+            "Use 'you' and 'we' — this is a conversation, not a speech",
+            "Weave in specific, concrete human details that make it feel true",
+            "End with something that feels like a gift — a reframe, a permission, a truth",
+        ],
+    },
+    "reflective": {
+        "name": "Reflective",
+        "description": "philosophical essayist in the tradition of Alan Watts and Oliver Burkeman",
+        "tone": "quiet, deep, and unhurried. This is for people who stop and think. No rush, no hype. Pure contemplation turned into language.",
+        "style_rules": [
+            "Open with a paradox, a contradiction, or something that doesn't quite add up",
+            "Move slowly — let ideas breathe and unfold rather than march",
+            "Question assumptions the viewer didn't know they had",
+            "Use silence and space in the rhythm of the writing",
+            "End open-endedly — leave the viewer with more questions than answers, but richer ones",
+        ],
+    },
+    "funny": {
+        "name": "Funny",
+        "description": "sharp, self-aware comedian who uses humour to reveal truth",
+        "tone": "witty, irreverent, but always with a point. The comedy serves the insight, not the other way around.",
+        "style_rules": [
+            "Open with an absurd or unexpectedly honest hook",
+            "Use comic timing — the setup matters as much as the punchline",
+            "Let humour be a vehicle for real observations about life",
+            "Subvert expectations mid-segment for maximum impact",
+            "End with a laugh that also makes them think",
         ],
     },
 }
 
-DEFAULT_PROFILE = "funny"
+DEFAULT_PROFILE = "educational"
 
 
 def get_system_prompt(profile: str = DEFAULT_PROFILE) -> str:
     p = CHANNEL_PROFILES.get(profile, CHANNEL_PROFILES[DEFAULT_PROFILE])
-    rules_str = "".join(f"- {r}" for r in p["style_rules"])
-    return f"""You are a {p["description"]} writing YouTube video scripts.
+    rules_str = "\n".join(f"- {r}" for r in p["style_rules"])
+    return f"""You are a {p["description"]} writing deeply thoughtful YouTube video scripts.
 Tone: {p["tone"]}
 
 Profile-specific rules:
 {rules_str}
 
-Universal rules:
-- Keep total narration under 90 seconds (about 200-250 words)
-- Use short punchy sentences
+CORE REQUIREMENT — LENGTH:
+- Target 420-480 words of narration (approximately 3 minutes at natural speaking pace)
+- This is a MINIMUM. Do not write short scripts. Develop the topic fully.
+- Write 8-12 segments, each 30-50 words, covering distinct angles of the topic
+
+WRITING QUALITY:
+- Write a real essay — not a list of facts, not a surface overview
+- Each segment must earn its place: a new perspective, a deeper layer, an emotional beat
+- Use vivid, concrete language. Avoid vague generalities.
+- Speak directly to the viewer — use "you", "we", "us"
+- Let silence live in the words — rhythm and pacing matter as much as content
 - Write EXACTLY as it should be spoken — natural human speech only
-- Use commas, periods, and ellipsis (...) for natural pauses and timing
-- NEVER use [PAUSE], [BEAT], [LAUGHTER] or any bracketed stage directions
-- NEVER use asterisks, hashtags, or any markdown formatting
+- Use commas, periods, and ellipsis (...) for natural pauses
+- NEVER use [PAUSE], [BEAT], or any bracketed stage directions
+- NEVER use asterisks, hashtags, or markdown formatting
 - Always respond in valid JSON only — no markdown, no explanation
 """
 
 
 # Legacy single prompt kept for backward compat
-SYSTEM_PROMPT = get_system_prompt("funny")
+SYSTEM_PROMPT = get_system_prompt("educational")
 
 SCRIPT_SCHEMA = """
-Return ONLY this JSON structure:
+Return ONLY this JSON structure — no markdown, no explanation, only raw JSON:
 {
-  "title": "YouTube video title (max 60 chars, catchy, include emoji)",
-  "description": "YouTube description (2-3 sentences, SEO friendly, include relevant keywords)",
-  "hook": "First 5 seconds - must grab attention immediately",
+  "title": "YouTube video title (max 70 chars, compelling, no clickbait emoji spam — one emoji max)",
+  "description": "YouTube description: 3-4 sentences, SEO-rich, emotionally resonant summary of the video",
+  "hook": "Opening line — 1-2 sentences max. Must grab attention in the first 3 seconds. Ask a question, make a bold claim, or drop a striking image.",
   "segments": [
     {
-      "text": "Narration text for this segment",
-      "visual_query": "Highly specific, cinematic stock video search query for this exact moment. Think like a film director — what scene, emotion, or visual metaphor captures this line? Use vivid concrete nouns and emotions, NOT generic words. Examples: \'elderly hands holding rosary\', \'dramatic storm clouds timelapse\', \'scientist microscope closeup\', \'child laughing slow motion\', \'city lights night aerial\'. NEVER use vague queries like \'background video\' or \'nature scene\'.",
-      "duration_hint": 5
+      "text": "Narration for this segment. Each segment should be 30-50 words. Write 8-12 segments total to reach ~450 words of total narration. Each segment is a complete thought — a layer of the essay, not a bullet point.",
+      "visual_query": "Cinematic stock video query for this exact emotional/narrative moment. Be specific and visual. Examples: 'elderly woman looking out rain-streaked window', 'timelapse city dawn fog clearing', 'hands writing in journal candlelight', 'child running through wheat field golden hour'. NEVER use abstract queries like 'concept' or 'background'.",
+      "duration_hint": 18
     }
   ],
-  "outro": "Final 3-5 second sign-off line",
-  "suggested_labels": ["Comedy", "Animals"],
-  "category": "Entertainment",
-  "mood": "funny"
+  "outro": "Closing 2-3 sentences. Leave the viewer with something — a question, a feeling, a truth to carry with them.",
+  "suggested_labels": ["Philosophy", "Life"],
+  "category": "Education",
+  "mood": "inspirational"
 }
 
-Categories: Entertainment, Education, Technology, Gaming, Lifestyle, Science, Food, Travel
-Mood options: funny, educational, dramatic, inspirational, satirical
+Categories: Education, Entertainment, Science, Technology, Lifestyle, Philosophy, Health, Society
+Mood options: inspirational, educational, dramatic, reflective, serious
 """
 
 
@@ -132,7 +156,7 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
 
     Args:
         prompt:  The video idea, e.g. "A cat explains quantum physics"
-        profile: Channel profile — "funny" | "serious" | "educational" | "inspirational"
+        profile: Channel profile — "educational" | "serious" | "inspirational" | "funny"
 
     Returns:
         dict with title, description, hook, segments, outro, labels, etc.
@@ -145,10 +169,10 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
         model=config.GROQ_MODEL,
         messages=[
             {"role": "system", "content": get_system_prompt(profile) + SCRIPT_SCHEMA},
-            {"role": "user", "content": f"Create a funny YouTube video script about: {prompt}"},
+            {"role": "user", "content": f"Write a deeply thoughtful, emotionally resonant 3-minute video essay about: {prompt}\n\nRemember: target ~450 words across 8-12 segments. This is a proper essay, not a list. Make it beautiful."},
         ],
-        temperature=0.85,       # Higher = more creative
-        max_tokens=2048,
+        temperature=0.82,
+        max_tokens=4096,   # longer essays need more tokens
         response_format={"type": "json_object"},
     )
 
@@ -172,7 +196,7 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
 
     # Estimate total duration (rough: 140 words per minute)
     word_count = len(script_data["full_narration"].split())
-    script_data["estimated_duration"] = int((word_count / 140) * 60)
+    script_data["estimated_duration"] = int((word_count / 150) * 60)  # ~150 wpm natural speech
 
     print(f"✅ Script generated: '{script_data['title']}'")
     print(f"   Segments: {len(script_data['segments'])}, ~{script_data['estimated_duration']}s")

@@ -188,7 +188,7 @@ export default function Dashboard() {
   const [filter, setFilter] = useState("all");
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [profile, setProfile] = useState("funny");
+  const [profile, setProfile] = useState("educational");
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
@@ -416,7 +416,7 @@ export default function Dashboard() {
     if (tab === "channel") setChannelVisible(24);
   }, [tab]);
 
-  // Auto-reply toggle
+  // Settings tab — load auto-reply + auto-generate
   useEffect(() => {
     if (tab !== "settings") return;
     api
@@ -424,6 +424,12 @@ export default function Dashboard() {
       .then((r) => {
         setAutoReplyEnabled(r.data.enabled);
         setAutoReplyStatus(r.data);
+      })
+      .catch(() => {});
+    api
+      .get("/auto-generate/settings")
+      .then((r) => {
+        setAutoGenSettings(r.data);
       })
       .catch(() => {});
   }, [tab]);
@@ -468,6 +474,17 @@ export default function Dashboard() {
   const [ytSettingsModal, setYtSettingsModal] = useState(null); // video object
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [autoReplyStatus, setAutoReplyStatus] = useState(null);
+  const [autoGenSettings, setAutoGenSettings] = useState(null);
+  const [autoGenSaving, setAutoGenSaving] = useState(false);
+  const [autoGenJobId, setAutoGenJobId] = useState(null);
+  const [autoGenRunning, setAutoGenRunning] = useState(false);
+  const [autoGenStep, setAutoGenStep] = useState(0);
+  const [autoGenLogs, setAutoGenLogs] = useState([]);
+  const [showAutoGenLogs, setShowAutoGenLogs] = useState(false);
+  const [autoGenPrompt, setAutoGenPrompt] = useState("");
+  const autoGenLogLineRef = useRef(0);
+  const autoGenLogPollRef = useRef(null);
+  const autoGenLogsEndRef = useRef(null);
   const [shortsModal, setShortsModal] = useState(null); // video object | "new"
 
   const handleUpload = async (id, e) => {
@@ -1509,24 +1526,29 @@ export default function Dashboard() {
                   >
                     {[
                       {
-                        id: "funny",
-                        label: "😄 Funny",
-                        desc: "Comedy & viral",
+                        id: "educational",
+                        label: "🧠 Educational",
+                        desc: "Essay-style explainer",
                       },
                       {
                         id: "serious",
                         label: "🎯 Serious",
-                        desc: "Documentary style",
-                      },
-                      {
-                        id: "educational",
-                        label: "🧠 Educational",
-                        desc: "Explainer / facts",
+                        desc: "Documentary / weighty",
                       },
                       {
                         id: "inspirational",
                         label: "🔥 Inspirational",
-                        desc: "Motivational",
+                        desc: "Emotional storytelling",
+                      },
+                      {
+                        id: "reflective",
+                        label: "🌊 Reflective",
+                        desc: "Philosophical / deep",
+                      },
+                      {
+                        id: "funny",
+                        label: "😄 Funny",
+                        desc: "Humour with insight",
                       },
                     ].map((p) => (
                       <button
@@ -4802,6 +4824,658 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+                {/* ── Auto-Generate Settings ── */}
+                {autoGenSettings && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: T.textFaint,
+                        letterSpacing: "0.1em",
+                        marginBottom: 10,
+                      }}
+                    >
+                      AUTO-GENERATE
+                    </div>
+                    <div
+                      style={{
+                        background: T.bgCard,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 10,
+                        padding: "16px",
+                      }}
+                    >
+                      {/* Enable toggle */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: 14,
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: T.text,
+                            }}
+                          >
+                            🤖 Auto-Generate Videos
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: T.textFaint,
+                              marginTop: 2,
+                            }}
+                          >
+                            Automatically generates ready-to-review videos on a
+                            schedule
+                          </div>
+                        </div>
+                        <div
+                          onClick={() =>
+                            setAutoGenSettings((s) => ({
+                              ...s,
+                              enabled: !s.enabled,
+                            }))
+                          }
+                          style={{
+                            width: 44,
+                            height: 24,
+                            borderRadius: 12,
+                            background: autoGenSettings.enabled
+                              ? T.accentGreen
+                              : T.border,
+                            cursor: "pointer",
+                            position: "relative",
+                            transition: "background 0.2s",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 3,
+                              left: autoGenSettings.enabled ? 23 : 3,
+                              width: 18,
+                              height: 18,
+                              borderRadius: "50%",
+                              background: "#fff",
+                              transition: "left 0.2s",
+                              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Days of week */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: T.textFaint,
+                            marginBottom: 6,
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          RUN ON DAYS
+                        </div>
+                        <div style={{ display: "flex", gap: 5 }}>
+                          {[
+                            "Mon",
+                            "Tue",
+                            "Wed",
+                            "Thu",
+                            "Fri",
+                            "Sat",
+                            "Sun",
+                          ].map((d, i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                const days = autoGenSettings.days.includes(i)
+                                  ? autoGenSettings.days.filter((x) => x !== i)
+                                  : [...autoGenSettings.days, i].sort();
+                                setAutoGenSettings((s) => ({ ...s, days }));
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: "5px 0",
+                                borderRadius: 6,
+                                border: `1px solid ${autoGenSettings.days.includes(i) ? T.accent + "80" : T.border}`,
+                                background: autoGenSettings.days.includes(i)
+                                  ? `${T.accent}15`
+                                  : "transparent",
+                                color: autoGenSettings.days.includes(i)
+                                  ? T.accent
+                                  : T.textFaint,
+                                fontSize: 9,
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                                letterSpacing: "0.06em",
+                              }}
+                            >
+                              {d}
+                            </button>
+                          ))}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: T.textFaint,
+                            marginTop: 5,
+                          }}
+                        >
+                          {autoGenSettings.days.length} days/week selected ·
+                          runs at {autoGenSettings.hour}:00 UTC (={" "}
+                          {autoGenSettings.hour + 1}:00 Amsterdam)
+                        </div>
+                      </div>
+
+                      {/* Profile */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: T.textFaint,
+                            marginBottom: 6,
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          CONTENT PROFILE
+                        </div>
+                        <div
+                          style={{ display: "flex", gap: 5, flexWrap: "wrap" }}
+                        >
+                          {[
+                            "educational",
+                            "serious",
+                            "inspirational",
+                            "reflective",
+                          ].map((p) => (
+                            <button
+                              key={p}
+                              onClick={() =>
+                                setAutoGenSettings((s) => ({
+                                  ...s,
+                                  profile: p,
+                                }))
+                              }
+                              style={{
+                                padding: "5px 10px",
+                                borderRadius: 6,
+                                border: `1px solid ${autoGenSettings.profile === p ? T.accent + "80" : T.border}`,
+                                background:
+                                  autoGenSettings.profile === p
+                                    ? `${T.accent}15`
+                                    : "transparent",
+                                color:
+                                  autoGenSettings.profile === p
+                                    ? T.accent
+                                    : T.textFaint,
+                                fontSize: 10,
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                                textTransform: "capitalize",
+                              }}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Save + Trigger */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                        <button
+                          onClick={async () => {
+                            setAutoGenSaving(true);
+                            try {
+                              await api.post(
+                                "/auto-generate/settings",
+                                autoGenSettings,
+                              );
+                              showToast("Auto-generate settings saved");
+                            } catch (e) {
+                              showToast("Failed to save", "error");
+                            } finally {
+                              setAutoGenSaving(false);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "8px 0",
+                            borderRadius: 7,
+                            border: `1px solid ${T.accent}50`,
+                            background: `${T.accent}10`,
+                            color: T.accent,
+                            fontSize: 11,
+                            fontFamily: "inherit",
+                            cursor: "pointer",
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          {autoGenSaving ? "Saving..." : "💾 Save Settings"}
+                        </button>
+                        <button
+                          disabled={autoGenRunning}
+                          onClick={async () => {
+                            try {
+                              const res = await api.post(
+                                "/auto-generate/trigger",
+                              );
+                              const vid = res.data?.video_id;
+                              if (!vid) {
+                                showToast(
+                                  "Server did not return a video ID",
+                                  "error",
+                                );
+                                return;
+                              }
+
+                              setAutoGenJobId(vid);
+                              setAutoGenPrompt(res.data.prompt || "");
+                              setAutoGenRunning(true);
+                              setAutoGenStep(1);
+                              setAutoGenLogs([]);
+                              autoGenLogLineRef.current = 0;
+                              showToast("🤖 Auto-generate started!");
+
+                              // Poll for step progress — use functional updater to avoid stale closure
+                              const stepMap = {
+                                generating: 1,
+                                scripted: 2,
+                                voiced: 3,
+                                assembled: 4,
+                                captioned: 5,
+                                labeled: 5,
+                                ready: 6,
+                                posted: 6,
+                              };
+                              const stepPoll = setInterval(async () => {
+                                try {
+                                  const { data: st } = await api.get(
+                                    `/videos/${vid}`,
+                                  );
+                                  if (st?.status)
+                                    setAutoGenStep(stepMap[st.status] ?? 1);
+                                  if (
+                                    ["ready", "posted", "failed"].includes(
+                                      st?.status,
+                                    )
+                                  ) {
+                                    clearInterval(stepPoll);
+                                    clearInterval(autoGenLogPollRef.current);
+                                    setAutoGenRunning(false);
+                                    if (st.status === "failed")
+                                      showToast(
+                                        "Auto-generate failed",
+                                        "error",
+                                      );
+                                    else {
+                                      showToast(
+                                        "✅ Auto-generated video ready!",
+                                      );
+                                      refresh();
+                                    }
+                                  }
+                                } catch (e) {}
+                              }, 4000);
+
+                              // Poll logs
+                              autoGenLogPollRef.current = setInterval(
+                                async () => {
+                                  try {
+                                    const { data: ld } = await api.get(
+                                      `/videos/${vid}/logs?since=${autoGenLogLineRef.current}`,
+                                    );
+                                    if (ld?.lines?.length > 0) {
+                                      autoGenLogLineRef.current +=
+                                        ld.lines.length;
+                                      setAutoGenLogs((prev) =>
+                                        [...prev, ...ld.lines].slice(-300),
+                                      );
+                                      setTimeout(
+                                        () =>
+                                          autoGenLogsEndRef.current?.scrollIntoView(
+                                            { behavior: "smooth" },
+                                          ),
+                                        50,
+                                      );
+                                    }
+                                    if (ld?.done)
+                                      clearInterval(autoGenLogPollRef.current);
+                                  } catch (e) {}
+                                },
+                                1500,
+                              );
+                            } catch (e) {
+                              showToast(
+                                e.response?.data?.detail || "Failed to trigger",
+                                "error",
+                              );
+                            }
+                          }}
+                          style={{
+                            padding: "8px 14px",
+                            borderRadius: 7,
+                            border: `1px solid ${autoGenRunning ? T.border : T.accentGreen + "60"}`,
+                            background: autoGenRunning
+                              ? "transparent"
+                              : `${T.accentGreen}10`,
+                            color: autoGenRunning ? T.textFaint : T.accentGreen,
+                            fontSize: 11,
+                            fontFamily: "inherit",
+                            cursor: autoGenRunning ? "not-allowed" : "pointer",
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          {autoGenRunning ? "⚙ Running..." : "▶ Run Now"}
+                        </button>
+                      </div>
+
+                      {/* Progress panel — appears when auto-generate is running */}
+                      {autoGenRunning && (
+                        <div
+                          style={{
+                            marginTop: 16,
+                            borderTop: `1px solid ${T.border}`,
+                            paddingTop: 16,
+                          }}
+                        >
+                          {autoGenPrompt && (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: T.textMid,
+                                marginBottom: 12,
+                                fontStyle: "italic",
+                              }}
+                            >
+                              "{autoGenPrompt}"
+                            </div>
+                          )}
+                          {/* Step circles */}
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 0,
+                              alignItems: "center",
+                              marginBottom: 14,
+                            }}
+                          >
+                            {STEPS.map((s, i) => {
+                              const done = i < autoGenStep - 1,
+                                active = i === autoGenStep - 1;
+                              return (
+                                <div
+                                  key={s}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    flex: 1,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      alignItems: "center",
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        position: "relative",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                      }}
+                                    >
+                                      {active && (
+                                        <>
+                                          <div
+                                            style={{
+                                              position: "absolute",
+                                              borderRadius: "50%",
+                                              width: 32,
+                                              height: 32,
+                                              border: `2px solid ${T.accent}`,
+                                              animation:
+                                                "ringPulse 1.4s ease-out infinite",
+                                              opacity: 0,
+                                            }}
+                                          />
+                                          <div
+                                            style={{
+                                              position: "absolute",
+                                              borderRadius: "50%",
+                                              width: 40,
+                                              height: 40,
+                                              border: `1.5px solid ${T.accent}`,
+                                              animation:
+                                                "ringPulse 1.4s ease-out infinite 0.4s",
+                                              opacity: 0,
+                                            }}
+                                          />
+                                        </>
+                                      )}
+                                      <div
+                                        style={{
+                                          width: 24,
+                                          height: 24,
+                                          borderRadius: "50%",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          background: done
+                                            ? T.accentGreen
+                                            : active
+                                              ? T.accent
+                                              : T.bgDeep,
+                                          color:
+                                            done || active
+                                              ? "white"
+                                              : T.textFaint,
+                                          transition: "all 0.4s",
+                                          boxShadow: active
+                                            ? `0 0 14px ${T.accent}80`
+                                            : "none",
+                                          zIndex: 1,
+                                        }}
+                                      >
+                                        {done ? "✓" : i + 1}
+                                      </div>
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: 8,
+                                        color: active
+                                          ? T.accent
+                                          : done
+                                            ? T.accentGreen
+                                            : T.textFaint,
+                                        letterSpacing: "0.06em",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      {s.toUpperCase()}
+                                    </div>
+                                  </div>
+                                  {i < STEPS.length - 1 && (
+                                    <div
+                                      style={{
+                                        flex: 1,
+                                        height: 2,
+                                        background: done
+                                          ? T.accentGreen
+                                          : T.border,
+                                        margin: "0 3px",
+                                        marginBottom: 18,
+                                        transition: "background 0.4s",
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* View Logs + Cancel */}
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              onClick={() => setShowAutoGenLogs(true)}
+                              style={{
+                                flex: 1,
+                                padding: "6px 0",
+                                borderRadius: 6,
+                                border: `1px solid ${T.border}`,
+                                background: "transparent",
+                                color: T.textMid,
+                                fontSize: 10,
+                                fontFamily: "inherit",
+                                letterSpacing: "0.07em",
+                                cursor: "pointer",
+                              }}
+                            >
+                              📋 VIEW LOGS
+                            </button>
+                            <button
+                              onClick={async () => {
+                                clearInterval(autoGenLogPollRef.current);
+                                if (autoGenJobId) {
+                                  try {
+                                    await api.post(
+                                      `/videos/${autoGenJobId}/cancel`,
+                                    );
+                                  } catch (e) {}
+                                }
+                                setAutoGenRunning(false);
+                                setAutoGenStep(0);
+                                showToast("Cancelled", "error");
+                              }}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 6,
+                                border: `1px solid ${T.accentRed}40`,
+                                background: `${T.accentRed}08`,
+                                color: T.accentRed,
+                                fontSize: 10,
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                                letterSpacing: "0.07em",
+                              }}
+                            >
+                              🛑 CANCEL
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Auto-gen log modal */}
+                {showAutoGenLogs && (
+                  <div
+                    onClick={() => setShowAutoGenLogs(false)}
+                    style={{
+                      position: "fixed",
+                      inset: 0,
+                      background: "rgba(0,0,0,0.75)",
+                      zIndex: 200,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 20,
+                    }}
+                  >
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        width: "100%",
+                        maxWidth: 700,
+                        maxHeight: "70vh",
+                        background: "#0a0a0f",
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 14,
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "14px 18px",
+                          borderBottom: `1px solid ${T.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: T.text,
+                            letterSpacing: "0.1em",
+                          }}
+                        >
+                          AUTO-GENERATE LOGS
+                        </div>
+                        <button
+                          onClick={() => setShowAutoGenLogs(false)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: T.textFaint,
+                            cursor: "pointer",
+                            fontSize: 18,
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div
+                        style={{
+                          flex: 1,
+                          overflowY: "auto",
+                          padding: "12px 18px",
+                          fontFamily: "monospace",
+                          fontSize: 11,
+                          lineHeight: 1.7,
+                        }}
+                      >
+                        {autoGenLogs.length === 0 ? (
+                          <div style={{ color: T.textFaint }}>
+                            Waiting for pipeline output...
+                          </div>
+                        ) : (
+                          autoGenLogs.map((line, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                color: line.startsWith("[ERROR]")
+                                  ? "#ff6060"
+                                  : line.startsWith("[DONE]")
+                                    ? "#60ff60"
+                                    : "#a0d0a0",
+                              }}
+                            >
+                              {line}
+                            </div>
+                          ))
+                        )}
+                        <div ref={autoGenLogsEndRef} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div
                   style={{
                     padding: "12px 16px",

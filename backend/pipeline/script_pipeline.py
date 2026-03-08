@@ -26,14 +26,14 @@ from pipeline.music_mixer import generate_music, mix_audio
 try:
     import pipeline.caption as captioner
 except ModuleNotFoundError:
-    import pipeline.caption as captioner
+    import pipeline.captioner as captioner
 
 
 def _log(stage: str, msg: str, cb=None):
     full = f"[{stage}] {msg}"
     print(full)
     if cb:
-        try: cb(stage, msg)
+        try: cb({"step": stage, "message": msg})
         except Exception: pass
 
 
@@ -252,4 +252,3 @@ def run_script_pipeline(
             raw.unlink(missing_ok=True)
         except Exception:
             pass
-

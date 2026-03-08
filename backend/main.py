@@ -143,9 +143,11 @@ def generate_video(
     video_id = record["id"]
     _register_pipeline(video_id)
 
-    def _cb(info: dict):
-        msg = f"[{info.get('step','?')}] {info.get('message','')}"
-        _push_log(video_id, msg)
+    def _cb(info):
+        # Orchestrator calls cb({"step": ..., "message": ...})
+        step = info.get("step", "?") if isinstance(info, dict) else str(info)
+        msg  = info.get("message", "") if isinstance(info, dict) else ""
+        _push_log(video_id, f"[{step}] {msg}")
 
     def _run():
         try:
@@ -582,8 +584,15 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
     # Register pipeline so /logs polling endpoint can read progress
     _register_pipeline(video_id)
 
-    def _cb(stage: str, message: str):
-        _push_log(video_id, f"[{stage}] {message}")
+    def _cb(info):
+        # script_pipeline calls cb(stage, message) as two args OR orchestrator as dict
+        if isinstance(info, dict):
+            step = info.get("step", "?")
+            msg  = info.get("message", "")
+        else:
+            step = str(info)
+            msg  = ""
+        _push_log(video_id, f"[{step}] {msg}")
 
     from pipeline.script_pipeline import run_script_pipeline
 
@@ -624,6 +633,86 @@ def get_quota(user: str = Depends(verify_token)):
     if not hasattr(get_quota, '_cache') or now - get_quota._cache[1] > 300:
         get_quota._cache = (check_quota_status(), now)  # cache 5 min
     return get_quota._cache[0]
+
+
+# ── Auto-Generator Settings ──────────────────────────────────────────────────
+
+class AutoGenerateSettings(BaseModel):
+    enabled:  bool
+    days:     list           # [0-6] days of week
+    profile:  str
+    prompts:  list           # list of prompt strings
+    hour:     int            # UTC hour to run (0-23)
+
+@app.get("/auto-generate/settings")
+def get_auto_generate_settings(user: str = Depends(verify_token)):
+    from pipeline.auto_generator import get_settings
+    return get_settings()
+
+@app.post("/auto-generate/settings")
+def save_auto_generate_settings(req: AutoGenerateSettings, user: str = Depends(verify_token)):
+    from pipeline.auto_generator import save_settings
+    settings = {
+        "enabled": req.enabled,
+        "days":    req.days,
+        "profile": req.profile,
+        "prompts": req.prompts,
+        "hour":    req.hour,
+    }
+    save_settings(settings)
+    return {"message": "Auto-generate settings saved", "settings": settings}
+
+@app.post("/auto-generate/trigger")
+def trigger_auto_generate(user: str = Depends(verify_token)):
+    """Manually trigger one auto-generated video. Registers log queue so frontend can stream progress."""
+    import threading
+    from pipeline.auto_generator import run_auto_generate, get_settings
+    from pipeline.script_gen import CHANNEL_PROFILES
+
+    # Pre-create DB record so we can return video_id immediately
+    settings = get_settings()
+    prompts  = settings.get("prompts", [])
+    if not prompts:
+        raise HTTPException(status_code=400, detail="No prompts configured in auto-generate settings")
+
+    # Pick next prompt (same logic as run_auto_generate)
+    from pipeline.auto_generator import _pick_next_prompt
+    prompt   = _pick_next_prompt(prompts)
+    profile  = settings.get("profile", "educational")
+
+    record   = db.create_video(prompt)
+    video_id = record["id"]
+    _register_pipeline(video_id)
+
+    def _cb(info: dict):
+        # Orchestrator calls cb({"step": ..., "message": ...})
+        step = info.get("step", "?") if isinstance(info, dict) else str(info)
+        msg  = info.get("message", "") if isinstance(info, dict) else ""
+        _push_log(video_id, f"[{step}] {msg}")
+
+    def _run():
+        try:
+            from pipeline.orchestrator import run_pipeline
+            run_pipeline(
+                prompt=prompt,
+                profile=profile,
+                auto_upload=False,
+                video_id=video_id,
+                progress_callback=_cb,
+            )
+            _push_log(video_id, "[DONE] Pipeline finished — video ready for review")
+        except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+        finally:
+            _unregister_pipeline(video_id)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {
+        "message": "Auto-generate triggered",
+        "video_id": video_id,
+        "prompt": prompt,
+        "profile": profile,
+    }
 
 
 @app.get("/billing")
@@ -1117,10 +1206,20 @@ def startup():
         config.validate()
     except EnvironmentError as e:
         print(f"⚠️  Config warning: {e}")
-    # Start auto-comment scheduler
-    # Auto-commenter removed
-    from pipeline.auto_replier import start_reply_scheduler
-    start_reply_scheduler()
+    # Auto-reply scheduler
+    try:
+        from pipeline.auto_replier import start_reply_scheduler
+        start_reply_scheduler()
+    except Exception as e:
+        print(f"⚠️  Auto-reply scheduler failed to start: {e}")
+
+    # Auto-generator scheduler
+    try:
+        from pipeline.auto_generator import start_auto_scheduler
+        start_auto_scheduler()
+    except Exception as e:
+        print(f"⚠️  Auto-generator scheduler failed to start: {e}")
+
     print("✅ AutoVid API ready → http://localhost:8000")
     print("   Docs: http://localhost:8000/docs")
 

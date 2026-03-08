@@ -7,20 +7,31 @@ import { useRef, useState } from "react";
 import api from "../api/client";
 
 const PROFILES = [
-  { id: "funny", emoji: "😄", label: "Funny", desc: "Comedy & viral" },
-  { id: "serious", emoji: "🎯", label: "Serious", desc: "Documentary style" },
   {
     id: "educational",
     emoji: "🧠",
     label: "Educational",
-    desc: "Explainer & facts",
+    desc: "Thoughtful essay-style",
+  },
+  {
+    id: "serious",
+    emoji: "🎯",
+    label: "Serious",
+    desc: "Documentary & weighty",
   },
   {
     id: "inspirational",
     emoji: "🔥",
     label: "Inspirational",
-    desc: "Motivational",
+    desc: "Emotional storytelling",
   },
+  {
+    id: "reflective",
+    emoji: "🌊",
+    label: "Reflective",
+    desc: "Philosophical & deep",
+  },
+  { id: "funny", emoji: "😄", label: "Funny", desc: "Humour with insight" },
 ];
 
 const MOODS = [

@@ -1,27 +1,4 @@
-"""
-AutoVid Pipeline — Master Orchestrator
 
-Pipeline order:
-  1.  Create DB record
-  2.  Generate script (Groq)
-  3.  Synthesize voice (ElevenLabs) → saves audio/[id].mp3
-  4.  Align segments to audio timing
-  5.  Fetch stock video clips (Pexels/Pixabay)
-  6.  Assemble raw video (MoviePy) — clips + audio merged → videos/[id]_raw.mp4
-  7.  Generate thumbnail from raw video
-  8.  Burn captions (Whisper + FFmpeg) → videos/[id]_captioned.mp4
-  9.  Merge audio into captioned video (guarantees sound) → videos/[id]_final.mp4
-  10. Auto-label (Groq)
-  11. Upload to YouTube (optional)
-  12. Auto-cleanup all temp/intermediate files
-
-Cleanup policy:
-  - Temp clips:     always deleted after assembly
-  - Raw video:      deleted after captions burned
-  - Audio MP3:      deleted after merged into final video
-  - Final video:    KEPT (needed for YouTube upload + playback)
-  - Thumbnail:      KEPT
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -40,7 +17,7 @@ from pipeline import script_gen, tts, video_fetcher, video_assembler, youtube_up
 try:
     import pipeline.caption as captioner       # caption.py
 except ModuleNotFoundError:
-    import pipeline.captioner as captioner     # captioner.py fallback
+    import pipeline.caption as captioner     # captioner.py fallback
 
 
 # ── Logger ────────────────────────────────────────────────────────────────────
