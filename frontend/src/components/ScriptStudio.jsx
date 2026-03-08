@@ -24,42 +24,68 @@ const PROFILES = [
 ];
 
 const MOODS = [
-  { id: null, emoji: "🎯", label: "Auto", desc: "Matches your topic" },
+  {
+    id: null,
+    emoji: "🎯",
+    label: "Auto",
+    desc: "Matches your topic",
+    aurora: null,
+  },
   {
     id: "ocean",
     emoji: "🌊",
     label: "Ocean & Water",
     desc: "Waves, sea, calm water",
+    aurora: null,
   },
   {
     id: "candle",
     emoji: "🕯️",
     label: "Candle & Firelight",
     desc: "Warm flame, dark backdrop",
+    aurora: null,
   },
   {
     id: "forest",
     emoji: "🌲",
     label: "Forest & Nature",
     desc: "Light rays, misty trees",
+    aurora: null,
   },
   {
     id: "stars",
     emoji: "🌌",
     label: "Night Sky & Stars",
     desc: "Milky way, starfield",
+    aurora: "dark",
   },
   {
     id: "hands",
     emoji: "🤝",
     label: "Hands & People",
     desc: "Human connection, warmth",
+    aurora: null,
   },
   {
     id: "mountains",
     emoji: "⛰️",
     label: "Mountains & Fog",
     desc: "Dramatic peaks, mist",
+    aurora: null,
+  },
+  {
+    id: "aurora_blue",
+    emoji: "🌌",
+    label: "Aurora Blue",
+    desc: "Glowing blue light waves",
+    aurora: "blue",
+  },
+  {
+    id: "aurora_dark",
+    emoji: "🖤",
+    label: "Aurora Dark",
+    desc: "Deep obsidian black waves",
+    aurora: "dark",
   },
 ];
 
@@ -404,25 +430,46 @@ export default function ScriptStudio({ T, showToast }) {
                   onClick={() => setMood(v.id)}
                   disabled={running}
                   style={{
+                    position: "relative",
                     padding: "8px 10px",
                     borderRadius: 8,
+                    overflow: "hidden",
                     border: `1px solid ${mood === v.id ? "#a060ff60" : T.border}`,
-                    background: mood === v.id ? "#a060ff12" : "transparent",
-                    color: mood === v.id ? "#a060ff" : T.textMid,
+                    background:
+                      v.aurora === "dark"
+                        ? "#080810"
+                        : mood === v.id
+                          ? "#a060ff12"
+                          : "transparent",
+                    color:
+                      mood === v.id ? "#a060ff" : v.aurora ? "#fff" : T.textMid,
                     cursor: "pointer",
                     fontFamily: "inherit",
                     textAlign: "left",
                     transition: "all 0.15s",
                   }}
                 >
-                  <div style={{ fontSize: 14, marginBottom: 2 }}>{v.emoji}</div>
-                  <div
-                    style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.3 }}
-                  >
-                    {v.label}
-                  </div>
-                  <div style={{ fontSize: 9, color: T.textFaint }}>
-                    {v.desc}
+                  {/* Aurora background if applicable */}
+                  {v.aurora && (
+                    <div
+                      className={`aurora-wrap aurora-${v.aurora}`}
+                      style={{ opacity: mood === v.id ? 1 : 0.6 }}
+                    >
+                      <div className="aurora-band" />
+                      <div className="aurora-band" />
+                      <div className="aurora-band" />
+                    </div>
+                  )}
+                  <div style={{ position: "relative", zIndex: 1 }}>
+                    <div style={{ fontSize: 14, marginBottom: 2 }}>
+                      {v.emoji}
+                    </div>
+                    <div
+                      style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.3 }}
+                    >
+                      {v.label}
+                    </div>
+                    <div style={{ fontSize: 9, opacity: 0.7 }}>{v.desc}</div>
                   </div>
                 </button>
               ))}

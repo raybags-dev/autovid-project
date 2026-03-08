@@ -217,6 +217,8 @@ export default function Dashboard() {
   const [channelVideos, setChannelVideos] = useState([]);
   const [channelLoading, setChannelLoading] = useState(false);
   const [channelError, setChannelError] = useState("");
+  const [channelVisible, setChannelVisible] = useState(24); // how many to render
+  const channelBottomRef = useRef(null);
   const [channelDeleteConfirm, setChannelDeleteConfirm] = useState(null); // {id, title}
   const [isDark, setIsDark] = useState(
     () => localStorage.getItem("autovid_theme") !== "light",
@@ -365,6 +367,11 @@ export default function Dashboard() {
       setPipeStep(0);
     }
   };
+  // Reset channel scroll when switching to channel tab
+  useEffect(() => {
+    if (tab === "channel") setChannelVisible(24);
+  }, [tab]);
+
   // Auto-reply toggle
   useEffect(() => {
     if (tab !== "settings") return;
@@ -376,6 +383,21 @@ export default function Dashboard() {
       })
       .catch(() => {});
   }, [tab]);
+
+  // Infinite scroll — load more channel videos when bottom sentinel is visible
+  useEffect(() => {
+    if (!channelBottomRef.current) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setChannelVisible((v) => Math.min(v + 24, channelVideos.length));
+        }
+      },
+      { threshold: 0.1 },
+    );
+    obs.observe(channelBottomRef.current);
+    return () => obs.disconnect();
+  }, [channelVideos.length, tab]);
 
   const handleAutoReplyToggle = async (val) => {
     setAutoReplyEnabled(val);
@@ -790,6 +812,68 @@ export default function Dashboard() {
         .btn-primary{background:linear-gradient(135deg,#0060bb,#00a8f0);border:none;color:white;padding:11px 22px;border-radius:9px;font-family:inherit;font-size:11px;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
         .btn-primary:hover:not(:disabled){opacity:0.85;transform:translateY(-1px);}
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Aurora wave animations ── */
+        @keyframes aurora1 {
+          0%   { transform: translateX(-30%) skewX(-8deg) scaleY(1);   opacity: 0.55; }
+          50%  { transform: translateX(20%)  skewX(6deg)  scaleY(1.2); opacity: 0.75; }
+          100% { transform: translateX(-30%) skewX(-8deg) scaleY(1);   opacity: 0.55; }
+        }
+        @keyframes aurora2 {
+          0%   { transform: translateX(20%)  skewX(10deg) scaleY(0.9); opacity: 0.4; }
+          50%  { transform: translateX(-25%) skewX(-6deg) scaleY(1.1); opacity: 0.65; }
+          100% { transform: translateX(20%)  skewX(10deg) scaleY(0.9); opacity: 0.4; }
+        }
+        @keyframes aurora3 {
+          0%   { transform: translateX(-10%) skewX(4deg)  scaleY(1.1); opacity: 0.3; }
+          60%  { transform: translateX(30%)  skewX(-10deg) scaleY(0.8);opacity: 0.5; }
+          100% { transform: translateX(-10%) skewX(4deg)  scaleY(1.1); opacity: 0.3; }
+        }
+        .aurora-wrap {
+          position: absolute; inset: 0; overflow: hidden;
+          pointer-events: none; border-radius: inherit;
+        }
+        .aurora-band {
+          position: absolute; left: -60%; width: 220%;
+          border-radius: 50%;
+          filter: blur(38px);
+        }
+        /* Blue aurora */
+        .aurora-blue .aurora-band:nth-child(1) {
+          top: 15%; height: 28%;
+          background: linear-gradient(90deg, #0af 0%, #06f 40%, #a0f 100%);
+          animation: aurora1 9s ease-in-out infinite;
+        }
+        .aurora-blue .aurora-band:nth-child(2) {
+          top: 35%; height: 22%;
+          background: linear-gradient(90deg, #08f 0%, #30f 50%, #0cf 100%);
+          animation: aurora2 12s ease-in-out infinite;
+        }
+        .aurora-blue .aurora-band:nth-child(3) {
+          top: 52%; height: 18%;
+          background: linear-gradient(90deg, #60f 0%, #0af 60%, #06f 100%);
+          animation: aurora3 7s ease-in-out infinite;
+        }
+        /* Dark/obsidian aurora */
+        .aurora-dark .aurora-band:nth-child(1) {
+          top: 10%; height: 32%;
+          background: linear-gradient(90deg, #111 0%, #1a1a2e 35%, #0d0d1a 70%, #111 100%);
+          animation: aurora1 11s ease-in-out infinite;
+          filter: blur(30px);
+          opacity: 0.9;
+        }
+        .aurora-dark .aurora-band:nth-child(2) {
+          top: 38%; height: 24%;
+          background: linear-gradient(90deg, #0d0d0d 0%, #1c1c3a 40%, #0a0a0a 100%);
+          animation: aurora2 14s ease-in-out infinite;
+          filter: blur(40px);
+        }
+        .aurora-dark .aurora-band:nth-child(3) {
+          top: 58%; height: 20%;
+          background: linear-gradient(90deg, #1a1a1a 0%, #0d0d22 50%, #111 100%);
+          animation: aurora3 8s ease-in-out infinite;
+          filter: blur(24px);
+        }
         .btn-primary:disabled{opacity:0.35;cursor:not-allowed;transform:none;}
         .btn-sm{padding:5px 12px;border-radius:6px;font-family:inherit;font-size:10px;letter-spacing:0.06em;cursor:pointer;border:1px solid;transition:all 0.15s;}
         .filter-btn{padding:5px 14px;border-radius:6px;font-family:inherit;font-size:10px;letter-spacing:0.06em;border:1px solid ${T.border};background:transparent;color:${T.textDim};cursor:pointer;transition:all 0.15s;}
@@ -2448,304 +2532,500 @@ export default function Dashboard() {
                     Loading channel videos...
                   </div>
                 ) : channelVideos.length === 0 && !channelLoading ? (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: 60,
-                      color: T.textMid,
-                      fontSize: 12,
-                    }}
-                  >
-                    No videos found on your channel.
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fill,minmax(300px,1fr))",
-                      gap: 16,
-                    }}
-                  >
-                    {channelVideos.map((v) => (
+                  // Quota hit & no cache — fall back to DB posted videos
+                  <div>
+                    {channelError && (
                       <div
-                        key={v.id}
                         style={{
-                          background: T.bgCard,
-                          border: `1px solid ${T.border}`,
-                          borderRadius: 14,
-                          overflow: "hidden",
+                          padding: "14px 18px",
+                          background: "rgba(255,170,0,0.07)",
+                          border: "1px solid rgba(255,170,0,0.25)",
+                          borderRadius: 10,
+                          marginBottom: 18,
                         }}
                       >
-                        {/* Thumbnail */}
                         <div
                           style={{
-                            position: "relative",
-                            paddingBottom: "56.25%",
-                            background: T.bgBase,
+                            fontSize: 11,
+                            color: "#ffaa00",
+                            fontWeight: 600,
+                            marginBottom: 4,
                           }}
                         >
-                          {v.thumbnail ? (
-                            <img
-                              src={v.thumbnail}
-                              alt={v.title}
-                              style={{
-                                position: "absolute",
-                                inset: 0,
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                              }}
-                            />
-                          ) : (
+                          📦 Showing cached library data
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: T.textMid,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          YouTube API quota is exhausted — live channel stats
+                          unavailable until midnight Pacific Time. Showing your
+                          posted videos from the local database instead. Upload
+                          counts, views and likes may be outdated.
+                        </div>
+                      </div>
+                    )}
+                    {videos.filter((v) => v.status === "posted" || v.youtube_id)
+                      .length === 0 ? (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: 60,
+                          color: T.textMid,
+                          fontSize: 12,
+                        }}
+                      >
+                        No posted videos found in library.
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill,minmax(300px,1fr))",
+                          gap: 16,
+                        }}
+                      >
+                        {videos
+                          .filter((v) => v.status === "posted" || v.youtube_id)
+                          .map((v) => (
                             <div
+                              key={v.id}
                               style={{
-                                position: "absolute",
-                                inset: 0,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: T.textFaint,
-                                fontSize: 28,
+                                background: T.bgCard,
+                                border: `1px solid ${T.border}`,
+                                borderRadius: 14,
+                                overflow: "hidden",
                               }}
                             >
-                              ▶
+                              <div
+                                style={{
+                                  position: "relative",
+                                  paddingBottom: "56.25%",
+                                  background: T.bgBase,
+                                }}
+                              >
+                                {v.thumbnail_url ? (
+                                  <img
+                                    src={v.thumbnail_url}
+                                    alt={v.title}
+                                    style={{
+                                      position: "absolute",
+                                      inset: 0,
+                                      width: "100%",
+                                      height: "100%",
+                                      objectFit: "cover",
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      inset: 0,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      color: T.textFaint,
+                                      fontSize: 28,
+                                    }}
+                                  >
+                                    ▶
+                                  </div>
+                                )}
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: 8,
+                                    right: 8,
+                                    fontSize: 9,
+                                    padding: "3px 7px",
+                                    borderRadius: 5,
+                                    letterSpacing: "0.08em",
+                                    background: "rgba(0,192,112,0.85)",
+                                    color: "#fff",
+                                  }}
+                                >
+                                  POSTED
+                                </div>
+                              </div>
+                              <div style={{ padding: "12px 14px" }}>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: T.text,
+                                    marginBottom: 6,
+                                    lineHeight: 1.4,
+                                    overflow: "hidden",
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                  }}
+                                >
+                                  {v.title || v.prompt}
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: 12,
+                                    fontSize: 10,
+                                    color: T.textMid,
+                                  }}
+                                >
+                                  {v.youtube_url && (
+                                    <a
+                                      href={v.youtube_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{
+                                        color: T.accent,
+                                        textDecoration: "none",
+                                      }}
+                                    >
+                                      ▶ WATCH ON YOUTUBE
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          )}
-                          {/* Privacy badge */}
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    {channelVideos.length > channelVisible && (
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: T.textFaint,
+                          textAlign: "right",
+                          marginBottom: 10,
+                        }}
+                      >
+                        Showing {channelVisible} of {channelVideos.length}{" "}
+                        videos — scroll down for more
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fill,minmax(300px,1fr))",
+                        gap: 16,
+                      }}
+                    >
+                      {channelVideos.slice(0, channelVisible).map((v) => (
+                        <div
+                          key={v.id}
+                          style={{
+                            background: T.bgCard,
+                            border: `1px solid ${T.border}`,
+                            borderRadius: 14,
+                            overflow: "hidden",
+                          }}
+                        >
+                          {/* Thumbnail */}
                           <div
                             style={{
-                              position: "absolute",
-                              top: 8,
-                              right: 8,
-                              fontSize: 9,
-                              padding: "3px 7px",
-                              borderRadius: 5,
-                              letterSpacing: "0.08em",
-                              background:
-                                v.privacy === "public"
-                                  ? "rgba(0,192,112,0.85)"
-                                  : v.privacy === "private"
-                                    ? "rgba(30,30,40,0.9)"
-                                    : "rgba(255,160,0,0.85)",
-                              color: "#fff",
+                              position: "relative",
+                              paddingBottom: "56.25%",
+                              background: T.bgBase,
                             }}
                           >
-                            {v.privacy?.toUpperCase() || "—"}
-                          </div>
-                          {/* Duration */}
-                          {v.duration && (
+                            {v.thumbnail ? (
+                              <img
+                                src={v.thumbnail}
+                                alt={v.title}
+                                style={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: T.textFaint,
+                                  fontSize: 28,
+                                }}
+                              >
+                                ▶
+                              </div>
+                            )}
+                            {/* Privacy badge */}
                             <div
                               style={{
                                 position: "absolute",
-                                bottom: 8,
+                                top: 8,
                                 right: 8,
                                 fontSize: 9,
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                background: "rgba(0,0,0,0.75)",
+                                padding: "3px 7px",
+                                borderRadius: 5,
+                                letterSpacing: "0.08em",
+                                background:
+                                  v.privacy === "public"
+                                    ? "rgba(0,192,112,0.85)"
+                                    : v.privacy === "private"
+                                      ? "rgba(30,30,40,0.9)"
+                                      : "rgba(255,160,0,0.85)",
                                 color: "#fff",
                               }}
                             >
-                              {v.duration}
+                              {v.privacy?.toUpperCase() || "—"}
                             </div>
-                          )}
+                            {/* Duration */}
+                            {v.duration && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  bottom: 8,
+                                  right: 8,
+                                  fontSize: 9,
+                                  padding: "2px 6px",
+                                  borderRadius: 4,
+                                  background: "rgba(0,0,0,0.75)",
+                                  color: "#fff",
+                                }}
+                              >
+                                {v.duration}
+                              </div>
+                            )}
+                          </div>
+                          {/* Info */}
+                          <div style={{ padding: "12px 14px" }}>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: T.text,
+                                marginBottom: 6,
+                                lineHeight: 1.4,
+                                overflow: "hidden",
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                              }}
+                            >
+                              {v.title}
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 12,
+                                fontSize: 10,
+                                color: T.textMid,
+                                marginBottom: 12,
+                              }}
+                            >
+                              <span>👁 {fmtNum(v.views || 0)}</span>
+                              <span>👍 {fmtNum(v.likes || 0)}</span>
+                              <span>💬 {fmtNum(v.comments || 0)}</span>
+                              <span style={{ marginLeft: "auto" }}>
+                                {timeAgo(v.published_at)}
+                              </span>
+                            </div>
+                            {/* Actions */}
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: 6,
+                              }}
+                            >
+                              <a
+                                href={`https://youtube.com/watch?v=${v.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 4,
+                                  padding: "7px 0",
+                                  background: T.bgBase,
+                                  border: `1px solid ${T.border}`,
+                                  borderRadius: 7,
+                                  color: T.textMid,
+                                  fontSize: 10,
+                                  textDecoration: "none",
+                                  letterSpacing: "0.06em",
+                                }}
+                              >
+                                ▶ WATCH
+                              </a>
+                              <a
+                                href={`https://studio.youtube.com/video/${v.id}/edit`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 4,
+                                  padding: "7px 0",
+                                  background: T.bgBase,
+                                  border: `1px solid ${T.border}`,
+                                  borderRadius: 7,
+                                  color: T.textMid,
+                                  fontSize: 10,
+                                  textDecoration: "none",
+                                  letterSpacing: "0.06em",
+                                }}
+                              >
+                                ✏ EDIT
+                              </a>
+                              {v.privacy !== "private" && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await api.post(
+                                        `/channel/videos/${v.id}/privacy`,
+                                        { privacy: "private" },
+                                      );
+                                      showToast("Video set to private");
+                                      fetchChannel();
+                                    } catch (e) {
+                                      showToast(
+                                        "Failed to set private",
+                                        "error",
+                                      );
+                                    }
+                                  }}
+                                  style={{
+                                    padding: "7px 0",
+                                    background: T.bgBase,
+                                    border: `1px solid ${T.border}`,
+                                    borderRadius: 7,
+                                    color: T.textMid,
+                                    fontSize: 10,
+                                    fontFamily: "inherit",
+                                    letterSpacing: "0.06em",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  🔒 MAKE PRIVATE
+                                </button>
+                              )}
+                              {v.privacy !== "public" && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await api.post(
+                                        `/channel/videos/${v.id}/privacy`,
+                                        { privacy: "public" },
+                                      );
+                                      showToast("Video set to public");
+                                      fetchChannel();
+                                    } catch (e) {
+                                      showToast(
+                                        "Failed to set public",
+                                        "error",
+                                      );
+                                    }
+                                  }}
+                                  style={{
+                                    padding: "7px 0",
+                                    background: T.bgBase,
+                                    border: `1px solid ${T.border}`,
+                                    borderRadius: 7,
+                                    color: T.textMid,
+                                    fontSize: 10,
+                                    fontFamily: "inherit",
+                                    letterSpacing: "0.06em",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  🌍 MAKE PUBLIC
+                                </button>
+                              )}
+                              {v.privacy !== "unlisted" && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await api.post(
+                                        `/channel/videos/${v.id}/privacy`,
+                                        { privacy: "unlisted" },
+                                      );
+                                      showToast("Video set to unlisted");
+                                      fetchChannel();
+                                    } catch (e) {
+                                      showToast("Failed", "error");
+                                    }
+                                  }}
+                                  style={{
+                                    padding: "7px 0",
+                                    background: T.bgBase,
+                                    border: `1px solid ${T.border}`,
+                                    borderRadius: 7,
+                                    color: T.textMid,
+                                    fontSize: 10,
+                                    fontFamily: "inherit",
+                                    letterSpacing: "0.06em",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  🔗 UNLISTED
+                                </button>
+                              )}
+                              <button
+                                onClick={() =>
+                                  setChannelDeleteConfirm({
+                                    id: v.id,
+                                    title: v.title,
+                                  })
+                                }
+                                style={{
+                                  padding: "7px 0",
+                                  background: `rgba(220,38,38,0.07)`,
+                                  border: `1px solid rgba(220,38,38,0.25)`,
+                                  borderRadius: 7,
+                                  color: T.accentRed,
+                                  fontSize: 10,
+                                  fontFamily: "inherit",
+                                  letterSpacing: "0.06em",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                🗑 DELETE
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        {/* Info */}
-                        <div style={{ padding: "12px 14px" }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: T.text,
-                              marginBottom: 6,
-                              lineHeight: 1.4,
-                              overflow: "hidden",
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                            }}
-                          >
-                            {v.title}
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 12,
-                              fontSize: 10,
-                              color: T.textMid,
-                              marginBottom: 12,
-                            }}
-                          >
-                            <span>👁 {fmtNum(v.views || 0)}</span>
-                            <span>👍 {fmtNum(v.likes || 0)}</span>
-                            <span>💬 {fmtNum(v.comments || 0)}</span>
-                            <span style={{ marginLeft: "auto" }}>
-                              {timeAgo(v.published_at)}
-                            </span>
-                          </div>
-                          {/* Actions */}
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "1fr 1fr",
-                              gap: 6,
-                            }}
-                          >
-                            <a
-                              href={`https://youtube.com/watch?v=${v.id}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: 4,
-                                padding: "7px 0",
-                                background: T.bgBase,
-                                border: `1px solid ${T.border}`,
-                                borderRadius: 7,
-                                color: T.textMid,
-                                fontSize: 10,
-                                textDecoration: "none",
-                                letterSpacing: "0.06em",
-                              }}
-                            >
-                              ▶ WATCH
-                            </a>
-                            <a
-                              href={`https://studio.youtube.com/video/${v.id}/edit`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: 4,
-                                padding: "7px 0",
-                                background: T.bgBase,
-                                border: `1px solid ${T.border}`,
-                                borderRadius: 7,
-                                color: T.textMid,
-                                fontSize: 10,
-                                textDecoration: "none",
-                                letterSpacing: "0.06em",
-                              }}
-                            >
-                              ✏ EDIT
-                            </a>
-                            {v.privacy !== "private" && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await api.post(
-                                      `/channel/videos/${v.id}/privacy`,
-                                      { privacy: "private" },
-                                    );
-                                    showToast("Video set to private");
-                                    fetchChannel();
-                                  } catch (e) {
-                                    showToast("Failed to set private", "error");
-                                  }
-                                }}
-                                style={{
-                                  padding: "7px 0",
-                                  background: T.bgBase,
-                                  border: `1px solid ${T.border}`,
-                                  borderRadius: 7,
-                                  color: T.textMid,
-                                  fontSize: 10,
-                                  fontFamily: "inherit",
-                                  letterSpacing: "0.06em",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                🔒 MAKE PRIVATE
-                              </button>
-                            )}
-                            {v.privacy !== "public" && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await api.post(
-                                      `/channel/videos/${v.id}/privacy`,
-                                      { privacy: "public" },
-                                    );
-                                    showToast("Video set to public");
-                                    fetchChannel();
-                                  } catch (e) {
-                                    showToast("Failed to set public", "error");
-                                  }
-                                }}
-                                style={{
-                                  padding: "7px 0",
-                                  background: T.bgBase,
-                                  border: `1px solid ${T.border}`,
-                                  borderRadius: 7,
-                                  color: T.textMid,
-                                  fontSize: 10,
-                                  fontFamily: "inherit",
-                                  letterSpacing: "0.06em",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                🌍 MAKE PUBLIC
-                              </button>
-                            )}
-                            {v.privacy !== "unlisted" && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await api.post(
-                                      `/channel/videos/${v.id}/privacy`,
-                                      { privacy: "unlisted" },
-                                    );
-                                    showToast("Video set to unlisted");
-                                    fetchChannel();
-                                  } catch (e) {
-                                    showToast("Failed", "error");
-                                  }
-                                }}
-                                style={{
-                                  padding: "7px 0",
-                                  background: T.bgBase,
-                                  border: `1px solid ${T.border}`,
-                                  borderRadius: 7,
-                                  color: T.textMid,
-                                  fontSize: 10,
-                                  fontFamily: "inherit",
-                                  letterSpacing: "0.06em",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                🔗 UNLISTED
-                              </button>
-                            )}
-                            <button
-                              onClick={() =>
-                                setChannelDeleteConfirm({
-                                  id: v.id,
-                                  title: v.title,
-                                })
-                              }
-                              style={{
-                                padding: "7px 0",
-                                background: `rgba(220,38,38,0.07)`,
-                                border: `1px solid rgba(220,38,38,0.25)`,
-                                borderRadius: 7,
-                                color: T.accentRed,
-                                fontSize: 10,
-                                fontFamily: "inherit",
-                                letterSpacing: "0.06em",
-                                cursor: "pointer",
-                              }}
-                            >
-                              🗑 DELETE
-                            </button>
-                          </div>
+                      ))}
+                    </div>
+                    {/* Infinite scroll sentinel */}
+                    {channelVideos.length > channelVisible && (
+                      <div
+                        ref={channelBottomRef}
+                        style={{
+                          height: 40,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: T.textFaint,
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          ↓ loading more...
                         </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>

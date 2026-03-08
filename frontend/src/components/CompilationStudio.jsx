@@ -19,7 +19,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   const pollRef = useRef(null);
 
   const readyVideos = videos.filter(
-    (v) => v.status === "ready" || v.status === "posted",
+    (v) => ["ready", "posted", "failed"].includes(v.status) && v.file_path,
   );
 
   useEffect(() => {
@@ -67,6 +67,26 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
     );
   }
 
+  // Parse mm:ss or plain seconds input → number of seconds
+  function parseTime(val) {
+    if (val === "" || val === null || val === undefined) return null;
+    const str = String(val).trim();
+    if (str.includes(":")) {
+      const parts = str.split(":").map(Number);
+      if (parts.length === 2) return parts[0] * 60 + parts[1]; // mm:ss
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]; // hh:mm:ss
+    }
+    const n = parseFloat(str);
+    return isNaN(n) ? null : n;
+  }
+
+  // Format seconds → mm:ss for display
+  function toMMSS(sec) {
+    if (sec === null || sec === undefined || sec === "") return "";
+    const s = Math.floor(Number(sec));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
   // ── Drag and drop (queue reordering) ─────────────────────────────────────
   function onDragStart(e, idx) {
     draggingIdx.current = idx;
@@ -111,8 +131,8 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
         video_id: q.video.id,
         file_path: q.video.file_path,
         title: q.video.title || "",
-        start: q.start !== "" ? parseFloat(q.start) : 0,
-        end: q.end !== "" ? parseFloat(q.end) : null,
+        start: parseTime(q.start) ?? 0,
+        end: parseTime(q.end) ?? null,
       }));
       const { data } = await createCompilation({ title: finalTitle, clips });
       setPolling(data.compilation_id);
@@ -133,8 +153,8 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
 
   function clipDuration(q) {
     const total = q.video.duration_seconds || 0;
-    const s = q.start !== "" ? parseFloat(q.start) : 0;
-    const e = q.end !== "" ? parseFloat(q.end) : total;
+    const s = parseTime(q.start) ?? 0;
+    const e = parseTime(q.end) ?? total;
     return Math.max(0, e - s);
   }
 
@@ -198,7 +218,9 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
         }}
       >
         <div style={card}>
-          <span style={label}>AVAILABLE VIDEOS — click to add to queue</span>
+          <span style={label}>
+            AVAILABLE VIDEOS — ready, posted or locally saved
+          </span>
           {readyVideos.length === 0 && (
             <div
               style={{
@@ -585,7 +607,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                   </button>
                 </div>
 
-                {/* Trim inputs */}
+                {/* Trim inputs — accepts mm:ss or plain seconds */}
                 <div
                   style={{
                     display: "grid",
@@ -601,15 +623,14 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                         marginBottom: 3,
                       }}
                     >
-                      START (sec, optional)
+                      START — e.g. <span style={{ color: T.accent }}>0:10</span>{" "}
+                      or <span style={{ color: T.accent }}>1:30</span>
                     </div>
                     <input
-                      type="number"
-                      min="0"
-                      step="1"
+                      type="text"
                       value={q.start}
                       onChange={(e) => updateTrim(i, "start", e.target.value)}
-                      placeholder={`0`}
+                      placeholder="0:00  (beginning)"
                       style={input}
                     />
                   </div>
@@ -621,18 +642,17 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                         marginBottom: 3,
                       }}
                     >
-                      END (sec, optional)
+                      END — e.g. <span style={{ color: T.accent }}>4:40</span>{" "}
+                      or <span style={{ color: T.accent }}>5:00</span>
                     </div>
                     <input
-                      type="number"
-                      min="0"
-                      step="1"
+                      type="text"
                       value={q.end}
                       onChange={(e) => updateTrim(i, "end", e.target.value)}
                       placeholder={
                         q.video.duration_seconds
-                          ? `${q.video.duration_seconds}`
-                          : "full"
+                          ? toMMSS(q.video.duration_seconds) + "  (full)"
+                          : "end"
                       }
                       style={input}
                     />
@@ -643,10 +663,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                 <div style={{ marginTop: 5, fontSize: 10, color: T.textFaint }}>
                   {q.start !== "" || q.end !== "" ? (
                     <span style={{ color: T.accentGreen }}>
-                      ✂️ Using {fmtDur(clipDuration(q))} of clip
+                      ✂️ Using {fmtDur(clipDuration(q))} of clip (
+                      {toMMSS(parseTime(q.start) ?? 0)} →{" "}
+                      {toMMSS(parseTime(q.end) ?? q.video.duration_seconds)})
                     </span>
                   ) : (
-                    <span>Full clip: {fmtDur(q.video.duration_seconds)}</span>
+                    <span>Full clip · {fmtDur(q.video.duration_seconds)}</span>
                   )}
                 </div>
               </div>

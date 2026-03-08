@@ -193,6 +193,20 @@ MOOD_QUERIES = {
         "mountain peak clouds rolling",
         "foggy mountain landscape peaceful",
     ],
+    "aurora_blue": [
+        "northern lights aurora borealis",
+        "aurora borealis night sky green blue",
+        "night sky lights glowing dark",
+        "borealis colors sky abstract",
+        "night lights nature dark sky",
+    ],
+    "aurora_dark": [
+        "dark abstract background flowing",
+        "black dark cinematic moody",
+        "dark smoke black background",
+        "shadow dark dramatic cinematic",
+        "dark night minimal abstract",
+    ],
 }
 
 # Topic keywords that map to a mood automatically
@@ -371,4 +385,3 @@ if __name__ == "__main__":
     result = fetch_all_clips(segments, "test-001")
     for r in result:
         print(f"  [{r['visual_query']}] → {r['clip_path']}")
-
