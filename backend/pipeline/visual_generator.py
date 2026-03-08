@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 
 FPS    = 24
-WIDTH  = 1280
-HEIGHT = 720
+WIDTH  = 1920
+HEIGHT = 1080
 
 
 # ── Frame generators ──────────────────────────────────────────────────────────
@@ -205,13 +205,220 @@ def _particle_field_frame(t: float) -> np.ndarray:
     return (frame.clip(0, 1) * 255).astype(np.uint8)
 
 
+def _liquid_red_frame(t: float) -> np.ndarray:
+    """Viscous crimson liquid blobs morphing through dark space."""
+    W, H = WIDTH, HEIGHT
+    Xn = np.linspace(0, 1, W)
+    Yn = np.linspace(0, 1, H).reshape(-1, 1)
+    bs = [
+        (0.32 + 0.24*math.sin(t*0.40 + 0.00), 0.30 + 0.22*math.cos(t*0.35 + 1.0), 0.048),
+        (0.65 + 0.22*math.cos(t*0.31 + 2.10), 0.60 + 0.24*math.sin(t*0.43 + 0.5), 0.042),
+        (0.48 + 0.20*math.sin(t*0.53 + 4.20), 0.75 + 0.16*math.cos(t*0.37 + 2.8), 0.036),
+        (0.18 + 0.18*math.cos(t*0.43 + 1.50), 0.18 + 0.17*math.sin(t*0.27 + 3.5), 0.032),
+        (0.82 + 0.14*math.sin(t*0.36 + 5.10), 0.42 + 0.19*math.cos(t*0.49 + 0.8), 0.028),
+    ]
+    field = np.zeros((H, W), dtype=np.float32)
+    for bx, by, sigma in bs:
+        dx = Xn - bx
+        dy = Yn - by
+        field += np.exp(-(dx*dx + dy*dy) / (sigma * sigma * 2))
+    liquid = 1.0 / (1.0 + np.exp(-9.0 * (field - 0.55)))
+    hi     = np.exp(-((field - 0.88)**2) / 0.018) * 0.45
+    pulse  = 0.88 + 0.12 * math.sin(t * 0.65)
+    r = np.clip(liquid * 0.50 * pulse + hi * 0.75 + 0.015, 0, 1)
+    g = np.clip(liquid * 0.01 + hi * 0.08,                  0, 1)
+    b = np.clip(liquid * 0.04 + hi * 0.04,                  0, 1)
+    return (np.stack([r, g, b], axis=-1) * 255).astype(np.uint8)
+
+
+def _liquid_blue_frame(t: float) -> np.ndarray:
+    """Deep indigo-blue viscous blobs in dark space."""
+    W, H = WIDTH, HEIGHT
+    Xn = np.linspace(0, 1, W)
+    Yn = np.linspace(0, 1, H).reshape(-1, 1)
+    bs = [
+        (0.28 + 0.26*math.cos(t*0.38 + 0.00), 0.32 + 0.21*math.sin(t*0.33 + 1.2), 0.046),
+        (0.68 + 0.21*math.sin(t*0.29 + 2.40), 0.62 + 0.23*math.cos(t*0.41 + 0.7), 0.040),
+        (0.50 + 0.22*math.cos(t*0.51 + 4.50), 0.78 + 0.15*math.sin(t*0.35 + 3.1), 0.034),
+        (0.16 + 0.19*math.sin(t*0.45 + 1.80), 0.16 + 0.18*math.cos(t*0.25 + 3.8), 0.030),
+        (0.80 + 0.13*math.cos(t*0.34 + 5.30), 0.45 + 0.20*math.sin(t*0.47 + 1.1), 0.027),
+    ]
+    field = np.zeros((H, W), dtype=np.float32)
+    for bx, by, sigma in bs:
+        dx = Xn - bx
+        dy = Yn - by
+        field += np.exp(-(dx*dx + dy*dy) / (sigma * sigma * 2))
+    liquid = 1.0 / (1.0 + np.exp(-9.0 * (field - 0.55)))
+    hi     = np.exp(-((field - 0.88)**2) / 0.018) * 0.45
+    pulse  = 0.88 + 0.12 * math.sin(t * 0.58)
+    r = np.clip(liquid * 0.04 * pulse + hi * 0.12,           0, 1)
+    g = np.clip(liquid * 0.06 * pulse + hi * 0.20,           0, 1)
+    b = np.clip(liquid * 0.55 * pulse + hi * 0.85 + 0.012,   0, 1)
+    return (np.stack([r, g, b], axis=-1) * 255).astype(np.uint8)
+
+
+def _liquid_black_frame(t: float) -> np.ndarray:
+    """Near-black viscous blobs with subtle silver-grey shimmer."""
+    W, H = WIDTH, HEIGHT
+    Xn = np.linspace(0, 1, W)
+    Yn = np.linspace(0, 1, H).reshape(-1, 1)
+    bs = [
+        (0.35 + 0.25*math.sin(t*0.37 + 0.00), 0.33 + 0.22*math.cos(t*0.32 + 1.1), 0.050),
+        (0.66 + 0.22*math.cos(t*0.28 + 2.30), 0.63 + 0.22*math.sin(t*0.40 + 0.6), 0.044),
+        (0.50 + 0.20*math.sin(t*0.50 + 4.40), 0.77 + 0.14*math.cos(t*0.36 + 2.9), 0.037),
+        (0.17 + 0.18*math.cos(t*0.42 + 1.60), 0.17 + 0.16*math.sin(t*0.26 + 3.6), 0.031),
+    ]
+    field = np.zeros((H, W), dtype=np.float32)
+    for bx, by, sigma in bs:
+        dx = Xn - bx
+        dy = Yn - by
+        field += np.exp(-(dx*dx + dy*dy) / (sigma * sigma * 2))
+    liquid = 1.0 / (1.0 + np.exp(-8.0 * (field - 0.58)))
+    hi     = np.exp(-((field - 0.86)**2) / 0.020) * 0.35
+    val = np.clip(liquid * 0.22 + hi * 0.55 + 0.008, 0, 1)
+    return (np.stack([val, val, val], axis=-1) * 255).astype(np.uint8)
+
+
+def _aurora_dark_frame(t: float) -> np.ndarray:
+    """Deep obsidian aurora — barely-there dark curtains of light."""
+    frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
+    x = np.linspace(0, math.pi * 4, WIDTH)
+    for i in range(4):
+        freq  = 0.5 + i * 0.25
+        phase = t * (0.25 + i * 0.10) + i * 1.4
+        amp   = 0.10 + i * 0.03
+        centre = 0.40 + amp * np.sin(x * freq + phase)
+        y_coords = np.linspace(0, 1, HEIGHT).reshape(-1, 1)
+        dist     = np.abs(y_coords - centre)
+        curtain  = np.exp(-dist ** 2 / 0.012) * (0.4 + 0.2 * np.sin(x * 2 + phase))
+        colours = [
+            [0.05, 0.05, 0.18],
+            [0.08, 0.03, 0.22],
+            [0.03, 0.06, 0.16],
+            [0.10, 0.04, 0.20],
+        ]
+        c = colours[i % len(colours)]
+        frame[:, :, 0] += curtain * c[0]
+        frame[:, :, 1] += curtain * c[1]
+        frame[:, :, 2] += curtain * c[2]
+    bg = np.linspace(0.01, 0.04, HEIGHT).reshape(-1, 1)
+    frame[:, :, 2] += bg * 0.8
+    return (frame.clip(0, 1) * 255).astype(np.uint8)
+
+
+def _neon_purple_frame(t: float) -> np.ndarray:
+    """Vivid neon purple/magenta blobs pulsing on pure black."""
+    W, H = WIDTH, HEIGHT
+    Xn = np.linspace(0, 1, W)
+    Yn = np.linspace(0, 1, H).reshape(-1, 1)
+    bs = [
+        (0.30 + 0.27*math.sin(t*0.42 + 0.00), 0.28 + 0.23*math.cos(t*0.37 + 1.0), 0.044),
+        (0.70 + 0.23*math.cos(t*0.33 + 2.20), 0.65 + 0.25*math.sin(t*0.46 + 0.4), 0.038),
+        (0.50 + 0.21*math.sin(t*0.55 + 4.30), 0.80 + 0.16*math.cos(t*0.39 + 2.6), 0.033),
+        (0.15 + 0.19*math.cos(t*0.44 + 1.70), 0.14 + 0.17*math.sin(t*0.28 + 3.4), 0.029),
+    ]
+    field = np.zeros((H, W), dtype=np.float32)
+    for bx, by, sigma in bs:
+        dx = Xn - bx
+        dy = Yn - by
+        field += np.exp(-(dx*dx + dy*dy) / (sigma * sigma * 2))
+    liquid = 1.0 / (1.0 + np.exp(-10.0 * (field - 0.52)))
+    hi     = np.exp(-((field - 0.85)**2) / 0.016) * 0.55
+    pulse  = 0.85 + 0.15 * math.sin(t * 0.72)
+    glow   = field * 0.06
+    r = np.clip(liquid * 0.60 * pulse + hi * 0.95 + glow * 0.4 + 0.01, 0, 1)
+    g = np.clip(liquid * 0.08 * pulse + hi * 0.20 + glow * 0.1,        0, 1)
+    b = np.clip(liquid * 0.70 * pulse + hi * 1.00 + glow * 0.5 + 0.01, 0, 1)
+    return (np.stack([r, g, b], axis=-1) * 255).astype(np.uint8)
+
+
+def _cosmic_dust_frame(t: float) -> np.ndarray:
+    """Golden dust and light filaments drifting through deep space."""
+    rng   = np.random.default_rng(77)
+    n     = 400
+    px    = rng.uniform(0, 1, n)
+    py    = rng.uniform(0, 1, n)
+    sizes = rng.uniform(1, 4, n)
+    speed = rng.uniform(0.003, 0.015, n)
+    gold  = rng.uniform(0.6, 1.0, n)
+
+    frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
+    px_t  = (px + speed * t * 0.5) % 1.0
+    py_t  = (py - speed * t * 0.3) % 1.0
+
+    for i in range(n):
+        xi = int(px_t[i] * WIDTH)
+        yi = int(py_t[i] * HEIGHT)
+        r  = max(1, int(sizes[i]))
+        bright = 0.5 + 0.5 * math.sin(t * speed[i] * 15 + i)
+        g = gold[i]
+        y0, y1 = max(0, yi - r), min(HEIGHT, yi + r + 1)
+        x0, x1 = max(0, xi - r), min(WIDTH,  xi + r + 1)
+        frame[y0:y1, x0:x1, 0] += bright * g * 0.9
+        frame[y0:y1, x0:x1, 1] += bright * g * 0.65
+        frame[y0:y1, x0:x1, 2] += bright * g * 0.08
+
+    X, Y   = np.meshgrid(np.linspace(0, math.pi*2, WIDTH), np.linspace(0, math.pi, HEIGHT))
+    nebula = (np.sin(X * 0.4 + t * 0.06) * np.cos(Y + t * 0.05) + 1) * 0.03
+    frame[:, :, 0] += nebula * 1.0
+    frame[:, :, 1] += nebula * 0.55
+    frame[:, :, 2] += nebula * 0.05
+
+    return (frame.clip(0, 1) * 255).astype(np.uint8)
+
+
+def _ember_glow_frame(t: float) -> np.ndarray:
+    """Floating amber embers rising from the dark — warm and hypnotic."""
+    rng   = np.random.default_rng(55)
+    n     = 250
+    px    = rng.uniform(0, 1, n)
+    py    = rng.uniform(0, 1, n)
+    sizes = rng.uniform(1.5, 5, n)
+    speed = rng.uniform(0.008, 0.025, n)
+    heat  = rng.uniform(0.5, 1.0, n)
+
+    frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
+    px_t  = (px + rng.uniform(-0.002, 0.002, n) * t) % 1.0
+    py_t  = (py - speed * t) % 1.0
+
+    for i in range(n):
+        xi = int(px_t[i] * WIDTH)
+        yi = int(py_t[i] * HEIGHT)
+        r  = max(1, int(sizes[i]))
+        bright = 0.4 + 0.6 * abs(math.sin(t * speed[i] * 12 + i))
+        h  = heat[i]
+        y0, y1 = max(0, yi - r), min(HEIGHT, yi + r + 1)
+        x0, x1 = max(0, xi - r), min(WIDTH,  xi + r + 1)
+        frame[y0:y1, x0:x1, 0] += bright * h * 1.00
+        frame[y0:y1, x0:x1, 1] += bright * h * 0.35
+        frame[y0:y1, x0:x1, 2] += bright * h * 0.02
+
+    bg_y = np.linspace(0.08, 0.0, HEIGHT).reshape(-1, 1)
+    frame[:, :, 0] += bg_y * 0.6
+    frame[:, :, 1] += bg_y * 0.15
+
+    return (frame.clip(0, 1) * 255).astype(np.uint8)
+
+
 FRAME_FUNCS = {
+    # Original generators
     'gradient_wave':   _gradient_wave_frame,
     'aurora':          _aurora_frame,
     'colour_wash':     _colour_wash_frame,
     'starfield':       _starfield_frame,
     'geometric_pulse': _geometric_pulse_frame,
     'particle_field':  _particle_field_frame,
+    # Liquid blob moods (match frontend mood IDs)
+    'fluid_red':       _liquid_red_frame,
+    'fluid_blue':      _liquid_blue_frame,
+    'fluid_black':     _liquid_black_frame,
+    # Aurora variants
+    'aurora_blue':     _aurora_frame,
+    'aurora_dark':     _aurora_dark_frame,
+    # New visual options
+    'neon_purple':     _neon_purple_frame,
+    'cosmic_dust':     _cosmic_dust_frame,
+    'ember_glow':      _ember_glow_frame,
 }
 
 

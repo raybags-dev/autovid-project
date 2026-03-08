@@ -11,6 +11,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   const [compilations, setCompilations] = useState([]);
   const [queue, setQueue] = useState([]); // ordered clips [{video, start, end}]
   const [title, setTitle] = useState("");
+  const [outputMode, setOutputMode] = useState("video"); // 'video' | 'podcast'
   const [building, setBuilding] = useState(false);
   const [polling, setPolling] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -123,6 +124,37 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   async function handleBuild() {
     if (queue.length < 2)
       return showToast("Add at least 2 videos to the queue", "error");
+
+    // Podcast mode — stitch narration MP3s client-side via download links
+    if (outputMode === "podcast") {
+      const missing = queue.filter((q) => !q.video.narration_url);
+      if (missing.length > 0) {
+        showToast(
+          `${missing.length} video(s) have no saved narration MP3 and will be skipped`,
+          "error",
+        );
+        if (missing.length === queue.length) return;
+      }
+      const urls = queue
+        .filter((q) => q.video.narration_url)
+        .map((q) => q.video.narration_url);
+      // Open each narration MP3 in a new tab for download — user stitches in a podcast tool
+      // Or trigger download of each
+      urls.forEach((url, i) => {
+        setTimeout(() => {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `narration_${i + 1}.mp3`;
+          a.target = "_blank";
+          a.click();
+        }, i * 400);
+      });
+      showToast(
+        `🎙 Downloading ${urls.length} narration MP3s — combine in GarageBand, Audacity, or Descript`,
+      );
+      return;
+    }
+
     setBuilding(true);
     const finalTitle =
       title.trim() || `Compilation ${new Date().toLocaleDateString()}`;
@@ -685,6 +717,69 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
+
+          {/* Output mode toggle */}
+          <div style={{ marginBottom: 12 }}>
+            <span style={label}>OUTPUT FORMAT</span>
+            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              {[
+                {
+                  id: "video",
+                  icon: "🎬",
+                  label: "Video Compilation",
+                  desc: "Stitched MP4",
+                },
+                {
+                  id: "podcast",
+                  icon: "🎙",
+                  label: "Podcast / Audio Mix",
+                  desc: "Combined narration MP3s",
+                },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setOutputMode(m.id)}
+                  style={{
+                    flex: 1,
+                    padding: "8px",
+                    borderRadius: 8,
+                    textAlign: "left",
+                    border: `1px solid ${outputMode === m.id ? T.accentGreen + "80" : T.border}`,
+                    background:
+                      outputMode === m.id
+                        ? T.accentGreen + "10"
+                        : "transparent",
+                    color: outputMode === m.id ? T.accentGreen : T.textMid,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <div style={{ fontSize: 16 }}>{m.icon}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, marginTop: 3 }}>
+                    {m.label}
+                  </div>
+                  <div style={{ fontSize: 9, opacity: 0.7 }}>{m.desc}</div>
+                </button>
+              ))}
+            </div>
+            {outputMode === "podcast" && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "8px 10px",
+                  background: T.accentGreen + "08",
+                  border: `1px solid ${T.accentGreen}20`,
+                  borderRadius: 7,
+                  fontSize: 10,
+                  color: T.textFaint,
+                }}
+              >
+                🎙 Podcast mode combines narration MP3s from each video. Videos
+                without a saved narration will be skipped.
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleBuild}
             disabled={building || queue.length < 2}
@@ -696,10 +791,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
             }}
           >
             {building
-              ? "⚙️ Building compilation..."
+              ? `⚙️ Building ${outputMode === "podcast" ? "podcast" : "compilation"}...`
               : queue.length < 2
                 ? `Add ${2 - queue.length} more video${queue.length === 1 ? "" : "s"} to build`
-                : `🔗 Stitch ${queue.length} clips together (${fmtDur(totalSec)})`}
+                : outputMode === "podcast"
+                  ? `🎙 Compile ${queue.length} narrations into podcast (${fmtDur(totalSec)})`
+                  : `🔗 Stitch ${queue.length} clips into video (${fmtDur(totalSec)})`}
           </button>
           {queue.length >= 2 && !building && (
             <div
@@ -710,7 +807,9 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                 textAlign: "center",
               }}
             >
-              Clips will be joined in queue order · start/end times are optional
+              {outputMode === "podcast"
+                ? "Narrations joined in queue order · audio-only output"
+                : "Clips will be joined in queue order · start/end times are optional"}
             </div>
           )}
         </div>

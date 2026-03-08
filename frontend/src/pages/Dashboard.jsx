@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, {
+  createShortFromVideo,
   deleteComment,
   deleteFromYoutube,
   deleteVideo,
+  generateShortFromScratch,
   generateVideo,
   getComments,
   getQuota,
@@ -28,6 +30,53 @@ import {
 import { useAuth } from "../context/AuthContext";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+const MOODS_GRID = [
+  { id: "inspirational", emoji: "🔥", label: "Inspirational", bg: null },
+  { id: "educational", emoji: "🧠", label: "Educational", bg: null },
+  { id: "dramatic", emoji: "⚡", label: "Dramatic", bg: null },
+  { id: "reflective", emoji: "🌊", label: "Reflective", bg: null },
+  {
+    id: "aurora_blue",
+    emoji: "🌌",
+    label: "Aurora Blue",
+    aurora: "blue",
+    bg: "#05081a",
+  },
+  {
+    id: "aurora_dark",
+    emoji: "🖤",
+    label: "Aurora Dark",
+    aurora: "dark",
+    bg: "#080810",
+  },
+  {
+    id: "fluid_red",
+    emoji: "🔴",
+    label: "Liquid Red",
+    fluid: "red",
+    bg: "#08000a",
+  },
+  {
+    id: "fluid_blue",
+    emoji: "🔵",
+    label: "Liquid Blue",
+    fluid: "blue",
+    bg: "#00030e",
+  },
+  {
+    id: "fluid_black",
+    emoji: "⚫",
+    label: "Liquid Black",
+    fluid: "black",
+    bg: "#020202",
+  },
+  { id: "gradient_wave", emoji: "🌈", label: "Gradient Wave", bg: "#080a14" },
+  { id: "starfield", emoji: "✨", label: "Starfield", bg: "#020408" },
+  { id: "geometric_pulse", emoji: "◆", label: "Geometric", bg: "#0a0a12" },
+  { id: "neon_purple", emoji: "💜", label: "Neon Purple", fluid: "purple", bg: "#08010e" },
+  { id: "cosmic_dust", emoji: "🌌", label: "Cosmic Dust", bg: "#020408" },
+  { id: "ember_glow", emoji: "🔥", label: "Ember Glow", bg: "#080200" },
+];
 const STEPS = [
   "Script",
   "Voice",
@@ -189,6 +238,8 @@ export default function Dashboard() {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [profile, setProfile] = useState("educational");
+  const [visualMood, setVisualMood] = useState("inspirational");
+  const [musicStyle, setMusicStyle] = useState("ambient");
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
@@ -231,6 +282,14 @@ export default function Dashboard() {
   const [genLogs, setGenLogs] = useState([]);
   const [showGenLogs, setShowGenLogs] = useState(false);
   const genLogsEndRef = useRef(null);
+  const [shortPrompt, setShortPrompt] = useState("");
+  const [shortAmbience, setShortAmbience] = useState("stars");
+  const [shortGenerating, setShortGenerating] = useState(false);
+  const [shortGenError, setShortGenError] = useState("");
+  const [shortClipVideoId, setShortClipVideoId] = useState("");
+  const [shortClipping, setShortClipping] = useState(false);
+  const [shortClipError, setShortClipError] = useState("");
+  const [shortClipSuccess, setShortClipSuccess] = useState("");
 
   const T = isDark ? THEMES.dark : THEMES.light;
 
@@ -361,7 +420,13 @@ export default function Dashboard() {
     logLineRef.current = 0;
     sessionGenerating.current = true;
     try {
-      const data = await generateVideo(prompt.trim(), false, profile);
+      const data = await generateVideo(
+        prompt.trim(),
+        false,
+        profile,
+        visualMood,
+        musicStyle,
+      );
       const vid = data.video_id;
       setGenJobId(vid);
       setPrompt("");
@@ -411,6 +476,38 @@ export default function Dashboard() {
     setGenError("Cancelled by you");
     showToast("Pipeline cancelled", "error");
   };
+
+  const handleGenerateShort = async () => {
+    if (!shortPrompt.trim() || shortGenerating) return;
+    setShortGenError("");
+    setShortGenerating(true);
+    try {
+      await generateShortFromScratch(shortPrompt.trim(), shortAmbience);
+      setShortPrompt("");
+      showToast("Short generation started — check back in a few minutes.");
+    } catch (e) {
+      setShortGenError(e?.response?.data?.detail || "Failed to start short generation.");
+    } finally {
+      setShortGenerating(false);
+    }
+  };
+
+  const handleClipShort = async () => {
+    if (!shortClipVideoId || shortClipping) return;
+    setShortClipError("");
+    setShortClipSuccess("");
+    setShortClipping(true);
+    try {
+      await createShortFromVideo(shortClipVideoId);
+      setShortClipSuccess("Short is being created and will upload to YouTube.");
+      setShortClipVideoId("");
+    } catch (e) {
+      setShortClipError(e?.response?.data?.detail || "Failed to clip short.");
+    } finally {
+      setShortClipping(false);
+    }
+  };
+
   // Reset channel scroll when switching to channel tab
   useEffect(() => {
     if (tab === "channel") setChannelVisible(24);
@@ -875,152 +972,12 @@ export default function Dashboard() {
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── Fluid liquid animations ── */
-        @keyframes fluid1 {
-          0%   { border-radius: 62% 38% 32% 68% / 58% 34% 66% 42%; }
-          25%  { border-radius: 38% 62% 55% 45% / 45% 58% 42% 55%; }
-          50%  { border-radius: 55% 45% 68% 32% / 62% 42% 58% 38%; }
-          75%  { border-radius: 45% 55% 40% 60% / 38% 65% 35% 62%; }
-          100% { border-radius: 62% 38% 32% 68% / 58% 34% 66% 42%; }
-        }
-        @keyframes fluid2 {
-          0%   { border-radius: 40% 60% 60% 40% / 40% 60% 40% 60%; }
-          33%  { border-radius: 65% 35% 45% 55% / 55% 40% 60% 45%; }
-          66%  { border-radius: 35% 65% 55% 45% / 45% 55% 40% 60%; }
-          100% { border-radius: 40% 60% 60% 40% / 40% 60% 40% 60%; }
-        }
-        @keyframes fluid3 {
-          0%   { border-radius: 50% 50% 38% 62% / 62% 44% 56% 38%; }
-          40%  { border-radius: 68% 32% 55% 45% / 42% 60% 40% 58%; }
-          80%  { border-radius: 32% 68% 42% 58% / 55% 38% 62% 45%; }
-          100% { border-radius: 50% 50% 38% 62% / 62% 44% 56% 38%; }
-        }
-        .fluid-wrap { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; }
-        .fluid-blob {
-          position: absolute;
-          filter: blur(28px);
-          will-change: border-radius;
-        }
         /* ── Red fluid — dark crimson, subtle & pleasant ── */
-        .fluid-red  { background: #08000a; }
-        .fluid-red  .fluid-blob:nth-child(1) {
-          width:85%; height:85%; top:7%; left:7%;
-          background: radial-gradient(ellipse at 50% 50%, #6b0012 0%, #3a0009 55%, transparent 100%);
-          animation: fluid1 14s ease-in-out infinite;
-          opacity: 0.85;
-        }
-        .fluid-red  .fluid-blob:nth-child(2) {
-          width:62%; height:62%; top:19%; left:19%;
-          background: radial-gradient(ellipse at 50% 50%, #9b001b 0%, #5a000f 55%, transparent 100%);
-          animation: fluid2 10s ease-in-out infinite;
-          opacity: 0.7;
-        }
-        .fluid-red  .fluid-blob:nth-child(3) {
-          width:42%; height:42%; top:29%; left:29%;
-          background: radial-gradient(ellipse at 50% 50%, #c20020 0%, #780012 60%, transparent 100%);
-          animation: fluid3 8s ease-in-out infinite;
-          opacity: 0.55;
-        }
         /* ── Blue fluid — deep navy, subtle & pleasant ── */
-        .fluid-blue { background: #00030e; }
-        .fluid-blue .fluid-blob:nth-child(1) {
-          width:85%; height:85%; top:7%; left:7%;
-          background: radial-gradient(ellipse at 50% 50%, #001260 0%, #00082e 55%, transparent 100%);
-          animation: fluid1 15s ease-in-out infinite;
-          opacity: 0.85;
-        }
-        .fluid-blue .fluid-blob:nth-child(2) {
-          width:62%; height:62%; top:19%; left:19%;
-          background: radial-gradient(ellipse at 50% 50%, #001e8a 0%, #000e44 55%, transparent 100%);
-          animation: fluid2 11s ease-in-out infinite;
-          opacity: 0.7;
-        }
-        .fluid-blue .fluid-blob:nth-child(3) {
-          width:42%; height:42%; top:29%; left:29%;
-          background: radial-gradient(ellipse at 50% 50%, #0030b8 0%, #001560 60%, transparent 100%);
-          animation: fluid3 9s ease-in-out infinite;
-          opacity: 0.55;
-        }
         /* ── Black fluid — near-black charcoal morphs ── */
-        .fluid-black { background: #020202; }
-        .fluid-black .fluid-blob:nth-child(1) {
-          width:85%; height:85%; top:7%; left:7%;
-          background: radial-gradient(ellipse at 50% 50%, #1a1a1a 0%, #0c0c0c 55%, transparent 100%);
-          animation: fluid1 16s ease-in-out infinite;
-          opacity: 0.9;
-        }
-        .fluid-black .fluid-blob:nth-child(2) {
-          width:62%; height:62%; top:19%; left:19%;
-          background: radial-gradient(ellipse at 50% 50%, #252525 0%, #111 55%, transparent 100%);
-          animation: fluid2 12s ease-in-out infinite;
-          opacity: 0.75;
-        }
-        .fluid-black .fluid-blob:nth-child(3) {
-          width:42%; height:42%; top:29%; left:29%;
-          background: radial-gradient(ellipse at 50% 50%, #303030 0%, #181818 60%, transparent 100%);
-          animation: fluid3 9s ease-in-out infinite;
-          opacity: 0.6;
-        }
         /* ── Aurora wave animations ── */
-        @keyframes aurora1 {
-          0%   { transform: translateX(-30%) skewX(-8deg) scaleY(1);   opacity: 0.55; }
-          50%  { transform: translateX(20%)  skewX(6deg)  scaleY(1.2); opacity: 0.75; }
-          100% { transform: translateX(-30%) skewX(-8deg) scaleY(1);   opacity: 0.55; }
-        }
-        @keyframes aurora2 {
-          0%   { transform: translateX(20%)  skewX(10deg) scaleY(0.9); opacity: 0.4; }
-          50%  { transform: translateX(-25%) skewX(-6deg) scaleY(1.1); opacity: 0.65; }
-          100% { transform: translateX(20%)  skewX(10deg) scaleY(0.9); opacity: 0.4; }
-        }
-        @keyframes aurora3 {
-          0%   { transform: translateX(-10%) skewX(4deg)  scaleY(1.1); opacity: 0.3; }
-          60%  { transform: translateX(30%)  skewX(-10deg) scaleY(0.8);opacity: 0.5; }
-          100% { transform: translateX(-10%) skewX(4deg)  scaleY(1.1); opacity: 0.3; }
-        }
-        .aurora-wrap {
-          position: absolute; inset: 0; overflow: hidden;
-          pointer-events: none; border-radius: inherit;
-        }
-        .aurora-band {
-          position: absolute; left: -60%; width: 220%;
-          border-radius: 50%;
-          filter: blur(38px);
-        }
         /* Blue aurora */
-        .aurora-blue .aurora-band:nth-child(1) {
-          top: 15%; height: 28%;
-          background: linear-gradient(90deg, #0af 0%, #06f 40%, #a0f 100%);
-          animation: aurora1 9s ease-in-out infinite;
-        }
-        .aurora-blue .aurora-band:nth-child(2) {
-          top: 35%; height: 22%;
-          background: linear-gradient(90deg, #08f 0%, #30f 50%, #0cf 100%);
-          animation: aurora2 12s ease-in-out infinite;
-        }
-        .aurora-blue .aurora-band:nth-child(3) {
-          top: 52%; height: 18%;
-          background: linear-gradient(90deg, #60f 0%, #0af 60%, #06f 100%);
-          animation: aurora3 7s ease-in-out infinite;
-        }
         /* Dark/obsidian aurora */
-        .aurora-dark .aurora-band:nth-child(1) {
-          top: 10%; height: 32%;
-          background: linear-gradient(90deg, #111 0%, #1a1a2e 35%, #0d0d1a 70%, #111 100%);
-          animation: aurora1 11s ease-in-out infinite;
-          filter: blur(30px);
-          opacity: 0.9;
-        }
-        .aurora-dark .aurora-band:nth-child(2) {
-          top: 38%; height: 24%;
-          background: linear-gradient(90deg, #0d0d0d 0%, #1c1c3a 40%, #0a0a0a 100%);
-          animation: aurora2 14s ease-in-out infinite;
-          filter: blur(40px);
-        }
-        .aurora-dark .aurora-band:nth-child(3) {
-          top: 58%; height: 20%;
-          background: linear-gradient(90deg, #1a1a1a 0%, #0d0d22 50%, #111 100%);
-          animation: aurora3 8s ease-in-out infinite;
-          filter: blur(24px);
-        }
         .btn-primary:disabled{opacity:0.35;cursor:not-allowed;transform:none;}
         .btn-sm{padding:5px 12px;border-radius:6px;font-family:inherit;font-size:10px;letter-spacing:0.06em;cursor:pointer;border:1px solid;transition:all 0.15s;}
         .filter-btn{padding:5px 14px;border-radius:6px;font-family:inherit;font-size:10px;letter-spacing:0.06em;border:1px solid ${T.border};background:transparent;color:${T.textDim};cursor:pointer;transition:all 0.15s;}
@@ -1033,10 +990,6 @@ export default function Dashboard() {
         .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(12px);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
         .modal{background:${isDark ? "#060d18" : "#ffffff"};border:1px solid ${T.border};border-radius:18px;padding:28px;max-width:580px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.4);}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes ringPulse {
-          0%   { transform: scale(1);   opacity: 0.8; }
-          100% { transform: scale(2.2); opacity: 0; }
-        }
         .modal{animation:fadeUp 0.2s ease;}
         .textarea{width:100%;padding:12px 14px;background:${T.inputBg};border:1px solid ${T.border};border-radius:8px;color:${T.text};font-family:inherit;font-size:13px;resize:none;outline:none;transition:border-color 0.2s;line-height:1.6;}
         .textarea:focus{border-color:rgba(0,160,220,0.4);}
@@ -1131,6 +1084,7 @@ export default function Dashboard() {
                 count: videos.length,
               },
               { id: "script", icon: "✍", label: "Script Studio" },
+              { id: "shorts", icon: "⚡", label: "Shorts" },
               { id: "channel", icon: "▶", label: "My Channel" },
               { id: "billing", icon: "◑", label: "Billing" },
               { id: "analytics", icon: "◈", label: "Analytics" },
@@ -1319,11 +1273,13 @@ export default function Dashboard() {
                 ? "Video Library"
                 : tab === "script"
                   ? "Script Studio"
-                  : tab === "analytics"
-                    ? "Analytics"
-                    : tab === "compilations"
-                      ? "Compilations"
-                      : "Settings"}
+                  : tab === "shorts"
+                    ? "YouTube Shorts"
+                    : tab === "analytics"
+                      ? "Analytics"
+                      : tab === "compilations"
+                        ? "Compilations"
+                        : "Settings"}
             </div>
             <div
               style={{
@@ -1403,69 +1359,78 @@ export default function Dashboard() {
                     marginBottom: 20,
                   }}
                 >
-                  {[
-                    {
-                      label: "TOTAL VIDEOS",
-                      value: videos.length,
-                      color: T.accent,
-                      icon: "▣",
-                    },
-                    {
-                      label: "LIVE ON YT",
-                      value: videos.filter((v) => v.status === "posted").length,
-                      color: T.accentGreen,
-                      icon: "▶",
-                    },
-                    {
-                      label: "TOTAL VIEWS",
-                      value: fmtNum(
-                        videos.reduce((s, v) => s + (v.views_count || 0), 0),
-                      ),
-                      color: T.accentYellow,
-                      icon: "◉",
-                    },
-                    {
-                      label: "TOTAL LIKES",
-                      value: fmtNum(
-                        videos.reduce((s, v) => s + (v.likes_count || 0), 0),
-                      ),
-                      color: "#e060a0",
-                      icon: "♥",
-                    },
-                  ].map((s) => (
-                    <div key={s.label} className="stat-card">
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: 10,
-                        }}
-                      >
+                  {!pageReady ? (
+                    [0,1,2,3].map(i => (
+                      <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px", height: 80 }}>
+                        <div className="skeleton-loader" style={{ width: "40%", height: 10, borderRadius: 4, marginBottom: 10 }} />
+                        <div className="skeleton-loader" style={{ width: "60%", height: 22, borderRadius: 4 }} />
+                      </div>
+                    ))
+                  ) : (
+                    [
+                      {
+                        label: "TOTAL VIDEOS",
+                        value: videos.length,
+                        color: T.accent,
+                        icon: "▣",
+                      },
+                      {
+                        label: "LIVE ON YT",
+                        value: videos.filter((v) => v.status === "posted").length,
+                        color: T.accentGreen,
+                        icon: "▶",
+                      },
+                      {
+                        label: "TOTAL VIEWS",
+                        value: fmtNum(
+                          videos.reduce((s, v) => s + (v.views_count || 0), 0),
+                        ),
+                        color: T.accentYellow,
+                        icon: "◉",
+                      },
+                      {
+                        label: "TOTAL LIKES",
+                        value: fmtNum(
+                          videos.reduce((s, v) => s + (v.likes_count || 0), 0),
+                        ),
+                        color: "#e060a0",
+                        icon: "♥",
+                      },
+                    ].map((s) => (
+                      <div key={s.label} className="stat-card">
                         <div
                           style={{
-                            fontSize: 9,
-                            color: T.textFaint,
-                            letterSpacing: "0.12em",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            marginBottom: 10,
                           }}
                         >
-                          {s.label}
+                          <div
+                            style={{
+                              fontSize: 9,
+                              color: T.textFaint,
+                              letterSpacing: "0.12em",
+                            }}
+                          >
+                            {s.label}
+                          </div>
+                          <span style={{ color: s.color, fontSize: 14 }}>
+                            {s.icon}
+                          </span>
                         </div>
-                        <span style={{ color: s.color, fontSize: 14 }}>
-                          {s.icon}
-                        </span>
+                        <div
+                          style={{
+                            fontFamily: "'Syne',sans-serif",
+                            fontSize: 30,
+                            fontWeight: 800,
+                            color: s.color,
+                          }}
+                        >
+                          {s.value}
+                        </div>
                       </div>
-                      <div
-                        style={{
-                          fontFamily: "'Syne',sans-serif",
-                          fontSize: 30,
-                          fontWeight: 800,
-                          color: s.color,
-                        }}
-                      >
-                        {s.value}
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 {/* Generate box */}
@@ -1573,10 +1538,172 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
+                  {/* Visual mood grid */}
+                  <div style={{ marginTop: 14 }}>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        color: T.textFaint,
+                        letterSpacing: "0.1em",
+                        marginBottom: 7,
+                      }}
+                    >
+                      VISUAL MOOD
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3,1fr)",
+                        gap: 5,
+                      }}
+                    >
+                      {MOODS_GRID.map((v) => (
+                        <button
+                          key={v.id}
+                          onClick={() => setVisualMood(v.id)}
+                          disabled={generating}
+                          style={{
+                            position: "relative",
+                            padding: "7px 8px",
+                            borderRadius: 8,
+                            overflow: "hidden",
+                            border: `1px solid ${visualMood === v.id ? "#a060ff60" : T.border}`,
+                            background:
+                              v.bg ||
+                              (visualMood === v.id
+                                ? "#a060ff12"
+                                : "transparent"),
+                            color: visualMood === v.id ? "#a060ff" : T.textMid,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {v.aurora && (
+                            <div
+                              className={`aurora-wrap aurora-${v.aurora}`}
+                              style={{
+                                opacity: visualMood === v.id ? 1 : 0.55,
+                              }}
+                            >
+                              <div className="aurora-band" />
+                              <div className="aurora-band" />
+                              <div className="aurora-band" />
+                            </div>
+                          )}
+                          {v.fluid && (
+                            <div
+                              className={`fluid-wrap fluid-${v.fluid}`}
+                              style={{
+                                opacity: visualMood === v.id ? 1 : 0.65,
+                              }}
+                            >
+                              <div className="fluid-blob" />
+                              <div className="fluid-blob" />
+                              <div className="fluid-blob" />
+                            </div>
+                          )}
+                          <div
+                            style={{
+                              position: "relative",
+                              zIndex: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            <span style={{ fontSize: 12 }}>{v.emoji}</span>
+                            <span style={{ fontSize: 9, fontWeight: 600 }}>
+                              {v.label}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Music style */}
+                  <div style={{ marginTop: 10 }}>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        color: T.textFaint,
+                        letterSpacing: "0.1em",
+                        marginBottom: 7,
+                      }}
+                    >
+                      BACKGROUND MUSIC
+                    </div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {[
+                        {
+                          id: "ambient",
+                          label: "🌫 Ambient",
+                          desc: "Calm & atmospheric",
+                        },
+                        {
+                          id: "cinematic",
+                          label: "🎬 Cinematic",
+                          desc: "Epic & dramatic",
+                        },
+                        {
+                          id: "lo-fi",
+                          label: "☕ Lo-Fi",
+                          desc: "Relaxed & warm",
+                        },
+                        {
+                          id: "meditation",
+                          label: "🧘 Meditation",
+                          desc: "Peaceful & mindful",
+                        },
+                        {
+                          id: "jazz",
+                          label: "🎷 Jazz",
+                          desc: "Smooth & soulful",
+                        },
+                        {
+                          id: "epic_trailer",
+                          label: "🎯 Epic Trailer",
+                          desc: "Intense & powerful",
+                        },
+                        {
+                          id: "chill_electronic",
+                          label: "🎧 Chill Electronic",
+                          desc: "Smooth beats",
+                        },
+                        { id: "none", label: "🔇 None", desc: "No music" },
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => setMusicStyle(m.id)}
+                          disabled={generating}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            border: `1px solid ${musicStyle === m.id ? T.accentGreen + "80" : T.border}`,
+                            background:
+                              musicStyle === m.id
+                                ? `${T.accentGreen}10`
+                                : "transparent",
+                            color:
+                              musicStyle === m.id ? T.accentGreen : T.textFaint,
+                            fontSize: 9,
+                            fontFamily: "inherit",
+                            cursor: "pointer",
+                          }}
+                          title={m.desc}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div
-                    style={{ fontSize: 10, color: T.textFaint, marginTop: 6 }}
+                    style={{ fontSize: 10, color: T.textFaint, marginTop: 8 }}
                   >
-                    Ctrl+Enter to generate · ~90s pipeline · Auto-saves to
+                    Ctrl+Enter to generate · ~3 min pipeline · Auto-saves to
                     Supabase
                   </div>
 
@@ -1766,7 +1893,7 @@ export default function Dashboard() {
                         }}
                       >
                         <button
-                          onClick={() => setShowGenLogs(true)}
+                          onClick={() => setShowGenLogs(p => !p)}
                           style={{
                             padding: "7px 16px",
                             borderRadius: 7,
@@ -1779,7 +1906,7 @@ export default function Dashboard() {
                             cursor: "pointer",
                           }}
                         >
-                          📋 VIEW LOGS
+                          {showGenLogs ? "▲ HIDE LOGS" : "📋 VIEW LOGS"}
                         </button>
                         <button
                           onClick={handleGenCancel}
@@ -1801,100 +1928,52 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Gen log modal */}
-                  {showGenLogs && (
-                    <div
-                      onClick={() => setShowGenLogs(false)}
-                      style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.75)",
-                        zIndex: 200,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: 20,
-                      }}
-                    >
+                  {/* Inline pipeline logs */}
+                  {(showGenLogs || generating) && genLogs.length > 0 && (
+                    <div style={{
+                      marginTop: 12,
+                      background: isDark ? "#08090e" : "#f0f2f5",
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                    }}>
                       <div
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={() => setShowGenLogs(p => !p)}
                         style={{
-                          width: "100%",
-                          maxWidth: 700,
-                          maxHeight: "70vh",
-                          background: "#0a0a0f",
-                          border: `1px solid ${T.border}`,
-                          borderRadius: 14,
                           display: "flex",
-                          flexDirection: "column",
-                          overflow: "hidden",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "8px 14px",
+                          cursor: "pointer",
+                          borderBottom: showGenLogs ? `1px solid ${T.border}` : "none",
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "14px 18px",
-                            borderBottom: `1px solid ${T.border}`,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: T.text,
-                              letterSpacing: "0.1em",
-                            }}
-                          >
-                            PIPELINE LOGS
-                          </div>
-                          <button
-                            onClick={() => setShowGenLogs(false)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: T.textFaint,
-                              cursor: "pointer",
-                              fontSize: 18,
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        <div
-                          style={{
-                            flex: 1,
-                            overflowY: "auto",
-                            padding: "12px 18px",
-                            fontFamily: "monospace",
-                            fontSize: 11,
-                            lineHeight: 1.7,
-                          }}
-                        >
-                          {genLogs.length === 0 ? (
-                            <div style={{ color: T.textFaint }}>
-                              Waiting for pipeline output...
+                        <span style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em" }}>
+                          📋 PIPELINE LOGS ({genLogs.length} lines)
+                        </span>
+                        <span style={{ fontSize: 11, color: T.textFaint }}>{showGenLogs ? "▲" : "▼"}</span>
+                      </div>
+                      {showGenLogs && (
+                        <div style={{
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          padding: "10px 14px",
+                          fontFamily: "monospace",
+                          fontSize: 11,
+                          lineHeight: 1.7,
+                        }}>
+                          {genLogs.slice(-50).map((line, i) => (
+                            <div key={i} style={{
+                              color: line.startsWith("[ERROR]") ? "#ff6060"
+                                : line.startsWith("[DONE]") ? "#60ff60"
+                                : isDark ? "#a0d0a0" : "#2d5a2d",
+                            }}>
+                              {line}
                             </div>
-                          ) : (
-                            genLogs.map((line, i) => (
-                              <div
-                                key={i}
-                                style={{
-                                  color: line.startsWith("[ERROR]")
-                                    ? "#ff6060"
-                                    : line.startsWith("[DONE]")
-                                      ? "#60ff60"
-                                      : "#a0d0a0",
-                                }}
-                              >
-                                {line}
-                              </div>
-                            ))
-                          )}
+                          ))}
                           <div ref={genLogsEndRef} />
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1938,7 +2017,18 @@ export default function Dashboard() {
                 </div>
 
                 {/* Video list */}
-                {filtered.length === 0 ? (
+                {!pageReady && videos.length === 0 ? (
+                  [0,1,2,3].map(i => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", marginBottom: 8, background: T.bgCard, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                      <div className="skeleton-loader" style={{ width: 96, height: 54, borderRadius: 8, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div className="skeleton-loader" style={{ width: "55%", height: 13, borderRadius: 4, marginBottom: 8 }} />
+                        <div className="skeleton-loader" style={{ width: "30%", height: 10, borderRadius: 4 }} />
+                      </div>
+                      <div className="skeleton-loader" style={{ width: 60, height: 22, borderRadius: 20 }} />
+                    </div>
+                  ))
+                ) : filtered.length === 0 ? (
                   <div
                     style={{
                       textAlign: "center",
@@ -2772,6 +2862,27 @@ export default function Dashboard() {
                                   ▶ YouTube
                                 </a>
                               )}
+                              {v.narration_url && (
+                                <a
+                                  href={v.narration_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  download
+                                  title="Download narration MP3"
+                                  style={{
+                                    fontSize: 10,
+                                    color: "#a0d090",
+                                    textDecoration: "none",
+                                    padding: "4px 10px",
+                                    background: "#a0d09010",
+                                    borderRadius: 5,
+                                    border: "1px solid #a0d09030",
+                                  }}
+                                >
+                                  🎙 MP3
+                                </a>
+                              )}
                               <span
                                 style={{ fontSize: 10, color: T.textFaint }}
                               >
@@ -2872,6 +2983,117 @@ export default function Dashboard() {
                   setTimeout(() => setPreview(video), 400);
                 }}
               />
+            )}
+
+            {/* ── SHORTS TAB ─────────────────────────────────────────────────────── */}
+            {tab === "shorts" && (
+              <div style={{ maxWidth: 900, margin: "0 auto" }}>
+                {/* Header */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: T.text, marginBottom: 6 }}>
+                    ⚡ YouTube Shorts Studio
+                  </div>
+                  <div style={{ fontSize: 12, color: T.textDim }}>
+                    Generate portrait 9:16 videos or clip your best existing content into Shorts.
+                  </div>
+                </div>
+
+                {/* Two modes */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                  {/* Mode A: Generate from scratch */}
+                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 4 }}>
+                      ✨ Generate New Short
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
+                      AI writes + narrates + renders a brand-new 9:16 Short from your prompt.
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>TOPIC / PROMPT</div>
+                      <textarea
+                        value={shortPrompt}
+                        onChange={e => setShortPrompt(e.target.value)}
+                        rows={3}
+                        placeholder="e.g. 'The quiet grief nobody talks about'"
+                        style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>AMBIENCE</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                        {[
+                          { v: "stars", emoji: "⭐", label: "Stars", desc: "Deep space drift" },
+                          { v: "aurora", emoji: "🌌", label: "Aurora", desc: "Rippling northern lights" },
+                          { v: "ocean", emoji: "🌊", label: "Ocean", desc: "Underwater light rays" },
+                          { v: "fire", emoji: "🔥", label: "Fire", desc: "Warm floating embers" },
+                          { v: "rain", emoji: "🌧", label: "Rain", desc: "Night city window" },
+                          { v: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
+                          { v: "candlelight", emoji: "🕯", label: "Candle", desc: "Soft flickering glow" },
+                          { v: "forest", emoji: "🌿", label: "Forest", desc: "Golden light canopy" },
+                        ].map(a => (
+                          <button key={a.v} onClick={() => setShortAmbience(a.v)} style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", textAlign: "left", border: `2px solid ${shortAmbience === a.v ? T.accent : T.border}`, background: shortAmbience === a.v ? `${T.accent}18` : T.inputBg, color: T.text, fontFamily: "inherit" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700 }}>{a.emoji} {a.label}</div>
+                            <div style={{ fontSize: 10, color: T.textDim }}>{a.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
+                    <button onClick={handleGenerateShort} disabled={shortGenerating || !shortPrompt.trim()} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortGenerating || !shortPrompt.trim() ? T.border : T.accent, color: shortGenerating || !shortPrompt.trim() ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortGenerating || !shortPrompt.trim() ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+                      {shortGenerating ? "⚡ GENERATING..." : "⚡ GENERATE SHORT"}
+                    </button>
+                  </div>
+
+                  {/* Mode B: Clip from existing video */}
+                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 4 }}>
+                      ✂️ Clip Existing Video
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
+                      Auto-clips the best 59 seconds from a video in your library and crops to 9:16 portrait.
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>SELECT VIDEO</div>
+                      <select
+                        value={shortClipVideoId}
+                        onChange={e => setShortClipVideoId(e.target.value)}
+                        style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
+                      >
+                        <option value="">— Pick a video —</option>
+                        {videos.filter(v => v.status === "posted" || v.status === "ready").map(v => (
+                          <option key={v.id} value={v.id}>{v.title || v.id.slice(0,16)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16, padding: "10px 12px", background: T.bgSub, borderRadius: 8, lineHeight: 1.6 }}>
+                      ℹ️ The first ~25% of the video is skipped (usually intro). The next 59s is cropped to a center portrait frame and uploaded to YouTube as a Short.
+                    </div>
+                    {shortClipError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortClipError}</div>}
+                    {shortClipSuccess && <div style={{ fontSize: 11, color: T.accentGreen, marginBottom: 10 }}>{shortClipSuccess}</div>}
+                    <button onClick={handleClipShort} disabled={shortClipping || !shortClipVideoId} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortClipping || !shortClipVideoId ? T.border : T.accentGreen, color: shortClipping || !shortClipVideoId ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortClipping || !shortClipVideoId ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+                      {shortClipping ? "✂️ PROCESSING..." : "✂️ CREATE SHORT"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tips */}
+                <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 18px" }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SHORTS TIPS</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                    {[
+                      { icon: "⏱", title: "Max 59 Seconds", desc: "YouTube Shorts must be under 60s to qualify for the Shorts feed." },
+                      { icon: "📱", title: "9:16 Portrait", desc: "All Shorts are rendered at 1080×1920 — vertical mobile-first format." },
+                      { icon: "🚀", title: "Auto Upload", desc: "Generated Shorts are automatically uploaded to your YouTube channel." },
+                    ].map(tip => (
+                      <div key={tip.icon} style={{ background: T.bgSub, borderRadius: 10, padding: "12px 14px" }}>
+                        <div style={{ fontSize: 18, marginBottom: 6 }}>{tip.icon}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 4 }}>{tip.title}</div>
+                        <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5 }}>{tip.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* ── Billing & Quotas Tab ──────────────────────────────────────────── */}
@@ -3090,6 +3312,20 @@ export default function Dashboard() {
                                       }}
                                     >
                                       ▶ WATCH ON YOUTUBE
+                                    </a>
+                                  )}
+                                  {v.narration_url && (
+                                    <a
+                                      href={v.narration_url}
+                                      download
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{
+                                        color: "#a0d090",
+                                        textDecoration: "none",
+                                      }}
+                                    >
+                                      🎙 NARRATION MP3
                                     </a>
                                   )}
                                 </div>
@@ -3591,6 +3827,14 @@ export default function Dashboard() {
                                   `${((billing.elevenlabs.chars_remaining || 0) / 1000).toFixed(0)}K chars`,
                                 ],
                                 ["Tier", billing.elevenlabs.tier || "—"],
+                                [
+                                  "Resets On",
+                                  billing.elevenlabs.reset_date || "—",
+                                ],
+                                [
+                                  "Voice ID",
+                                  billing.elevenlabs.voice_id || "—",
+                                ],
                               ].map(([k, v]) => (
                                 <div
                                   key={k}
@@ -3903,6 +4147,60 @@ export default function Dashboard() {
                               : "● ERROR"}
                           </div>
                         </div>
+                        {/* Storage progress bar */}
+                        <div style={{ marginBottom: 12 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              fontSize: 11,
+                              marginBottom: 5,
+                            }}
+                          >
+                            <span style={{ color: T.textMid }}>
+                              Storage used
+                            </span>
+                            <span style={{ color: T.text, fontWeight: 600 }}>
+                              {billing.supabase.storage_used_gb >= 1
+                                ? `${billing.supabase.storage_used_gb.toFixed(2)} GB`
+                                : `${billing.supabase.storage_used_mb || 0} MB`}{" "}
+                              / {billing.supabase.storage_limit_gb || 100} GB
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              height: 6,
+                              background: T.border,
+                              borderRadius: 99,
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: "100%",
+                                borderRadius: 99,
+                                width: `${Math.min(billing.supabase.storage_percent || 0, 100)}%`,
+                                background:
+                                  (billing.supabase.storage_percent || 0) > 80
+                                    ? "#ff5050"
+                                    : (billing.supabase.storage_percent || 0) > 50
+                                      ? "#ffaa00"
+                                      : "#00d4ff",
+                              }}
+                            />
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: T.textMid,
+                              marginTop: 4,
+                            }}
+                          >
+                            {billing.supabase.storage_percent || 0}% of{" "}
+                            {billing.supabase.storage_limit_gb || 100} GB used
+                          </div>
+                        </div>
+
+                        {/* Stats grid */}
                         <div
                           style={{
                             display: "grid",
@@ -3912,13 +4210,24 @@ export default function Dashboard() {
                           }}
                         >
                           {[
+                            ["Tier", billing.supabase.tier || "Pro"],
+                            ["Videos in DB", billing.supabase.videos_in_db || 0],
                             [
-                              "Videos in DB",
-                              billing.supabase.videos_in_db || 0,
+                              "Video Files",
+                              `${billing.supabase.videos_file_count || 0} files (${billing.supabase.videos_bucket_mb || 0} MB)`,
                             ],
-                            ["Storage Limit", "1 GB"],
-                            ["DB Limit", "500 MB"],
-                            ["Tier", "Free"],
+                            [
+                              "Narrations",
+                              `${billing.supabase.narrations_file_count || 0} files (${billing.supabase.narrations_bucket_mb || 0} MB)`,
+                            ],
+                            [
+                              "Storage Limit",
+                              `${billing.supabase.storage_limit_gb || 100} GB`,
+                            ],
+                            [
+                              "Max File Size",
+                              `${billing.supabase.file_size_limit_gb || 5} GB`,
+                            ],
                           ].map(([k, v]) => (
                             <div
                               key={k}
@@ -4039,9 +4348,23 @@ export default function Dashboard() {
                                 .slice(0, 3)
                                 .join("-") || "—",
                             ],
-                            ["Pricing", "Free"],
-                            ["Rate Limit", "6K tok/min"],
-                            ["Daily Limit", "500K tokens"],
+                            ["Pricing", billing.groq.pricing || "Free"],
+                            [
+                              "Context",
+                              `${billing.groq.context_k || 128}K tokens`,
+                            ],
+                            [
+                              "Tok/Min",
+                              (billing.groq.tok_per_min || 6000).toLocaleString(),
+                            ],
+                            [
+                              "Req/Min",
+                              billing.groq.req_per_min || 30,
+                            ],
+                            [
+                              "Daily Limit",
+                              `${((billing.groq.tok_per_day || 500000) / 1000).toFixed(0)}K tokens`,
+                            ],
                           ].map(([k, v]) => (
                             <div
                               key={k}
@@ -4156,8 +4479,22 @@ export default function Dashboard() {
                         >
                           {[
                             ["Pricing", "Free"],
-                            ["Rate Limit", "200 req/hr"],
-                            ["Monthly", "20K requests"],
+                            [
+                              "Rate Limit",
+                              `${billing.pexels.rate_limit_hour || 200} req/hr`,
+                            ],
+                            [
+                              "Monthly",
+                              `${((billing.pexels.monthly_limit || 20000) / 1000).toFixed(0)}K requests`,
+                            ],
+                            [
+                              "Content",
+                              billing.pexels.content_types || "Videos, Photos",
+                            ],
+                            [
+                              "Pixabay Fallback",
+                              billing.pexels.pixabay_fallback ? "✓ Configured" : "✗ Not set",
+                            ],
                             ["Attribution", "Required"],
                           ].map(([k, v]) => (
                             <div

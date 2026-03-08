@@ -1,4 +1,27 @@
+"""
+AutoVid Pipeline — Master Orchestrator
 
+Pipeline order:
+  1.  Create DB record
+  2.  Generate script (Groq)
+  3.  Synthesize voice (ElevenLabs) → saves audio/[id].mp3
+  4.  Align segments to audio timing
+  5.  Fetch stock video clips (Pexels/Pixabay)
+  6.  Assemble raw video (MoviePy) — clips + audio merged → videos/[id]_raw.mp4
+  7.  Generate thumbnail from raw video
+  8.  Burn captions (Whisper + FFmpeg) → videos/[id]_captioned.mp4
+  9.  Merge audio into captioned video (guarantees sound) → videos/[id]_final.mp4
+  10. Auto-label (Groq)
+  11. Upload to YouTube (optional)
+  12. Auto-cleanup all temp/intermediate files
+
+Cleanup policy:
+  - Temp clips:     always deleted after assembly
+  - Raw video:      deleted after captions burned
+  - Audio MP3:      deleted after merged into final video
+  - Final video:    KEPT (needed for YouTube upload + playback)
+  - Thumbnail:      KEPT
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -12,12 +35,22 @@ from typing import Callable, Optional
 
 import config
 import database as db
-from pipeline.storage import upload_to_storage
+from pipeline.storage import upload_to_storage, upload_narration_to_storage
 from pipeline import script_gen, tts, video_fetcher, video_assembler, youtube_uploader
 try:
     import pipeline.caption as captioner       # caption.py
 except ModuleNotFoundError:
     import pipeline.caption as captioner     # captioner.py fallback
+
+
+# Moods that use generated animations instead of Pexels stock footage
+GENERATED_VISUAL_MOODS = {
+    "fluid_red", "fluid_blue", "fluid_black",
+    "aurora_blue", "aurora_dark",
+    "gradient_wave", "starfield", "geometric_pulse",
+    "colour_wash", "particle_field",
+    "neon_purple", "cosmic_dust", "ember_glow",
+}
 
 
 # ── Logger ────────────────────────────────────────────────────────────────────
@@ -218,9 +251,10 @@ def cleanup_output_folder():
 
 def run_pipeline(
     prompt: str,
-    profile: str = 'funny',
+    profile: str = 'educational',
     auto_upload: bool = True,
     visual_mood: str = None,
+    music_style: str = 'ambient',
     progress_callback: Optional[Callable] = None,
     video_id: str = None,   # pre-created DB record ID (optional)
 ) -> dict:
@@ -255,15 +289,28 @@ def run_pipeline(
         audio_result = step_synthesize_voice(script_data, video_id, cb)
         audio_path   = audio_result["path"]
 
+        # ── 3a. Upload narration MP3 to Supabase Storage ──────────────────────
+        try:
+            narration_url = upload_narration_to_storage(audio_path, video_id, cb)
+            db.update_video(video_id, narration_url=narration_url)
+            _log("VOICE", f"✅ Narration MP3 saved to cloud", cb)
+        except Exception as e:
+            _log("VOICE", f"⚠️  Narration upload skipped: {e}", cb)
+
         # ── 4. Align ──────────────────────────────────────────────────────────
         segments = step_align_segments(script_data, audio_result, cb)
 
-        # ── 5. Fetch clips ────────────────────────────────────────────────────
+        # ── 5 & 6. Fetch clips OR generate animation ──────────────────────────
         _mood = visual_mood or video_fetcher.get_mood_for_topic(prompt)
-        segments = step_fetch_clips(segments, video_id, mood=_mood, cb=cb)
 
-        # ── 6. Assemble raw video ─────────────────────────────────────────────
-        raw_video_path = step_assemble_video(segments, audio_result, video_id, cb)
+        if _mood in GENERATED_VISUAL_MOODS:
+            from pipeline.visual_generator import generate_visual
+            _log("VISUALS", f"Generating {_mood} animation ({audio_result['duration']:.0f}s)...", cb)
+            raw_video_path = generate_visual(_mood, audio_result["duration"], video_id)
+            db.set_video_assembled(video_id, raw_video_path, resolution="1920x1080")
+        else:
+            segments = step_fetch_clips(segments, video_id, mood=_mood, cb=cb)
+            raw_video_path = step_assemble_video(segments, audio_result, video_id, cb)
 
         # ── 7. Thumbnail ──────────────────────────────────────────────────────
         thumb_path = step_generate_thumbnail(raw_video_path, video_id, cb)
@@ -274,6 +321,18 @@ def run_pipeline(
         # ── 9. Merge audio into final video ───────────────────────────────────
         # This is the definitive final file — captions + guaranteed audio
         final_path = step_merge_audio(captioned_path, audio_path, video_id, cb)
+
+        # ── 9a. Mix background music ──────────────────────────────────────────
+        if music_style and music_style != 'none':
+            try:
+                from pipeline.music_mixer import mix_background_music
+                _log("MUSIC", f"Mixing background music ({music_style})...", cb)
+                mixed = mix_background_music(final_path, music_style, video_id)
+                if mixed and mixed != final_path:
+                    final_path = mixed
+                    _log("MUSIC", "✅ Background music mixed", cb)
+            except Exception as e:
+                _log("MUSIC", f"⚠️  Music mixing skipped: {e}", cb)
 
         # ── 9b. Upload final video to Supabase Storage ────────────────────────
         # This gives us a permanent public URL for playback in the dashboard
@@ -348,4 +407,3 @@ if __name__ == "__main__":
         for k, v in result.items():
             if v:
                 print(f"   {k}: {str(v)[:80]}")
-

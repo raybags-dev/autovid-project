@@ -1,4 +1,33 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap");
+/* ═══════════════════════════════════════════════════════════════
+   AutoVid — Global Stylesheet
+   Sections:
+     1. Font Imports
+     2. Base Reset
+     3. Dark Theme (default) — CSS Variables
+     4. Light Theme — CSS Variables (body.light)
+     5. Base Element Styles
+     6. Scrollbar + Placeholder
+     7. Skeleton Loader
+     8. @keyframes — fluid1/2/3, aurora1/2/3, ringPulse, shimmer
+     9. Fluid Blob Base Classes (.fluid-wrap, .fluid-blob)
+    10. Fluid Mood Classes (.fluid-red, .fluid-blue, .fluid-black,
+                           .fluid-purple, .fluid-gold, .fluid-teal)
+    11. Aurora Base Classes (.aurora-wrap, .aurora-band)
+    12. Aurora Mood Classes (.aurora-blue, .aurora-dark)
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────────────────────
+   1. Font Imports
+   ───────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap");
+
+
+/* ─────────────────────────────────────────────────────────────
+   2. Base Reset
+   ───────────────────────────────────────────────────────────── */
+
 *,
 *::before,
 *::after {
@@ -14,42 +43,99 @@ body,
   width: 100%;
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   3. Dark Theme (default) — CSS Variables
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  --bg-base:          #020810;
+  --bg-surface:       #080f1e;
+  --bg-card:          #0c1525;
+  --bg-card-hover:    #111d30;
+  --bg-input:         #0a1422;
+
+  --text-primary:     #c8dce8;
+  --text-secondary:   #7a9bb5;
+  --text-muted:       #3d5a72;
+  --text-heading:     #e8f4ff;
+
+  --border-subtle:    #0f2035;
+  --border-default:   #162840;
+  --border-strong:    #1e3a55;
+
+  --accent:           #00d4ff;
+  --accent-dim:       #007a99;
+  --accent-glow:      rgba(0, 212, 255, 0.18);
+  --accent-glow-soft: rgba(0, 212, 255, 0.08);
+
+  --scrollbar-thumb:  #0f2a40;
+
+  --skeleton-base:    #1a2535;
+  --skeleton-shimmer: #243045;
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   4. Light Theme — CSS Variables (body.light)
+   ───────────────────────────────────────────────────────────── */
+
+body.light {
+  --bg-base:          #f0f3f8;
+  --bg-surface:       #f8f9fc;
+  --bg-card:          #ffffff;
+  --bg-card-hover:    #f4f7fb;
+  --bg-input:         #ffffff;
+
+  --text-primary:     #0d1117;
+  --text-secondary:   #2d3748;
+  --text-muted:       #4a5568;
+  --text-heading:     #05080d;
+
+  --border-subtle:    #edf0f5;
+  --border-default:   #e2e8f0;
+  --border-strong:    #c8d4e0;
+
+  --accent:           #0099cc;
+  --accent-dim:       #006a8f;
+  --accent-glow:      rgba(0, 153, 204, 0.14);
+  --accent-glow-soft: rgba(0, 153, 204, 0.06);
+
+  --scrollbar-thumb:  #b8c8d8;
+
+  --skeleton-base:    #e8edf4;
+  --skeleton-shimmer: #f2f5fa;
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   5. Base Element Styles
+   ───────────────────────────────────────────────────────────── */
+
 body {
-  background: #080c14;
-  color: #e8edf5;
-  font-family: "DM Mono", "Fira Code", "Courier New", monospace;
+  background: var(--bg-base);
+  /* Subtle radial accent glow anchored to top-left for dark mode depth */
+  background-image: radial-gradient(
+    ellipse 80% 60% at 0% 0%,
+    rgba(0, 50, 80, 0.55) 0%,
+    transparent 60%
+  );
+  color: var(--text-primary);
+  font-family: "DM Mono", "Fira Code", monospace;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e2a3a;
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #2a3a4a;
+body.light {
+  background: var(--bg-base);
+  background-image: none;
 }
 
-/* Placeholder */
-::placeholder {
-  color: #3a4a5a;
-}
-
-/* Remove default button styles */
 button {
   font-family: inherit;
   cursor: pointer;
 }
 
-/* Remove default input styles */
 input,
 textarea,
 select {
@@ -57,7 +143,339 @@ select {
   outline: none;
 }
 
-/* Links */
-a {
-  color: inherit;
+
+/* ─────────────────────────────────────────────────────────────
+   6. Scrollbar + Placeholder
+   ───────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+
+::placeholder {
+  color: var(--text-muted);
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   7. Skeleton Loader
+   ───────────────────────────────────────────────────────────── */
+
+.skeleton-loader {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base)    25%,
+    var(--skeleton-shimmer) 50%,
+    var(--skeleton-base)    75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+  border-radius: 6px;
+}
+
+/* Light-mode variant — apply when body.light is active */
+body.light .skeleton-loader,
+.skeleton-loader-light {
+  background: linear-gradient(
+    90deg,
+    #e8edf4 25%,
+    #f2f5fa 50%,
+    #e8edf4 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+  border-radius: 6px;
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   8. @keyframes
+   ───────────────────────────────────────────────────────────── */
+
+/* -- Fluid blob morphing shapes -- */
+@keyframes fluid1 {
+  0%   { border-radius: 62% 38% 32% 68% / 58% 34% 66% 42%; }
+  25%  { border-radius: 38% 62% 55% 45% / 45% 58% 42% 55%; }
+  50%  { border-radius: 55% 45% 68% 32% / 65% 42% 58% 35%; }
+  75%  { border-radius: 45% 55% 38% 62% / 38% 65% 35% 65%; }
+  100% { border-radius: 62% 38% 32% 68% / 58% 34% 66% 42%; }
+}
+
+@keyframes fluid2 {
+  0%   { border-radius: 45% 55% 68% 32% / 35% 65% 35% 65%; }
+  33%  { border-radius: 68% 32% 45% 55% / 65% 35% 68% 32%; }
+  66%  { border-radius: 32% 68% 55% 45% / 45% 55% 32% 68%; }
+  100% { border-radius: 45% 55% 68% 32% / 35% 65% 35% 65%; }
+}
+
+@keyframes fluid3 {
+  0%   { border-radius: 55% 45% 38% 62% / 62% 45% 55% 38%; }
+  50%  { border-radius: 38% 62% 62% 38% / 38% 62% 38% 62%; }
+  100% { border-radius: 55% 45% 38% 62% / 62% 45% 55% 38%; }
+}
+
+/* -- Aurora band sweeps -- */
+@keyframes aurora1 {
+  0%   { transform: translateX(-15%) skewX(-8deg)  scaleY(1);   opacity: 0.5; }
+  50%  { transform: translateX(12%)  skewX(6deg)   scaleY(1.3); opacity: 0.8; }
+  100% { transform: translateX(-15%) skewX(-8deg)  scaleY(1);   opacity: 0.5; }
+}
+
+@keyframes aurora2 {
+  0%   { transform: translateX(20%)  skewX(10deg)  scaleY(0.8); opacity: 0.4; }
+  50%  { transform: translateX(-10%) skewX(-6deg)  scaleY(1.2); opacity: 0.7; }
+  100% { transform: translateX(20%)  skewX(10deg)  scaleY(0.8); opacity: 0.4; }
+}
+
+@keyframes aurora3 {
+  0%   { transform: translateX(-5%)  skewX(4deg)   scaleY(1.1); opacity: 0.3; }
+  50%  { transform: translateX(18%)  skewX(-8deg)  scaleY(0.9); opacity: 0.6; }
+  100% { transform: translateX(-5%)  skewX(4deg)   scaleY(1.1); opacity: 0.3; }
+}
+
+/* -- Ring pulse (used by player/status indicators) -- */
+@keyframes ringPulse {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0;   }
+}
+
+/* -- Skeleton shimmer sweep -- */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   9. Fluid Blob Base Classes
+   ───────────────────────────────────────────────────────────── */
+
+.fluid-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.fluid-blob {
+  position: absolute;
+  width: 70%;
+  height: 70%;
+  filter: blur(28px);
+  will-change: border-radius;
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   10. Fluid Mood Classes
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Red fluid (dramatic / intense) */
+.fluid-red {
+  background: #060008;
+}
+.fluid-red .fluid-blob:nth-child(1) {
+  background: radial-gradient(circle, #8a0015 0%, transparent 70%);
+  top: 7%;
+  left: 19%;
+  animation: fluid1 14s ease-in-out infinite;
+}
+.fluid-red .fluid-blob:nth-child(2) {
+  background: radial-gradient(circle, #5a000f 0%, transparent 70%);
+  top: 29%;
+  left: 42%;
+  animation: fluid2 10s ease-in-out infinite;
+}
+.fluid-red .fluid-blob:nth-child(3) {
+  background: radial-gradient(circle, #2e0006 0%, transparent 70%);
+  top: 50%;
+  left: 7%;
+  animation: fluid3 8s ease-in-out infinite;
+}
+
+/* ── Blue fluid (calm / cinematic) */
+.fluid-blue {
+  background: #000510;
+}
+.fluid-blue .fluid-blob:nth-child(1) {
+  background: radial-gradient(circle, #003599 0%, transparent 70%);
+  top: 7%;
+  left: 19%;
+  animation: fluid1 15s ease-in-out infinite;
+}
+.fluid-blue .fluid-blob:nth-child(2) {
+  background: radial-gradient(circle, #001a60 0%, transparent 70%);
+  top: 29%;
+  left: 42%;
+  animation: fluid2 11s ease-in-out infinite;
+}
+.fluid-blue .fluid-blob:nth-child(3) {
+  background: radial-gradient(circle, #000c30 0%, transparent 70%);
+  top: 50%;
+  left: 7%;
+  animation: fluid3 9s ease-in-out infinite;
+}
+
+/* ── Black fluid (minimal / obsidian) */
+.fluid-black {
+  background: #020202;
+}
+.fluid-black .fluid-blob:nth-child(1) {
+  background: radial-gradient(circle, #2e2e2e 0%, transparent 70%);
+  top: 7%;
+  left: 19%;
+  animation: fluid1 16s ease-in-out infinite;
+}
+.fluid-black .fluid-blob:nth-child(2) {
+  background: radial-gradient(circle, #1c1c1c 0%, transparent 70%);
+  top: 29%;
+  left: 42%;
+  animation: fluid2 12s ease-in-out infinite;
+}
+.fluid-black .fluid-blob:nth-child(3) {
+  background: radial-gradient(circle, #111111 0%, transparent 70%);
+  top: 50%;
+  left: 7%;
+  animation: fluid3 9s ease-in-out infinite;
+}
+
+/* ── Purple fluid (neon_purple mood) */
+.fluid-purple {
+  background: #05000e;
+}
+.fluid-purple .fluid-blob:nth-child(1) {
+  background: radial-gradient(circle, #6600cc 0%, transparent 70%);
+  top: 7%;
+  left: 19%;
+  animation: fluid1 13s ease-in-out infinite;
+}
+.fluid-purple .fluid-blob:nth-child(2) {
+  background: radial-gradient(circle, #3d0080 0%, transparent 70%);
+  top: 29%;
+  left: 42%;
+  animation: fluid2 10s ease-in-out infinite;
+}
+.fluid-purple .fluid-blob:nth-child(3) {
+  background: radial-gradient(circle, #200040 0%, transparent 70%);
+  top: 50%;
+  left: 7%;
+  animation: fluid3 8s ease-in-out infinite;
+}
+
+/* ── Gold fluid (ember_glow mood) */
+.fluid-gold {
+  background: #080400;
+}
+.fluid-gold .fluid-blob:nth-child(1) {
+  background: radial-gradient(circle, #b87000 0%, transparent 70%);
+  top: 7%;
+  left: 19%;
+  animation: fluid1 14s ease-in-out infinite;
+}
+.fluid-gold .fluid-blob:nth-child(2) {
+  background: radial-gradient(circle, #7a4200 0%, transparent 70%);
+  top: 29%;
+  left: 42%;
+  animation: fluid2 11s ease-in-out infinite;
+}
+.fluid-gold .fluid-blob:nth-child(3) {
+  background: radial-gradient(circle, #3d1f00 0%, transparent 70%);
+  top: 50%;
+  left: 7%;
+  animation: fluid3 9s ease-in-out infinite;
+}
+
+/* ── Teal fluid (cosmic_dust mood) */
+.fluid-teal {
+  background: #000a09;
+}
+.fluid-teal .fluid-blob:nth-child(1) {
+  background: radial-gradient(circle, #007a6e 0%, transparent 70%);
+  top: 7%;
+  left: 19%;
+  animation: fluid1 15s ease-in-out infinite;
+}
+.fluid-teal .fluid-blob:nth-child(2) {
+  background: radial-gradient(circle, #004f47 0%, transparent 70%);
+  top: 29%;
+  left: 42%;
+  animation: fluid2 11s ease-in-out infinite;
+}
+.fluid-teal .fluid-blob:nth-child(3) {
+  background: radial-gradient(circle, #002520 0%, transparent 70%);
+  top: 50%;
+  left: 7%;
+  animation: fluid3 8s ease-in-out infinite;
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   11. Aurora Base Classes
+   ───────────────────────────────────────────────────────────── */
+
+.aurora-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.aurora-band {
+  position: absolute;
+  width: 200%;
+  height: 40%;
+  left: -50%;
+  filter: blur(18px);
+  will-change: transform, opacity;
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   12. Aurora Mood Classes
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Blue aurora (cinematic / deep space) */
+.aurora-blue .aurora-band:nth-child(1) {
+  background: linear-gradient(90deg, transparent, #1a40a060, transparent);
+  top: 10%;
+  animation: aurora1 8s ease-in-out infinite;
+}
+.aurora-blue .aurora-band:nth-child(2) {
+  background: linear-gradient(90deg, transparent, #40206060, transparent);
+  top: 35%;
+  animation: aurora2 11s ease-in-out infinite;
+}
+.aurora-blue .aurora-band:nth-child(3) {
+  background: linear-gradient(90deg, transparent, #0a2a4060, transparent);
+  top: 55%;
+  animation: aurora3 13s ease-in-out infinite;
+}
+
+/* ── Dark / obsidian aurora */
+.aurora-dark .aurora-band:nth-child(1) {
+  background: linear-gradient(90deg, transparent, #0a0a1a40, transparent);
+  top: 10%;
+  animation: aurora1 10s ease-in-out infinite;
+}
+.aurora-dark .aurora-band:nth-child(2) {
+  background: linear-gradient(90deg, transparent, #14082830, transparent);
+  top: 35%;
+  animation: aurora2 14s ease-in-out infinite;
+}
+.aurora-dark .aurora-band:nth-child(3) {
+  background: linear-gradient(90deg, transparent, #08101830, transparent);
+  top: 55%;
+  animation: aurora3 16s ease-in-out infinite;
 }

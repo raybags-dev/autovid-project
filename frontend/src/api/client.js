@@ -50,12 +50,16 @@ export const getVideo = async (id) => {
 export const generateVideo = async (
   prompt,
   autoUpload = false,
-  profile = "funny",
+  profile = "educational",
+  visualMood = "inspirational",
+  musicStyle = "ambient",
 ) => {
   const { data } = await api.post("/videos/generate", {
     prompt,
     auto_upload: autoUpload,
     profile,
+    visual_mood: visualMood,
+    music_style: musicStyle,
   });
   return data;
 };

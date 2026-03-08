@@ -29,6 +29,16 @@ except ModuleNotFoundError:
     import pipeline.captioner as captioner
 
 
+# Moods that use generated animations instead of Pexels stock footage
+GENERATED_VISUAL_MOODS = {
+    "fluid_red", "fluid_blue", "fluid_black",
+    "aurora_blue", "aurora_dark",
+    "gradient_wave", "starfield", "geometric_pulse",
+    "colour_wash", "particle_field",
+    "neon_purple", "cosmic_dust", "ember_glow",
+}
+
+
 def _log(stage: str, msg: str, cb=None):
     full = f"[{stage}] {msg}"
     print(full)
@@ -116,43 +126,49 @@ def run_script_pipeline(
         duration     = voice_result["duration"]
         print(f"   Duration: {duration:.1f}s ({duration/60:.1f} min)")
 
-        # ── Step 2: Fetch mood-matched stock footage from Pexels ─────────────
-        from pipeline.video_fetcher import MOOD_QUERIES, get_mood_for_topic, enrich_segments_with_mood
+        # ── Step 2: Visual background ─────────────────────────────────────────
+        from pipeline.video_fetcher import MOOD_QUERIES, get_mood_for_topic
         from pipeline.video_assembler import assemble_video as _assemble
 
         _mood = visual_mood or get_mood_for_topic(title)
-        _log("VISUAL", f"Fetching Pexels footage (mood: {_mood or 'generic'}, {duration:.0f}s)...", cb)
-        db.set_status(video_id, "scripted")  # fetching clips — not assembled yet
 
-        # Build synthetic segments timed to the audio duration
-        # Each segment gets a different query from the mood set for visual variety
-        queries = MOOD_QUERIES.get(_mood, [
-            "cinematic nature peaceful",
-            "calm landscape sunrise",
-            "soft light bokeh",
-        ]) if _mood else ["peaceful cinematic nature", "calm light bokeh", "landscape sunrise"]
+        if _mood in GENERATED_VISUAL_MOODS:
+            # Generated animation mood — render numpy frames directly, skip Pexels
+            from pipeline.visual_generator import generate_visual
+            _log("VISUAL", f"Rendering {_mood} animation ({duration:.0f}s)...", cb)
+            db.set_status(video_id, "scripted")
+            visual_path = generate_visual(_mood, duration, video_id)
+            db.set_status(video_id, "assembled")
+        else:
+            # Stock footage mood — fetch clips from Pexels and assemble
+            _log("VISUAL", f"Fetching Pexels footage (mood: {_mood or 'generic'}, {duration:.0f}s)...", cb)
+            db.set_status(video_id, "scripted")
 
-        num_segs = max(3, int(duration / 12))   # ~12s per clip
-        seg_dur  = duration / num_segs
-        synth_segments = []
-        for i in range(num_segs):
-            synth_segments.append({
-                "text":         "",
-                "visual_query": queries[i % len(queries)],
-                "start":        round(i * seg_dur, 2),
-                "end":          round((i + 1) * seg_dur, 2),
-                "duration":     round(seg_dur, 2),
-                "clip_path":    None,
-            })
+            queries = MOOD_QUERIES.get(_mood, [
+                "cinematic nature peaceful",
+                "calm landscape sunrise",
+                "soft light bokeh",
+            ]) if _mood else ["peaceful cinematic nature", "calm light bokeh", "landscape sunrise"]
 
-        # Fetch clips
-        import pipeline.video_fetcher as _vf
-        synth_segments = _vf.fetch_all_clips(synth_segments, video_id)
+            num_segs = max(3, int(duration / 12))
+            seg_dur  = duration / num_segs
+            synth_segments = []
+            for i in range(num_segs):
+                synth_segments.append({
+                    "text":         "",
+                    "visual_query": queries[i % len(queries)],
+                    "start":        round(i * seg_dur, 2),
+                    "end":          round((i + 1) * seg_dur, 2),
+                    "duration":     round(seg_dur, 2),
+                    "clip_path":    None,
+                })
 
-        # Assemble clips into a video (uses voice just for timing — audio replaced later)
-        import pipeline.video_assembler as _va
-        visual_path = _va.assemble_video(synth_segments, voice_path, video_id)
-        db.set_status(video_id, "assembled")  # clips fetched and assembled ✅
+            import pipeline.video_fetcher as _vf
+            synth_segments = _vf.fetch_all_clips(synth_segments, video_id)
+
+            import pipeline.video_assembler as _va
+            visual_path = _va.assemble_video(synth_segments, voice_path, video_id)
+            db.set_status(video_id, "assembled")
 
         # ── Step 3: Background music ──────────────────────────────────────────
         _log("MUSIC", f"Generating {music_style} background track...", cb)

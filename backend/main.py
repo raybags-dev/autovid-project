@@ -100,8 +100,9 @@ def health():
 class GenerateRequest(BaseModel):
     prompt: str
     auto_upload: bool = True
-    profile: str = "funny"  # funny | serious | educational | inspirational
-    visual_mood: Optional[str] = None  # ocean | candle | forest | stars | hands | mountains | None=auto
+    profile: str = "educational"
+    visual_mood: Optional[str] = None
+    music_style: str = "ambient"
 
 
 class VideoResponse(BaseModel):
@@ -116,6 +117,7 @@ class VideoResponse(BaseModel):
     duration_seconds: Optional[int] = None
     resolution: Optional[str] = None
     file_path: Optional[str] = None
+    narration_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     youtube_id: Optional[str] = None
     youtube_url: Optional[str] = None
@@ -156,8 +158,9 @@ def generate_video(
                 auto_upload=req.auto_upload,
                 profile=req.profile,
                 visual_mood=req.visual_mood,
+                music_style=req.music_style,
                 progress_callback=_cb,
-                video_id=video_id,   # pass pre-created ID
+                video_id=video_id,
             )
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -697,6 +700,7 @@ def trigger_auto_generate(user: str = Depends(verify_token)):
                 prompt=prompt,
                 profile=profile,
                 auto_upload=False,
+                music_style="ambient",
                 video_id=video_id,
                 progress_callback=_cb,
             )
@@ -726,14 +730,21 @@ def get_billing(user: str = Depends(verify_token)):
         from elevenlabs.client import ElevenLabs as _EL
         el = _EL(api_key=os.getenv("ELEVENLABS_API_KEY", ""))
         sub = el.user.get_subscription()
+        _next_reset_unix = getattr(sub, "next_character_count_reset_unix", None)
+        _reset_date = None
+        if _next_reset_unix:
+            import datetime as _dt
+            _reset_date = _dt.datetime.utcfromtimestamp(_next_reset_unix).strftime("%b %d, %Y")
         result["elevenlabs"] = {
-            "tier": getattr(sub, "tier", "unknown"),
-            "chars_used": getattr(sub, "character_count", 0),
-            "chars_limit": getattr(sub, "character_limit", 0),
+            "tier":            getattr(sub, "tier", "unknown"),
+            "chars_used":      getattr(sub, "character_count", 0),
+            "chars_limit":     getattr(sub, "character_limit", 0),
             "chars_remaining": getattr(sub, "character_limit", 0) - getattr(sub, "character_count", 0),
-            "percent_used": round(getattr(sub, "character_count", 0) / max(getattr(sub, "character_limit", 1), 1) * 100, 1),
-            "next_reset": getattr(sub, "next_character_count_reset_unix", None),
-            "status": "ok",
+            "percent_used":    round(getattr(sub, "character_count", 0) / max(getattr(sub, "character_limit", 1), 1) * 100, 1),
+            "next_reset":      _next_reset_unix,
+            "reset_date":      _reset_date,
+            "voice_id":        config.ELEVENLABS_VOICE_ID[:8] + "…" if config.ELEVENLABS_VOICE_ID else "—",
+            "status":          "ok",
         }
     except Exception as e:
         result["elevenlabs"] = {"status": "error", "error": str(e)}
@@ -759,30 +770,89 @@ def get_billing(user: str = Depends(verify_token)):
         from supabase import create_client
         sb = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
         videos_count = len(sb.table("videos").select("id").execute().data)
+
+        # Pro tier limits
+        STORAGE_LIMIT_GB  = 100   # 100 GB included on Pro
+        FILE_SIZE_LIMIT_GB = 5    # 5 GB max per file on Pro
+
+        # Query actual storage usage by listing files in each bucket
+        storage_bytes = 0
+        bucket_stats  = {}
+        for bucket_name in ["videos", "narrations"]:
+            try:
+                files = sb.storage.from_(bucket_name).list(options={"limit": 1000})
+                if files and isinstance(files, list):
+                    b_bytes = sum(
+                        (f.get("metadata") or {}).get("size", 0)
+                        for f in files if isinstance(f, dict)
+                    )
+                    b_count = len([
+                        f for f in files
+                        if isinstance(f, dict) and f.get("name") and not f.get("name", "").startswith(".")
+                    ])
+                    storage_bytes += b_bytes
+                    bucket_stats[bucket_name] = {
+                        "size_mb":    round(b_bytes / (1024 * 1024), 1),
+                        "file_count": b_count,
+                    }
+            except Exception:
+                bucket_stats[bucket_name] = {"size_mb": 0, "file_count": 0}
+
+        storage_used_gb  = storage_bytes / (1024 ** 3)
+        storage_percent  = round(storage_used_gb / STORAGE_LIMIT_GB * 100, 3)
+
         result["supabase"] = {
-            "project_url": config.SUPABASE_URL,
-            "videos_in_db": videos_count,
-            "storage_limit_mb": 1000,  # free tier
-            "db_limit_mb": 500,        # free tier
-            "note": "Supabase free tier — 500MB DB, 1GB Storage",
-            "status": "ok",
+            "project_url":          config.SUPABASE_URL,
+            "tier":                 "Pro",
+            "videos_in_db":         videos_count,
+            "storage_used_gb":      round(storage_used_gb, 3),
+            "storage_used_mb":      round(storage_bytes / (1024 * 1024), 1),
+            "storage_limit_gb":     STORAGE_LIMIT_GB,
+            "storage_percent":      storage_percent,
+            "file_size_limit_gb":   FILE_SIZE_LIMIT_GB,
+            "videos_bucket_mb":     bucket_stats.get("videos",     {}).get("size_mb",    0),
+            "videos_file_count":    bucket_stats.get("videos",     {}).get("file_count", 0),
+            "narrations_bucket_mb": bucket_stats.get("narrations", {}).get("size_mb",    0),
+            "narrations_file_count":bucket_stats.get("narrations", {}).get("file_count", 0),
+            "note":                 "Supabase Pro — 100 GB Storage, 8 GB Database, 5 GB max file size",
+            "status":               "ok",
         }
     except Exception as e:
         result["supabase"] = {"status": "error", "error": str(e)}
 
     # ── Groq ──────────────────────────────────────────────────────────────────
+    groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    # Per-model rate limits (Groq free tier as of 2025)
+    _groq_limits = {
+        "llama-3.3-70b-versatile": {"ctx_k": 128, "req_min": 30, "tok_min": 6000,  "tok_day": 500000},
+        "llama-3.1-70b-versatile": {"ctx_k": 128, "req_min": 30, "tok_min": 6000,  "tok_day": 500000},
+        "llama-3.1-8b-instant":    {"ctx_k": 128, "req_min": 30, "tok_min": 20000, "tok_day": 500000},
+        "mixtral-8x7b-32768":      {"ctx_k": 32,  "req_min": 30, "tok_min": 5000,  "tok_day": 500000},
+        "gemma2-9b-it":            {"ctx_k": 8,   "req_min": 30, "tok_min": 15000, "tok_day": 500000},
+    }
+    _gl = _groq_limits.get(groq_model, {"ctx_k": 128, "req_min": 30, "tok_min": 6000, "tok_day": 500000})
     result["groq"] = {
-        "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-        "note": "Groq free tier — 6,000 tokens/min, 500K tokens/day",
-        "status": "ok",
-        "pricing": "Free",
+        "model":        groq_model,
+        "pricing":      "Free",
+        "context_k":    _gl["ctx_k"],
+        "req_per_min":  _gl["req_min"],
+        "tok_per_min":  _gl["tok_min"],
+        "tok_per_day":  _gl["tok_day"],
+        "note":         f"Groq free tier — {_gl['tok_min']:,} tok/min, {_gl['tok_day']//1000}K tok/day",
+        "status":       "ok",
     }
 
     # ── Pexels ────────────────────────────────────────────────────────────────
+    pixabay_configured = bool(os.getenv("PIXABAY_API_KEY", ""))
     result["pexels"] = {
-        "note": "Pexels API — free, 200 requests/hour, 20,000/month",
-        "status": "ok",
-        "pricing": "Free",
+        "note":               "Pexels API — free, 200 requests/hour, 20,000/month",
+        "status":             "ok",
+        "pricing":            "Free",
+        "rate_limit_hour":    200,
+        "monthly_limit":      20000,
+        "content_types":      "Videos, Photos",
+        "pixabay_fallback":   pixabay_configured,
+        "attribution":        "Required",
     }
 
     # ── Hetzner VPS ───────────────────────────────────────────────────────────

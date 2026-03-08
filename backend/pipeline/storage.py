@@ -1,3 +1,11 @@
+"""
+AutoVid — Supabase Storage
+Uploads final videos to Supabase Storage bucket for permanent public playback.
+
+Setup (one-time in Supabase dashboard):
+  1. Storage → New bucket → name: "videos" → Public: ON → Save
+  2. That's it. The SUPABASE_SERVICE_KEY in .env handles auth.
+"""
 import os
 from pathlib import Path
 import config
@@ -5,7 +13,7 @@ import config
 BUCKET = "videos"
 
 
-SUPABASE_MAX_MB = 45  # Stay safely under 50MB free tier limit
+SUPABASE_MAX_MB = 4800  # Pro tier: 5 GB max file size — compress only if truly oversized
 
 
 def _compress_video(input_path: Path, output_path: Path, target_mb: int = 40) -> Path:
@@ -108,3 +116,43 @@ def upload_to_storage(local_path: str, video_id: str, cb=None) -> str:
     print(f"   ✅ Stored at: {public_url}")
     return public_url
 
+
+def upload_narration_to_storage(audio_path: str, video_id: str, cb=None) -> str:
+    """
+    Upload the raw narration MP3 to Supabase Storage (narrations bucket).
+    Returns the permanent public URL, or raises on failure.
+    Create bucket 'narrations' in Supabase → Public: ON before using.
+    """
+    from supabase import create_client
+
+    NARRATION_BUCKET = "narrations"
+
+    if not config.SUPABASE_SERVICE_KEY:
+        raise RuntimeError("SUPABASE_SERVICE_KEY not set in .env")
+
+    client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+    audio_path = Path(audio_path)
+
+    if not audio_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    filename   = f"{video_id}_narration.mp3"
+    file_bytes = audio_path.read_bytes()
+    size_mb    = len(file_bytes) / (1024 * 1024)
+    print(f"🎙  Uploading narration to Supabase: {filename} ({size_mb:.1f} MB)")
+
+    try:
+        client.storage.from_(NARRATION_BUCKET).remove([filename])
+    except Exception:
+        pass
+
+    client.storage.from_(NARRATION_BUCKET).upload(
+        path=filename,
+        file=file_bytes,
+        file_options={"content-type": "audio/mpeg", "upsert": "true"},
+    )
+
+    base       = config.SUPABASE_URL.rstrip("/")
+    public_url = f"{base}/storage/v1/object/public/{NARRATION_BUCKET}/{filename}"
+    print(f"   ✅ Narration stored: {public_url}")
+    return public_url
