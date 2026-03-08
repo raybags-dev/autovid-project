@@ -2,13 +2,15 @@
 AutoVid — FastAPI Backend
 Main application entry point with all API routes.
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
 import jwt
 import time
+import threading as _threading
 
 import config
 import database as db
@@ -135,8 +137,65 @@ def generate_video(
     """Start the full AutoVid pipeline. Returns immediately — pipeline runs in background."""
     if not req.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
-    background_tasks.add_task(run_pipeline, prompt=req.prompt, auto_upload=req.auto_upload, profile=req.profile, visual_mood=req.visual_mood)
-    return {"message": "Pipeline started", "prompt": req.prompt, "status": "generating"}
+
+    # Pre-create DB record so we have a video_id to return immediately
+    record   = db.create_video(req.prompt)
+    video_id = record["id"]
+    _register_pipeline(video_id)
+
+    def _cb(info: dict):
+        msg = f"[{info.get('step','?')}] {info.get('message','')}"
+        _push_log(video_id, msg)
+
+    def _run():
+        try:
+            run_pipeline(
+                prompt=req.prompt,
+                auto_upload=req.auto_upload,
+                profile=req.profile,
+                visual_mood=req.visual_mood,
+                progress_callback=_cb,
+                video_id=video_id,   # pass pre-created ID
+            )
+        except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+        finally:
+            _push_log(video_id, "__DONE__")
+            _unregister_pipeline(video_id)
+
+    background_tasks.add_task(_run)
+    return {"message": "Pipeline started", "prompt": req.prompt, "status": "generating", "video_id": video_id}
+
+
+@app.post("/videos/{video_id}/cancel")
+def cancel_pipeline(video_id: str, user: str = Depends(verify_token)):
+    """Cancel a running pipeline and mark it failed."""
+    with _pipeline_lock:
+        entry = _active_pipelines.get(video_id)
+        if entry:
+            entry["cancelled"] = True
+    try:
+        db.set_failed(video_id, "Cancelled by user")
+    except Exception:
+        pass
+    return {"message": "Cancellation requested", "video_id": video_id}
+
+
+@app.get("/videos/{video_id}/logs")
+def get_logs(video_id: str, since: int = Query(default=0), user: str = Depends(verify_token)):
+    """Return buffered pipeline logs since a given line index.
+    Frontend polls this every second — simple and reliable."""
+    with _pipeline_lock:
+        entry = _active_pipelines.get(video_id)
+    if not entry:
+        return {"lines": [], "total": 0, "done": True}
+    lines = entry.get("log_buffer", [])
+    running = not entry.get("done", False)
+    return {
+        "lines": lines[since:],   # only return new lines since last poll
+        "total": len(lines),
+        "done": not running,
+    }
 
 
 @app.post("/videos/backfill-storage")
@@ -316,6 +375,8 @@ def upload_to_youtube(video_id: str, req: UploadRequest, background_tasks: Backg
                 thumbnail_path=video.get("thumbnail_url"),
             )
             db.set_posted(video_id, result["youtube_id"], result["youtube_url"])
+            from pipeline.youtube_uploader import record_upload
+            record_upload()  # track quota usage
             print(f"✅ Posted: {result['youtube_url']}")
 
             if file_path and not file_path.startswith("http"):
@@ -518,16 +579,32 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
     row      = db.create_video(prompt=req.title)
     video_id = row["id"]
 
+    # Register pipeline so /logs polling endpoint can read progress
+    _register_pipeline(video_id)
+
+    def _cb(stage: str, message: str):
+        _push_log(video_id, f"[{stage}] {message}")
+
     from pipeline.script_pipeline import run_script_pipeline
-    background_tasks.add_task(
-        run_script_pipeline,
-        video_id=video_id,
-        title=req.title,
-        script=req.script,
-        profile=req.profile,
-        visual_mood=req.visual_mood,
-        music_style=req.music_style,
-    )
+
+    def _run():
+        try:
+            run_script_pipeline(
+                video_id=video_id,
+                title=req.title,
+                script=req.script,
+                profile=req.profile,
+                visual_mood=req.visual_mood,
+                music_style=req.music_style,
+                cb=_cb,
+            )
+        except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+        finally:
+            _push_log(video_id, "[DONE] Pipeline finished")
+            _unregister_pipeline(video_id)
+
+    background_tasks.add_task(_run)
 
     return {"video_id": video_id, "message": "Script pipeline started", "word_count": word_count}
 
@@ -880,6 +957,40 @@ def run_short_pipeline(prompt: str, ambience: str = "stars"):
 
 
 # Auto-reply toggle — loaded from DB on startup so it survives restarts
+# ── Pipeline registry — active pipelines for cancel + log streaming ──────────
+_active_pipelines: dict = {}
+_pipeline_lock = _threading.Lock()
+
+def _register_pipeline(video_id: str, log_q=None):
+    with _pipeline_lock:
+        _active_pipelines[video_id] = {"log_buffer": [], "cancelled": False, "done": False}
+
+def _unregister_pipeline(video_id: str):
+    """Mark pipeline as done — keep buffer for 5 min so frontend can still read logs."""
+    with _pipeline_lock:
+        entry = _active_pipelines.get(video_id)
+        if entry:
+            entry["done"] = True
+    # Clean up after 5 minutes
+    def _cleanup():
+        time.sleep(300)
+        with _pipeline_lock:
+            _active_pipelines.pop(video_id, None)
+    _threading.Thread(target=_cleanup, daemon=True).start()
+
+def _is_cancelled(video_id: str) -> bool:
+    with _pipeline_lock:
+        return _active_pipelines.get(video_id, {}).get("cancelled", False)
+
+def _push_log(video_id: str, msg: str):
+    with _pipeline_lock:
+        entry = _active_pipelines.get(video_id)
+        if entry is not None:
+            entry.setdefault("log_buffer", []).append(msg)
+            if len(entry["log_buffer"]) > 500:   # cap at 500 lines
+                entry["log_buffer"] = entry["log_buffer"][-500:]
+
+
 def _get_auto_reply_enabled() -> bool:
     try:
         val = db.get_setting("auto_reply_enabled", default="true")
@@ -930,9 +1041,49 @@ def trigger_auto_reply(user: str = Depends(verify_token)):
     return {"message": "Auto-reply cycle triggered"}
 
 
+def _start_pipeline_watchdog():
+    """Kills any pipeline stuck for >20 min — runs as daemon thread."""
+    import threading
+    def _watch():
+        while True:
+            time.sleep(120)
+            try:
+                with _pipeline_lock:
+                    ids = list(_active_pipelines.keys())
+                for vid in ids:
+                    try:
+                        video = db.get_video(vid)
+                    except Exception:
+                        continue
+                    if not video:
+                        _unregister_pipeline(vid)
+                        continue
+                    # Check age via updated_at or created_at
+                    import datetime
+                    ts_str = video.get("updated_at") or video.get("created_at")
+                    if ts_str:
+                        try:
+                            ts = datetime.datetime.fromisoformat(ts_str.replace("Z","+00:00"))
+                            age_mins = (datetime.datetime.now(datetime.timezone.utc) - ts).total_seconds() / 60
+                            if age_mins > 20:
+                                print(f"⏰ Watchdog: {vid[:8]} stuck {age_mins:.0f}min — cancelling")
+                                with _pipeline_lock:
+                                    entry = _active_pipelines.get(vid)
+                                    if entry: entry["cancelled"] = True
+                                _push_log(vid, "[ERROR] Watchdog: pipeline timed out (20 min limit)")
+                                db.set_failed(vid, "Timed out — cancelled by watchdog after 20 minutes")
+                                _unregister_pipeline(vid)
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"Watchdog error: {e}")
+    threading.Thread(target=_watch, daemon=True).start()
+
+
 @app.on_event("startup")
 def startup():
     print("🚀 AutoVid API starting...")
+    _start_pipeline_watchdog()
 
     # ── Recover stuck videos ──────────────────────────────────────────────────
     # Only fail videos stuck in an in-progress status for more than 30 minutes.

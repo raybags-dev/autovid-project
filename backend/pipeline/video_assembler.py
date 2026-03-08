@@ -111,14 +111,13 @@ def assemble_video(segments: list[dict], audio_path: str, video_id: str) -> str:
 
     TARGET_W, TARGET_H, TARGET_FPS = 1920, 1080, 30
 
-    # ── Step 1: Normalise each clip to same resolution/fps (fast scale only) ─
-    normalised = []
-    for i, seg in enumerate(segments):
+    # ── Step 1: Normalise clips in parallel using ThreadPoolExecutor ──────────
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _normalise_clip(i, seg):
         clip_path = seg.get("clip_path")
         duration  = seg.get("duration", 8)
         label     = seg.get("visual_query", "clip")[:40]
-        print(f"  [{i+1}/{len(segments)}] {label} ({duration:.1f}s)")
-
         norm_path = str(tmp_dir / f"norm_{i:03d}.mp4")
         if clip_path and Path(clip_path).exists():
             result = subprocess.run([
@@ -128,16 +127,26 @@ def assemble_video(segments: list[dict], audio_path: str, video_id: str) -> str:
                 "-vf", f"scale={TARGET_W}:{TARGET_H}:force_original_aspect_ratio=decrease,"
                        f"pad={TARGET_W}:{TARGET_H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={TARGET_FPS}",
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-                "-an",   # no audio in visual clips
+                "-threads", "0",   # let FFmpeg use all available CPU cores
+                "-an",
                 norm_path
             ], capture_output=True)
             if result.returncode != 0 or not Path(norm_path).exists():
-                # Fallback: black frame
                 _make_black_clip(norm_path, duration, TARGET_W, TARGET_H, TARGET_FPS)
         else:
             _make_black_clip(norm_path, duration, TARGET_W, TARGET_H, TARGET_FPS)
+        return (i, norm_path, label, duration)
 
-        normalised.append(norm_path)
+    print(f"  ⚡ Normalising {len(segments)} clips in parallel...")
+    results_map = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(_normalise_clip, i, seg): i for i, seg in enumerate(segments)}
+        for fut in as_completed(futures):
+            i, norm_path, label, duration = fut.result()
+            results_map[i] = norm_path
+            print(f"  [{i+1}/{len(segments)}] ✓ {label} ({duration:.1f}s)")
+
+    normalised = [results_map[i] for i in range(len(segments))]
 
     # ── Step 2: Write concat list ────────────────────────────────────────────
     concat_list = tmp_dir / "concat.txt"

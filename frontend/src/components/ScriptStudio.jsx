@@ -87,6 +87,30 @@ const MOODS = [
     desc: "Deep obsidian black waves",
     aurora: "dark",
   },
+  {
+    id: "fluid_red",
+    emoji: "🔴",
+    label: "Liquid Red",
+    desc: "CSS only · no footage",
+    fluid: "red",
+    cssOnly: true,
+  },
+  {
+    id: "fluid_blue",
+    emoji: "🔵",
+    label: "Liquid Blue",
+    desc: "CSS only · no footage",
+    fluid: "blue",
+    cssOnly: true,
+  },
+  {
+    id: "fluid_black",
+    emoji: "⚫",
+    label: "Liquid Black",
+    desc: "CSS only · no footage",
+    fluid: "black",
+    cssOnly: true,
+  },
 ];
 
 const MUSIC = [
@@ -108,7 +132,7 @@ const PIPE_STEPS = [
   "Upload",
 ];
 
-export default function ScriptStudio({ T, showToast }) {
+export default function ScriptStudio({ T, showToast, onVideoReady }) {
   const [title, setTitle] = useState("");
   const [script, setScript] = useState("");
   const [profile, setProfile] = useState("educational");
@@ -118,10 +142,27 @@ export default function ScriptStudio({ T, showToast }) {
   const [pipeStep, setPipeStep] = useState(0);
   const [jobId, setJobId] = useState(null);
   const [error, setError] = useState("");
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState([]);
   const pollRef = useRef(null);
+  const logPollRef = useRef(null);
+  const logLineRef = useRef(0); // how many lines we've seen
+  const logsEndRef = useRef(null);
 
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
   const estMins = Math.round(wordCount / 140); // ~140 wpm narration
+
+  const handleCancel = async () => {
+    if (!jobId) return;
+    clearInterval(pollRef.current);
+    clearInterval(logPollRef.current);
+    try {
+      await api.post(`/videos/${jobId}/cancel`);
+    } catch (e) {}
+    setRunning(false);
+    setError("Cancelled by you");
+    showToast("Pipeline cancelled", "error");
+  };
 
   const handleGenerate = async () => {
     if (!title.trim()) {
@@ -145,8 +186,31 @@ export default function ScriptStudio({ T, showToast }) {
         visual_mood: mood,
         music_style: music,
       });
-      setJobId(data.video_id);
+      const vid = data.video_id;
+      setJobId(vid);
+      setLogs([]);
+      logLineRef.current = 0;
       showToast("Script pipeline started!");
+
+      // Poll log buffer every 1.5s
+      logPollRef.current = setInterval(async () => {
+        try {
+          const { data: logData } = await api.get(
+            `/videos/${vid}/logs?since=${logLineRef.current}`,
+          );
+          if (logData.lines && logData.lines.length > 0) {
+            logLineRef.current += logData.lines.length;
+            setLogs((prev) => [...prev, ...logData.lines].slice(-300));
+            setTimeout(
+              () => logsEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+              50,
+            );
+          }
+          if (logData.done) clearInterval(logPollRef.current);
+        } catch (e) {
+          /* ignore */
+        }
+      }, 1500);
 
       // Poll for progress
       pollRef.current = setInterval(async () => {
@@ -171,7 +235,18 @@ export default function ScriptStudio({ T, showToast }) {
               showToast("Pipeline failed", "error");
             } else {
               setPipeStep(6);
-              showToast("Script video ready! Check Videos tab.");
+              showToast("✅ Video ready! Loading preview...");
+              // Fetch the finished video and auto-preview it
+              try {
+                const { data: finishedVideo } = await api.get(
+                  `/videos/${data.video_id}`,
+                );
+                setTimeout(() => {
+                  if (onVideoReady) onVideoReady(finishedVideo);
+                }, 1200);
+              } catch (e) {
+                /* preview failed silently — user can still find it in Videos tab */
+              }
             }
           }
         } catch (e) {
@@ -438,9 +513,15 @@ export default function ScriptStudio({ T, showToast }) {
                     background:
                       v.aurora === "dark"
                         ? "#080810"
-                        : mood === v.id
-                          ? "#a060ff12"
-                          : "transparent",
+                        : v.fluid === "red"
+                          ? "#120003"
+                          : v.fluid === "blue"
+                            ? "#00030e"
+                            : v.fluid === "black"
+                              ? "#080808"
+                              : mood === v.id
+                                ? "#a060ff12"
+                                : "transparent",
                     color:
                       mood === v.id ? "#a060ff" : v.aurora ? "#fff" : T.textMid,
                     cursor: "pointer",
@@ -458,6 +539,17 @@ export default function ScriptStudio({ T, showToast }) {
                       <div className="aurora-band" />
                       <div className="aurora-band" />
                       <div className="aurora-band" />
+                    </div>
+                  )}
+                  {/* Fluid background if applicable */}
+                  {v.fluid && (
+                    <div
+                      className={`fluid-wrap fluid-${v.fluid}`}
+                      style={{ opacity: mood === v.id ? 1 : 0.7 }}
+                    >
+                      <div className="fluid-blob" />
+                      <div className="fluid-blob" />
+                      <div className="fluid-blob" />
                     </div>
                   )}
                   <div style={{ position: "relative", zIndex: 1 }}>
@@ -617,26 +709,64 @@ export default function ScriptStudio({ T, showToast }) {
                   >
                     <div
                       style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
+                        position: "relative",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: done
-                          ? T.accentGreen
-                          : active
-                            ? T.accent
-                            : T.bgDeep,
-                        color: done || active ? "white" : T.textFaint,
-                        border: active ? `2px solid ${T.accent}` : "none",
-                        transition: "all 0.4s",
-                        boxShadow: active ? `0 0 12px ${T.accent}60` : "none",
                       }}
                     >
-                      {done ? "✓" : i + 1}
+                      {/* Pulse ring on active step */}
+                      {active && (
+                        <>
+                          <div
+                            style={{
+                              position: "absolute",
+                              borderRadius: "50%",
+                              width: 36,
+                              height: 36,
+                              border: `2px solid ${T.accent}`,
+                              animation: "ringPulse 1.4s ease-out infinite",
+                              opacity: 0,
+                            }}
+                          />
+                          <div
+                            style={{
+                              position: "absolute",
+                              borderRadius: "50%",
+                              width: 44,
+                              height: 44,
+                              border: `1.5px solid ${T.accent}`,
+                              animation:
+                                "ringPulse 1.4s ease-out infinite 0.4s",
+                              opacity: 0,
+                            }}
+                          />
+                        </>
+                      )}
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: done
+                            ? T.accentGreen
+                            : active
+                              ? T.accent
+                              : T.bgDeep,
+                          color: done || active ? "white" : T.textFaint,
+                          border: active ? `2px solid ${T.accent}` : "none",
+                          transition: "all 0.4s",
+                          boxShadow: active ? `0 0 16px ${T.accent}80` : "none",
+                          zIndex: 1,
+                        }}
+                      >
+                        {done ? "✓" : i + 1}
+                      </div>
                     </div>
                     <div
                       style={{
@@ -683,6 +813,149 @@ export default function ScriptStudio({ T, showToast }) {
             {pipeStep === 4 && "🎬 Assembling final video..."}
             {pipeStep === 5 && "📝 Burning captions..."}
             {pipeStep === 6 && "✅ Done! Check your Videos tab."}
+          </div>
+
+          {/* Cancel + View Logs buttons */}
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginTop: 16,
+              justifyContent: "center",
+            }}
+          >
+            <button
+              onClick={() => setShowLogs(true)}
+              style={{
+                padding: "7px 16px",
+                borderRadius: 7,
+                border: `1px solid ${T.border}`,
+                background: "transparent",
+                color: T.textMid,
+                fontSize: 10,
+                fontFamily: "inherit",
+                letterSpacing: "0.08em",
+                cursor: "pointer",
+              }}
+            >
+              📋 VIEW LOGS
+            </button>
+            {pipeStep < 6 && (
+              <button
+                onClick={handleCancel}
+                style={{
+                  padding: "7px 16px",
+                  borderRadius: 7,
+                  border: `1px solid ${T.accentRed}50`,
+                  background: `${T.accentRed}10`,
+                  color: T.accentRed,
+                  fontSize: 10,
+                  fontFamily: "inherit",
+                  letterSpacing: "0.08em",
+                  cursor: "pointer",
+                }}
+              >
+                🛑 CANCEL & PURGE
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Log modal */}
+      {showLogs && (
+        <div
+          onClick={() => setShowLogs(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 700,
+              maxHeight: "70vh",
+              background: "#0a0a0f",
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "14px 18px",
+                borderBottom: `1px solid ${T.border}`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: T.text,
+                  letterSpacing: "0.1em",
+                }}
+              >
+                PIPELINE LOGS
+              </div>
+              <button
+                onClick={() => setShowLogs(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: T.textFaint,
+                  cursor: "pointer",
+                  fontSize: 18,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: "12px 18px",
+                fontFamily: "monospace",
+                fontSize: 11,
+                lineHeight: 1.7,
+                color: "#a0f0a0",
+              }}
+            >
+              {logs.length === 0 ? (
+                <div style={{ color: T.textFaint }}>
+                  Waiting for pipeline output...
+                </div>
+              ) : (
+                logs.map((line, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      color: line.startsWith("[ERROR]")
+                        ? "#ff6060"
+                        : line.startsWith("[DONE]")
+                          ? "#60ff60"
+                          : "#a0d0a0",
+                    }}
+                  >
+                    {line}
+                  </div>
+                ))
+              )}
+              <div ref={logsEndRef} />
+            </div>
           </div>
         </div>
       )}

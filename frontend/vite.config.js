@@ -11,6 +11,15 @@ export default defineConfig({
         target: "http://localhost:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
+        configure: (proxy) => {
+          proxy.on("proxyRes", (proxyRes) => {
+            if (
+              proxyRes.headers["content-type"]?.includes("text/event-stream")
+            ) {
+              proxyRes.headers["cache-control"] = "no-cache";
+            }
+          });
+        },
       },
     },
   },

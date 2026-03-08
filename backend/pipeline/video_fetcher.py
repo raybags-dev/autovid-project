@@ -207,6 +207,7 @@ MOOD_QUERIES = {
         "shadow dark dramatic cinematic",
         "dark night minimal abstract",
     ],
+
 }
 
 # Topic keywords that map to a mood automatically
@@ -243,12 +244,20 @@ def get_mood_for_topic(topic: str) -> str | None:
     return None
 
 
+# These moods are CSS-only visual effects — use topic-based footage, not mood footage
+CSS_ONLY_MOODS = {"fluid_red", "fluid_blue", "fluid_black", "aurora_blue", "aurora_dark"}
+
+
 def enrich_segments_with_mood(segments: list, mood: str) -> list:
     """
     Override each segment's visual_query with mood-appropriate Pexels terms.
     Cycles through the mood's query list so each segment gets variety.
-    Falls back gracefully if mood is unknown.
+    Falls back gracefully if mood is unknown or CSS-only.
     """
+    # CSS-only moods have no associated footage — use topic queries as-is
+    if mood in CSS_ONLY_MOODS:
+        return segments
+
     queries = MOOD_QUERIES.get(mood)
     if not queries:
         return segments
@@ -385,3 +394,4 @@ if __name__ == "__main__":
     result = fetch_all_clips(segments, "test-001")
     for r in result:
         print(f"  [{r['visual_query']}] → {r['clip_path']}")
+

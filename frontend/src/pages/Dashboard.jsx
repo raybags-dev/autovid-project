@@ -225,6 +225,12 @@ export default function Dashboard() {
   );
   const pollRef = useRef();
   const videoRef = useRef();
+  const logPollRef = useRef(null);
+  const logLineRef = useRef(0);
+  const [genJobId, setGenJobId] = useState(null);
+  const [genLogs, setGenLogs] = useState([]);
+  const [showGenLogs, setShowGenLogs] = useState(false);
+  const genLogsEndRef = useRef(null);
 
   const T = isDark ? THEMES.dark : THEMES.light;
 
@@ -351,11 +357,37 @@ export default function Dashboard() {
     setGenerating(true);
     setPipeStep(1);
     setGlobalLoading("Starting pipeline...");
+    setGenLogs([]);
+    logLineRef.current = 0;
     sessionGenerating.current = true;
     try {
-      await generateVideo(prompt.trim(), false, profile);
+      const data = await generateVideo(prompt.trim(), false, profile);
+      const vid = data.video_id;
+      setGenJobId(vid);
       setPrompt("");
       setGlobalLoading(null);
+
+      // Start log polling
+      logPollRef.current = setInterval(async () => {
+        try {
+          const { data: logData } = await api.get(
+            `/videos/${vid}/logs?since=${logLineRef.current}`,
+          );
+          if (logData.lines?.length > 0) {
+            logLineRef.current += logData.lines.length;
+            setGenLogs((prev) => [...prev, ...logData.lines].slice(-300));
+            setTimeout(
+              () =>
+                genLogsEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+              50,
+            );
+          }
+          if (logData.done) clearInterval(logPollRef.current);
+        } catch (e) {
+          /* ignore */
+        }
+      }, 1500);
+
       setTimeout(refresh, 1000);
     } catch (e) {
       setGlobalLoading(null);
@@ -366,6 +398,18 @@ export default function Dashboard() {
       setGenerating(false);
       setPipeStep(0);
     }
+  };
+
+  const handleGenCancel = async () => {
+    if (!genJobId) return;
+    clearInterval(logPollRef.current);
+    try {
+      await api.post(`/videos/${genJobId}/cancel`);
+    } catch (e) {}
+    setGenerating(false);
+    setPipeStep(0);
+    setGenError("Cancelled by you");
+    showToast("Pipeline cancelled", "error");
   };
   // Reset channel scroll when switching to channel tab
   useEffect(() => {
@@ -813,6 +857,92 @@ export default function Dashboard() {
         .btn-primary:hover:not(:disabled){opacity:0.85;transform:translateY(-1px);}
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ── Fluid liquid animations ── */
+        @keyframes fluid1 {
+          0%   { border-radius: 62% 38% 32% 68% / 58% 34% 66% 42%; }
+          25%  { border-radius: 38% 62% 55% 45% / 45% 58% 42% 55%; }
+          50%  { border-radius: 55% 45% 68% 32% / 62% 42% 58% 38%; }
+          75%  { border-radius: 45% 55% 40% 60% / 38% 65% 35% 62%; }
+          100% { border-radius: 62% 38% 32% 68% / 58% 34% 66% 42%; }
+        }
+        @keyframes fluid2 {
+          0%   { border-radius: 40% 60% 60% 40% / 40% 60% 40% 60%; }
+          33%  { border-radius: 65% 35% 45% 55% / 55% 40% 60% 45%; }
+          66%  { border-radius: 35% 65% 55% 45% / 45% 55% 40% 60%; }
+          100% { border-radius: 40% 60% 60% 40% / 40% 60% 40% 60%; }
+        }
+        @keyframes fluid3 {
+          0%   { border-radius: 50% 50% 38% 62% / 62% 44% 56% 38%; }
+          40%  { border-radius: 68% 32% 55% 45% / 42% 60% 40% 58%; }
+          80%  { border-radius: 32% 68% 42% 58% / 55% 38% 62% 45%; }
+          100% { border-radius: 50% 50% 38% 62% / 62% 44% 56% 38%; }
+        }
+        .fluid-wrap { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; }
+        .fluid-blob {
+          position: absolute;
+          filter: blur(28px);
+          will-change: border-radius;
+        }
+        /* ── Red fluid — dark crimson, subtle & pleasant ── */
+        .fluid-red  { background: #08000a; }
+        .fluid-red  .fluid-blob:nth-child(1) {
+          width:85%; height:85%; top:7%; left:7%;
+          background: radial-gradient(ellipse at 50% 50%, #6b0012 0%, #3a0009 55%, transparent 100%);
+          animation: fluid1 14s ease-in-out infinite;
+          opacity: 0.85;
+        }
+        .fluid-red  .fluid-blob:nth-child(2) {
+          width:62%; height:62%; top:19%; left:19%;
+          background: radial-gradient(ellipse at 50% 50%, #9b001b 0%, #5a000f 55%, transparent 100%);
+          animation: fluid2 10s ease-in-out infinite;
+          opacity: 0.7;
+        }
+        .fluid-red  .fluid-blob:nth-child(3) {
+          width:42%; height:42%; top:29%; left:29%;
+          background: radial-gradient(ellipse at 50% 50%, #c20020 0%, #780012 60%, transparent 100%);
+          animation: fluid3 8s ease-in-out infinite;
+          opacity: 0.55;
+        }
+        /* ── Blue fluid — deep navy, subtle & pleasant ── */
+        .fluid-blue { background: #00030e; }
+        .fluid-blue .fluid-blob:nth-child(1) {
+          width:85%; height:85%; top:7%; left:7%;
+          background: radial-gradient(ellipse at 50% 50%, #001260 0%, #00082e 55%, transparent 100%);
+          animation: fluid1 15s ease-in-out infinite;
+          opacity: 0.85;
+        }
+        .fluid-blue .fluid-blob:nth-child(2) {
+          width:62%; height:62%; top:19%; left:19%;
+          background: radial-gradient(ellipse at 50% 50%, #001e8a 0%, #000e44 55%, transparent 100%);
+          animation: fluid2 11s ease-in-out infinite;
+          opacity: 0.7;
+        }
+        .fluid-blue .fluid-blob:nth-child(3) {
+          width:42%; height:42%; top:29%; left:29%;
+          background: radial-gradient(ellipse at 50% 50%, #0030b8 0%, #001560 60%, transparent 100%);
+          animation: fluid3 9s ease-in-out infinite;
+          opacity: 0.55;
+        }
+        /* ── Black fluid — near-black charcoal morphs ── */
+        .fluid-black { background: #020202; }
+        .fluid-black .fluid-blob:nth-child(1) {
+          width:85%; height:85%; top:7%; left:7%;
+          background: radial-gradient(ellipse at 50% 50%, #1a1a1a 0%, #0c0c0c 55%, transparent 100%);
+          animation: fluid1 16s ease-in-out infinite;
+          opacity: 0.9;
+        }
+        .fluid-black .fluid-blob:nth-child(2) {
+          width:62%; height:62%; top:19%; left:19%;
+          background: radial-gradient(ellipse at 50% 50%, #252525 0%, #111 55%, transparent 100%);
+          animation: fluid2 12s ease-in-out infinite;
+          opacity: 0.75;
+        }
+        .fluid-black .fluid-blob:nth-child(3) {
+          width:42%; height:42%; top:29%; left:29%;
+          background: radial-gradient(ellipse at 50% 50%, #303030 0%, #181818 60%, transparent 100%);
+          animation: fluid3 9s ease-in-out infinite;
+          opacity: 0.6;
+        }
         /* ── Aurora wave animations ── */
         @keyframes aurora1 {
           0%   { transform: translateX(-30%) skewX(-8deg) scaleY(1);   opacity: 0.55; }
@@ -886,6 +1016,10 @@ export default function Dashboard() {
         .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(12px);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
         .modal{background:${isDark ? "#060d18" : "#ffffff"};border:1px solid ${T.border};border-radius:18px;padding:28px;max-width:580px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.4);}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes ringPulse {
+          0%   { transform: scale(1);   opacity: 0.8; }
+          100% { transform: scale(2.2); opacity: 0; }
+        }
         .modal{animation:fadeUp 0.2s ease;}
         .textarea{width:100%;padding:12px 14px;background:${T.inputBg};border:1px solid ${T.border};border-radius:8px;color:${T.text};font-family:inherit;font-size:13px;resize:none;outline:none;transition:border-color 0.2s;line-height:1.6;}
         .textarea:focus{border-color:rgba(0,160,220,0.4);}
@@ -1441,13 +1575,30 @@ export default function Dashboard() {
                   )}
 
                   {generating && (
-                    <div style={{ marginTop: 14 }}>
+                    <div
+                      style={{
+                        marginTop: 14,
+                        background: T.bgCard,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 12,
+                        padding: 20,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: T.textFaint,
+                          letterSpacing: "0.1em",
+                          marginBottom: 14,
+                        }}
+                      >
+                        PIPELINE PROGRESS
+                      </div>
                       <div
                         style={{
                           display: "flex",
-                          gap: 6,
-                          flexWrap: "wrap",
-                          marginBottom: 10,
+                          gap: 0,
+                          alignItems: "center",
                         }}
                       >
                         {STEPS.map((s, i) => {
@@ -1456,49 +1607,271 @@ export default function Dashboard() {
                           return (
                             <div
                               key={s}
-                              className="pipe-step"
                               style={{
-                                background: done
-                                  ? "rgba(0,192,112,0.07)"
-                                  : active
-                                    ? "rgba(0,160,220,0.1)"
-                                    : "transparent",
-                                borderColor: done
-                                  ? "rgba(0,192,112,0.22)"
-                                  : active
-                                    ? "rgba(0,160,220,0.32)"
-                                    : T.border,
-                                color: done
-                                  ? T.accentGreen
-                                  : active
-                                    ? T.accent
-                                    : T.textFaint,
+                                display: "flex",
+                                alignItems: "center",
+                                flex: 1,
                               }}
                             >
-                              {done ? (
-                                "✓"
-                              ) : active ? (
-                                <span
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <div
                                   style={{
-                                    display: "inline-block",
-                                    animation: "pulse 1s infinite",
+                                    position: "relative",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
                                   }}
                                 >
-                                  ●
-                                </span>
-                              ) : (
-                                "○"
+                                  {active && (
+                                    <>
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          borderRadius: "50%",
+                                          width: 36,
+                                          height: 36,
+                                          border: `2px solid ${T.accent}`,
+                                          animation:
+                                            "ringPulse 1.4s ease-out infinite",
+                                          opacity: 0,
+                                        }}
+                                      />
+                                      <div
+                                        style={{
+                                          position: "absolute",
+                                          borderRadius: "50%",
+                                          width: 44,
+                                          height: 44,
+                                          border: `1.5px solid ${T.accent}`,
+                                          animation:
+                                            "ringPulse 1.4s ease-out infinite 0.4s",
+                                          opacity: 0,
+                                        }}
+                                      />
+                                    </>
+                                  )}
+                                  <div
+                                    style={{
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: "50%",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      background: done
+                                        ? T.accentGreen
+                                        : active
+                                          ? T.accent
+                                          : T.bgDeep,
+                                      color:
+                                        done || active ? "white" : T.textFaint,
+                                      border: active
+                                        ? `2px solid ${T.accent}`
+                                        : "none",
+                                      transition: "all 0.4s",
+                                      boxShadow: active
+                                        ? `0 0 16px ${T.accent}80`
+                                        : "none",
+                                      zIndex: 1,
+                                    }}
+                                  >
+                                    {done ? "✓" : i + 1}
+                                  </div>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 9,
+                                    color: active
+                                      ? T.accent
+                                      : done
+                                        ? T.accentGreen
+                                        : T.textFaint,
+                                    letterSpacing: "0.08em",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {s.toUpperCase()}
+                                </div>
+                              </div>
+                              {i < STEPS.length - 1 && (
+                                <div
+                                  style={{
+                                    flex: 1,
+                                    height: 2,
+                                    background: done ? T.accentGreen : T.border,
+                                    margin: "0 4px",
+                                    marginBottom: 22,
+                                    transition: "background 0.4s",
+                                  }}
+                                />
                               )}
-                              {s}
                             </div>
                           );
                         })}
                       </div>
-                      <div className="prog-bar">
+                      <div
+                        style={{
+                          marginTop: 14,
+                          fontSize: 11,
+                          color: T.textMid,
+                          textAlign: "center",
+                        }}
+                      >
+                        {pipeStep === 1 &&
+                          "📝 Generating script from prompt..."}
+                        {pipeStep === 2 && "🎙 Synthesizing voice narration..."}
+                        {pipeStep === 3 && "📐 Aligning segments..."}
+                        {pipeStep === 4 && "🎬 Fetching stock footage..."}
+                        {pipeStep === 5 && "⚙ Assembling video..."}
+                        {pipeStep === 6 && "🎵 Burning captions..."}
+                        {pipeStep === 7 && "✅ Done! Loading preview..."}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          marginTop: 16,
+                          justifyContent: "center",
+                        }}
+                      >
+                        <button
+                          onClick={() => setShowGenLogs(true)}
+                          style={{
+                            padding: "7px 16px",
+                            borderRadius: 7,
+                            border: `1px solid ${T.border}`,
+                            background: "transparent",
+                            color: T.textMid,
+                            fontSize: 10,
+                            fontFamily: "inherit",
+                            letterSpacing: "0.08em",
+                            cursor: "pointer",
+                          }}
+                        >
+                          📋 VIEW LOGS
+                        </button>
+                        <button
+                          onClick={handleGenCancel}
+                          style={{
+                            padding: "7px 16px",
+                            borderRadius: 7,
+                            border: `1px solid ${T.accentRed}50`,
+                            background: `${T.accentRed}10`,
+                            color: T.accentRed,
+                            fontSize: 10,
+                            fontFamily: "inherit",
+                            letterSpacing: "0.08em",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🛑 CANCEL
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Gen log modal */}
+                  {showGenLogs && (
+                    <div
+                      onClick={() => setShowGenLogs(false)}
+                      style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(0,0,0,0.75)",
+                        zIndex: 200,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 20,
+                      }}
+                    >
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          width: "100%",
+                          maxWidth: 700,
+                          maxHeight: "70vh",
+                          background: "#0a0a0f",
+                          border: `1px solid ${T.border}`,
+                          borderRadius: 14,
+                          display: "flex",
+                          flexDirection: "column",
+                          overflow: "hidden",
+                        }}
+                      >
                         <div
-                          className="prog-fill"
-                          style={{ width: `${(pipeStep / 7) * 100}%` }}
-                        />
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "14px 18px",
+                            borderBottom: `1px solid ${T.border}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: T.text,
+                              letterSpacing: "0.1em",
+                            }}
+                          >
+                            PIPELINE LOGS
+                          </div>
+                          <button
+                            onClick={() => setShowGenLogs(false)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: T.textFaint,
+                              cursor: "pointer",
+                              fontSize: 18,
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div
+                          style={{
+                            flex: 1,
+                            overflowY: "auto",
+                            padding: "12px 18px",
+                            fontFamily: "monospace",
+                            fontSize: 11,
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          {genLogs.length === 0 ? (
+                            <div style={{ color: T.textFaint }}>
+                              Waiting for pipeline output...
+                            </div>
+                          ) : (
+                            genLogs.map((line, i) => (
+                              <div
+                                key={i}
+                                style={{
+                                  color: line.startsWith("[ERROR]")
+                                    ? "#ff6060"
+                                    : line.startsWith("[DONE]")
+                                      ? "#60ff60"
+                                      : "#a0d0a0",
+                                }}
+                              >
+                                {line}
+                              </div>
+                            ))
+                          )}
+                          <div ref={genLogsEndRef} />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2468,7 +2841,16 @@ export default function Dashboard() {
             )}
 
             {/* ── SCRIPT STUDIO TAB ─────────────────────────────────────────────── */}
-            {tab === "script" && <ScriptStudio T={T} showToast={showToast} />}
+            {tab === "script" && (
+              <ScriptStudio
+                T={T}
+                showToast={showToast}
+                onVideoReady={(video) => {
+                  setTab("videos");
+                  setTimeout(() => setPreview(video), 400);
+                }}
+              />
+            )}
 
             {/* ── Billing & Quotas Tab ──────────────────────────────────────────── */}
             {/* ── MY CHANNEL TAB ─────────────────────────────────────────────── */}

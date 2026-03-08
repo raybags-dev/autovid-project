@@ -40,7 +40,7 @@ from pipeline import script_gen, tts, video_fetcher, video_assembler, youtube_up
 try:
     import pipeline.caption as captioner       # caption.py
 except ModuleNotFoundError:
-    import pipeline.caption as captioner     # captioner.py fallback
+    import pipeline.captioner as captioner     # captioner.py fallback
 
 
 # ── Logger ────────────────────────────────────────────────────────────────────
@@ -80,8 +80,8 @@ def step_align_segments(script_data: dict, audio_result: dict, cb=None) -> list:
 def step_fetch_clips(segments: list, video_id: str, mood: str = None, cb=None) -> list:
     _log("CLIPS", f"Fetching {len(segments)} stock video clips...", cb)
     if mood:
-        from pipeline.video_fetcher import enrich_segments_with_mood
-        segments = enrich_segments_with_mood(segments, mood)
+        segments = video_fetcher.enrich_segments_with_mood(segments, mood)
+        _log("CLIPS", f"Visual mood: {mood}", cb)
     return video_fetcher.fetch_all_clips(segments, video_id)
 
 
@@ -243,8 +243,9 @@ def run_pipeline(
     prompt: str,
     profile: str = 'funny',
     auto_upload: bool = True,
-    visual_mood: str = None, 
+    visual_mood: str = None,
     progress_callback: Optional[Callable] = None,
+    video_id: str = None,   # pre-created DB record ID (optional)
 ) -> dict:
     """
     Run the full AutoVid pipeline from prompt → final video → YouTube.
@@ -259,14 +260,15 @@ def run_pipeline(
     """
     cb         = progress_callback
     start_time = time.time()
-    video_id   = None
+    # NOTE: do NOT reset video_id here — caller may pass a pre-created one
     audio_path     = None
     captioned_path = None
 
     try:
-        # ── 1. Create DB record ───────────────────────────────────────────────
-        record   = db.create_video(prompt)
-        video_id = record["id"]
+        # ── 1. Create DB record (or use pre-created ID from API) ────────────
+        if not video_id:
+            record   = db.create_video(prompt)
+            video_id = record["id"]
         _log("START", f"Pipeline started | ID: {video_id[:8]}...", cb)
 
         # ── 2. Script ─────────────────────────────────────────────────────────
@@ -282,6 +284,7 @@ def run_pipeline(
         # ── 5. Fetch clips ────────────────────────────────────────────────────
         _mood = visual_mood or video_fetcher.get_mood_for_topic(prompt)
         segments = step_fetch_clips(segments, video_id, mood=_mood, cb=cb)
+
         # ── 6. Assemble raw video ─────────────────────────────────────────────
         raw_video_path = step_assemble_video(segments, audio_result, video_id, cb)
 
@@ -368,3 +371,4 @@ if __name__ == "__main__":
         for k, v in result.items():
             if v:
                 print(f"   {k}: {str(v)[:80]}")
+
