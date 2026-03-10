@@ -435,7 +435,10 @@ export default function Dashboard() {
   const [shortGenError, setShortGenError] = useState("");
   const [shortLogs, setShortLogs] = useState([]);
   const [shortLogVideoId, setShortLogVideoId] = useState(null);
+  const [shortPipeStep, setShortPipeStep] = useState(0);
+  const [showShortLogs, setShowShortLogs] = useState(false);
   const shortLogPollRef = useRef(null);
+  const shortStepPollRef = useRef(null);
   const shortLogLineRef = useRef(0);
   const shortLogsEndRef = useRef(null);
   const [shortClipVideoId, setShortClipVideoId] = useState("");
@@ -636,12 +639,17 @@ export default function Dashboard() {
     showToast("Pipeline cancelled", "error");
   };
 
+  const SHORT_STEPS = ["Script", "Voice", "Visual", "Captions", "Final", "Ready"];
+  const SHORT_STEP_MAP = { generating: 1, scripted: 2, voiced: 3, assembled: 4, captioned: 5, labeled: 5, ready: 6, posted: 6 };
+
   const handleGenerateShort = async () => {
     if (!shortPrompt.trim() || shortGenerating) return;
     setShortGenError("");
     setShortGenerating(true);
-    // reset logs
+    setShortPipeStep(1);
+    setShowShortLogs(false);
     if (shortLogPollRef.current) clearInterval(shortLogPollRef.current);
+    if (shortStepPollRef.current) clearInterval(shortStepPollRef.current);
     setShortLogs([]);
     shortLogLineRef.current = 0;
     setShortLogVideoId(null);
@@ -652,6 +660,17 @@ export default function Dashboard() {
       showToast("Short generation started!");
       if (vid) {
         setShortLogVideoId(vid);
+        // Step polling
+        shortStepPollRef.current = setInterval(async () => {
+          try {
+            const { data: st } = await api.get(`/videos/${vid}`);
+            if (st?.status) setShortPipeStep(SHORT_STEP_MAP[st.status] ?? 1);
+            if (["ready", "posted", "failed"].includes(st?.status)) {
+              clearInterval(shortStepPollRef.current);
+            }
+          } catch (_) {}
+        }, 3000);
+        // Log polling
         shortLogPollRef.current = setInterval(async () => {
           try {
             const { data: ld } = await api.get(`/videos/${vid}/logs?since=${shortLogLineRef.current}`);
@@ -671,6 +690,7 @@ export default function Dashboard() {
     } catch (e) {
       setShortGenError(e?.response?.data?.detail || "Failed to start short generation.");
       setShortGenerating(false);
+      setShortPipeStep(0);
     }
   };
 
@@ -3631,55 +3651,135 @@ export default function Dashboard() {
             ✨ Generate New Short
           </div>
           <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
-            AI writes + narrates + renders a brand-new 9:16 Short from your prompt.
+            AI writes a concise 90-second script, narrates it, and renders a 9:16 Short.
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>TOPIC / PROMPT</div>
-            <textarea
-              value={shortPrompt}
-              onChange={e => setShortPrompt(e.target.value)}
-              rows={3}
-              placeholder="e.g. 'The quiet grief nobody talks about'"
-              style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
-            />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>AMBIENCE</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              {[
-                { v: "stars", emoji: "⭐", label: "Stars", desc: "Deep space drift" },
-                { v: "aurora", emoji: "🌌", label: "Aurora", desc: "Northern lights" },
-                { v: "ocean", emoji: "🌊", label: "Ocean", desc: "Underwater rays" },
-                { v: "fire", emoji: "🔥", label: "Fire", desc: "Floating embers" },
-                { v: "rain", emoji: "🌧", label: "Rain", desc: "Night city window" },
-                { v: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
-              ].map(a => (
-                <button key={a.v} onClick={() => setShortAmbience(a.v)} style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", textAlign: "left", border: `2px solid ${shortAmbience === a.v ? T.accent : T.border}`, background: shortAmbience === a.v ? `${T.accent}18` : T.inputBg, color: T.text, fontFamily: "inherit" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700 }}>{a.emoji} {a.label}</div>
-                  <div style={{ fontSize: 10, color: T.textDim }}>{a.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+          {!shortGenerating && shortPipeStep === 0 && (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>TOPIC / PROMPT</div>
+                <textarea
+                  value={shortPrompt}
+                  onChange={e => setShortPrompt(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. 'The quiet grief nobody talks about'"
+                  style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>AMBIENCE</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {[
+                    { v: "stars", emoji: "⭐", label: "Stars", desc: "Deep space drift" },
+                    { v: "aurora", emoji: "🌌", label: "Aurora", desc: "Northern lights" },
+                    { v: "ocean", emoji: "🌊", label: "Ocean", desc: "Underwater rays" },
+                    { v: "fire", emoji: "🔥", label: "Fire", desc: "Floating embers" },
+                    { v: "rain", emoji: "🌧", label: "Rain", desc: "Night city window" },
+                    { v: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
+                  ].map(a => (
+                    <button key={a.v} onClick={() => setShortAmbience(a.v)} style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", textAlign: "left", border: `2px solid ${shortAmbience === a.v ? T.accent : T.border}`, background: shortAmbience === a.v ? `${T.accent}18` : T.inputBg, color: T.text, fontFamily: "inherit" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700 }}>{a.emoji} {a.label}</div>
+                      <div style={{ fontSize: 10, color: T.textDim }}>{a.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
           {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
           <button onClick={handleGenerateShort} disabled={shortGenerating || !shortPrompt.trim()} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortGenerating || !shortPrompt.trim() ? T.border : T.accent, color: shortGenerating || !shortPrompt.trim() ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortGenerating || !shortPrompt.trim() ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
             {shortGenerating ? "⚡ GENERATING..." : "⚡ GENERATE SHORT"}
           </button>
-          {/* Live log stream */}
-          {(shortGenerating || shortLogs.length > 0) && shortLogVideoId && (
-            <div style={{ marginTop: 14, background: T.bgSub, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px" }}>
-              <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>
-                PIPELINE LOGS {shortGenerating && <span style={{ color: T.accent }}>● LIVE</span>}
+
+          {/* ── Progress panel (same style as Video Studio) ── */}
+          {(shortGenerating || shortPipeStep > 0) && shortLogVideoId && (
+            <div style={{ marginTop: 16, background: T.bgDeep, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px" }}>
+              <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 14 }}>PIPELINE PROGRESS</div>
+              {/* Step indicators */}
+              <div style={{ display: "flex", gap: 0, alignItems: "center" }}>
+                {SHORT_STEPS.map((s, i) => {
+                  const done = i < shortPipeStep - 1, active = i === shortPipeStep - 1;
+                  return (
+                    <div key={s} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                        <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {active && (
+                            <>
+                              <div style={{ position: "absolute", borderRadius: "50%", width: 32, height: 32, border: `2px solid ${T.accent}`, animation: "ringPulse 1.4s ease-out infinite", opacity: 0 }} />
+                              <div style={{ position: "absolute", borderRadius: "50%", width: 40, height: 40, border: `1.5px solid ${T.accent}`, animation: "ringPulse 1.4s ease-out infinite 0.4s", opacity: 0 }} />
+                            </>
+                          )}
+                          <div style={{
+                            width: 24, height: 24, borderRadius: "50%",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 10, fontWeight: 700,
+                            background: done ? T.accentGreen : active ? T.accent : T.bgCard,
+                            color: done || active ? "white" : T.textFaint,
+                            border: active ? `2px solid ${T.accent}` : "none",
+                            boxShadow: active ? `0 0 12px ${T.accent}80` : "none",
+                            transition: "all 0.4s", zIndex: 1,
+                          }}>
+                            {done ? "✓" : i + 1}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 8, color: active ? T.accent : done ? T.accentGreen : T.textFaint, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+                          {s.toUpperCase()}
+                        </div>
+                      </div>
+                      {i < SHORT_STEPS.length - 1 && (
+                        <div style={{ flex: 1, height: 2, background: done ? T.accentGreen : T.border, margin: "0 3px", marginBottom: 20, transition: "background 0.4s" }} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div style={{ fontFamily: "monospace", fontSize: 10, color: T.textDim, maxHeight: 180, overflowY: "auto", lineHeight: 1.6 }}>
-                {shortLogs.length === 0
-                  ? <span style={{ color: T.textFaint }}>Waiting for pipeline output...</span>
-                  : shortLogs.map((line, i) => (
-                    <div key={i} style={{ color: line.includes("[ERROR]") ? T.accentRed : line.includes("[DONE]") ? T.accentGreen : T.textDim }}>{line}</div>
-                  ))
-                }
-                <div ref={shortLogsEndRef} />
+              {/* Status message */}
+              <div style={{ marginTop: 12, fontSize: 11, color: T.textMid, textAlign: "center" }}>
+                {shortPipeStep === 1 && "📝 Generating 90-second script..."}
+                {shortPipeStep === 2 && "🎙 Synthesizing voice narration..."}
+                {shortPipeStep === 3 && "🎬 Generating portrait visual..."}
+                {shortPipeStep === 4 && "⚙ Burning captions..."}
+                {shortPipeStep === 5 && "🎵 Merging audio + finalizing..."}
+                {shortPipeStep === 6 && "✅ Short ready — check the Shorts list!"}
               </div>
+              {/* View logs toggle + cancel */}
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
+                <button
+                  onClick={() => setShowShortLogs(v => !v)}
+                  style={{ padding: "5px 14px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {showShortLogs ? "Hide Logs" : "View Logs"}
+                </button>
+                {shortGenerating && (
+                  <button
+                    onClick={() => {
+                      clearInterval(shortLogPollRef.current);
+                      clearInterval(shortStepPollRef.current);
+                      setShortGenerating(false);
+                      setShortPipeStep(0);
+                    }}
+                    style={{ padding: "5px 14px", borderRadius: 6, border: `1px solid ${T.accentRed}40`, background: "transparent", color: T.accentRed, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+              {/* Log stream */}
+              {showShortLogs && (
+                <div style={{ marginTop: 10, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>
+                    LOGS {shortGenerating && <span style={{ color: T.accent }}>● LIVE</span>}
+                  </div>
+                  <div style={{ fontFamily: "monospace", fontSize: 10, color: T.textDim, maxHeight: 200, overflowY: "auto", lineHeight: 1.6 }}>
+                    {shortLogs.length === 0
+                      ? <span style={{ color: T.textFaint }}>Waiting for pipeline output...</span>
+                      : shortLogs.map((line, i) => (
+                        <div key={i} style={{ color: line.includes("[ERROR]") ? T.accentRed : line.includes("[DONE]") ? T.accentGreen : T.textDim }}>{line}</div>
+                      ))
+                    }
+                    <div ref={shortLogsEndRef} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3720,7 +3820,7 @@ export default function Dashboard() {
         <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SHORTS TIPS</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           {[
-            { icon: "⏱", title: "Max 59 Seconds", desc: "YouTube Shorts must be under 60s to qualify for the Shorts feed." },
+            { icon: "⏱", title: "Max 90 Seconds", desc: "YouTube Shorts can be up to 90s. Generated shorts are auto-fitted to exactly 90s." },
             { icon: "📱", title: "9:16 Portrait", desc: "All Shorts are rendered at 1080×1920 — vertical mobile-first format." },
             { icon: "👁", title: "Review Before Upload", desc: "Shorts are saved as Ready — you upload to YouTube when satisfied." },
           ].map(tip => (

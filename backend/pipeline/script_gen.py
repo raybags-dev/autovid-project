@@ -204,6 +204,82 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
     return script_data
 
 
+SHORT_SCRIPT_SCHEMA = """
+Return ONLY this JSON structure — no markdown, no explanation, only raw JSON:
+{
+  "title": "Short title (max 60 chars, punchy, one emoji max)",
+  "description": "YouTube Shorts description: 1-2 sentences, emotionally resonant",
+  "hook": "Opening hook — 1 sentence max. Bold claim, striking image, or question. Under 15 words.",
+  "segments": [
+    {
+      "text": "Narration segment. Each segment 20-30 words. Write exactly 5-6 segments.",
+      "visual_query": "Cinematic portrait/vertical stock video query. Be specific and visual.",
+      "duration_hint": 12
+    }
+  ],
+  "outro": "Closing 1-2 sentences. Leave the viewer with something real. Under 20 words.",
+  "suggested_labels": ["Philosophy", "Life"],
+  "category": "Education",
+  "mood": "inspirational"
+}
+"""
+
+
+def generate_short_script(prompt: str) -> dict:
+    """
+    Generate a concise short-form script targeting ~200 words (~80s at 150wpm).
+    Designed to fit within the 90-second YouTube Shorts limit.
+    """
+    print(f"📝 Generating short script: '{prompt}'")
+
+    client = get_groq()
+    system = (
+        "You are a YouTube Shorts writer crafting emotionally powerful 90-second scripts.\n"
+        "STRICT RULES:\n"
+        "- Total narration MUST be 180-210 words (fits 90 seconds at natural pace)\n"
+        "- Hook: max 15 words\n"
+        "- Segments: exactly 5-6, each 25-35 words\n"
+        "- Outro: max 20 words\n"
+        "- No filler, no padding. Every word must earn its place.\n"
+        "- Write EXACTLY as it should be spoken — natural human speech\n"
+        "- Use commas and ellipsis (...) for natural pauses\n"
+        "- NEVER use brackets, asterisks, hashtags, or markdown\n"
+        "- Always respond in valid JSON only\n"
+    )
+    response = client.chat.completions.create(
+        model=config.GROQ_MODEL,
+        messages=[
+            {"role": "system", "content": system + SHORT_SCRIPT_SCHEMA},
+            {"role": "user", "content": f"Write a powerful 90-second YouTube Short about: {prompt}\n\nTarget 180-210 words total. Make every word count."},
+        ],
+        temperature=0.80,
+        max_tokens=1024,
+        response_format={"type": "json_object"},
+    )
+
+    raw = response.choices[0].message.content
+    script_data = json.loads(raw)
+
+    required = ["title", "description", "hook", "segments", "outro", "suggested_labels", "category"]
+    for field in required:
+        if field not in script_data:
+            raise ValueError(f"Short script missing required field: {field}")
+
+    all_lines = [script_data["hook"]]
+    all_lines += [seg["text"] for seg in script_data["segments"]]
+    all_lines.append(script_data["outro"])
+    script_data["full_narration"] = " ".join(all_lines)
+
+    word_count = len(script_data["full_narration"].split())
+    script_data["estimated_duration"] = int((word_count / 150) * 60)
+    script_data["is_short"] = True
+
+    print(f"✅ Short script generated: '{script_data['title']}'")
+    print(f"   Words: {word_count}, estimated {script_data['estimated_duration']}s")
+
+    return script_data
+
+
 def generate_labels(title: str, description: str, script: str) -> dict:
     """
     Auto-generate labels and category for an existing script.
