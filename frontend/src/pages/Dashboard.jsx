@@ -226,6 +226,7 @@ export default function Dashboard() {
   const [preview, setPreview] = useState(null); // video being previewed
   const [tab, setTab] = useState("videos");
   const [tabLoading, setTabLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const [genError, setGenError] = useState("");
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
@@ -275,6 +276,8 @@ export default function Dashboard() {
   const [shortsList, setShortsList] = useState([]);
   const [shortsLoading, setShortsLoading] = useState(false);
   const [shortsHasMore, setShortsHasMore] = useState(true);
+  const [shortsFilter, setShortsFilter] = useState("all"); // all | youtube | tiktok | unposted
+  const [shortsUploading, setShortsUploading] = useState({});
   const shortsOffsetRef = useRef(0);
   const shortsListRef = useRef(null);
   const T = isDark ? THEMES.dark : THEMES.light;
@@ -618,6 +621,12 @@ export default function Dashboard() {
   const autoShortLogPollRef = useRef(null);
   const autoShortLogLineRef = useRef(0);
   const tabTimerRef = useRef(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const switchTab = (id) => {
     if (id === tab) return;
@@ -1048,6 +1057,32 @@ export default function Dashboard() {
         video{border-radius:10px;width:100%;background:#000;outline:none;}
         .video-preview-modal{background:#000;border:1px solid ${T.border};border-radius:18px;padding:0;overflow:hidden;max-width:760px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.8);}
         .video-preview-modal .modal-header{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;background:${isDark ? "rgba(0,0,0,0.8)" : "rgba(10,10,20,0.9)"};}
+
+        /* ── Mobile responsive ── */
+        @media (max-width: 768px) {
+          .sidebar-desktop { display: none !important; }
+          .mobile-bottom-nav { display: flex !important; }
+          .main-content { margin-left: 0 !important; padding-bottom: 72px !important; }
+          .content-area { padding: 14px !important; }
+          .topbar { padding: 12px 14px !important; }
+          .stat-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+          .video-row { padding: 12px 14px !important; }
+          .modal { max-width: 100% !important; max-height: 95vh !important; padding: 18px !important; border-radius: 14px !important; }
+          .settings-columns { flex-direction: column !important; }
+          .settings-right { width: 100% !important; position: static !important; }
+          .filter-bar { flex-wrap: wrap !important; gap: 6px !important; }
+          .action-row { flex-wrap: wrap !important; gap: 6px !important; }
+          .card-actions { flex-wrap: wrap !important; }
+          .compilation-layout { flex-direction: column !important; }
+        }
+        @media (min-width: 769px) {
+          .mobile-bottom-nav { display: none !important; }
+          .sidebar-desktop { display: flex !important; }
+        }
+        .mobile-bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:${T.bgCard};border-top:1px solid ${T.border};display:none;justify-content:space-around;align-items:center;height:60px;padding:0 4px;}
+        .mob-tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:9px;letter-spacing:0.05em;color:${T.textDim};transition:all 0.15s;border:none;background:transparent;flex:1;}
+        .mob-tab.active{color:${T.accent};}
+        .mob-tab-icon{font-size:18px;line-height:1;}
       `}</style>
 
         {/* ── Toast ──────────────────────────────────────────────────────────────── */}
@@ -1070,11 +1105,11 @@ export default function Dashboard() {
 
         {/* ── Sidebar ────────────────────────────────────────────────────────────── */}
         <div
+          className="sidebar-desktop"
           style={{
             width: 220,
             background: T.bgSub,
             borderRight: `1px solid ${T.border}`,
-            display: "flex",
             flexDirection: "column",
             padding: "20px 10px",
             flexShrink: 0,
@@ -1284,6 +1319,7 @@ export default function Dashboard() {
 
         {/* ── Main ───────────────────────────────────────────────────────────────── */}
         <div
+          className="main-content"
           style={{
             flex: 1,
             display: "flex",
@@ -1293,6 +1329,7 @@ export default function Dashboard() {
         >
           {/* Top bar */}
           <div
+            className="topbar"
             style={{
               padding: "12px 24px",
               borderBottom: `1px solid ${T.border}`,
@@ -1416,7 +1453,7 @@ export default function Dashboard() {
           </div>
 
           {/* Content */}
-          <div style={{ flex: 1, overflow: "auto", padding: 24, position: "relative" }}>
+          <div className="content-area" style={{ flex: 1, overflow: "auto", padding: 24, position: "relative" }}>
             {/* Tab loading overlay */}
             {tabLoading && (
               <div
@@ -3111,7 +3148,7 @@ export default function Dashboard() {
 
     {/* LEFT — Existing Shorts */}
     <div style={{
-      width: 320,
+      width: 340,
       flexShrink: 0,
       background: T.bgCard,
       border: `1px solid ${T.border}`,
@@ -3120,6 +3157,7 @@ export default function Dashboard() {
       flexDirection: "column",
       overflow: "hidden",
     }}>
+      {/* Header */}
       <div style={{
         padding: "14px 16px",
         borderBottom: `1px solid ${T.border}`,
@@ -3129,7 +3167,7 @@ export default function Dashboard() {
         flexShrink: 0,
       }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: T.text, letterSpacing: "0.08em" }}>
-          ⚡ YOUR SHORTS
+          ⚡ YOUR SHORTS <span style={{ color: T.textFaint, fontWeight: 400 }}>({shortsList.length})</span>
         </div>
         <button
           onClick={() => { setShortsList([]); shortsOffsetRef.current = 0; loadShorts(true); }}
@@ -3137,67 +3175,175 @@ export default function Dashboard() {
         >↺</button>
       </div>
 
+      {/* Filter bar */}
+      <div style={{ padding: "8px 12px", borderBottom: `1px solid ${T.border}20`, display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {[
+          { id: "all", label: "All" },
+          { id: "youtube", label: "▶ YouTube" },
+          { id: "tiktok", label: "🎵 TikTok" },
+          { id: "unposted", label: "⬆ Unposted" },
+        ].map(f => (
+          <button
+            key={f.id}
+            onClick={() => setShortsFilter(f.id)}
+            style={{
+              padding: "4px 10px", borderRadius: 6, fontSize: 9, letterSpacing: "0.05em",
+              border: `1px solid ${shortsFilter === f.id ? T.accent : T.border}`,
+              background: shortsFilter === f.id ? `${T.accent}18` : "transparent",
+              color: shortsFilter === f.id ? T.accent : T.textDim,
+              cursor: "pointer", fontFamily: "inherit", fontWeight: shortsFilter === f.id ? 700 : 400,
+            }}
+          >{f.label}</button>
+        ))}
+      </div>
+
       <div
         ref={shortsListRef}
         onScroll={handleShortsScroll}
-        style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}
+        style={{ flex: 1, overflowY: "auto", padding: "6px 0" }}
       >
         {shortsLoading && shortsList.length === 0 ? (
           [0,1,2].map(i => (
             <div key={i} style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center" }}>
-              <div className="skeleton-loader" style={{ width: 64, height: 36, borderRadius: 6, flexShrink: 0 }} />
+              <div className="skeleton-loader" style={{ width: 40, height: 72, borderRadius: 6, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div className="skeleton-loader" style={{ width: "70%", height: 11, borderRadius: 3, marginBottom: 6 }} />
                 <div className="skeleton-loader" style={{ width: "40%", height: 9, borderRadius: 3 }} />
               </div>
             </div>
           ))
-        ) : shortsList.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: T.textFaint, fontSize: 11 }}>
-            No shorts yet — generate your first one →
-          </div>
-        ) : (
-          shortsList.map(s => (
-            <div
-              key={s.id}
-              style={{
-                padding: "10px 14px",
-                display: "flex",
-                gap: 10,
-                alignItems: "center",
-                cursor: "pointer",
-                borderBottom: `1px solid ${T.border}20`,
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = T.bgCardHover}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              {/* Thumbnail */}
-              <div style={{
-                width: 64, height: 36, borderRadius: 6,
-                background: `linear-gradient(135deg,#4a9eff18,#00000020)`,
-                border: `1px solid ${T.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0, fontSize: 14, opacity: 0.7,
-              }}>
-                {s.file_path ? "▶" : "⚙"}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: 11, fontWeight: 600, color: T.text,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  marginBottom: 3,
-                }}>
-                  {s.title || s.prompt?.slice(0, 40) || "Untitled Short"}
-                </div>
-                <div style={{ fontSize: 10, color: T.textFaint }}>
-                  {s.status === "ready" ? "✅ Ready" : s.status === "failed" ? "❌ Failed" : "⚙ " + s.status}
-                  {s.duration_seconds ? ` · ${s.duration_seconds}s` : ""}
-                </div>
-              </div>
+        ) : (() => {
+          const filteredShorts = shortsList.filter(s => {
+            if (shortsFilter === "youtube") return !!s.youtube_video_id;
+            if (shortsFilter === "tiktok") return s.tiktok_status === "published";
+            if (shortsFilter === "unposted") return s.status === "ready" && !s.youtube_video_id && s.tiktok_status !== "published";
+            return true;
+          });
+          if (filteredShorts.length === 0) return (
+            <div style={{ textAlign: "center", padding: 40, color: T.textFaint, fontSize: 11 }}>
+              {shortsFilter === "all" ? "No shorts yet — generate your first one →" : `No ${shortsFilter} shorts found`}
             </div>
-          ))
-        )}
+          );
+          return filteredShorts.map(s => {
+            const isOnYt = !!s.youtube_video_id;
+            const isOnTt = s.tiktok_status === "published";
+            const isReady = s.status === "ready";
+            const isUnposted = isReady && !isOnYt;
+            const uploadingYt = shortsUploading[`yt_${s.id}`];
+            const uploadingTt = shortsUploading[`tt_${s.id}`];
+            return (
+              <div
+                key={s.id}
+                style={{
+                  padding: "10px 14px",
+                  borderBottom: `1px solid ${T.border}20`,
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = T.bgCardHover}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  {/* Portrait thumbnail */}
+                  <div style={{
+                    width: 36, height: 64, borderRadius: 6,
+                    background: `linear-gradient(180deg,#4a9eff18,#00000028)`,
+                    border: `1px solid ${T.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0, fontSize: 14, opacity: 0.7,
+                  }}>
+                    {s.file_path ? "▶" : "⚙"}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 11, fontWeight: 600, color: T.text,
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                      marginBottom: 3,
+                    }}>
+                      {s.title || s.prompt?.slice(0, 38) || "Untitled Short"}
+                    </div>
+                    <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6 }}>
+                      {s.status === "ready" ? "✅ Ready" : s.status === "failed" ? "❌ Failed" : "⚙ " + s.status}
+                      {s.duration_seconds ? ` · ${s.duration_seconds}s` : ""}
+                    </div>
+                    {/* Platform badges */}
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: isUnposted ? 8 : 0 }}>
+                      {isOnYt && (
+                        <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: "rgba(255,0,0,0.1)", color: "#ff4444", border: "1px solid rgba(255,0,0,0.2)", letterSpacing: "0.04em" }}>
+                          ▶ YOUTUBE
+                        </span>
+                      )}
+                      {isOnTt && (
+                        <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: "rgba(0,242,234,0.1)", color: "#00f2ea", border: "1px solid rgba(0,242,234,0.2)", letterSpacing: "0.04em" }}>
+                          🎵 TIKTOK
+                        </span>
+                      )}
+                      {!isOnYt && !isOnTt && isReady && (
+                        <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: `${T.accentYellow}14`, color: T.accentYellow, border: `1px solid ${T.accentYellow}30`, letterSpacing: "0.04em" }}>
+                          UNPOSTED
+                        </span>
+                      )}
+                    </div>
+                    {/* Action buttons for unposted ready shorts */}
+                    {isUnposted && (
+                      <div style={{ display: "flex", gap: 5 }}>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setShortsUploading(p => ({ ...p, [`yt_${s.id}`]: true }));
+                            try {
+                              await uploadVideo(s.id);
+                              showToast("YouTube upload started!");
+                              loadShorts(true);
+                            } catch (err) {
+                              showToast(err?.response?.data?.detail || "Upload failed", "error");
+                            } finally {
+                              setShortsUploading(p => ({ ...p, [`yt_${s.id}`]: false }));
+                            }
+                          }}
+                          disabled={uploadingYt}
+                          style={{
+                            padding: "4px 8px", borderRadius: 6, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+                            border: "1px solid rgba(255,0,0,0.3)", background: "rgba(255,0,0,0.08)",
+                            color: "#ff4444", cursor: "pointer", fontFamily: "inherit",
+                            opacity: uploadingYt ? 0.5 : 1,
+                          }}
+                        >
+                          {uploadingYt ? "⟳..." : "▶ YT"}
+                        </button>
+                        {tiktokConnected && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setShortsUploading(p => ({ ...p, [`tt_${s.id}`]: true }));
+                              try {
+                                await uploadToTikTok(s.id, "SELF_ONLY");
+                                showToast("TikTok upload started!");
+                                loadShorts(true);
+                              } catch (err) {
+                                showToast(err?.response?.data?.detail || "TikTok upload failed", "error");
+                              } finally {
+                                setShortsUploading(p => ({ ...p, [`tt_${s.id}`]: false }));
+                              }
+                            }}
+                            disabled={uploadingTt}
+                            style={{
+                              padding: "4px 8px", borderRadius: 6, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+                              border: "1px solid rgba(0,242,234,0.3)", background: "rgba(0,242,234,0.08)",
+                              color: "#00f2ea", cursor: "pointer", fontFamily: "inherit",
+                              opacity: uploadingTt ? 0.5 : 1,
+                            }}
+                          >
+                            {uploadingTt ? "⟳..." : "🎵 TT"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          });
+        })()}
         {shortsLoading && shortsList.length > 0 && (
           <div style={{ textAlign: "center", padding: 12, color: T.textFaint, fontSize: 11 }}>Loading more...</div>
         )}
@@ -7817,6 +7963,26 @@ export default function Dashboard() {
             }}
           />
         )}
+
+        {/* ── Mobile Bottom Nav ──────────────────────────────────────────────────── */}
+        <nav className="mobile-bottom-nav">
+          {[
+            { id: "videos", icon: "▣", label: "Videos" },
+            { id: "shorts", icon: "⚡", label: "Shorts" },
+            { id: "script", icon: "✍", label: "Script" },
+            { id: "channel", icon: "▶", label: "Channel" },
+            { id: "settings", icon: "◎", label: "Settings" },
+          ].map(n => (
+            <button
+              key={n.id}
+              className={`mob-tab${tab === n.id ? " active" : ""}`}
+              onClick={() => switchTab(n.id)}
+            >
+              <span className="mob-tab-icon">{n.icon}</span>
+              <span>{n.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </>
   );
