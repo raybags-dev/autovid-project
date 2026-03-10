@@ -617,7 +617,7 @@ export default function Dashboard() {
     if (tabTimerRef.current) clearTimeout(tabTimerRef.current);
     setTab(id);
     setTabLoading(true);
-    tabTimerRef.current = setTimeout(() => setTabLoading(false), 2000);
+    tabTimerRef.current = setTimeout(() => setTabLoading(false), 800);
   };
 
   const handleUpload = async (id, e) => {
@@ -1428,10 +1428,10 @@ export default function Dashboard() {
               >
                 <div
                   style={{
-                    width: 40,
-                    height: 40,
+                    width: 64,
+                    height: 64,
                     borderRadius: "50%",
-                    border: "3px solid rgba(255,255,255,0.08)",
+                    border: "4px solid rgba(255,255,255,0.08)",
                     borderTopColor: "#00a0dc",
                     animation: "tabSpinner 0.7s linear infinite",
                   }}
