@@ -1081,6 +1081,26 @@ export default function Dashboard() {
     return getAvatarSvg(genders[hash % genders.length]);
   };
 
+  const handleDownload = async (url, filename) => {
+    if (!url) return;
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("fetch failed");
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (_) {
+      // fallback: open in new tab
+      window.open(url, "_blank");
+    }
+  };
+
   const getVideoUrl = (filePath) => {
     if (!filePath) return null;
     // Full Supabase/remote URL → play directly
@@ -3092,23 +3112,21 @@ export default function Dashboard() {
                             </button>
                           ) : null}
                           {vUrl ? (
-                            <a
-                              href={vUrl}
-                              download
-                              onClick={(e) => e.stopPropagation()}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDownload(vUrl, `${v.title || v.id}.mp4`); }}
                               className="btn-sm"
                               style={{
                                 color: T.textMid,
                                 borderColor: T.border,
                                 background: "transparent",
-                                textDecoration: "none",
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: 4,
+                                cursor: "pointer",
                               }}
                             >
                               ↓ DOWNLOAD
-                            </a>
+                            </button>
                           ) : null}
                           {!vUrl && v.status === "ready" ? (
                             <span
@@ -3265,25 +3283,22 @@ export default function Dashboard() {
                                 </a>
                               )}
                               {v.narration_url && (
-                                <a
-                                  href={v.narration_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  download
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`); }}
                                   title="Download narration MP3"
                                   style={{
                                     fontSize: 10,
                                     color: "#a0d090",
-                                    textDecoration: "none",
                                     padding: "4px 10px",
                                     background: "#a0d09010",
                                     borderRadius: 5,
                                     border: "1px solid #a0d09030",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
                                   }}
                                 >
                                   🎙 MP3
-                                </a>
+                                </button>
                               )}
                               <span
                                 style={{ fontSize: 10, color: T.textFaint }}
@@ -3939,18 +3954,20 @@ export default function Dashboard() {
                                     </a>
                                   )}
                                   {v.narration_url && (
-                                    <a
-                                      href={v.narration_url}
-                                      download
-                                      target="_blank"
-                                      rel="noreferrer"
+                                    <button
+                                      onClick={() => handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`)}
                                       style={{
                                         color: "#a0d090",
-                                        textDecoration: "none",
+                                        background: "none",
+                                        border: "none",
+                                        padding: 0,
+                                        cursor: "pointer",
+                                        fontSize: 10,
+                                        fontFamily: "inherit",
                                       }}
                                     >
                                       🎙 NARRATION MP3
-                                    </a>
+                                    </button>
                                   )}
                                 </div>
                               </div>
