@@ -81,7 +81,7 @@ ssh $SERVER << REMOTE
   # .env is never overwritten by rsync — back it up and restore
 
   echo "→ Pulling latest images and rebuilding..."
-  docker compose down
+  docker compose down --remove-orphans
 
   # Only rebuild backend if Python files changed, always rebuild frontend
   docker compose build --no-cache frontend
