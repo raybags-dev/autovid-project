@@ -409,6 +409,24 @@ def run_pipeline(
             db.set_ready(video_id)
             _log("READY", "Video ready — skipping YouTube upload (auto_upload=False)", cb)
 
+        # ── 12. Auto-generate companion short in production ───────────────────
+        if os.getenv("APP_ENV") == "production":
+            try:
+                _log("SHORT", "🎬 Production mode — spawning companion short...", cb)
+                import threading
+                def _spawn_short():
+                    try:
+                        run_short_pipeline(
+                            prompt=prompt,
+                            ambience="stars",
+                            auto_upload_youtube=True,
+                        )
+                    except Exception as se:
+                        print(f"⚠️  Companion short failed (non-fatal): {se}")
+                threading.Thread(target=_spawn_short, daemon=True).start()
+            except Exception as se:
+                _log("SHORT", f"⚠️ Could not spawn companion short: {se}", cb)
+
         elapsed = time.time() - start_time
         _log("DONE", f"✅ Pipeline complete in {elapsed:.0f}s", cb)
         return db.get_video(video_id)
@@ -444,10 +462,10 @@ def retry_failed(video_id: str, cb=None) -> dict:
     return run_pipeline(video["prompt"], auto_upload=True, progress_callback=cb)
 
 
-def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None, auto_upload_youtube: bool = False) -> dict:
     """
-    YouTube Shorts pipeline — portrait 9:16, TTS narration, no auto-upload.
-    Creates a short video that the user reviews before uploading.
+    YouTube Shorts pipeline — portrait 9:16, TTS narration.
+    auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
     """
     from pipeline.shorts_generator import generate_short_visual
 
@@ -505,9 +523,13 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
         # 9. Auto-label
         step_auto_label(script_data, video_id, cb)
 
-        # 10. Set ready — no YouTube upload, user reviews first
-        db.set_ready(video_id)
-        _log("READY", "⚡ Short is ready — review in Shorts tab before uploading.", cb)
+        # 10. Upload to YouTube or set ready
+        if auto_upload_youtube:
+            _log("YOUTUBE", "Uploading companion short to YouTube...", cb)
+            step_upload_youtube(final_path, script_data, label_data, thumb_path, video_id, cb)
+        else:
+            db.set_ready(video_id)
+            _log("READY", "⚡ Short is ready — review in Shorts tab before uploading.", cb)
 
         elapsed = time.time() - start_time
         _log("DONE", f"✅ Short pipeline complete in {elapsed:.0f}s", cb)

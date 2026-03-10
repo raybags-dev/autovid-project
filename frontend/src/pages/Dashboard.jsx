@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, {
   clearCache,
@@ -207,6 +207,78 @@ const THEMES = {
     scrollThumb: "#c1c9d6",
   },
 };
+
+function LegalNavDropdown({ T }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "7px 12px",
+          borderRadius: 8,
+          cursor: "pointer",
+          color: T.textFaint,
+          fontSize: 11,
+          letterSpacing: "0.04em",
+          transition: "background 0.15s",
+          userSelect: "none",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = T.bgCard; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      >
+        <span style={{ fontSize: 13 }}>⚖</span>
+        <span>Legal</span>
+        <span style={{ marginLeft: "auto", fontSize: 9, transition: "transform 0.2s", display: "inline-block", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ paddingLeft: 28, display: "flex", flexDirection: "column", gap: 2 }}>
+          <a
+            href="/privacy-policy"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "block",
+              padding: "5px 12px",
+              borderRadius: 6,
+              color: T.textFaint,
+              fontSize: 10,
+              textDecoration: "none",
+              letterSpacing: "0.04em",
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = T.accent; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = T.textFaint; }}
+          >
+            Privacy Policy ↗
+          </a>
+          <a
+            href="/terms-of-service"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "block",
+              padding: "5px 12px",
+              borderRadius: 6,
+              color: T.textFaint,
+              fontSize: 10,
+              textDecoration: "none",
+              letterSpacing: "0.04em",
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = T.accent; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = T.textFaint; }}
+          >
+            Terms of Service ↗
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -576,6 +648,30 @@ export default function Dashboard() {
       showToast(val ? "💬 Auto-reply enabled" : "🔇 Auto-reply disabled");
     } catch (e) {
       showToast("Toggle failed", "error");
+    }
+  };
+
+  const handleAutoGenEnabledToggle = async () => {
+    const newVal = !autoGenSettings.enabled;
+    setAutoGenSettings((s) => ({ ...s, enabled: newVal }));
+    try {
+      await api.post("/auto-generate/settings", { ...autoGenSettings, enabled: newVal });
+      showToast(newVal ? "🤖 Auto-generate videos enabled" : "⏸ Auto-generate videos disabled");
+    } catch (e) {
+      showToast("Toggle failed", "error");
+      setAutoGenSettings((s) => ({ ...s, enabled: !newVal }));
+    }
+  };
+
+  const handleAutoShortEnabledToggle = async () => {
+    const newVal = !autoShortSettings.enabled;
+    setAutoShortSettings((s) => ({ ...s, enabled: newVal }));
+    try {
+      await saveAutoShortSettings({ ...autoShortSettings, enabled: newVal });
+      showToast(newVal ? "📱 Auto-generate shorts enabled" : "⏸ Auto-generate shorts disabled");
+    } catch (e) {
+      showToast("Toggle failed", "error");
+      setAutoShortSettings((s) => ({ ...s, enabled: !newVal }));
     }
   };
 
@@ -1063,17 +1159,39 @@ export default function Dashboard() {
           .sidebar-desktop { display: none !important; }
           .mobile-bottom-nav { display: flex !important; }
           .main-content { margin-left: 0 !important; padding-bottom: 72px !important; }
-          .content-area { padding: 14px !important; }
-          .topbar { padding: 12px 14px !important; }
+          .content-area { padding: 12px !important; }
+          .topbar { padding: 10px 12px !important; }
+          /* videos */
           .stat-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
           .video-row { padding: 12px 14px !important; }
-          .modal { max-width: 100% !important; max-height: 95vh !important; padding: 18px !important; border-radius: 14px !important; }
-          .settings-columns { flex-direction: column !important; }
-          .settings-right { width: 100% !important; position: static !important; }
           .filter-bar { flex-wrap: wrap !important; gap: 6px !important; }
           .action-row { flex-wrap: wrap !important; gap: 6px !important; }
           .card-actions { flex-wrap: wrap !important; }
-          .compilation-layout { flex-direction: column !important; }
+          /* modal */
+          .modal { max-width: 100% !important; max-height: 95vh !important; padding: 18px !important; border-radius: 14px !important; }
+          /* settings */
+          .settings-columns { flex-direction: column !important; gap: 16px !important; }
+          .settings-left { max-width: 100% !important; }
+          .settings-right { width: 100% !important; position: static !important; }
+          /* shorts */
+          .shorts-layout { flex-direction: column !important; height: auto !important; }
+          .shorts-left { width: 100% !important; height: auto !important; max-height: 380px !important; }
+          .shorts-gen-grid { grid-template-columns: 1fr !important; }
+          .shorts-tips-grid { grid-template-columns: 1fr 1fr !important; }
+          /* analytics */
+          .analytics-top-grid { grid-template-columns: 1fr 1fr !important; }
+          .analytics-bar-grid { grid-template-columns: 1fr !important; }
+          .analytics-perf-grid { flex-direction: column !important; }
+          /* billing */
+          .billing-grid { grid-template-columns: 1fr !important; }
+          /* channel */
+          .channel-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+          /* script studio */
+          .script-studio-layout { grid-template-columns: 1fr !important; }
+          /* compile studio */
+          .compile-layout { flex-direction: column !important; }
+          .compile-video-grid { grid-template-columns: 1fr 1fr !important; }
+          .compile-queue { width: 100% !important; position: static !important; }
         }
         @media (min-width: 769px) {
           .mobile-bottom-nav { display: none !important; }
@@ -1192,6 +1310,7 @@ export default function Dashboard() {
                 )}
               </div>
             ))}
+            <LegalNavDropdown T={T} />
           </nav>
 
           {quota.uploads_remaining !== undefined && (
@@ -1489,13 +1608,13 @@ export default function Dashboard() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(4,1fr)",
+                    gridTemplateColumns: "repeat(5,1fr)",
                     gap: 12,
                     marginBottom: 20,
                   }}
                 >
                   {!pageReady ? (
-                    [0,1,2,3].map(i => (
+                    [0,1,2,3,4].map(i => (
                       <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px", height: 80 }}>
                         <div className="skeleton-loader" style={{ width: "40%", height: 10, borderRadius: 4, marginBottom: 10 }} />
                         <div className="skeleton-loader" style={{ width: "60%", height: 22, borderRadius: 4 }} />
@@ -1514,6 +1633,12 @@ export default function Dashboard() {
                         value: videos.filter((v) => v.status === "posted").length,
                         color: T.accentGreen,
                         icon: "▶",
+                      },
+                      {
+                        label: "LIVE ON TT",
+                        value: videos.filter((v) => v.tiktok_status === "posted").length,
+                        color: "#ff2d55",
+                        icon: "♪",
                       },
                       {
                         label: "TOTAL VIEWS",
@@ -5578,12 +5703,7 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div
-                          onClick={() =>
-                            setAutoGenSettings((s) => ({
-                              ...s,
-                              enabled: !s.enabled,
-                            }))
-                          }
+                          onClick={handleAutoGenEnabledToggle}
                           style={{
                             width: 44,
                             height: 24,
@@ -6194,7 +6314,7 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div
-                          onClick={() => setAutoShortSettings(s => ({ ...s, enabled: !s.enabled }))}
+                          onClick={handleAutoShortEnabledToggle}
                           style={{
                             width: 44, height: 24, borderRadius: 12,
                             background: autoShortSettings.enabled ? T.accentGreen : T.border,

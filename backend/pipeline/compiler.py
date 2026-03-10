@@ -144,8 +144,16 @@ def create_compilation(
         # ── Step 1: Download all source clips ─────────────────────────────
         db.set_status(compilation_id, "generating")
         for i, clip in enumerate(clips):
+            fp = clip.get("file_path", "")
+            is_remote = fp.startswith("http://") or fp.startswith("https://")
+            if not fp or (not is_remote and not os.path.exists(fp)):
+                raise ValueError(
+                    f"Clip {i+1} '{(clip.get('title') or '')[:30]}': video file not found — "
+                    f"it may have been cleaned up after processing. "
+                    f"Only videos with cloud storage URLs can be used in compilations."
+                )
             src  = str(config.VIDEOS_OUTPUT_DIR / f"compile_{compilation_id}_{i}_src.mp4")
-            _download(clip["file_path"], src)
+            _download(fp, src)
             downloaded.append(src)
 
             dur = _get_duration(src)
@@ -306,6 +314,11 @@ def create_mp3_compilation(
                 _download(narration_url, dest)
                 audio_files.append(dest)
             elif file_path:
+                # Validate local paths still exist before attempting extraction
+                is_remote = file_path.startswith("http://") or file_path.startswith("https://")
+                if not is_remote and not os.path.exists(file_path):
+                    print(f"   Clip {i+1} '{clip_title}': ⚠️ local video file no longer exists ({file_path[-50:]}), skipping")
+                    continue
                 print(f"   Clip {i+1} '{clip_title}': no narration MP3 — extracting from video...")
                 _extract_audio(file_path, dest)
                 audio_files.append(dest)

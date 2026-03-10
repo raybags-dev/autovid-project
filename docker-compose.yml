@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     mem_limit: 1400m
     env_file: .env
+    environment:
+      - APP_ENV=production
     volumes:
       - video_output:/app/output
       - ./backend/token.json:/app/token.json:ro
@@ -18,6 +20,8 @@ services:
     restart: unless-stopped
     mem_limit: 1400m
     env_file: .env
+    environment:
+      - APP_ENV=production
     volumes:
       - video_output:/app/output
       - ./backend/token.json:/app/token.json:ro
