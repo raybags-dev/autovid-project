@@ -1,5 +1,5 @@
-import { useState } from "react";
-import {
+import { useEffect, useRef, useState } from "react";
+import api, {
   createShortFromVideo,
   generateShortFromScratch,
   updateYouTubeSettings,
@@ -337,15 +337,50 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [logs, setLogs] = useState([]);
+  const [done, setDone] = useState(false);
+  const pollRef = useRef(null);
+  const lineRef = useRef(0);
+  const logsEndRef = useRef(null);
 
   const h = theme || defaultTheme;
+
+  // Poll logs while clip job runs
+  const startLogPoll = (videoId) => {
+    lineRef.current = 0;
+    pollRef.current = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/videos/${videoId}/logs`, { params: { since: lineRef.current } });
+        if (data.lines?.length) {
+          lineRef.current += data.lines.length;
+          setLogs(prev => [...prev, ...data.lines.filter(l => l !== "__DONE__")]);
+        }
+        if (data.done) {
+          clearInterval(pollRef.current);
+          setDone(true);
+          setLoading(false);
+          onSuccess?.("Short is ready — check the Shorts panel.");
+        }
+      } catch { clearInterval(pollRef.current); setLoading(false); }
+    }, 1000);
+  };
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
   const handleCreate = async () => {
     setLoading(true);
     setError("");
+    setLogs([]);
+    setDone(false);
     try {
       if (mode === "clip" && video) {
         await createShortFromVideo(video.id);
-        onSuccess?.("Short is being created and will upload to YouTube.");
+        startLogPoll(video.id);
+        // don't close — show live logs
       } else {
         if (!prompt.trim()) {
           setError("Prompt required");
@@ -354,66 +389,86 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
         }
         await generateShortFromScratch(prompt, ambience);
         onSuccess?.("Short generation started — check back in a few minutes.");
+        onClose();
       }
-      onClose();
     } catch (e) {
       setError(e?.response?.data?.detail || "Failed to create short");
-    } finally {
       setLoading(false);
     }
   };
 
   return (
     <ModalShell title="Create YouTube Short" onClose={onClose} h={h}>
-      {/* Mode selector */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {[
-          { v: "clip", label: "✂️ Clip from video", show: !!video },
-          { v: "scratch", label: "✨ Generate new", show: true },
-        ]
-          .filter((m) => m.show)
-          .map((m) => (
-            <button
-              key={m.v}
-              onClick={() => setMode(m.v)}
-              style={{
-                flex: 1,
-                padding: "10px 12px",
-                borderRadius: 8,
-                cursor: "pointer",
-                border: `2px solid ${mode === m.v ? "#6366f1" : h.border}`,
-                background: mode === m.v ? "rgba(99,102,241,0.15)" : h.card,
-                color: h.text,
-                fontWeight: mode === m.v ? 600 : 400,
-                fontSize: 13,
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-      </div>
+      {/* Mode selector — hide while clip job is running */}
+      {!loading && !done && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {[
+            { v: "clip", label: "✂️ Clip from video", show: !!video },
+            { v: "scratch", label: "✨ Generate new", show: true },
+          ]
+            .filter((m) => m.show)
+            .map((m) => (
+              <button
+                key={m.v}
+                onClick={() => setMode(m.v)}
+                style={{
+                  flex: 1,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  border: `2px solid ${mode === m.v ? "#6366f1" : h.border}`,
+                  background: mode === m.v ? "rgba(99,102,241,0.15)" : h.card,
+                  color: h.text,
+                  fontWeight: mode === m.v ? 600 : 400,
+                  fontSize: 13,
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+        </div>
+      )}
 
-      {mode === "clip" && video && (
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 8,
-            background: "rgba(99,102,241,0.08)",
-            border: `1px solid ${h.border}`,
-            marginBottom: 16,
-          }}
-        >
+      {/* Clip info */}
+      {mode === "clip" && video && !loading && !done && (
+        <div style={{ padding: 12, borderRadius: 8, background: "rgba(99,102,241,0.08)", border: `1px solid ${h.border}`, marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: h.text, marginBottom: 4 }}>
             📹 <strong>{video.title}</strong>
           </div>
           <div style={{ fontSize: 12, opacity: 0.6 }}>
-            Will clip the best 59 seconds, crop to portrait 9:16, and upload as
-            a Short.
+            Will clip the best 59 seconds, crop to portrait 9:16, and save as a Short.
           </div>
         </div>
       )}
 
-      {mode === "scratch" && (
+      {/* Live log output for clip mode */}
+      {(loading || done) && mode === "clip" && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: h.textFaint || "#666", letterSpacing: "0.08em", marginBottom: 8 }}>
+            {done ? "✅ COMPLETE" : "⟳ PROCESSING"}
+          </div>
+          <div style={{
+            background: "#05050a",
+            border: `1px solid ${h.border}`,
+            borderRadius: 8,
+            padding: "10px 12px",
+            maxHeight: 180,
+            overflowY: "auto",
+            fontFamily: "monospace",
+            fontSize: 12,
+          }}>
+            {logs.length === 0 && <div style={{ color: "#555" }}>Starting...</div>}
+            {logs.map((l, i) => (
+              <div key={i} style={{ color: l.startsWith("[ERROR]") ? "#f87171" : l.startsWith("[4/4]") || l.includes("Done") ? "#4ade80" : "#ccc", lineHeight: 1.7 }}>
+                {l}
+              </div>
+            ))}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+      )}
+
+      {mode === "scratch" && !loading && !done && (
         <>
           <FormField label="Prompt">
             <textarea
@@ -426,13 +481,7 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
           </FormField>
 
           <FormField label="Ambience / Background">
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 6,
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               {AMBIENCE_OPTIONS.map((a) => (
                 <button
                   key={a.value}
@@ -443,8 +492,7 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
                     cursor: "pointer",
                     textAlign: "left",
                     border: `2px solid ${ambience === a.value ? "#6366f1" : h.border}`,
-                    background:
-                      ambience === a.value ? "rgba(99,102,241,0.15)" : h.card,
+                    background: ambience === a.value ? "rgba(99,102,241,0.15)" : h.card,
                     color: h.text,
                   }}
                 >
@@ -457,23 +505,23 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
         </>
       )}
 
-      {error && (
-        <div style={{ color: "#f87171", fontSize: 13, marginTop: 4 }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ color: "#f87171", fontSize: 13, marginTop: 4 }}>{error}</div>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-        <button onClick={onClose} style={btnStyle(h, false)}>
-          Cancel
-        </button>
-        <button
-          onClick={handleCreate}
-          disabled={loading}
-          style={btnStyle(h, true)}
-        >
-          {loading ? "Starting..." : "🎬 Create Short"}
-        </button>
+        {done ? (
+          <button onClick={onClose} style={{ ...btnStyle(h, true), flex: 1 }}>
+            ✓ Close
+          </button>
+        ) : (
+          <>
+            <button onClick={onClose} style={btnStyle(h, false)} disabled={loading}>
+              Cancel
+            </button>
+            <button onClick={handleCreate} disabled={loading} style={btnStyle(h, true)}>
+              {loading ? "⟳ Processing..." : "🎬 Create Short"}
+            </button>
+          </>
+        )}
       </div>
     </ModalShell>
   );

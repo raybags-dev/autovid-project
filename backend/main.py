@@ -1126,26 +1126,29 @@ def delete_channel_video(video_id: str, user: str = Depends(verify_token)):
 
 @app.post("/videos/{video_id}/create-short")
 def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
-    """Clip the best 60s from an existing video and upload as a YouTube Short."""
+    """Clip the best 60s from an existing video and save as a YouTube Short."""
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if not video.get("file_path"):
         raise HTTPException(status_code=400, detail="No video file available")
 
+    # Use source video_id as the log key so frontend can poll /videos/{video_id}/logs
+    _register_pipeline(video_id)
+
     def do_short():
         try:
+            _push_log(video_id, "[1/4] Downloading source video...")
             from pipeline.shorts_generator import create_short_from_video
             short_path = create_short_from_video(video["file_path"], video_id + "_short")
-            # Save short to Supabase (don't auto-upload to YouTube)
+            _push_log(video_id, "[2/4] Short clip created — uploading to storage...")
             from pipeline.storage import upload_to_storage
             short_id = video_id + "_short"
             storage_url = upload_to_storage(short_path, short_id)
-            # Create a new DB record for the short
+            _push_log(video_id, "[3/4] Saving to database...")
             import uuid
             short_record_id = str(uuid.uuid4())
-            db.create_video(f"[Short] {video.get('title','')}")
-            short_v = db.get_client().table("videos").insert({
+            db.get_client().table("videos").insert({
                 "id": short_record_id,
                 "prompt": f"[Short clip of: {video.get('title',video_id)}]",
                 "title": f"#Shorts {(video.get('title') or 'AutoVid')[:85]}",
@@ -1158,10 +1161,16 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
             import os
             if os.path.exists(short_path):
                 os.unlink(short_path)
+            _push_log(video_id, "[4/4] Done — short is ready.")
+            _push_log(video_id, "__DONE__")
             print(f"✅ Short saved to Supabase: {storage_url}")
         except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+            _push_log(video_id, "__DONE__")
             print(f"❌ Short creation failed: {e}")
             import traceback; traceback.print_exc()
+        finally:
+            _unregister_pipeline(video_id)
 
     background_tasks.add_task(do_short)
     return {"message": "Short creation started", "video_id": video_id}

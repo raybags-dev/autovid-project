@@ -2801,7 +2801,27 @@ export default function Dashboard() {
                             >
                               ▶ PREVIEW
                             </button>
-                          ) : v.status === "ready" ? (
+                          ) : null}
+                          {vUrl ? (
+                            <a
+                              href={vUrl}
+                              download
+                              onClick={(e) => e.stopPropagation()}
+                              className="btn-sm"
+                              style={{
+                                color: T.textMid,
+                                borderColor: T.border,
+                                background: "transparent",
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              ↓ DOWNLOAD
+                            </a>
+                          ) : null}
+                          {!vUrl && v.status === "ready" ? (
                             <span
                               style={{
                                 fontSize: 10,
