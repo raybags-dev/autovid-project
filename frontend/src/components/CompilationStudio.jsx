@@ -9,12 +9,13 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   if (!T) return null;
 
   const [compilations, setCompilations] = useState([]);
-  const [queue, setQueue] = useState([]); // ordered clips [{video, start, end, mode}]
+  const [queue, setQueue] = useState([]); // ordered clips [{video, start, end}]
+  const [compilationType, setCompilationType] = useState("video"); // "video" | "mp3"
   const [title, setTitle] = useState("");
   const [building, setBuilding] = useState(false);
   const [polling, setPolling] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [dragOver, setDragOver] = useState(null); // index being dragged over
+  const [dragOver, setDragOver] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameVal, setRenameVal] = useState("");
 
@@ -36,6 +37,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
       window.open(url, "_blank");
     }
   };
+
   const draggingIdx = useRef(null);
   const pollRef = useRef(null);
 
@@ -75,7 +77,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   // ── Queue management ──────────────────────────────────────────────────────
   function addToQueue(video) {
     if (queue.find((q) => q.video.id === video.id)) return;
-    setQueue((prev) => [...prev, { video, start: "", end: "", mode: "both" }]);
+    setQueue((prev) => [...prev, { video, start: "", end: "" }]);
   }
 
   function removeFromQueue(idx) {
@@ -88,33 +90,26 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
     );
   }
 
-  function updateMode(idx, mode) {
-    setQueue((prev) =>
-      prev.map((q, i) => (i === idx ? { ...q, mode } : q)),
-    );
-  }
-
   // Parse mm:ss or plain seconds input → number of seconds
   function parseTime(val) {
     if (val === "" || val === null || val === undefined) return null;
     const str = String(val).trim();
     if (str.includes(":")) {
       const parts = str.split(":").map(Number);
-      if (parts.length === 2) return parts[0] * 60 + parts[1]; // mm:ss
-      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]; // hh:mm:ss
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
     }
     const n = parseFloat(str);
     return isNaN(n) ? null : n;
   }
 
-  // Format seconds → mm:ss for display
   function toMMSS(sec) {
     if (sec === null || sec === undefined || sec === "") return "";
     const s = Math.floor(Number(sec));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }
 
-  // ── Drag and drop (queue reordering) ─────────────────────────────────────
+  // ── Drag and drop ─────────────────────────────────────────────────────────
   function onDragStart(e, idx) {
     draggingIdx.current = idx;
     e.dataTransfer.effectAllowed = "move";
@@ -129,10 +124,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   function onDrop(e, idx) {
     e.preventDefault();
     const from = draggingIdx.current;
-    if (from === null || from === idx) {
-      setDragOver(null);
-      return;
-    }
+    if (from === null || from === idx) { setDragOver(null); return; }
     const arr = [...queue];
     const [moved] = arr.splice(from, 1);
     arr.splice(idx, 0, moved);
@@ -151,43 +143,16 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
     if (queue.length < 2)
       return showToast("Add at least 2 videos to the queue", "error");
 
-    const hasMp3Only = queue.some((q) => q.mode === "mp3");
-    const hasVideo   = queue.some((q) => q.mode === "video" || q.mode === "both");
-
-    // Pure MP3 compilation
-    if (hasMp3Only && !hasVideo) {
-      setBuilding(true);
-      const finalTitle = title.trim() || `Podcast — ${new Date().toLocaleDateString()}`;
-      try {
-        const clips = queue.map((q) => ({
-          video_id:      q.video.id,
-          file_path:     q.video.file_path || "",
-          narration_url: q.video.narration_url || null,
-          title:         q.video.title || "",
-          start:         parseTime(q.start),
-          end:           parseTime(q.end),
-        }));
-        const result = await createCompilation({ title: finalTitle, clips, mode: "mp3" });
-        setPolling(result.compilation_id);
-      } catch (e) {
-        showToast(e?.response?.data?.detail || "MP3 compilation failed", "error");
-        setBuilding(false);
-      }
-      return;
-    }
-
-    // Video compilation (existing logic — filter to video/both clips only)
-    const videoClips = hasVideo
-      ? queue.filter((q) => q.mode !== "mp3")
-      : queue;  // if no mode set, use all
-
-    if (videoClips.length < 2)
-      return showToast("Need at least 2 video clips for a video compilation", "error");
+    // Guardrail: MP3 mode requires narration_url or video file (always fine)
+    // No mixing needed — compilationType applies to the whole queue
+    const isMP3 = compilationType === "mp3";
+    const finalTitle = title.trim() || (isMP3
+      ? `Podcast — ${new Date().toLocaleDateString()}`
+      : `Compilation — ${new Date().toLocaleDateString()}`);
 
     setBuilding(true);
-    const finalTitle = title.trim() || `Compilation — ${new Date().toLocaleDateString()}`;
     try {
-      const clips = videoClips.map((q) => ({
+      const clips = queue.map((q) => ({
         video_id:      q.video.id,
         file_path:     q.video.file_path || "",
         narration_url: q.video.narration_url || null,
@@ -195,7 +160,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
         start:         parseTime(q.start),
         end:           parseTime(q.end),
       }));
-      const result = await createCompilation({ title: finalTitle, clips, mode: "video" });
+      const result = await createCompilation({ title: finalTitle, clips, mode: isMP3 ? "mp3" : "video" });
       setPolling(result.compilation_id);
     } catch (e) {
       showToast(e?.response?.data?.detail || "Compilation failed", "error");
@@ -206,8 +171,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   // ── Helpers ───────────────────────────────────────────────────────────────
   function fmtDur(sec) {
     if (!sec) return "?";
-    const m = Math.floor(sec / 60),
-      s = Math.round(sec % 60);
+    const m = Math.floor(sec / 60), s = Math.round(sec % 60);
     return `${m}:${String(s).padStart(2, "0")}`;
   }
 
@@ -220,76 +184,35 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
 
   const totalSec = queue.reduce((acc, q) => acc + clipDuration(q), 0);
 
+  // Detect if a saved compilation is MP3
+  const isMP3Comp = (comp) =>
+    comp.file_path?.toLowerCase().includes(".mp3") ||
+    (comp.narration_url && !comp.resolution);
+
   // ── Styles ────────────────────────────────────────────────────────────────
-  const card = {
-    background: T.bgCard,
-    border: `1px solid ${T.border}`,
-    borderRadius: 12,
-    padding: 16,
-  };
+  const card = { background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16 };
   const btn = (bg, disabled) => ({
-    padding: "9px 18px",
-    borderRadius: 8,
-    border: "none",
+    padding: "9px 18px", borderRadius: 8, border: "none",
     background: disabled ? T.border : bg,
     color: disabled ? T.textFaint : "#fff",
     cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: 12,
-    fontWeight: 700,
-    fontFamily: "inherit",
-    transition: "opacity 0.15s",
+    fontSize: 12, fontWeight: 700, fontFamily: "inherit", transition: "opacity 0.15s",
   });
   const input = {
-    background: T.inputBg,
-    border: `1px solid ${T.border}`,
-    borderRadius: 7,
-    padding: "6px 10px",
-    color: T.text,
-    fontSize: 12,
-    fontFamily: "inherit",
-    width: "100%",
-    boxSizing: "border-box",
+    background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 7,
+    padding: "6px 10px", color: T.text, fontSize: 12, fontFamily: "inherit",
+    width: "100%", boxSizing: "border-box",
   };
-  const label = {
-    fontSize: 10,
-    color: T.textFaint,
-    letterSpacing: "0.1em",
-    marginBottom: 8,
-    display: "block",
-  };
+  const label = { fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8, display: "block" };
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 20,
-        height: "100%",
-        minHeight: 0,
-      }}
-    >
-      {/* ── LEFT: Video picker ── */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          overflowY: "auto",
-        }}
-      >
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, height: "100%", minHeight: 0 }}>
+      {/* ── LEFT: Video picker + past compilations ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
         <div style={card}>
-          <span style={label}>
-            AVAILABLE VIDEOS — ready, posted or locally saved
-          </span>
+          <span style={label}>AVAILABLE VIDEOS — ready, posted or locally saved</span>
           {readyVideos.length === 0 && (
-            <div
-              style={{
-                color: T.textFaint,
-                fontSize: 12,
-                padding: 12,
-                textAlign: "center",
-              }}
-            >
+            <div style={{ color: T.textFaint, fontSize: 12, padding: 12, textAlign: "center" }}>
               No ready videos yet
             </div>
           )}
@@ -301,68 +224,32 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                   key={v.id}
                   onClick={() =>
                     inQueue
-                      ? removeFromQueue(
-                          queue.findIndex((q) => q.video.id === v.id),
-                        )
+                      ? removeFromQueue(queue.findIndex((q) => q.video.id === v.id))
                       : addToQueue(v)
                   }
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 12px",
-                    borderRadius: 9,
-                    cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 12px", borderRadius: 9, cursor: "pointer",
                     border: `1px solid ${inQueue ? T.accentGreen + "70" : T.border}`,
                     background: inQueue ? T.accentGreen + "0f" : "transparent",
-                    transition: "all 0.15s",
-                    userSelect: "none",
+                    transition: "all 0.15s", userSelect: "none",
                   }}
                 >
-                  {/* Thumbnail */}
-                  <div
-                    style={{
-                      width: 52,
-                      height: 30,
-                      borderRadius: 5,
-                      overflow: "hidden",
-                      background: T.bg,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <img
-                      src={v.thumbnail_url}
-                      alt=""
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: v.thumbnail_url ? "block" : "none" }}
-                      onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
-                    />
+                  <div style={{ width: 52, height: 30, borderRadius: 5, overflow: "hidden", background: T.bg, flexShrink: 0 }}>
+                    <img src={v.thumbnail_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: v.thumbnail_url ? "block" : "none" }}
+                      onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }} />
                     <div style={{ display: v.thumbnail_url ? "none" : "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🎬</div>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: T.text,
-                        fontWeight: 500,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <div style={{ fontSize: 12, color: T.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {v.title || v.prompt}
                     </div>
-                    <div style={{ fontSize: 10, color: T.textFaint }}>
+                    <div style={{ fontSize: 10, color: T.textFaint, display: "flex", gap: 6 }}>
                       {fmtDur(v.duration_seconds)}
+                      {v.narration_url && <span style={{ color: T.accentGreen }}>🎙 MP3</span>}
                     </div>
                   </div>
-                  <div
-                    style={{
-                      fontSize: 18,
-                      color: inQueue ? T.accentGreen : T.border,
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}
-                  >
+                  <div style={{ fontSize: 18, color: inQueue ? T.accentGreen : T.border, fontWeight: 700, flexShrink: 0 }}>
                     {inQueue ? "✓" : "+"}
                   </div>
                 </div>
@@ -376,208 +263,162 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
           <div style={card}>
             <span style={label}>PAST COMPILATIONS</span>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {compilations.map((comp) => (
-                <div
-                  key={comp.id}
-                  style={{
-                    padding: "8px 10px",
-                    background: T.bg,
-                    borderRadius: 8,
-                    border: `1px solid ${T.border}`,
-                  }}
-                >
-                  {renamingId === comp.id ? (
-                    <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
-                      <input
-                        autoFocus
-                        value={renameVal}
-                        onChange={(e) => setRenameVal(e.target.value)}
-                        onKeyDown={async (e) => {
-                          if (e.key === "Enter") {
-                            await renameCompilation(comp.id, renameVal);
-                            setCompilations((cs) => cs.map((c) => c.id === comp.id ? { ...c, title: renameVal } : c));
-                            setRenamingId(null);
-                          }
-                          if (e.key === "Escape") setRenamingId(null);
-                        }}
-                        style={{ flex: 1, background: T.inputBg, border: `1px solid ${T.accent}60`, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 11, fontFamily: "inherit", outline: "none" }}
-                      />
-                      <button onClick={async () => { await renameCompilation(comp.id, renameVal); setCompilations((cs) => cs.map((c) => c.id === comp.id ? { ...c, title: renameVal } : c)); setRenamingId(null); }}
-                        style={{ padding: "4px 8px", borderRadius: 5, border: "none", background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✓</button>
-                      <button onClick={() => setRenamingId(null)}
-                        style={{ padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
-                    </div>
-                  ) : null}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: T.text,
-                        fontWeight: 500,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {comp.title}
-                    </div>
-                    <div style={{ fontSize: 10, color: T.textFaint }}>
-                      {comp.duration_seconds
-                        ? fmtDur(comp.duration_seconds)
-                        : "—"}{" "}
-                      · {comp.status}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                    {comp.file_path && comp.status === "ready" && (
-                      <button
-                        onClick={() => setPreview(comp.file_path)}
-                        style={btn(T.accent, false)}
-                      >
-                        ▶
-                      </button>
-                    )}
-                    {comp.file_path && comp.status === "ready" && (
-                      <button
-                        onClick={() => {
-                          const ext = comp.file_path.toLowerCase().includes(".mp3") ? "mp3" : "mp4";
-                          handleDownload(comp.file_path, `${comp.title || comp.id}.${ext}`);
-                        }}
-                        title="Download"
-                        style={btn(T.textMid, false)}
-                      >
-                        ↓
-                      </button>
-                    )}
-                    {comp.file_path &&
-                      comp.status === "ready" &&
-                      !comp.youtube_id && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              await api.post(`/videos/${comp.id}/upload`, {
-                                title: comp.title,
-                                description: "",
-                                tags: ["compilation"],
-                                privacy: "public",
-                                category: "22",
-                              });
-                              showToast("🚀 Upload started!");
-                            } catch (e) {
-                              showToast("Upload failed", "error");
+              {compilations.map((comp) => {
+                const isAudio = isMP3Comp(comp);
+                return (
+                  <div key={comp.id} style={{ padding: "8px 10px", background: T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                    {renamingId === comp.id ? (
+                      <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                        <input
+                          autoFocus value={renameVal}
+                          onChange={(e) => setRenameVal(e.target.value)}
+                          onKeyDown={async (e) => {
+                            if (e.key === "Enter") {
+                              await renameCompilation(comp.id, renameVal);
+                              setCompilations((cs) => cs.map((c) => c.id === comp.id ? { ...c, title: renameVal } : c));
+                              setRenamingId(null);
                             }
+                            if (e.key === "Escape") setRenamingId(null);
                           }}
-                          style={btn("#ff0000", false)}
-                        >
-                          ▲ YT
-                        </button>
-                      )}
-                    {comp.youtube_url && (
-                      <a
-                        href={comp.youtube_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          ...btn("#ff0000", false),
-                          textDecoration: "none",
-                        }}
-                      >
-                        YT ↗
-                      </a>
-                    )}
-                    <button
-                      onClick={() => { setRenamingId(comp.id); setRenameVal(comp.title || ""); }}
-                      title="Rename"
-                      style={{ padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}
-                    >✏</button>
+                          style={{ flex: 1, background: T.inputBg, border: `1px solid ${T.accent}60`, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                        />
+                        <button onClick={async () => { await renameCompilation(comp.id, renameVal); setCompilations((cs) => cs.map((c) => c.id === comp.id ? { ...c, title: renameVal } : c)); setRenamingId(null); }}
+                          style={{ padding: "4px 8px", borderRadius: 5, border: "none", background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✓</button>
+                        <button onClick={() => setRenamingId(null)}
+                          style={{ padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                      </div>
+                    ) : null}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: T.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {isAudio ? "🎙 " : "🎬 "}{comp.title}
+                        </div>
+                        <div style={{ fontSize: 10, color: T.textFaint }}>
+                          {comp.duration_seconds ? fmtDur(comp.duration_seconds) : "—"} · {comp.status}
+                          {isAudio && <span style={{ marginLeft: 6, color: "#1db954" }}>MP3</span>}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                        {/* Play — video only (audio uses audio element in preview) */}
+                        {comp.file_path && comp.status === "ready" && (
+                          <button onClick={() => setPreview(comp.file_path)} style={btn(T.accent, false)}>▶</button>
+                        )}
+                        {/* Download */}
+                        {comp.file_path && comp.status === "ready" && (
+                          <button
+                            onClick={() => handleDownload(comp.file_path, `${comp.title || comp.id}.${isAudio ? "mp3" : "mp4"}`)}
+                            title="Download"
+                            style={btn(T.textMid, false)}
+                          >↓</button>
+                        )}
+                        {/* Video: YT upload */}
+                        {!isAudio && comp.file_path && comp.status === "ready" && !comp.youtube_id && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await api.post(`/videos/${comp.id}/upload`, { title: comp.title, description: "", tags: ["compilation"], privacy: "public", category: "22" });
+                                showToast("🚀 Upload started!");
+                              } catch (e) {
+                                showToast("Upload failed", "error");
+                              }
+                            }}
+                            style={btn("#ff0000", false)}
+                          >▲ YT</button>
+                        )}
+                        {/* Video: YT link */}
+                        {!isAudio && comp.youtube_url && (
+                          <a href={comp.youtube_url} target="_blank" rel="noreferrer"
+                            style={{ ...btn("#ff0000", false), textDecoration: "none" }}>YT ↗</a>
+                        )}
+                        {/* Audio: Spotify note */}
+                        {isAudio && comp.file_path && comp.status === "ready" && (
+                          <button
+                            onClick={() => handleDownload(comp.file_path, `${comp.title || comp.id}.mp3`)}
+                            title="Download MP3 — upload to Spotify, Anchor, etc."
+                            style={{ ...btn("#1db954", false), fontSize: 10 }}
+                          >🎧 Spotify</button>
+                        )}
+                        <button
+                          onClick={() => { setRenamingId(comp.id); setRenameVal(comp.title || ""); }}
+                          title="Rename"
+                          style={{ padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}
+                        >✏</button>
+                      </div>
+                    </div>
                   </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
       </div>
 
       {/* ── RIGHT: Queue + build ── */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          overflowY: "auto",
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
         {/* Preview */}
         {preview && (
           <div style={card}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={label}>PREVIEW</span>
-              <button
-                onClick={() => setPreview(null)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: T.textFaint,
-                  cursor: "pointer",
-                  fontSize: 16,
-                }}
-              >
-                ✕
-              </button>
+              <button onClick={() => setPreview(null)} style={{ background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 16 }}>✕</button>
             </div>
-            <video
-              controls
-              style={{ width: "100%", borderRadius: 8 }}
-              src={preview}
-            />
+            {preview.toLowerCase().includes(".mp3") ? (
+              <audio controls style={{ width: "100%" }} src={preview} />
+            ) : (
+              <video controls style={{ width: "100%", borderRadius: 8 }} src={preview} />
+            )}
           </div>
         )}
 
+        {/* Compilation type toggle */}
+        <div style={card}>
+          <span style={label}>COMPILATION TYPE</span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { v: "video", icon: "🎬", title: "Video Compilation", sub: "MP4 → YouTube, TikTok" },
+              { v: "mp3",   icon: "🎙", title: "MP3 Podcast",       sub: "MP3 → Spotify, Anchor" },
+            ].map((t) => (
+              <button
+                key={t.v}
+                onClick={() => setCompilationType(t.v)}
+                style={{
+                  padding: "12px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                  border: `2px solid ${compilationType === t.v ? T.accent : T.border}`,
+                  background: compilationType === t.v ? `${T.accent}18` : T.inputBg,
+                  fontFamily: "inherit",
+                }}
+              >
+                <div style={{ fontSize: 16, marginBottom: 3 }}>{t.icon}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: compilationType === t.v ? T.accent : T.text }}>{t.title}</div>
+                <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>{t.sub}</div>
+              </button>
+            ))}
+          </div>
+          {compilationType === "mp3" && (
+            <div style={{ marginTop: 10, padding: "8px 12px", background: `${T.accentGreen}10`, borderRadius: 8, border: `1px solid ${T.accentGreen}30`, fontSize: 10, color: T.textDim, lineHeight: 1.6 }}>
+              🎙 Uses saved narration MP3 per clip. If none, audio is extracted from the video.<br />
+              Output: <strong style={{ color: T.accentGreen }}>MP3 file</strong> — supported by Spotify, Apple Podcasts, Anchor, and all podcast platforms.
+            </div>
+          )}
+          {compilationType === "video" && (
+            <div style={{ marginTop: 10, padding: "8px 12px", background: `${T.accent}08`, borderRadius: 8, border: `1px solid ${T.accent}20`, fontSize: 10, color: T.textDim, lineHeight: 1.6 }}>
+              🎬 Full video with audio concatenated. Output: <strong style={{ color: T.accent }}>MP4 file</strong> — ready for YouTube and TikTok upload.
+            </div>
+          )}
+        </div>
+
         {/* Queue */}
         <div style={card}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 10,
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <span style={{ ...label, marginBottom: 0 }}>
               QUEUE — {queue.length} clip{queue.length !== 1 ? "s" : ""}
-              {queue.length >= 2 && (
-                <span style={{ color: T.accentGreen, marginLeft: 8 }}>
-                  · {fmtDur(totalSec)} total
-                </span>
-              )}
+              {queue.length >= 2 && <span style={{ color: T.accentGreen, marginLeft: 8 }}>· {fmtDur(totalSec)} total</span>}
             </span>
-            {queue.length >= 2 && (
-              <span style={{ fontSize: 10, color: T.textFaint }}>
-                drag to reorder
-              </span>
-            )}
+            {queue.length >= 2 && <span style={{ fontSize: 10, color: T.textFaint }}>drag to reorder</span>}
           </div>
 
           {queue.length === 0 && (
-            <div
-              style={{
-                padding: "24px 12px",
-                textAlign: "center",
-                border: `2px dashed ${T.border}`,
-                borderRadius: 10,
-                color: T.textFaint,
-                fontSize: 12,
-              }}
-            >
+            <div style={{ padding: "24px 12px", textAlign: "center", border: `2px dashed ${T.border}`, borderRadius: 10, color: T.textFaint, fontSize: 12 }}>
               ← Click videos on the left to add them here
             </div>
           )}
@@ -594,173 +435,54 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                 style={{
                   background: dragOver === i ? T.accent + "18" : T.bg,
                   border: `1px solid ${dragOver === i ? T.accent : T.border}`,
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  transition: "all 0.15s",
-                  cursor: "grab",
+                  borderRadius: 10, padding: "10px 12px", transition: "all 0.15s", cursor: "grab",
                 }}
               >
                 {/* Clip header */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: T.textFaint,
-                      fontWeight: 700,
-                      minWidth: 18,
-                    }}
-                  >
-                    #{i + 1}
-                  </span>
-                  <div
-                    style={{
-                      width: 40,
-                      height: 24,
-                      borderRadius: 4,
-                      overflow: "hidden",
-                      background: T.bgCard,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <img
-                      src={q.video.thumbnail_url}
-                      alt=""
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: T.textFaint, fontWeight: 700, minWidth: 18 }}>#{i + 1}</span>
+                  <div style={{ width: 40, height: 24, borderRadius: 4, overflow: "hidden", background: T.bgCard, flexShrink: 0 }}>
+                    <img src={q.video.thumbnail_url} alt=""
                       style={{ width: "100%", height: "100%", objectFit: "cover", display: q.video.thumbnail_url ? "block" : "none" }}
-                      onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
-                    />
+                      onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }} />
                     <div style={{ display: q.video.thumbnail_url ? "none" : "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", fontSize: 10 }}>🎬</div>
                   </div>
-                  <div
-                    style={{
-                      flex: 1,
-                      fontSize: 11,
-                      color: T.text,
-                      fontWeight: 500,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <div style={{ flex: 1, fontSize: 11, color: T.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {q.video.title || q.video.prompt}
                   </div>
-                  <span
-                    style={{ fontSize: 10, color: T.textFaint, flexShrink: 0 }}
-                  >
-                    ⠿
-                  </span>
-                  <button
-                    onClick={() => removeFromQueue(i)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: T.accentRed,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      padding: "0 2px",
-                      lineHeight: 1,
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Mode selector */}
-                <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-                  {[
-                    { v: "both", label: "🎬 Video + MP3", title: "Full video with audio" },
-                    { v: "video", label: "🎬 Video only" },
-                    { v: "mp3", label: "🎙 MP3 only", title: q.video.narration_url ? "Narration available ✓" : "Will extract from video" },
-                  ].map(m => (
-                    <button
-                      key={m.v}
-                      onClick={() => updateMode(i, m.v)}
-                      title={m.title}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: 5,
-                        border: `1px solid ${q.mode === m.v ? T.accent : T.border}`,
-                        background: q.mode === m.v ? `${T.accent}18` : "transparent",
-                        color: q.mode === m.v ? T.accent : T.textDim,
-                        fontSize: 10,
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                  {q.video.narration_url && (
-                    <span style={{ fontSize: 9, color: T.accentGreen, alignSelf: "center", marginLeft: 4 }}>✓ MP3</span>
+                  {compilationType === "mp3" && (
+                    <span style={{ fontSize: 9, color: q.video.narration_url ? T.accentGreen : T.textFaint, flexShrink: 0 }}>
+                      {q.video.narration_url ? "🎙 MP3 ✓" : "🎙 extract"}
+                    </span>
                   )}
+                  <span style={{ fontSize: 10, color: T.textFaint, flexShrink: 0 }}>⠿</span>
+                  <button onClick={() => removeFromQueue(i)}
+                    style={{ background: "none", border: "none", color: T.accentRed, cursor: "pointer", fontSize: 14, padding: "0 2px", lineHeight: 1 }}>✕</button>
                 </div>
 
-                {/* Trim inputs — accepts mm:ss or plain seconds */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 6,
-                  }}
-                >
+                {/* Trim inputs */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   <div>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        color: T.textFaint,
-                        marginBottom: 3,
-                      }}
-                    >
-                      START — e.g. <span style={{ color: T.accent }}>0:10</span>{" "}
-                      or <span style={{ color: T.accent }}>1:30</span>
+                    <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 3 }}>
+                      START — e.g. <span style={{ color: T.accent }}>0:10</span>
                     </div>
-                    <input
-                      type="text"
-                      value={q.start}
-                      onChange={(e) => updateTrim(i, "start", e.target.value)}
-                      placeholder="0:00  (beginning)"
-                      style={input}
-                    />
+                    <input type="text" value={q.start} onChange={(e) => updateTrim(i, "start", e.target.value)}
+                      placeholder="0:00  (beginning)" style={input} />
                   </div>
                   <div>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        color: T.textFaint,
-                        marginBottom: 3,
-                      }}
-                    >
-                      END — e.g. <span style={{ color: T.accent }}>4:40</span>{" "}
-                      or <span style={{ color: T.accent }}>5:00</span>
+                    <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 3 }}>
+                      END — e.g. <span style={{ color: T.accent }}>4:40</span>
                     </div>
-                    <input
-                      type="text"
-                      value={q.end}
-                      onChange={(e) => updateTrim(i, "end", e.target.value)}
-                      placeholder={
-                        q.video.duration_seconds
-                          ? toMMSS(q.video.duration_seconds) + "  (full)"
-                          : "end"
-                      }
-                      style={input}
-                    />
+                    <input type="text" value={q.end} onChange={(e) => updateTrim(i, "end", e.target.value)}
+                      placeholder={q.video.duration_seconds ? toMMSS(q.video.duration_seconds) + "  (full)" : "end"}
+                      style={input} />
                   </div>
                 </div>
 
-                {/* Duration hint */}
                 <div style={{ marginTop: 5, fontSize: 10, color: T.textFaint }}>
                   {q.start !== "" || q.end !== "" ? (
                     <span style={{ color: T.accentGreen }}>
-                      ✂️ Using {fmtDur(clipDuration(q))} of clip (
-                      {toMMSS(parseTime(q.start) ?? 0)} →{" "}
-                      {toMMSS(parseTime(q.end) ?? q.video.duration_seconds)})
+                      ✂️ Using {fmtDur(clipDuration(q))} of clip ({toMMSS(parseTime(q.start) ?? 0)} → {toMMSS(parseTime(q.end) ?? q.video.duration_seconds)})
                     </span>
                   ) : (
                     <span>Full clip · {fmtDur(q.video.duration_seconds)}</span>
@@ -776,37 +498,28 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
           <span style={label}>COMPILATION TITLE (optional)</span>
           <input
             style={{ ...input, marginBottom: 12 }}
-            placeholder={`Compilation ${new Date().toLocaleDateString()}`}
+            placeholder={compilationType === "mp3"
+              ? `Podcast — ${new Date().toLocaleDateString()}`
+              : `Compilation — ${new Date().toLocaleDateString()}`}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-
           <button
             onClick={handleBuild}
             disabled={building || queue.length < 2}
-            style={{
-              ...btn(T.accentGreen, building || queue.length < 2),
-              width: "100%",
-              padding: "13px",
-              fontSize: 13,
-            }}
+            style={{ ...btn(compilationType === "mp3" ? "#1db954" : T.accentGreen, building || queue.length < 2), width: "100%", padding: "13px", fontSize: 13 }}
           >
             {building
-              ? "⚙️ Building compilation..."
+              ? `⚙️ Building ${compilationType === "mp3" ? "podcast" : "compilation"}...`
               : queue.length < 2
                 ? `Add ${2 - queue.length} more video${queue.length === 1 ? "" : "s"} to build`
-                : `🔗 Build ${queue.length} clips (${fmtDur(totalSec)})`}
+                : `${compilationType === "mp3" ? "🎙" : "🔗"} Build ${compilationType === "mp3" ? "MP3 podcast" : "video"} (${queue.length} clips · ${fmtDur(totalSec)})`}
           </button>
           {queue.length >= 2 && !building && (
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 10,
-                color: T.textFaint,
-                textAlign: "center",
-              }}
-            >
-              Clips will be joined in queue order · start/end times are optional
+            <div style={{ marginTop: 8, fontSize: 10, color: T.textFaint, textAlign: "center" }}>
+              {compilationType === "mp3"
+                ? "Narration tracks will be joined in queue order · output is MP3"
+                : "Video clips will be joined in queue order · output is MP4"}
             </div>
           )}
         </div>
