@@ -1492,14 +1492,27 @@ def create_compilation(
     comp_id    = record["id"]
 
     clips_data = [c.dict() for c in req.clips]
+    _register_pipeline(comp_id)
+
+    def _cb(info):
+        step = info.get("step", "?") if isinstance(info, dict) else str(info)
+        msg  = info.get("message", "") if isinstance(info, dict) else ""
+        _push_log(comp_id, f"[{step}] {msg}")
 
     def run():
-        if req.mode == "mp3":
-            from pipeline.compiler import create_mp3_compilation as _compile_mp3
-            _compile_mp3(compilation_id=comp_id, clips=clips_data, title=req.title)
-        else:
-            from pipeline.compiler import create_compilation as _compile
-            _compile(compilation_id=comp_id, clips=clips_data, title=req.title)
+        try:
+            if req.mode == "mp3":
+                from pipeline.compiler import create_mp3_compilation as _compile_mp3
+                _compile_mp3(compilation_id=comp_id, clips=clips_data, title=req.title, cb=_cb)
+            else:
+                from pipeline.compiler import create_compilation as _compile
+                _compile(compilation_id=comp_id, clips=clips_data, title=req.title, cb=_cb)
+            _push_log(comp_id, "[DONE] Compilation finished")
+        except Exception as e:
+            _push_log(comp_id, f"[ERROR] {e}")
+            print(f"❌ Compilation pipeline error: {e}")
+        finally:
+            _unregister_pipeline(comp_id)
 
     background_tasks.add_task(run)
     return {"compilation_id": comp_id, "message": "Compilation started", "clip_count": len(req.clips)}

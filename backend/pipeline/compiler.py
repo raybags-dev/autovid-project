@@ -113,10 +113,17 @@ def _concat_clips(clip_paths: list[str], output_path: str):
         os.unlink(list_file)
 
 
+def _log(step: str, msg: str, cb=None):
+    print(f"[{step}] {msg}")
+    if cb:
+        cb({"step": step, "message": msg})
+
+
 def create_compilation(
     compilation_id: str,
     clips: list[dict],   # [{video_id, file_path, start, end, title}]
     title: str,
+    cb=None,
 ) -> str:
     """
     Main compilation entry point.
@@ -130,11 +137,7 @@ def create_compilation(
 
     Returns path to final compiled video.
     """
-    print(f"\n{'='*60}")
-    print(f"[COMPILER] Starting | ID: {compilation_id[:8]}...")
-    print(f"  Title:  {title}")
-    print(f"  Clips:  {len(clips)}")
-    print(f"{'='*60}\n")
+    _log("START", f"Video compilation | ID: {compilation_id[:8]}... | {len(clips)} clips", cb)
 
     tmpdir = tempfile.mkdtemp(prefix="autovid_compile_")
     downloaded = []
@@ -143,6 +146,7 @@ def create_compilation(
     try:
         # ── Step 1: Download all source clips ─────────────────────────────
         db.set_status(compilation_id, "generating")
+        db.update_video(compilation_id, labels=["compilation", "video"])
         for i, clip in enumerate(clips):
             fp = clip.get("file_path", "")
             is_remote = fp.startswith("http://") or fp.startswith("https://")
@@ -152,6 +156,7 @@ def create_compilation(
                     f"it may have been cleaned up after processing. "
                     f"Only videos with cloud storage URLs can be used in compilations."
                 )
+            _log("DOWNLOAD", f"Downloading clip {i+1}/{len(clips)}: {clip.get('title','?')[:30]}", cb)
             src  = str(config.VIDEOS_OUTPUT_DIR / f"compile_{compilation_id}_{i}_src.mp4")
             _download(fp, src)
             downloaded.append(src)
@@ -161,14 +166,12 @@ def create_compilation(
             end   = clip.get("end")
             if end is not None:
                 end = float(end)
-                end = min(end, dur)   # clamp to actual duration
+                end = min(end, dur)
             start = max(0, min(start, dur - 1))
-
-            print(f"   Clip {i+1}: '{clip.get('title','?')[:30]}' "
-                  f"[{start:.1f}s → {end or dur:.1f}s] (dur: {dur:.1f}s)")
+            _log("DOWNLOAD", f"✅ Clip {i+1} ready [{start:.1f}s → {end or dur:.1f}s] ({dur:.1f}s total)", cb)
 
         # ── Step 2: Trim each clip ─────────────────────────────────────────
-        db.update_video(compilation_id, status="voiced")   # reuse status for progress
+        db.update_video(compilation_id, status="voiced")
         for i, (src, clip) in enumerate(zip(downloaded, clips)):
             start = float(clip.get("start") or 0)
             end   = clip.get("end")
@@ -178,26 +181,25 @@ def create_compilation(
             trimmed_path = str(config.VIDEOS_OUTPUT_DIR / f"compile_{compilation_id}_{i}_trim.mp4")
 
             if start == 0 and end is None:
-                # No trim needed — use as-is
                 trimmed.append(src)
             else:
-                print(f"✂️  Trimming clip {i+1}...")
+                _log("TRIM", f"✂️ Trimming clip {i+1}...", cb)
                 _trim_clip(src, trimmed_path, start=start, end=end)
                 trimmed.append(trimmed_path)
 
         # ── Step 3: Concatenate ────────────────────────────────────────────
         db.update_video(compilation_id, status="assembled")
         output_path = str(config.VIDEOS_OUTPUT_DIR / f"{compilation_id}_compilation.mp4")
-        print(f"🔗 Concatenating {len(trimmed)} clips...")
+        _log("CONCAT", f"🔗 Concatenating {len(trimmed)} video clips...", cb)
         _concat_clips(trimmed, output_path)
 
         size_mb = Path(output_path).stat().st_size / (1024 * 1024)
         dur     = _get_duration(output_path)
-        print(f"✅ Compilation ready: {size_mb:.1f}MB, {dur:.1f}s ({dur/60:.1f} min)")
+        _log("CONCAT", f"✅ Video compilation ready: {size_mb:.1f}MB, {dur:.1f}s", cb)
 
         # ── Step 4: Upload to Supabase Storage ────────────────────────────
-        db.update_video(compilation_id, status="captioned",
-                        duration_seconds=int(dur))
+        db.update_video(compilation_id, status="captioned", duration_seconds=int(dur))
+        _log("UPLOAD", "☁️ Uploading MP4 to Supabase Storage...", cb)
         from pipeline.storage import upload_to_storage
         storage_url = upload_to_storage(output_path, compilation_id)
         db.update_video(compilation_id,
@@ -205,12 +207,12 @@ def create_compilation(
                         status="ready",
                         resolution="1920x1080")
 
-        print(f"☁️  Uploaded: {storage_url}")
+        _log("DONE", f"✅ Video compilation ready! {storage_url[-40:]}", cb)
         return storage_url
 
     except Exception as e:
         db.set_status(compilation_id, "failed", error_message=str(e))
-        print(f"❌ Compilation failed: {e}")
+        _log("ERROR", f"❌ Compilation failed: {e}", cb)
         raise
 
     finally:
@@ -284,23 +286,22 @@ def create_mp3_compilation(
     compilation_id: str,
     clips: list,   # [{video_id, file_path, narration_url, title, ...}]
     title: str,
+    cb=None,
 ) -> str:
     """
     Concatenate narration MP3 tracks from multiple videos into a single podcast-style MP3.
     If a clip has no narration_url, automatically extracts audio from its video file.
     Returns the Supabase URL of the combined MP3.
     """
-    print(f"\n{'='*60}")
-    print(f"[MP3 COMPILER] Starting | ID: {compilation_id[:8]}...")
-    print(f"  Title:  {title}")
-    print(f"  Clips:  {len(clips)}")
-    print(f"{'='*60}\n")
+    _log("START", f"MP3 podcast compilation | ID: {compilation_id[:8]}... | {len(clips)} clips", cb)
 
     tmpdir = tempfile.mkdtemp(prefix="autovid_mp3_")
     audio_files = []
 
     try:
         db.set_status(compilation_id, "generating")
+        # Tag explicitly as mp3 compilation so frontend detection is unambiguous
+        db.update_video(compilation_id, labels=["compilation", "mp3"])
 
         for i, clip in enumerate(clips):
             narration_url = clip.get("narration_url")
@@ -310,20 +311,21 @@ def create_mp3_compilation(
             dest = os.path.join(tmpdir, f"audio_{i:03d}.mp3")
 
             if narration_url:
-                print(f"   Clip {i+1} '{clip_title}': using saved narration MP3")
+                _log("AUDIO", f"Clip {i+1}/{len(clips)} '{clip_title}': downloading saved narration MP3...", cb)
                 _download(narration_url, dest)
                 audio_files.append(dest)
+                _log("AUDIO", f"✅ Clip {i+1} audio ready", cb)
             elif file_path:
-                # Validate local paths still exist before attempting extraction
                 is_remote = file_path.startswith("http://") or file_path.startswith("https://")
                 if not is_remote and not os.path.exists(file_path):
-                    print(f"   Clip {i+1} '{clip_title}': ⚠️ local video file no longer exists ({file_path[-50:]}), skipping")
+                    _log("AUDIO", f"⚠️ Clip {i+1} '{clip_title}': local file no longer exists — skipping", cb)
                     continue
-                print(f"   Clip {i+1} '{clip_title}': no narration MP3 — extracting from video...")
+                _log("AUDIO", f"Clip {i+1}/{len(clips)} '{clip_title}': extracting audio from video...", cb)
                 _extract_audio(file_path, dest)
                 audio_files.append(dest)
+                _log("AUDIO", f"✅ Clip {i+1} audio extracted", cb)
             else:
-                print(f"   Clip {i+1} '{clip_title}': ⚠️ no audio source, skipping")
+                _log("AUDIO", f"⚠️ Clip {i+1} '{clip_title}': no audio source, skipping", cb)
 
         if not audio_files:
             raise ValueError("No audio sources found — all clips were skipped")
@@ -331,28 +333,30 @@ def create_mp3_compilation(
         # Concatenate
         db.update_video(compilation_id, status="voiced")
         output_mp3 = os.path.join(tmpdir, f"{compilation_id}_podcast.mp3")
-        print(f"🔗 Concatenating {len(audio_files)} audio tracks...")
+        _log("CONCAT", f"🔗 Concatenating {len(audio_files)} audio tracks into MP3...", cb)
         _concat_audio_files(audio_files, output_mp3)
 
         size_mb = Path(output_mp3).stat().st_size / (1024 * 1024)
-        print(f"✅ MP3 compilation ready: {size_mb:.1f}MB")
+        _log("CONCAT", f"✅ MP3 ready: {size_mb:.1f}MB", cb)
 
         # Upload to Supabase narrations bucket
         db.update_video(compilation_id, status="assembled")
+        _log("UPLOAD", "☁️ Uploading MP3 to Supabase Storage (narrations bucket)...", cb)
         from pipeline.storage import upload_narration_to_storage
         narration_url_out = upload_narration_to_storage(output_mp3, compilation_id)
 
+        # Store in BOTH narration_url and file_path — file_path ends in _narration.mp3
         db.update_video(compilation_id,
                         narration_url=narration_url_out,
                         file_path=narration_url_out,
                         status="ready")
 
-        print(f"☁️  MP3 uploaded: {narration_url_out}")
+        _log("DONE", f"✅ MP3 podcast ready! Download via Spotify button.", cb)
         return narration_url_out
 
     except Exception as e:
         db.set_status(compilation_id, "failed", error_message=str(e))
-        print(f"❌ MP3 compilation failed: {e}")
+        _log("ERROR", f"❌ MP3 compilation failed: {e}", cb)
         raise
 
     finally:

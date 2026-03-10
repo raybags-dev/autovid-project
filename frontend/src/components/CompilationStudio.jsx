@@ -18,6 +18,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   const [dragOver, setDragOver] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameVal, setRenameVal] = useState("");
+  const [compLogs, setCompLogs] = useState([]);
+  const [compLogId, setCompLogId] = useState(null);
+  const [showCompLogs, setShowCompLogs] = useState(true);
+  const compLogPollRef = useRef(null);
+  const compLogLineRef = useRef(0);
+  const compLogsEndRef = useRef(null);
 
   const handleDownload = async (url, filename) => {
     if (!url) return;
@@ -151,6 +157,13 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
       : `Compilation — ${new Date().toLocaleDateString()}`);
 
     setBuilding(true);
+    // reset logs
+    if (compLogPollRef.current) clearInterval(compLogPollRef.current);
+    setCompLogs([]);
+    compLogLineRef.current = 0;
+    setCompLogId(null);
+    setShowCompLogs(true);
+
     try {
       const clips = queue.map((q) => ({
         video_id:      q.video.id,
@@ -161,7 +174,22 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
         end:           parseTime(q.end),
       }));
       const result = await createCompilation({ title: finalTitle, clips, mode: isMP3 ? "mp3" : "video" });
-      setPolling(result.compilation_id);
+      const cid = result.compilation_id;
+      setPolling(cid);
+      setCompLogId(cid);
+
+      // Start log polling
+      compLogPollRef.current = setInterval(async () => {
+        try {
+          const { data: ld } = await api.get(`/videos/${cid}/logs?since=${compLogLineRef.current}`);
+          if (ld?.lines?.length > 0) {
+            compLogLineRef.current += ld.lines.length;
+            setCompLogs(prev => [...prev, ...ld.lines].slice(-500));
+            setTimeout(() => compLogsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+          }
+          if (ld?.done) clearInterval(compLogPollRef.current);
+        } catch (_) {}
+      }, 1500);
     } catch (e) {
       showToast(e?.response?.data?.detail || "Compilation failed", "error");
       setBuilding(false);
@@ -184,8 +212,9 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
 
   const totalSec = queue.reduce((acc, q) => acc + clipDuration(q), 0);
 
-  // Detect if a saved compilation is MP3
+  // Detect if a saved compilation is MP3 — check labels (most reliable), then URL, then fallback
   const isMP3Comp = (comp) =>
+    (comp.labels || []).includes("mp3") ||
     comp.file_path?.toLowerCase().includes(".mp3") ||
     (comp.narration_url && !comp.resolution);
 
@@ -515,7 +544,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                 ? `Add ${2 - queue.length} more video${queue.length === 1 ? "" : "s"} to build`
                 : `${compilationType === "mp3" ? "🎙" : "🔗"} Build ${compilationType === "mp3" ? "MP3 podcast" : "video"} (${queue.length} clips · ${fmtDur(totalSec)})`}
           </button>
-          {queue.length >= 2 && !building && (
+          {queue.length >= 2 && !building && !compLogId && (
             <div style={{ marginTop: 8, fontSize: 10, color: T.textFaint, textAlign: "center" }}>
               {compilationType === "mp3"
                 ? "Narration tracks will be joined in queue order · output is MP3"
@@ -523,6 +552,42 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
             </div>
           )}
         </div>
+
+        {/* ── Live log panel ── */}
+        {compLogId && (
+          <div style={{ ...card, borderColor: building ? `${T.accent}40` : T.border }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em" }}>
+                PIPELINE LOGS
+                {building && <span style={{ marginLeft: 8, color: T.accent }}>● LIVE</span>}
+                {!building && <span style={{ marginLeft: 8, color: T.accentGreen }}>✓ DONE</span>}
+              </div>
+              <button
+                onClick={() => setShowCompLogs(v => !v)}
+                style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 5, padding: "2px 10px", color: T.textFaint, fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                {showCompLogs ? "Hide" : "Show"}
+              </button>
+            </div>
+            {showCompLogs && (
+              <div style={{ fontFamily: "monospace", fontSize: 10, color: T.textDim, maxHeight: 260, overflowY: "auto", lineHeight: 1.7, background: T.bgDeep, borderRadius: 8, padding: "10px 12px" }}>
+                {compLogs.length === 0
+                  ? <span style={{ color: T.textFaint }}>Waiting for pipeline output...</span>
+                  : compLogs.map((line, i) => (
+                    <div key={i} style={{
+                      color: line.includes("[ERROR]") ? T.accentRed
+                        : line.includes("[DONE]") ? T.accentGreen
+                        : line.includes("[UPLOAD]") ? "#60a0ff"
+                        : line.includes("[CONCAT]") ? "#ffa060"
+                        : T.textDim
+                    }}>{line}</div>
+                  ))
+                }
+                <div ref={compLogsEndRef} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
