@@ -222,6 +222,7 @@ export default function Dashboard() {
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
   const [tab, setTab] = useState("videos");
+  const [tabLoading, setTabLoading] = useState(false);
   const [genError, setGenError] = useState("");
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
@@ -609,6 +610,15 @@ export default function Dashboard() {
   const autoShortLogsEndRef = useRef(null);
   const autoShortLogPollRef = useRef(null);
   const autoShortLogLineRef = useRef(0);
+  const tabTimerRef = useRef(null);
+
+  const switchTab = (id) => {
+    if (id === tab) return;
+    if (tabTimerRef.current) clearTimeout(tabTimerRef.current);
+    setTab(id);
+    setTabLoading(true);
+    tabTimerRef.current = setTimeout(() => setTabLoading(false), 2000);
+  };
 
   const handleUpload = async (id, e) => {
     e.stopPropagation();
@@ -1120,7 +1130,7 @@ export default function Dashboard() {
               <div
                 key={n.id}
                 className={`nav-item ${tab === n.id ? "active" : ""}`}
-                onClick={() => setTab(n.id)}
+                onClick={() => switchTab(n.id)}
               >
                 <span style={{ fontSize: 13 }}>{n.icon}</span>
                 <span>{n.label}</span>
@@ -1399,7 +1409,35 @@ export default function Dashboard() {
           </div>
 
           {/* Content */}
-          <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
+          <div style={{ flex: 1, overflow: "auto", padding: 24, position: "relative" }}>
+            {/* Tab loading overlay */}
+            {tabLoading && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 50,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(8,8,16,0.72)",
+                  backdropFilter: "blur(4px)",
+                  borderRadius: 12,
+                  pointerEvents: "all",
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    border: "3px solid rgba(255,255,255,0.08)",
+                    borderTopColor: "#00a0dc",
+                    animation: "tabSpinner 0.7s linear infinite",
+                  }}
+                />
+              </div>
+            )}
             {/* ── VIDEOS TAB ──────────────────────────────────────────────────────── */}
             {tab === "videos" && (
               <>

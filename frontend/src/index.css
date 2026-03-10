@@ -255,6 +255,10 @@ body.light .skeleton-loader,
   to   { background-position:  200% 0; }
 }
 
+@keyframes tabSpinner {
+  to { transform: rotate(360deg); }
+}
+
 
 /* ─────────────────────────────────────────────────────────────
    9. Fluid Blob Base Classes
