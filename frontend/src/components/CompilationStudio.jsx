@@ -3,7 +3,7 @@
  * Drag-and-drop video stitching. Simple, intuitive, no friction.
  */
 import { useEffect, useRef, useState } from "react";
-import api, { createCompilation, listCompilations } from "../api/client";
+import api, { createCompilation, listCompilations, renameCompilation } from "../api/client";
 
 export default function CompilationStudio({ T, showToast, videos = [] }) {
   if (!T) return null;
@@ -15,6 +15,8 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   const [polling, setPolling] = useState(null);
   const [preview, setPreview] = useState(null);
   const [dragOver, setDragOver] = useState(null); // index being dragged over
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameVal, setRenameVal] = useState("");
   const draggingIdx = useRef(null);
   const pollRef = useRef(null);
 
@@ -359,15 +361,35 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                 <div
                   key={comp.id}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
                     padding: "8px 10px",
                     background: T.bg,
                     borderRadius: 8,
                     border: `1px solid ${T.border}`,
                   }}
                 >
+                  {renamingId === comp.id ? (
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                      <input
+                        autoFocus
+                        value={renameVal}
+                        onChange={(e) => setRenameVal(e.target.value)}
+                        onKeyDown={async (e) => {
+                          if (e.key === "Enter") {
+                            await renameCompilation(comp.id, renameVal);
+                            setCompilations((cs) => cs.map((c) => c.id === comp.id ? { ...c, title: renameVal } : c));
+                            setRenamingId(null);
+                          }
+                          if (e.key === "Escape") setRenamingId(null);
+                        }}
+                        style={{ flex: 1, background: T.inputBg, border: `1px solid ${T.accent}60`, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                      />
+                      <button onClick={async () => { await renameCompilation(comp.id, renameVal); setCompilations((cs) => cs.map((c) => c.id === comp.id ? { ...c, title: renameVal } : c)); setRenamingId(null); }}
+                        style={{ padding: "4px 8px", borderRadius: 5, border: "none", background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✓</button>
+                      <button onClick={() => setRenamingId(null)}
+                        style={{ padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                    </div>
+                  ) : null}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
@@ -433,6 +455,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                         YT ↗
                       </a>
                     )}
+                    <button
+                      onClick={() => { setRenamingId(comp.id); setRenameVal(comp.title || ""); }}
+                      title="Rename"
+                      style={{ padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}
+                    >✏</button>
+                  </div>
                   </div>
                 </div>
               ))}

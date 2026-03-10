@@ -27,6 +27,7 @@ import api, {
   triggerAutoComment,
   triggerAutoShort,
   uploadVideo,
+  updateVideoMeta,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -208,6 +209,97 @@ const THEMES = {
   },
 };
 
+function InlineEdit({ value, onSave, placeholder = "", multiline = false, style = {}, T }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value);
+  const [saving, setSaving] = React.useState(false);
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => { setDraft(value); }, [value]);
+  React.useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+
+  const commit = async () => {
+    if (draft === value) { setEditing(false); return; }
+    setSaving(true);
+    await onSave(draft.trim());
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const cancel = () => { setDraft(value); setEditing(false); };
+
+  const sharedInputStyle = {
+    width: "100%",
+    background: T.inputBg,
+    border: `1px solid ${T.accent}60`,
+    borderRadius: 7,
+    padding: "8px 10px",
+    color: T.text,
+    fontFamily: "inherit",
+    fontSize: style.fontSize || 13,
+    lineHeight: style.lineHeight || 1.6,
+    outline: "none",
+    boxSizing: "border-box",
+    resize: "vertical",
+  };
+
+  if (editing) {
+    return (
+      <div>
+        {multiline ? (
+          <textarea
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={4}
+            style={sharedInputStyle}
+            onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            style={sharedInputStyle}
+            onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+          />
+        )}
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          <button onClick={commit} disabled={saving} style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+            {saving ? "Saving…" : "✓ Save"}
+          </button>
+          <button onClick={cancel} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => setEditing(true)}
+      title="Click to edit"
+      style={{
+        ...style,
+        cursor: "text",
+        padding: multiline ? "8px 10px" : "2px 4px",
+        borderRadius: 6,
+        border: "1px solid transparent",
+        transition: "border-color 0.15s, background 0.15s",
+        wordBreak: "break-word",
+        minHeight: multiline ? 40 : "auto",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.inputBg; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "transparent"; }}
+    >
+      {value || <span style={{ color: T.textFaint, fontStyle: "italic", fontWeight: 400 }}>{placeholder}</span>}
+      <span style={{ marginLeft: 6, fontSize: 9, color: T.textFaint, opacity: 0.6 }}>✏</span>
+    </div>
+  );
+}
+
 function LegalNavDropdown({ T }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -341,6 +433,11 @@ export default function Dashboard() {
   const [shortAmbience, setShortAmbience] = useState("stars");
   const [shortGenerating, setShortGenerating] = useState(false);
   const [shortGenError, setShortGenError] = useState("");
+  const [shortLogs, setShortLogs] = useState([]);
+  const [shortLogVideoId, setShortLogVideoId] = useState(null);
+  const shortLogPollRef = useRef(null);
+  const shortLogLineRef = useRef(0);
+  const shortLogsEndRef = useRef(null);
   const [shortClipVideoId, setShortClipVideoId] = useState("");
   const [shortClipping, setShortClipping] = useState(false);
   const [shortClipError, setShortClipError] = useState("");
@@ -543,13 +640,36 @@ export default function Dashboard() {
     if (!shortPrompt.trim() || shortGenerating) return;
     setShortGenError("");
     setShortGenerating(true);
+    // reset logs
+    if (shortLogPollRef.current) clearInterval(shortLogPollRef.current);
+    setShortLogs([]);
+    shortLogLineRef.current = 0;
+    setShortLogVideoId(null);
     try {
-      await generateShortFromScratch(shortPrompt.trim(), shortAmbience);
+      const res = await generateShortFromScratch(shortPrompt.trim(), shortAmbience);
+      const vid = res?.video_id;
       setShortPrompt("");
-      showToast("Short generation started — check back in a few minutes.");
+      showToast("Short generation started!");
+      if (vid) {
+        setShortLogVideoId(vid);
+        shortLogPollRef.current = setInterval(async () => {
+          try {
+            const { data: ld } = await api.get(`/videos/${vid}/logs?since=${shortLogLineRef.current}`);
+            if (ld?.lines?.length > 0) {
+              shortLogLineRef.current += ld.lines.length;
+              setShortLogs(prev => [...prev, ...ld.lines].slice(-300));
+              setTimeout(() => shortLogsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+            }
+            if (ld?.done) {
+              clearInterval(shortLogPollRef.current);
+              setShortGenerating(false);
+              refresh();
+            }
+          } catch (_) {}
+        }, 1500);
+      }
     } catch (e) {
       setShortGenError(e?.response?.data?.detail || "Failed to start short generation.");
-    } finally {
       setShortGenerating(false);
     }
   };
@@ -1276,11 +1396,11 @@ export default function Dashboard() {
               {
                 id: "videos",
                 icon: "▣",
-                label: "Videos",
+                label: "Video Studio",
                 count: videos.length,
               },
               { id: "script", icon: "✍", label: "Script Studio" },
-              { id: "shorts", icon: "⚡", label: "Shorts" },
+              { id: "shorts", icon: "⚡", label: "Shorts Studio" },
               { id: "channel", icon: "▶", label: "My Channel" },
               { id: "billing", icon: "◑", label: "Billing" },
               { id: "analytics", icon: "◈", label: "Analytics" },
@@ -1469,11 +1589,11 @@ export default function Dashboard() {
               }}
             >
               {tab === "videos"
-                ? "Video Library"
+                ? "Video Studio"
                 : tab === "script"
                 ? "Script Studio"
                 : tab === "shorts"
-                ? "YouTube Shorts"
+                ? "Shorts Studio"
                 : tab === "channel"
                 ? "My Channel"
                 : tab === "billing"
@@ -3530,6 +3650,23 @@ export default function Dashboard() {
           <button onClick={handleGenerateShort} disabled={shortGenerating || !shortPrompt.trim()} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortGenerating || !shortPrompt.trim() ? T.border : T.accent, color: shortGenerating || !shortPrompt.trim() ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortGenerating || !shortPrompt.trim() ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
             {shortGenerating ? "⚡ GENERATING..." : "⚡ GENERATE SHORT"}
           </button>
+          {/* Live log stream */}
+          {(shortGenerating || shortLogs.length > 0) && shortLogVideoId && (
+            <div style={{ marginTop: 14, background: T.bgSub, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>
+                PIPELINE LOGS {shortGenerating && <span style={{ color: T.accent }}>● LIVE</span>}
+              </div>
+              <div style={{ fontFamily: "monospace", fontSize: 10, color: T.textDim, maxHeight: 180, overflowY: "auto", lineHeight: 1.6 }}>
+                {shortLogs.length === 0
+                  ? <span style={{ color: T.textFaint }}>Waiting for pipeline output...</span>
+                  : shortLogs.map((line, i) => (
+                    <div key={i} style={{ color: line.includes("[ERROR]") ? T.accentRed : line.includes("[DONE]") ? T.accentGreen : T.textDim }}>{line}</div>
+                  ))
+                }
+                <div ref={shortLogsEndRef} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Mode B: Clip from existing video */}
@@ -6962,8 +7099,18 @@ export default function Dashboard() {
                   marginBottom: 20,
                 }}
               >
-                <div>
-                  <div
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <InlineEdit
+                    value={selected.title || ""}
+                    placeholder="Processing..."
+                    onSave={async (val) => {
+                      try {
+                        await updateVideoMeta(selected.id, { title: val });
+                        setSelected((s) => ({ ...s, title: val }));
+                        setVideos((vs) => vs.map((v) => v.id === selected.id ? { ...v, title: val } : v));
+                        showToast("Title updated");
+                      } catch (e) { showToast("Update failed", "error"); }
+                    }}
                     style={{
                       fontFamily: "'Syne',sans-serif",
                       fontWeight: 700,
@@ -6972,9 +7119,8 @@ export default function Dashboard() {
                       marginBottom: 8,
                       lineHeight: 1.3,
                     }}
-                  >
-                    {selected.title || "Processing..."}
-                  </div>
+                    T={T}
+                  />
                   <div
                     className="pill"
                     style={{
@@ -7080,33 +7226,26 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {selected.description && (
-                <div style={{ marginBottom: 14 }}>
-                  <div
-                    style={{
-                      fontSize: 9,
-                      color: T.textFaint,
-                      letterSpacing: "0.1em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    DESCRIPTION
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: T.textDim,
-                      padding: "10px 14px",
-                      background: T.inputBg,
-                      borderRadius: 8,
-                      lineHeight: 1.7,
-                      border: `1px solid ${T.border}`,
-                    }}
-                  >
-                    {selected.description}
-                  </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  DESCRIPTION
                 </div>
-              )}
+                <InlineEdit
+                  value={selected.description || ""}
+                  placeholder="No description — click to add one"
+                  multiline
+                  onSave={async (val) => {
+                    try {
+                      await updateVideoMeta(selected.id, { description: val });
+                      setSelected((s) => ({ ...s, description: val }));
+                      setVideos((vs) => vs.map((v) => v.id === selected.id ? { ...v, description: val } : v));
+                      showToast("Description updated");
+                    } catch (e) { showToast("Update failed", "error"); }
+                  }}
+                  style={{ fontSize: 12, color: T.textDim, lineHeight: 1.7 }}
+                  T={T}
+                />
+              </div>
 
               {(selected.labels?.length > 0 || selected.category) && (
                 <div style={{ marginBottom: 14 }}>
@@ -8087,8 +8226,8 @@ export default function Dashboard() {
         {/* ── Mobile Bottom Nav ──────────────────────────────────────────────────── */}
         <nav className="mobile-bottom-nav">
           {[
-            { id: "videos", icon: "▣", label: "Videos" },
-            { id: "shorts", icon: "⚡", label: "Shorts" },
+            { id: "videos", icon: "▣", label: "Video Studio" },
+            { id: "shorts", icon: "⚡", label: "Shorts Studio" },
             { id: "script", icon: "✍", label: "Script" },
             { id: "channel", icon: "▶", label: "Channel" },
             { id: "settings", icon: "◎", label: "Settings" },
