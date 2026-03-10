@@ -85,7 +85,7 @@ ssh $SERVER << REMOTE
 
   # Only rebuild backend if Python files changed, always rebuild frontend
   docker compose build --no-cache frontend
-  docker compose build backend-1 backend-2 backend-3 backend-4
+  docker compose build backend-1 backend-2
 
   docker compose up -d
 
