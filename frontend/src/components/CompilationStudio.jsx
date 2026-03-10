@@ -17,6 +17,25 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   const [dragOver, setDragOver] = useState(null); // index being dragged over
   const [renamingId, setRenamingId] = useState(null);
   const [renameVal, setRenameVal] = useState("");
+
+  const handleDownload = async (url, filename) => {
+    if (!url) return;
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("fetch failed");
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (_) {
+      window.open(url, "_blank");
+    }
+  };
   const draggingIdx = useRef(null);
   const pollRef = useRef(null);
 
@@ -417,6 +436,18 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                         style={btn(T.accent, false)}
                       >
                         ▶
+                      </button>
+                    )}
+                    {comp.file_path && comp.status === "ready" && (
+                      <button
+                        onClick={() => {
+                          const ext = comp.file_path.toLowerCase().includes(".mp3") ? "mp3" : "mp4";
+                          handleDownload(comp.file_path, `${comp.title || comp.id}.${ext}`);
+                        }}
+                        title="Download"
+                        style={btn(T.textMid, false)}
+                      >
+                        ↓
                       </button>
                     )}
                     {comp.file_path &&
