@@ -1471,6 +1471,103 @@ def create_compilation(
     background_tasks.add_task(run)
     return {"compilation_id": comp_id, "message": "Compilation started", "clip_count": len(req.clips)}
 
+# ── TikTok OAuth + Upload ──────────────────────────────────────────────────────
+
+@app.get("/tiktok/auth")
+def tiktok_auth():
+    """Redirect user to TikTok OAuth consent page."""
+    from pipeline.tiktok_uploader import build_auth_url
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=build_auth_url())
+
+@app.get("/tiktok/callback")
+def tiktok_callback(code: str = None, error: str = None, error_description: str = None):
+    """TikTok redirects here after user approves. Exchange code for tokens."""
+    from fastapi.responses import HTMLResponse
+    if error:
+        return HTMLResponse(f"""
+        <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>TikTok Auth Failed</h2><p>{error_description or error}</p>
+        <a href="https://4lifemystery.com/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
+        """)
+    try:
+        from pipeline.tiktok_uploader import exchange_code
+        exchange_code(code)
+        return HTMLResponse("""
+        <html><body style="background:#08080f;color:#4ade80;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>✅ TikTok Connected!</h2><p>You can close this tab.</p>
+        <a href="https://4lifemystery.com/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
+        """)
+    except Exception as e:
+        return HTMLResponse(f"""
+        <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>TikTok Auth Error</h2><p>{e}</p>
+        <a href="https://4lifemystery.com/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
+        """)
+
+@app.get("/tiktok/status")
+def tiktok_status(user: str = Depends(verify_token)):
+    """Check if TikTok is connected."""
+    from pipeline.tiktok_uploader import is_connected, load_token
+    token = load_token()
+    return {
+        "connected": token is not None,
+        "open_id":   token.get("open_id") if token else None,
+    }
+
+@app.post("/tiktok/disconnect")
+def tiktok_disconnect(user: str = Depends(verify_token)):
+    from pipeline.tiktok_uploader import disconnect
+    disconnect()
+    return {"message": "TikTok disconnected"}
+
+@app.post("/videos/{video_id}/upload-tiktok")
+def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: BackgroundTasks = None, user: str = Depends(verify_token)):
+    """Upload a ready video to TikTok."""
+    from pipeline.tiktok_uploader import is_connected
+    if not is_connected():
+        raise HTTPException(status_code=400, detail="TikTok not connected. Go to Settings to connect.")
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.get("file_path"):
+        raise HTTPException(status_code=400, detail="No video file available")
+
+    privacy = body.get("privacy", "SELF_ONLY")
+
+    def do_upload():
+        import tempfile, requests as req2, os
+        try:
+            db.get_client().table("videos").update({"tiktok_status": "uploading"}).eq("id", video_id).execute()
+            # Download from Supabase storage to temp file
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                tmp_path = tmp.name
+                r = req2.get(video["file_path"], timeout=120, stream=True)
+                r.raise_for_status()
+                for chunk in r.iter_content(chunk_size=8192):
+                    tmp.write(chunk)
+            from pipeline.tiktok_uploader import upload_to_tiktok as _upload
+            result = _upload(
+                video_path=tmp_path,
+                title=video.get("title") or "4Life Mystery",
+                description=video.get("description") or "",
+                privacy=privacy,
+            )
+            os.unlink(tmp_path)
+            db.get_client().table("videos").update({
+                "tiktok_status":     "posted",
+                "tiktok_publish_id": result.get("publish_id"),
+            }).eq("id", video_id).execute()
+            print(f"✅ TikTok upload complete: {result}")
+        except Exception as e:
+            db.get_client().table("videos").update({"tiktok_status": "failed"}).eq("id", video_id).execute()
+            print(f"❌ TikTok upload failed: {e}")
+            import traceback; traceback.print_exc()
+
+    background_tasks.add_task(do_upload)
+    return {"message": "TikTok upload started", "video_id": video_id}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

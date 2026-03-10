@@ -9,6 +9,9 @@ import api, {
   generateShortFromScratch,
   generateVideo,
   getAutoShortSettings,
+  getTikTokStatus,
+  disconnectTikTok,
+  uploadToTikTok,
   getComments,
   getQuota,
   getStats,
@@ -545,6 +548,7 @@ export default function Dashboard() {
       })
       .catch(() => {});
     api.get("/auto-short/settings").then(r => setAutoShortSettings(r.data)).catch(() => {});
+    getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {});
   }, [tab]);
 
   // Infinite scroll — load more channel videos when bottom sentinel is visible
@@ -602,6 +606,9 @@ export default function Dashboard() {
   const [autoShortSettings, setAutoShortSettings] = useState(null);
   const [autoShortSaving, setAutoShortSaving] = useState(false);
   const [autoShortRunning, setAutoShortRunning] = useState(false);
+  const [tiktokConnected, setTiktokConnected] = useState(false);
+  const [tiktokLoading, setTiktokLoading] = useState(false);
+  const [tiktokUploading, setTiktokUploading] = useState({});
   const [autoShortJobId, setAutoShortJobId] = useState(null);
   const [autoShortPrompt, setAutoShortPrompt] = useState("");
   const [autoShortStep, setAutoShortStep] = useState(0);
@@ -2868,6 +2875,38 @@ export default function Dashboard() {
                               {v.status === "uploading"
                                 ? "⟳ Uploading..."
                                 : "🚀 UPLOAD TO YOUTUBE"}
+                            </button>
+                          )}
+                          {/* TikTok upload button — show for ready/posted videos when connected */}
+                          {tiktokConnected && (v.status === "ready" || v.status === "posted") && v.file_path && (
+                            <button
+                              className="btn-sm"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setTiktokUploading(prev => ({ ...prev, [v.id]: true }));
+                                try {
+                                  await uploadToTikTok(v.id, "SELF_ONLY");
+                                  showToast("TikTok upload started — will be private until you publish");
+                                } catch (err) {
+                                  showToast(err?.response?.data?.detail || "TikTok upload failed");
+                                } finally {
+                                  setTiktokUploading(prev => ({ ...prev, [v.id]: false }));
+                                }
+                              }}
+                              disabled={tiktokUploading[v.id] || v.tiktok_status === "uploading"}
+                              style={{
+                                color: v.tiktok_status === "posted" ? "#4ade80" : "#ee4466",
+                                borderColor: v.tiktok_status === "posted" ? "rgba(74,222,128,0.3)" : "rgba(238,68,102,0.3)",
+                                background: v.tiktok_status === "posted" ? "rgba(74,222,128,0.07)" : "rgba(238,68,102,0.07)",
+                                opacity: tiktokUploading[v.id] ? 0.6 : 1,
+                                cursor: tiktokUploading[v.id] ? "default" : "pointer",
+                              }}
+                            >
+                              {tiktokUploading[v.id] || v.tiktok_status === "uploading"
+                                ? "⟳ TikTok..."
+                                : v.tiktok_status === "posted"
+                                ? "✓ ON TIKTOK"
+                                : "🎵 TIKTOK"}
                             </button>
                           )}
                           {v.status === "posted" && (
@@ -6242,6 +6281,42 @@ export default function Dashboard() {
                     </div>
                   </div>
                 )}
+
+                {/* ── TikTok Connect ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>TIKTOK</div>
+                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                        {tiktokConnected ? "✅ TikTok Connected" : "🎵 Connect TikTok"}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                        {tiktokConnected ? "Auto-post shorts to TikTok" : "Authorise to enable TikTok uploads"}
+                      </div>
+                    </div>
+                    {tiktokConnected ? (
+                      <button
+                        onClick={async () => {
+                          setTiktokLoading(true);
+                          await disconnectTikTok().catch(() => {});
+                          setTiktokConnected(false);
+                          setTiktokLoading(false);
+                        }}
+                        disabled={tiktokLoading}
+                        style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}
+                      >
+                        DISCONNECT
+                      </button>
+                    ) : (
+                      <a
+                        href="/api/tiktok/auth"
+                        style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid rgba(0,160,220,0.4)", background: "rgba(0,160,220,0.1)", color: "#00a0dc", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}
+                      >
+                        CONNECT
+                      </a>
+                    )}
+                  </div>
+                </div>
 
                 </div>{/* end LEFT COLUMN */}
 

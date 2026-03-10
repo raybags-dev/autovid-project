@@ -213,3 +213,17 @@ export const triggerAutoShort = async () => {
   const { data } = await api.post("/auto-short/trigger");
   return data;
 };
+
+// ── TikTok ────────────────────────────────────────────────────────────────────
+export const getTikTokStatus = async () => {
+  const { data } = await api.get("/tiktok/status");
+  return data;
+};
+export const disconnectTikTok = async () => {
+  const { data } = await api.post("/tiktok/disconnect");
+  return data;
+};
+export const uploadToTikTok = async (id, privacy = "SELF_ONLY") => {
+  const { data } = await api.post(`/videos/${id}/upload-tiktok`, { privacy });
+  return data;
+};
