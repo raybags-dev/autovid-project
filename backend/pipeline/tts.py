@@ -192,6 +192,47 @@ def synthesize(text: str, video_id: str) -> dict:
     return {"path": str(mp3_path), "duration": duration}
 
 
+# ── Audio Duration Fitting ────────────────────────────────────────────────────
+
+def fit_audio_to_duration(audio_path: str, target_duration: float) -> float:
+    """
+    Speed up audio to fit within target_duration seconds using FFmpeg atempo filter.
+    atempo range is 0.5–2.0; for speed > 2.0 we chain two filters.
+    Returns the new actual duration.
+    """
+    p = Path(audio_path)
+    actual = _get_audio_duration(p)
+    if actual <= target_duration:
+        return actual
+
+    speed = actual / target_duration
+    print(f"⚡ Audio is {actual:.1f}s — speeding up {speed:.2f}x to fit {target_duration:.0f}s")
+
+    # Build atempo filter chain (each atempo must be 0.5–2.0)
+    filters = []
+    remaining = speed
+    while remaining > 2.0:
+        filters.append("atempo=2.0")
+        remaining /= 2.0
+    filters.append(f"atempo={remaining:.4f}")
+    af = ",".join(filters)
+
+    tmp = p.with_suffix(".speed_tmp.mp3")
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-i", str(p), "-af", af,
+         "-acodec", "libmp3lame", "-b:a", "192k", str(tmp)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"⚠️  atempo failed: {result.stderr[-200:]} — using original")
+        return actual
+
+    tmp.replace(p)
+    new_dur = _get_audio_duration(p)
+    print(f"✅ Audio fitted: {actual:.1f}s → {new_dur:.1f}s")
+    return new_dur
+
+
 # ── Segment Timing ────────────────────────────────────────────────────────────
 
 def align_segments_to_audio(script_data: dict, audio_path: str) -> list:

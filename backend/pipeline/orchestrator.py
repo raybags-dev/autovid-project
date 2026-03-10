@@ -463,12 +463,16 @@ def retry_failed(video_id: str, cb=None) -> dict:
     return run_pipeline(video["prompt"], auto_upload=True, progress_callback=cb)
 
 
+SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
+
+
 def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None, auto_upload_youtube: bool = False) -> dict:
     """
-    YouTube Shorts pipeline — portrait 9:16, TTS narration.
+    YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
     """
     from pipeline.shorts_generator import generate_short_visual
+    from pipeline.script_gen import generate_short_script
 
     start_time = time.time()
     audio_path     = None
@@ -479,18 +483,36 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
         if not video_id:
             record = db.create_video(f"[Short] {prompt}")
             video_id = record["id"]
-        db.update_video(video_id, labels=["short", "Shorts", "AI"])
+        db.update_video(video_id, labels=["short", "Shorts", "AI"], status="generating")
         _log("START", f"Short pipeline | ID: {video_id[:8]}...", cb)
 
-        # 2. Script
-        script_data = step_generate_script(prompt, video_id, profile="inspirational", cb=cb)
+        # 2. Script — concise, targeting ~200 words for 90s
+        _log("SCRIPT", f"Generating short script for: '{prompt}'", cb)
+        script_data = generate_short_script(prompt)
+        db.set_script(
+            video_id,
+            title=script_data["title"],
+            description=script_data["description"],
+            script=script_data["full_narration"],
+        )
+        _log("SCRIPT", f"✅ Script ready — {len(script_data['full_narration'].split())} words (~{script_data['estimated_duration']}s)", cb)
 
         # 3. Voice
-        audio_result = step_synthesize_voice(script_data, video_id, cb)
+        _log("VOICE", "Synthesizing audio narration...", cb)
+        audio_result = tts.synthesize(script_data["full_narration"], video_id)
         audio_path   = audio_result["path"]
         duration     = audio_result["duration"]
+        db.set_audio_ready(video_id, duration_seconds=int(duration))
+        _log("VOICE", f"✅ Audio ready: {duration:.1f}s", cb)
 
-        # 3a. Upload narration MP3
+        # 3a. Enforce 90-second limit — speed up audio if needed
+        if duration > SHORT_MAX_DURATION:
+            _log("VOICE", f"⚡ Fitting audio to {SHORT_MAX_DURATION}s (was {duration:.1f}s)...", cb)
+            duration = tts.fit_audio_to_duration(audio_path, float(SHORT_MAX_DURATION))
+            db.update_video(video_id, duration_seconds=int(duration))
+            _log("VOICE", f"✅ Audio fitted to {duration:.1f}s", cb)
+
+        # 3b. Upload narration MP3
         try:
             narration_url = upload_narration_to_storage(audio_path, video_id, cb)
             db.update_video(video_id, narration_url=narration_url)
@@ -498,9 +520,10 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
         except Exception as e:
             _log("VOICE", f"⚠️ Narration upload skipped: {e}", cb)
 
-        # 4. Generate portrait 9:16 visual
-        _log("VISUALS", f"Generating portrait visual: {ambience} ({duration:.0f}s)...", cb)
-        visual_path = generate_short_visual(duration=int(duration) + 2, ambience=ambience)
+        # 4. Generate portrait 9:16 visual — capped at SHORT_MAX_DURATION + 2s buffer
+        visual_duration = min(int(duration) + 2, SHORT_MAX_DURATION + 2)
+        _log("VISUALS", f"Generating portrait visual: {ambience} ({visual_duration}s)...", cb)
+        visual_path = generate_short_visual(duration=visual_duration, ambience=ambience)
         db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
 
         # 5. Thumbnail
@@ -527,6 +550,7 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
         # 10. Upload to YouTube or set ready
         if auto_upload_youtube:
             _log("YOUTUBE", "Uploading companion short to YouTube...", cb)
+            label_data = db.get_video(video_id)
             step_upload_youtube(final_path, script_data, label_data, thumb_path, video_id, cb)
         else:
             db.set_ready(video_id)
