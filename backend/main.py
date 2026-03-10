@@ -397,6 +397,27 @@ def upload_to_youtube(video_id: str, req: UploadRequest, background_tasks: Backg
     return {"message": "Upload started", "video_id": video_id}
 
 
+@app.patch("/videos/{video_id}")
+def update_video_meta(video_id: str, body: dict, user: str = Depends(verify_token)):
+    """Update editable fields on a video record (title, description, labels)."""
+    allowed = {"title", "description", "labels"}
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    db.update_video(video_id, **updates)
+    return {"message": "Updated", "video_id": video_id, "updated": list(updates.keys())}
+
+
+@app.patch("/compilations/{comp_id}/rename")
+def rename_compilation(comp_id: str, body: dict, user: str = Depends(verify_token)):
+    """Rename an existing compilation."""
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    db.update_video(comp_id, title=title)
+    return {"message": "Renamed", "compilation_id": comp_id, "title": title}
+
+
 @app.patch("/videos/{video_id}/youtube-settings")
 def update_youtube_settings(video_id: str, req: UploadRequest, user: str = Depends(verify_token)):
     """Update privacy/title/description/tags on an already-uploaded YouTube video."""
@@ -1183,17 +1204,29 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     ambience = body.get("ambience", "stars")
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt required")
-    background_tasks.add_task(run_short_pipeline, prompt=prompt, ambience=ambience)
-    return {"message": "Short pipeline started"}
 
+    record   = db.create_video(f"[Short] {prompt}")
+    video_id = record["id"]
+    _register_pipeline(video_id)
 
-def run_short_pipeline(prompt: str, ambience: str = "stars"):
-    """Generate a YouTube Short from scratch — portrait 9:16, no auto-upload."""
-    try:
-        from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-        _short_pipeline(prompt=prompt, ambience=ambience)
-    except Exception as e:
-        print(f"❌ Short pipeline failed: {e}")
+    def _cb(info):
+        step = info.get("step", "?") if isinstance(info, dict) else str(info)
+        msg  = info.get("message", "") if isinstance(info, dict) else ""
+        _push_log(video_id, f"[{step}] {msg}")
+
+    def _run():
+        try:
+            from pipeline.orchestrator import run_short_pipeline as _short_pipeline
+            _short_pipeline(prompt=prompt, ambience=ambience, video_id=video_id, cb=_cb)
+            _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
+        except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+            print(f"❌ Short pipeline failed: {e}")
+        finally:
+            _unregister_pipeline(video_id)
+
+    background_tasks.add_task(_run)
+    return {"message": "Short pipeline started", "video_id": video_id}
 
 
 @app.get("/shorts")

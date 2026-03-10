@@ -227,3 +227,13 @@ export const uploadToTikTok = async (id, privacy = "SELF_ONLY") => {
   const { data } = await api.post(`/videos/${id}/upload-tiktok`, { privacy });
   return data;
 };
+
+export const updateVideoMeta = async (id, fields) => {
+  const { data } = await api.patch(`/videos/${id}`, fields);
+  return data;
+};
+
+export const renameCompilation = async (id, title) => {
+  const { data } = await api.patch(`/compilations/${id}/rename`, { title });
+  return data;
+};

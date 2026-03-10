@@ -137,6 +137,7 @@ def step_merge_audio(captioned_path: str, audio_path: str, video_id: str, cb=Non
         "-map", "0:v:0",            # video stream from captioned file
         "-map", "1:a:0",            # audio stream from original MP3
         "-c:v", "copy",             # no re-encode video (fast)
+        "-af", "dynaudnorm=p=0.95:m=5:s=15",  # keeps narration level consistent throughout
         "-c:a", "aac",              # encode audio as AAC
         "-b:a", config.AUDIO_BITRATE,
         "-shortest",                # trim to shortest stream
