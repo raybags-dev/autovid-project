@@ -9,9 +9,8 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   if (!T) return null;
 
   const [compilations, setCompilations] = useState([]);
-  const [queue, setQueue] = useState([]); // ordered clips [{video, start, end}]
+  const [queue, setQueue] = useState([]); // ordered clips [{video, start, end, mode}]
   const [title, setTitle] = useState("");
-  const [outputMode, setOutputMode] = useState("video"); // 'video' | 'podcast'
   const [building, setBuilding] = useState(false);
   const [polling, setPolling] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -25,7 +24,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
 
   useEffect(() => {
     listCompilations()
-      .then((r) => setCompilations(r.data || []))
+      .then((r) => setCompilations(Array.isArray(r) ? r : []))
       .catch(() => {});
   }, []);
 
@@ -39,7 +38,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
           clearInterval(pollRef.current);
           setPolling(null);
           setBuilding(false);
-          listCompilations().then((r) => setCompilations(r.data || []));
+          listCompilations().then((r) => setCompilations(Array.isArray(r) ? r : []));
           if (data.status === "ready") {
             showToast("✅ Compilation ready!");
             setPreview(data.file_path);
@@ -55,7 +54,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   // ── Queue management ──────────────────────────────────────────────────────
   function addToQueue(video) {
     if (queue.find((q) => q.video.id === video.id)) return;
-    setQueue((prev) => [...prev, { video, start: "", end: "" }]);
+    setQueue((prev) => [...prev, { video, start: "", end: "", mode: "both" }]);
   }
 
   function removeFromQueue(idx) {
@@ -65,6 +64,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   function updateTrim(idx, field, value) {
     setQueue((prev) =>
       prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q)),
+    );
+  }
+
+  function updateMode(idx, mode) {
+    setQueue((prev) =>
+      prev.map((q, i) => (i === idx ? { ...q, mode } : q)),
     );
   }
 
@@ -125,53 +130,55 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
     if (queue.length < 2)
       return showToast("Add at least 2 videos to the queue", "error");
 
-    // Podcast mode — stitch narration MP3s client-side via download links
-    if (outputMode === "podcast") {
-      const missing = queue.filter((q) => !q.video.narration_url);
-      if (missing.length > 0) {
-        showToast(
-          `${missing.length} video(s) have no saved narration MP3 and will be skipped`,
-          "error",
-        );
-        if (missing.length === queue.length) return;
+    const hasMp3Only = queue.some((q) => q.mode === "mp3");
+    const hasVideo   = queue.some((q) => q.mode === "video" || q.mode === "both");
+
+    // Pure MP3 compilation
+    if (hasMp3Only && !hasVideo) {
+      setBuilding(true);
+      const finalTitle = title.trim() || `Podcast — ${new Date().toLocaleDateString()}`;
+      try {
+        const clips = queue.map((q) => ({
+          video_id:      q.video.id,
+          file_path:     q.video.file_path || "",
+          narration_url: q.video.narration_url || null,
+          title:         q.video.title || "",
+          start:         parseTime(q.start),
+          end:           parseTime(q.end),
+        }));
+        const result = await createCompilation({ title: finalTitle, clips, mode: "mp3" });
+        setPolling(result.compilation_id);
+      } catch (e) {
+        showToast(e?.response?.data?.detail || "MP3 compilation failed", "error");
+        setBuilding(false);
       }
-      const urls = queue
-        .filter((q) => q.video.narration_url)
-        .map((q) => q.video.narration_url);
-      // Open each narration MP3 in a new tab for download — user stitches in a podcast tool
-      // Or trigger download of each
-      urls.forEach((url, i) => {
-        setTimeout(() => {
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `narration_${i + 1}.mp3`;
-          a.target = "_blank";
-          a.click();
-        }, i * 400);
-      });
-      showToast(
-        `🎙 Downloading ${urls.length} narration MP3s — combine in GarageBand, Audacity, or Descript`,
-      );
       return;
     }
 
+    // Video compilation (existing logic — filter to video/both clips only)
+    const videoClips = hasVideo
+      ? queue.filter((q) => q.mode !== "mp3")
+      : queue;  // if no mode set, use all
+
+    if (videoClips.length < 2)
+      return showToast("Need at least 2 video clips for a video compilation", "error");
+
     setBuilding(true);
-    const finalTitle =
-      title.trim() || `Compilation ${new Date().toLocaleDateString()}`;
+    const finalTitle = title.trim() || `Compilation — ${new Date().toLocaleDateString()}`;
     try {
-      const clips = queue.map((q) => ({
-        video_id: q.video.id,
-        file_path: q.video.file_path,
-        title: q.video.title || "",
-        start: parseTime(q.start) ?? 0,
-        end: parseTime(q.end) ?? null,
+      const clips = videoClips.map((q) => ({
+        video_id:      q.video.id,
+        file_path:     q.video.file_path || "",
+        narration_url: q.video.narration_url || null,
+        title:         q.video.title || "",
+        start:         parseTime(q.start),
+        end:           parseTime(q.end),
       }));
-      const { data } = await createCompilation({ title: finalTitle, clips });
-      setPolling(data.compilation_id);
-      showToast(`⚙️ Building "${finalTitle}"...`);
+      const result = await createCompilation({ title: finalTitle, clips, mode: "video" });
+      setPolling(result.compilation_id);
     } catch (e) {
+      showToast(e?.response?.data?.detail || "Compilation failed", "error");
       setBuilding(false);
-      showToast("Failed to start compilation", "error");
     }
   }
 
@@ -302,30 +309,13 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                       flexShrink: 0,
                     }}
                   >
-                    {v.thumbnail_url ? (
-                      <img
-                        src={v.thumbnail_url}
-                        alt=""
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 14,
-                        }}
-                      >
-                        🎬
-                      </div>
-                    )}
+                    <img
+                      src={v.thumbnail_url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: v.thumbnail_url ? "block" : "none" }}
+                      onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+                    />
+                    <div style={{ display: v.thumbnail_url ? "none" : "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🎬</div>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
@@ -580,30 +570,13 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                       flexShrink: 0,
                     }}
                   >
-                    {q.video.thumbnail_url ? (
-                      <img
-                        src={q.video.thumbnail_url}
-                        alt=""
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 10,
-                        }}
-                      >
-                        🎬
-                      </div>
-                    )}
+                    <img
+                      src={q.video.thumbnail_url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: q.video.thumbnail_url ? "block" : "none" }}
+                      onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+                    />
+                    <div style={{ display: q.video.thumbnail_url ? "none" : "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", fontSize: 10 }}>🎬</div>
                   </div>
                   <div
                     style={{
@@ -637,6 +610,37 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                   >
                     ✕
                   </button>
+                </div>
+
+                {/* Mode selector */}
+                <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                  {[
+                    { v: "both", label: "🎬 Video + MP3", title: "Full video with audio" },
+                    { v: "video", label: "🎬 Video only" },
+                    { v: "mp3", label: "🎙 MP3 only", title: q.video.narration_url ? "Narration available ✓" : "Will extract from video" },
+                  ].map(m => (
+                    <button
+                      key={m.v}
+                      onClick={() => updateMode(i, m.v)}
+                      title={m.title}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 5,
+                        border: `1px solid ${q.mode === m.v ? T.accent : T.border}`,
+                        background: q.mode === m.v ? `${T.accent}18` : "transparent",
+                        color: q.mode === m.v ? T.accent : T.textDim,
+                        fontSize: 10,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                  {q.video.narration_url && (
+                    <span style={{ fontSize: 9, color: T.accentGreen, alignSelf: "center", marginLeft: 4 }}>✓ MP3</span>
+                  )}
                 </div>
 
                 {/* Trim inputs — accepts mm:ss or plain seconds */}
@@ -718,68 +722,6 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
             onChange={(e) => setTitle(e.target.value)}
           />
 
-          {/* Output mode toggle */}
-          <div style={{ marginBottom: 12 }}>
-            <span style={label}>OUTPUT FORMAT</span>
-            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-              {[
-                {
-                  id: "video",
-                  icon: "🎬",
-                  label: "Video Compilation",
-                  desc: "Stitched MP4",
-                },
-                {
-                  id: "podcast",
-                  icon: "🎙",
-                  label: "Podcast / Audio Mix",
-                  desc: "Combined narration MP3s",
-                },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setOutputMode(m.id)}
-                  style={{
-                    flex: 1,
-                    padding: "8px",
-                    borderRadius: 8,
-                    textAlign: "left",
-                    border: `1px solid ${outputMode === m.id ? T.accentGreen + "80" : T.border}`,
-                    background:
-                      outputMode === m.id
-                        ? T.accentGreen + "10"
-                        : "transparent",
-                    color: outputMode === m.id ? T.accentGreen : T.textMid,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  <div style={{ fontSize: 16 }}>{m.icon}</div>
-                  <div style={{ fontSize: 10, fontWeight: 600, marginTop: 3 }}>
-                    {m.label}
-                  </div>
-                  <div style={{ fontSize: 9, opacity: 0.7 }}>{m.desc}</div>
-                </button>
-              ))}
-            </div>
-            {outputMode === "podcast" && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: "8px 10px",
-                  background: T.accentGreen + "08",
-                  border: `1px solid ${T.accentGreen}20`,
-                  borderRadius: 7,
-                  fontSize: 10,
-                  color: T.textFaint,
-                }}
-              >
-                🎙 Podcast mode combines narration MP3s from each video. Videos
-                without a saved narration will be skipped.
-              </div>
-            )}
-          </div>
-
           <button
             onClick={handleBuild}
             disabled={building || queue.length < 2}
@@ -791,12 +733,10 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
             }}
           >
             {building
-              ? `⚙️ Building ${outputMode === "podcast" ? "podcast" : "compilation"}...`
+              ? "⚙️ Building compilation..."
               : queue.length < 2
                 ? `Add ${2 - queue.length} more video${queue.length === 1 ? "" : "s"} to build`
-                : outputMode === "podcast"
-                  ? `🎙 Compile ${queue.length} narrations into podcast (${fmtDur(totalSec)})`
-                  : `🔗 Stitch ${queue.length} clips into video (${fmtDur(totalSec)})`}
+                : `🔗 Build ${queue.length} clips (${fmtDur(totalSec)})`}
           </button>
           {queue.length >= 2 && !building && (
             <div
@@ -807,9 +747,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                 textAlign: "center",
               }}
             >
-              {outputMode === "podcast"
-                ? "Narrations joined in queue order · audio-only output"
-                : "Clips will be joined in queue order · start/end times are optional"}
+              Clips will be joined in queue order · start/end times are optional
             </div>
           )}
         </div>

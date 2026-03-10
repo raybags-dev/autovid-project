@@ -181,6 +181,35 @@ export const triggerAutoReply = async () => {
 };
 
 // ── Compilations ─────────────────────────────────────────────────────────────
-export const listCompilations = () => api.get("/compilations");
-export const createCompilation = (data) =>
-  api.post("/compilations/create", data);
+export const listCompilations = async () => {
+  const { data } = await api.get("/compilations");
+  return data;
+};
+export const createCompilation = async (payload) => {
+  const { data } = await api.post("/compilations/create", payload);
+  return data;
+};
+
+export const listShorts = async (limit = 25, offset = 0) => {
+  const { data } = await api.get("/shorts", { params: { limit, offset } });
+  return data;
+};
+
+export const clearCache = async () => {
+  const { data } = await api.post("/cache/clear");
+  return data;
+};
+
+// ── Auto-Short Settings ─────────────────────────────────────────────────────
+export const getAutoShortSettings = async () => {
+  const { data } = await api.get("/auto-short/settings");
+  return data;
+};
+export const saveAutoShortSettings = async (settings) => {
+  const { data } = await api.post("/auto-short/settings", settings);
+  return data;
+};
+export const triggerAutoShort = async () => {
+  const { data } = await api.post("/auto-short/trigger");
+  return data;
+};

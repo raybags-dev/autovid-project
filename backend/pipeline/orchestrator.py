@@ -110,9 +110,9 @@ def step_generate_thumbnail(raw_video_path: str, video_id: str, cb=None) -> Opti
     return thumb_path
 
 
-def step_burn_captions(raw_video_path: str, audio_path: str, video_id: str, cb=None) -> str:
+def step_burn_captions(raw_video_path: str, audio_path: str, video_id: str, cb=None, is_short: bool = False) -> str:
     _log("CAPTIONS", "Transcribing audio + burning captions...", cb)
-    captioned_path = captioner.add_captions(raw_video_path, audio_path, video_id)
+    captioned_path = captioner.add_captions(raw_video_path, audio_path, video_id, is_short=is_short)
     db.set_captioned(video_id)
     return captioned_path
 
@@ -190,38 +190,91 @@ def step_upload_youtube(
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
-def cleanup(video_id: str, audio_path: str, captioned_path: str):
+def cleanup(video_id: str, audio_path=None, captioned_path=None, delete_final: bool = True):
     """
-    Delete all intermediate files. Keep only:
-      - [id]_final.mp4    → the finished video
-      - [id]_thumb.jpg    → thumbnail
-
-    Deleted:
-      - output/temp/[id]/     → downloaded stock clips
-      - output/audio/[id].mp3 → synthesized audio (merged into final)
-      - output/videos/[id]_raw.mp4        → pre-caption video
-      - output/videos/[id]_captioned.mp4  → pre-merge video
+    Delete ALL local files for a video. Supabase Storage is the source of truth.
+    Safe to call with None args and after failures — skips gracefully.
     """
-    # 1. Temp clips folder
-    temp_dir = config.TEMP_DIR / video_id
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-        print(f"🗑️  Deleted temp clips: {temp_dir.name}/")
+    deleted = []
 
-    # 2. Audio MP3 (already merged into final)
-    audio_file = Path(audio_path)
-    if audio_file.exists():
-        audio_file.unlink()
-        print(f"🗑️  Deleted audio: {audio_file.name}")
+    def _rm(path):
+        try:
+            p = Path(path)
+            if p.exists():
+                p.unlink(missing_ok=True)
+                deleted.append(p.name)
+        except Exception as e:
+            print(f"⚠️  Could not delete {path}: {e}")
 
-    # 3. Captioned intermediate (before audio merge)
-    captioned_file = Path(captioned_path)
-    if captioned_file.exists():
-        captioned_file.unlink()
-        print(f"🗑️  Deleted intermediate: {captioned_file.name}")
+    def _rmdir(path):
+        try:
+            p = Path(path)
+            if p.exists() and p.is_dir():
+                shutil.rmtree(p)
+                deleted.append(p.name + "/")
+        except Exception as e:
+            print(f"⚠️  Could not delete dir {path}: {e}")
 
-    # Note: _raw.mp4 is deleted inside captioner.py after captions are burned
-    print(f"✅ Cleanup complete — only final video + thumbnail kept")
+    # Temp clip dirs
+    _rmdir(config.TEMP_DIR / video_id)
+    for d in config.VIDEOS_OUTPUT_DIR.glob(f"tmp_{video_id[:8]}*"):
+        _rmdir(d)
+
+    # All audio variants (narration, mixed, music)
+    for suffix in [".mp3", "_mixed.mp3", "_music.mp3", "_bg_music.mp3", "_narration.mp3"]:
+        _rm(config.AUDIO_OUTPUT_DIR / f"{video_id}{suffix}")
+    if audio_path:
+        _rm(audio_path)
+
+    # Intermediate videos
+    for suffix in ["_raw.mp4", "_captioned.mp4", "_musixed.mp4"]:
+        _rm(config.VIDEOS_OUTPUT_DIR / f"{video_id}{suffix}")
+    if captioned_path:
+        _rm(captioned_path)
+
+    # Final + thumbnail — always delete (Supabase is the permanent store)
+    if delete_final:
+        _rm(config.VIDEOS_OUTPUT_DIR / f"{video_id}_final.mp4")
+        _rm(config.VIDEOS_OUTPUT_DIR / f"{video_id}_thumb.jpg")
+
+    if deleted:
+        print(f"🗑️  Cleanup {video_id[:8]}: removed {len(deleted)} file(s)")
+    else:
+        print(f"✅ Cleanup {video_id[:8]}: nothing to remove")
+
+
+def start_output_sweeper():
+    """
+    Background thread: every 30 min delete output files older than 1 hour.
+    Safety net so disk never fills even if a pipeline crashes before cleanup.
+    """
+    import threading
+
+    def _sweep():
+        while True:
+            time.sleep(1800)
+            try:
+                cutoff = time.time() - 3600  # 1-hour TTL
+                swept = 0
+                for folder in [config.VIDEOS_OUTPUT_DIR, config.AUDIO_OUTPUT_DIR, config.TEMP_DIR]:
+                    if not folder.exists():
+                        continue
+                    for item in folder.rglob("*"):
+                        try:
+                            if item.is_file() and item.stat().st_mtime < cutoff:
+                                item.unlink(missing_ok=True)
+                                swept += 1
+                            elif item.is_dir() and item != folder:
+                                item.rmdir()   # only removes if empty
+                        except Exception:
+                            pass
+                if swept:
+                    print(f"🧹 Sweeper: removed {swept} stale output file(s)")
+            except Exception as e:
+                print(f"⚠️  Sweeper error: {e}")
+
+    threading.Thread(target=_sweep, daemon=True, name="output-sweeper").start()
+    print("🧹 Output sweeper started (1-hr TTL, runs every 30 min)")
 
 
 def cleanup_output_folder():
@@ -356,13 +409,8 @@ def run_pipeline(
             db.set_ready(video_id)
             _log("READY", "Video ready — skipping YouTube upload (auto_upload=False)", cb)
 
-        # ── 12. Cleanup intermediate files ────────────────────────────────────
-        cleanup(video_id, audio_path, captioned_path)
-
         elapsed = time.time() - start_time
         _log("DONE", f"✅ Pipeline complete in {elapsed:.0f}s", cb)
-        _log("DONE", f"📁 Final video: {final_path}", cb)
-
         return db.get_video(video_id)
 
     except Exception as e:
@@ -373,6 +421,14 @@ def run_pipeline(
         if video_id:
             db.set_failed(video_id, f"{error_msg}\n\n{trace[-300:]}")
         raise
+
+    finally:
+        # Always clean up local files — runs on success AND failure
+        if video_id:
+            try:
+                cleanup(video_id, audio_path, captioned_path, delete_final=True)
+            except Exception as ce:
+                print(f"⚠️  Post-pipeline cleanup error: {ce}")
 
 
 # ── Retry Failed ──────────────────────────────────────────────────────────────
@@ -386,6 +442,92 @@ def retry_failed(video_id: str, cb=None) -> dict:
         raise ValueError(f"Video {video_id} status is '{video['status']}', not 'failed'")
     db.update_video(video_id, status="generating", error_message=None)
     return run_pipeline(video["prompt"], auto_upload=True, progress_callback=cb)
+
+
+def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None) -> dict:
+    """
+    YouTube Shorts pipeline — portrait 9:16, TTS narration, no auto-upload.
+    Creates a short video that the user reviews before uploading.
+    """
+    from pipeline.shorts_generator import generate_short_visual
+
+    start_time = time.time()
+    audio_path     = None
+    captioned_path = None
+
+    try:
+        # 1. Create DB record tagged as short
+        if not video_id:
+            record = db.create_video(f"[Short] {prompt}")
+            video_id = record["id"]
+        db.update_video(video_id, labels=["short", "Shorts", "AI"])
+        _log("START", f"Short pipeline | ID: {video_id[:8]}...", cb)
+
+        # 2. Script
+        script_data = step_generate_script(prompt, video_id, profile="inspirational", cb=cb)
+
+        # 3. Voice
+        audio_result = step_synthesize_voice(script_data, video_id, cb)
+        audio_path   = audio_result["path"]
+        duration     = audio_result["duration"]
+
+        # 3a. Upload narration MP3
+        try:
+            narration_url = upload_narration_to_storage(audio_path, video_id, cb)
+            db.update_video(video_id, narration_url=narration_url)
+            _log("VOICE", "✅ Narration MP3 saved to cloud", cb)
+        except Exception as e:
+            _log("VOICE", f"⚠️ Narration upload skipped: {e}", cb)
+
+        # 4. Generate portrait 9:16 visual
+        _log("VISUALS", f"Generating portrait visual: {ambience} ({duration:.0f}s)...", cb)
+        visual_path = generate_short_visual(duration=int(duration) + 2, ambience=ambience)
+        db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
+
+        # 5. Thumbnail
+        thumb_path = step_generate_thumbnail(visual_path, video_id, cb)
+
+        # 6. Burn captions
+        captioned_path = step_burn_captions(visual_path, audio_path, video_id, cb, is_short=True)
+
+        # 7. Merge audio
+        final_path = step_merge_audio(captioned_path, audio_path, video_id, cb)
+
+        # 8. Upload to Supabase
+        try:
+            storage_url = upload_to_storage(final_path, video_id, cb)
+            if storage_url:
+                db.update_video(video_id, file_path=storage_url)
+                _log("STORAGE", "✅ Short uploaded to Supabase Storage", cb)
+        except Exception as e:
+            _log("STORAGE", f"⚠️ Storage upload failed: {e}", cb)
+
+        # 9. Auto-label
+        step_auto_label(script_data, video_id, cb)
+
+        # 10. Set ready — no YouTube upload, user reviews first
+        db.set_ready(video_id)
+        _log("READY", "⚡ Short is ready — review in Shorts tab before uploading.", cb)
+
+        elapsed = time.time() - start_time
+        _log("DONE", f"✅ Short pipeline complete in {elapsed:.0f}s", cb)
+        return db.get_video(video_id)
+
+    except Exception as e:
+        error_msg = str(e)
+        trace     = traceback.format_exc()
+        print(f"\n❌ Short pipeline FAILED: {error_msg}")
+        print(trace)
+        if video_id:
+            db.set_failed(video_id, f"{error_msg}\n\n{trace[-300:]}")
+        raise
+
+    finally:
+        if video_id:
+            try:
+                cleanup(video_id, audio_path, captioned_path, delete_final=True)
+            except Exception as ce:
+                print(f"⚠️  Short cleanup error: {ce}")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────

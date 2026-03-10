@@ -205,3 +205,181 @@ def start_auto_scheduler():
             time.sleep(240)   # check every 4 minutes
 
     threading.Thread(target=_loop, daemon=True).start()
+
+
+# ── Auto-Short Generator ──────────────────────────────────────────────────────
+
+DEFAULT_SHORT_TOPICS = [
+    "One thing highly successful people do every morning",
+    "The 60-second breathing trick that calms anxiety instantly",
+    "Why your brain lies to you about being busy",
+    "The hidden reason you feel drained after social events",
+    "What happens to your body after just one bad night of sleep",
+    "The simple mindset shift that makes hard things easier",
+    "Why comparison is the thief of joy — and how to stop",
+    "The 5-second rule that breaks procrastination",
+    "What ancient wisdom says about modern stress",
+    "The surprising science behind why music gives you chills",
+    "Why walking outside changes your brain chemistry",
+    "The real reason habits are so hard to break",
+    "One question to ask yourself before making any big decision",
+    "Why your worst days are often your most important",
+    "The power of saying nothing — why silence is a superpower",
+    "What neuroscience says about gratitude and happiness",
+    "The small daily ritual that rewires your nervous system",
+    "Why boredom might be the most important feeling you ignore",
+    "The psychology behind why we self-sabotage",
+    "What your posture says about your confidence",
+    "The loneliness trap: why being alone and being lonely are different",
+    "Why forgiveness is actually selfish — and why that's okay",
+    "The science of flow state and how to trigger it",
+    "What happens to your mind when you journal every day",
+    "Why the most productive people protect their mornings",
+    "The counterintuitive truth about willpower",
+    "Why your environment shapes your choices more than your intentions",
+    "The human need for meaning — why purpose changes everything",
+    "What cold showers actually do to your mental resilience",
+    "The real cost of never saying no",
+    "Why self-compassion outperforms self-discipline",
+    "The 90-second rule for processing difficult emotions",
+    "What your inner critic is actually trying to protect",
+    "Why deep work is disappearing — and how to reclaim it",
+    "The unexpected power of admitting you don't know",
+    "Why rest is not a reward — it is a requirement",
+    "The mental shift that turns setbacks into momentum",
+    "What makes some people emotionally unbreakable",
+    "The truth about motivation — it follows action, not the other way around",
+    "Why your future self needs you to make different choices today",
+    "One reframe that makes criticism easier to hear",
+    "The science of awe — and why you need more of it",
+    "Why doing less can sometimes accomplish more",
+    "The quiet practice that high performers never skip",
+    "What it means to live with intention in a distracted world",
+    "Why emotions are data, not weakness",
+    "The surprising link between creativity and constraint",
+    "What learning a hard thing teaches you about yourself",
+    "Why discomfort is the gateway to growth",
+    "The story you tell yourself — and how to change it",
+]
+
+DEFAULT_SHORT_AMBIENCE = "aurora"
+
+
+def get_auto_short_settings() -> dict:
+    """Load auto-short scheduler settings from DB."""
+    try:
+        enabled     = db.get_setting("auto_short_enabled",     default="false") == "true"
+        days_raw    = db.get_setting("auto_short_days",        default=json.dumps([1, 3, 5, 6]))
+        topics_raw  = db.get_setting("auto_short_topics",      default=json.dumps(DEFAULT_SHORT_TOPICS))
+        hour        = int(db.get_setting("auto_short_hour",    default="5"))
+        ambience    = db.get_setting("auto_short_ambience",    default=DEFAULT_SHORT_AMBIENCE)
+        return {
+            "enabled":  enabled,
+            "days":     json.loads(days_raw),
+            "topics":   json.loads(topics_raw),
+            "hour":     hour,
+            "ambience": ambience,
+        }
+    except Exception as e:
+        print(f"⚠️  Auto-short: failed to load settings: {e}")
+        return {
+            "enabled": False, "days": [1, 3, 5, 6],
+            "topics": DEFAULT_SHORT_TOPICS, "hour": 5,
+            "ambience": DEFAULT_SHORT_AMBIENCE,
+        }
+
+
+def save_auto_short_settings(settings: dict):
+    """Persist auto-short settings to DB."""
+    db.set_setting("auto_short_enabled",  str(settings.get("enabled", False)).lower())
+    db.set_setting("auto_short_days",     json.dumps(settings.get("days", [1, 3, 5, 6])))
+    db.set_setting("auto_short_topics",   json.dumps(settings.get("topics", DEFAULT_SHORT_TOPICS)))
+    db.set_setting("auto_short_hour",     str(settings.get("hour", 5)))
+    db.set_setting("auto_short_ambience", settings.get("ambience", DEFAULT_SHORT_AMBIENCE))
+
+
+def _pick_next_short_topic(topics: list) -> str:
+    """Pick the next unused short topic, never repeating."""
+    try:
+        used_raw = db.get_setting("auto_short_used_topics", default="[]")
+        used = set(json.loads(used_raw))
+    except Exception:
+        used = set()
+
+    # Filter out used topics
+    available = [t for t in topics if t not in used]
+    if not available:
+        # All used — reset and start over
+        used = set()
+        available = list(topics)
+        print("🔄 Auto-short: all topics used, resetting list")
+
+    topic = available[0]  # always take first available (topics are ordered)
+    used.add(topic)
+    db.set_setting("auto_short_used_topics", json.dumps(list(used)))
+    return topic
+
+
+def run_auto_short(push_log_fn=None, unregister_fn=None):
+    """Trigger one auto-generated short. Supports log streaming."""
+    from pipeline.orchestrator import run_short_pipeline
+    settings = get_auto_short_settings()
+    topics   = settings.get("topics", DEFAULT_SHORT_TOPICS)
+    ambience = settings.get("ambience", DEFAULT_SHORT_AMBIENCE)
+
+    if not topics:
+        print("⚠️  Auto-short: no topics configured")
+        return None
+
+    topic = _pick_next_short_topic(topics)
+    print(f"📱 Auto-short: generating short for: {topic}")
+
+    video_id = None
+    try:
+        import database as db2
+        record   = db2.create_video(f"[Short] {topic}")
+        video_id = record["id"]
+
+        def _cb(info: dict):
+            step = info.get("step", "?") if isinstance(info, dict) else str(info)
+            msg  = info.get("message", "") if isinstance(info, dict) else ""
+            if push_log_fn:
+                push_log_fn(video_id, f"[{step}] {msg}")
+
+        run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb)
+        print(f"✅ Auto-short: pipeline complete for {video_id}")
+        return video_id
+    except Exception as e:
+        print(f"❌ Auto-short pipeline failed: {e}")
+        return None
+    finally:
+        if unregister_fn and video_id:
+            try:
+                unregister_fn(video_id)
+            except Exception:
+                pass
+
+
+def start_auto_short_scheduler():
+    """Start background scheduler for auto-short generation."""
+    def _loop():
+        print("🕐 Auto-short scheduler started")
+        while True:
+            try:
+                settings = get_auto_short_settings()
+                if settings["enabled"]:
+                    now = datetime.datetime.utcnow()
+                    if (now.weekday() in settings["days"] and
+                            now.hour == settings["hour"] and
+                            now.minute < 5):
+                        last = db.get_setting("auto_short_last_run", default="")
+                        today = now.strftime("%Y-%m-%d")
+                        if last != today:
+                            db.set_setting("auto_short_last_run", today)
+                            t = threading.Thread(target=run_auto_short, daemon=True)
+                            t.start()
+            except Exception as e:
+                print(f"⚠️  Auto-short scheduler error: {e}")
+            time.sleep(240)
+
+    threading.Thread(target=_loop, daemon=True).start()

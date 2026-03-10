@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api, {
+  clearCache,
   createShortFromVideo,
   deleteComment,
   deleteFromYoutube,
   deleteVideo,
   generateShortFromScratch,
   generateVideo,
+  getAutoShortSettings,
   getComments,
   getQuota,
   getStats,
   getYouTubeDetails,
+  listShorts,
   listVideos,
   moderateComment,
   postComment,
   replyComment,
   retryVideo,
+  saveAutoShortSettings,
   syncYoutube,
   triggerAutoComment,
+  triggerAutoShort,
   uploadVideo,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
@@ -30,53 +35,26 @@ import {
 import { useAuth } from "../context/AuthContext";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const MOODS_GRID = [
-  { id: "inspirational", emoji: "🔥", label: "Inspirational", bg: null },
-  { id: "educational", emoji: "🧠", label: "Educational", bg: null },
-  { id: "dramatic", emoji: "⚡", label: "Dramatic", bg: null },
-  { id: "reflective", emoji: "🌊", label: "Reflective", bg: null },
-  {
-    id: "aurora_blue",
-    emoji: "🌌",
-    label: "Aurora Blue",
-    aurora: "blue",
-    bg: "#05081a",
-  },
-  {
-    id: "aurora_dark",
-    emoji: "🖤",
-    label: "Aurora Dark",
-    aurora: "dark",
-    bg: "#080810",
-  },
-  {
-    id: "fluid_red",
-    emoji: "🔴",
-    label: "Liquid Red",
-    fluid: "red",
-    bg: "#08000a",
-  },
-  {
-    id: "fluid_blue",
-    emoji: "🔵",
-    label: "Liquid Blue",
-    fluid: "blue",
-    bg: "#00030e",
-  },
-  {
-    id: "fluid_black",
-    emoji: "⚫",
-    label: "Liquid Black",
-    fluid: "black",
-    bg: "#020202",
-  },
-  { id: "gradient_wave", emoji: "🌈", label: "Gradient Wave", bg: "#080a14" },
-  { id: "starfield", emoji: "✨", label: "Starfield", bg: "#020408" },
-  { id: "geometric_pulse", emoji: "◆", label: "Geometric", bg: "#0a0a12" },
-  { id: "neon_purple", emoji: "💜", label: "Neon Purple", fluid: "purple", bg: "#08010e" },
-  { id: "cosmic_dust", emoji: "🌌", label: "Cosmic Dust", bg: "#020408" },
-  { id: "ember_glow", emoji: "🔥", label: "Ember Glow", bg: "#080200" },
+const MOODS_CSS = [
+  { id: "aurora_blue",      emoji: "🌌", label: "Aurora Blue",   aurora: "blue",   bg: "#05081a" },
+  { id: "aurora_dark",      emoji: "🖤", label: "Aurora Dark",   aurora: "dark",   bg: "#080810" },
+  { id: "fluid_red",        emoji: "🔴", label: "Liquid Red",    fluid: "red",     bg: "#08000a" },
+  { id: "fluid_blue",       emoji: "🔵", label: "Liquid Blue",   fluid: "blue",    bg: "#00030e" },
+  { id: "fluid_black",      emoji: "⚫", label: "Liquid Black",  fluid: "black",   bg: "#020202" },
+  { id: "neon_purple",      emoji: "💜", label: "Neon Purple",   fluid: "purple",  bg: "#08010e" },
+  { id: "gradient_wave",    emoji: "🌈", label: "Gradient Wave", bg: "#080a14" },
+  { id: "starfield",        emoji: "✨", label: "Starfield",     bg: "#020408" },
+  { id: "geometric_pulse",  emoji: "◆",  label: "Geometric",     bg: "#0a0a12" },
+  { id: "cosmic_dust",      emoji: "🌌", label: "Cosmic Dust",   bg: "#020408" },
+  { id: "ember_glow",       emoji: "🔥", label: "Ember Glow",    bg: "#080200" },
 ];
+const MOODS_STOCK = [
+  { id: "inspirational", emoji: "🔥", label: "Inspirational", bg: null },
+  { id: "educational",   emoji: "🧠", label: "Educational",   bg: null },
+  { id: "dramatic",      emoji: "⚡", label: "Dramatic",      bg: null },
+  { id: "reflective",    emoji: "🌊", label: "Reflective",    bg: null },
+];
+const MOODS_GRID = [...MOODS_CSS, ...MOODS_STOCK];
 const STEPS = [
   "Script",
   "Voice",
@@ -290,7 +268,11 @@ export default function Dashboard() {
   const [shortClipping, setShortClipping] = useState(false);
   const [shortClipError, setShortClipError] = useState("");
   const [shortClipSuccess, setShortClipSuccess] = useState("");
-
+  const [shortsList, setShortsList] = useState([]);
+  const [shortsLoading, setShortsLoading] = useState(false);
+  const [shortsHasMore, setShortsHasMore] = useState(true);
+  const shortsOffsetRef = useRef(0);
+  const shortsListRef = useRef(null);
   const T = isDark ? THEMES.dark : THEMES.light;
 
   const toggleTheme = () => {
@@ -391,7 +373,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (tab === "billing") fetchBilling();
     if (tab === "channel") fetchChannel(false); // use cache, don't burn quota
-  }, [tab, fetchBilling, fetchChannel]);
+    if (tab === "shorts") loadShorts(true);
+  }, [tab, fetchBilling, fetchChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sessionGenerating = useRef(false);
 
@@ -508,12 +491,43 @@ export default function Dashboard() {
     }
   };
 
+  const loadShorts = async (reset = false) => {
+    if (shortsLoading) return;
+    if (!reset && !shortsHasMore) return;
+    setShortsLoading(true);
+    const offset = reset ? 0 : shortsOffsetRef.current;
+    try {
+      const data = await listShorts(25, offset);
+      const items = Array.isArray(data) ? data : [];
+      if (reset) {
+        setShortsList(items);
+      } else {
+        setShortsList(prev => [...prev, ...items]);
+      }
+      shortsOffsetRef.current = offset + items.length;
+      setShortsHasMore(items.length === 25);
+    } catch (e) {
+      console.error("Shorts load error:", e);
+    } finally {
+      setShortsLoading(false);
+    }
+  };
+
+  const handleShortsScroll = () => {
+    const el = shortsListRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 80;
+    if (nearBottom && !shortsLoading && shortsHasMore) {
+      loadShorts(false);
+    }
+  };
+
   // Reset channel scroll when switching to channel tab
   useEffect(() => {
     if (tab === "channel") setChannelVisible(24);
   }, [tab]);
 
-  // Settings tab — load auto-reply + auto-generate
+  // Settings tab — load auto-reply + auto-generate + auto-short
   useEffect(() => {
     if (tab !== "settings") return;
     api
@@ -529,6 +543,7 @@ export default function Dashboard() {
         setAutoGenSettings(r.data);
       })
       .catch(() => {});
+    api.get("/auto-short/settings").then(r => setAutoShortSettings(r.data)).catch(() => {});
   }, [tab]);
 
   // Infinite scroll — load more channel videos when bottom sentinel is visible
@@ -583,6 +598,17 @@ export default function Dashboard() {
   const autoGenLogPollRef = useRef(null);
   const autoGenLogsEndRef = useRef(null);
   const [shortsModal, setShortsModal] = useState(null); // video object | "new"
+  const [autoShortSettings, setAutoShortSettings] = useState(null);
+  const [autoShortSaving, setAutoShortSaving] = useState(false);
+  const [autoShortRunning, setAutoShortRunning] = useState(false);
+  const [autoShortJobId, setAutoShortJobId] = useState(null);
+  const [autoShortPrompt, setAutoShortPrompt] = useState("");
+  const [autoShortStep, setAutoShortStep] = useState(0);
+  const [autoShortLogs, setAutoShortLogs] = useState([]);
+  const [showAutoShortLogs, setShowAutoShortLogs] = useState(false);
+  const autoShortLogsEndRef = useRef(null);
+  const autoShortLogPollRef = useRef(null);
+  const autoShortLogLineRef = useRef(0);
 
   const handleUpload = async (id, e) => {
     e.stopPropagation();
@@ -1272,14 +1298,18 @@ export default function Dashboard() {
               {tab === "videos"
                 ? "Video Library"
                 : tab === "script"
-                  ? "Script Studio"
-                  : tab === "shorts"
-                    ? "YouTube Shorts"
-                    : tab === "analytics"
-                      ? "Analytics"
-                      : tab === "compilations"
-                        ? "Compilations"
-                        : "Settings"}
+                ? "Script Studio"
+                : tab === "shorts"
+                ? "YouTube Shorts"
+                : tab === "channel"
+                ? "My Channel"
+                : tab === "billing"
+                ? "Billing & Quotas"
+                : tab === "compilations"
+                ? "Compilations"
+                : tab === "analytics"
+                ? "Analytics"
+                : "Settings"}
             </div>
             <div
               style={{
@@ -1310,7 +1340,7 @@ export default function Dashboard() {
               </div>
 
               <button
-                onClick={refresh}
+                onClick={() => window.location.reload()}
                 style={{
                   padding: "4px 10px",
                   borderRadius: 6,
@@ -1323,6 +1353,29 @@ export default function Dashboard() {
                 }}
               >
                 ↺
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await clearCache();
+                    window.location.reload();
+                  } catch (e) {
+                    window.location.reload();
+                  }
+                }}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${T.border}`,
+                  background: "transparent",
+                  color: T.textDim,
+                  fontSize: 10,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                ⊗ CLEAR
               </button>
               <button
                 onClick={handleSync}
@@ -1540,83 +1593,53 @@ export default function Dashboard() {
                   </div>
                   {/* Visual mood grid */}
                   <div style={{ marginTop: 14 }}>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        color: T.textFaint,
-                        letterSpacing: "0.1em",
-                        marginBottom: 7,
-                      }}
-                    >
+                    <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 7 }}>
                       VISUAL MOOD
                     </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(3,1fr)",
-                        gap: 5,
-                      }}
-                    >
-                      {MOODS_GRID.map((v) => (
-                        <button
-                          key={v.id}
-                          onClick={() => setVisualMood(v.id)}
-                          disabled={generating}
+                    <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 4 }}>CSS BACKGROUNDS</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5, marginBottom: 8 }}>
+                      {MOODS_CSS.map((v) => (
+                        <button key={v.id} onClick={() => setVisualMood(v.id)} disabled={generating}
                           style={{
-                            position: "relative",
-                            padding: "7px 8px",
-                            borderRadius: 8,
-                            overflow: "hidden",
+                            position: "relative", padding: "7px 8px", borderRadius: 8, overflow: "hidden",
                             border: `1px solid ${visualMood === v.id ? "#a060ff60" : T.border}`,
-                            background:
-                              v.bg ||
-                              (visualMood === v.id
-                                ? "#a060ff12"
-                                : "transparent"),
+                            background: v.bg || (visualMood === v.id ? "#a060ff12" : "transparent"),
                             color: visualMood === v.id ? "#a060ff" : T.textMid,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            textAlign: "left",
-                            transition: "all 0.15s",
+                            cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s",
                           }}
                         >
                           {v.aurora && (
-                            <div
-                              className={`aurora-wrap aurora-${v.aurora}`}
-                              style={{
-                                opacity: visualMood === v.id ? 1 : 0.55,
-                              }}
-                            >
-                              <div className="aurora-band" />
-                              <div className="aurora-band" />
-                              <div className="aurora-band" />
+                            <div className={`aurora-wrap aurora-${v.aurora}`} style={{ opacity: visualMood === v.id ? 1 : 0.55 }}>
+                              <div className="aurora-band" /><div className="aurora-band" /><div className="aurora-band" />
                             </div>
                           )}
                           {v.fluid && (
-                            <div
-                              className={`fluid-wrap fluid-${v.fluid}`}
-                              style={{
-                                opacity: visualMood === v.id ? 1 : 0.65,
-                              }}
-                            >
-                              <div className="fluid-blob" />
-                              <div className="fluid-blob" />
-                              <div className="fluid-blob" />
+                            <div className={`fluid-wrap fluid-${v.fluid}`} style={{ opacity: visualMood === v.id ? 1 : 0.65 }}>
+                              <div className="fluid-blob" /><div className="fluid-blob" /><div className="fluid-blob" />
                             </div>
                           )}
-                          <div
-                            style={{
-                              position: "relative",
-                              zIndex: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 5,
-                            }}
-                          >
+                          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 5 }}>
                             <span style={{ fontSize: 12 }}>{v.emoji}</span>
-                            <span style={{ fontSize: 9, fontWeight: 600 }}>
-                              {v.label}
-                            </span>
+                            <span style={{ fontSize: 9, fontWeight: 600 }}>{v.label}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 4 }}>STOCK FOOTAGE</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5 }}>
+                      {MOODS_STOCK.map((v) => (
+                        <button key={v.id} onClick={() => setVisualMood(v.id)} disabled={generating}
+                          style={{
+                            position: "relative", padding: "7px 8px", borderRadius: 8, overflow: "hidden",
+                            border: `1px solid ${visualMood === v.id ? "#a060ff60" : T.border}`,
+                            background: visualMood === v.id ? "#a060ff12" : "transparent",
+                            color: visualMood === v.id ? "#a060ff" : T.textMid,
+                            cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s",
+                          }}
+                        >
+                          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ fontSize: 12 }}>{v.emoji}</span>
+                            <span style={{ fontSize: 9, fontWeight: 600 }}>{v.label}</span>
                           </div>
                         </button>
                       ))}
@@ -2987,113 +3010,210 @@ export default function Dashboard() {
 
             {/* ── SHORTS TAB ─────────────────────────────────────────────────────── */}
             {tab === "shorts" && (
-              <div style={{ maxWidth: 900, margin: "0 auto" }}>
-                {/* Header */}
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: T.text, marginBottom: 6 }}>
-                    ⚡ YouTube Shorts Studio
-                  </div>
-                  <div style={{ fontSize: 12, color: T.textDim }}>
-                    Generate portrait 9:16 videos or clip your best existing content into Shorts.
-                  </div>
+  <div style={{ display: "flex", gap: 20, height: "100%", minHeight: 0 }}>
+
+    {/* LEFT — Existing Shorts */}
+    <div style={{
+      width: 320,
+      flexShrink: 0,
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: 14,
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+    }}>
+      <div style={{
+        padding: "14px 16px",
+        borderBottom: `1px solid ${T.border}`,
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexShrink: 0,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T.text, letterSpacing: "0.08em" }}>
+          ⚡ YOUR SHORTS
+        </div>
+        <button
+          onClick={() => { setShortsList([]); shortsOffsetRef.current = 0; loadShorts(true); }}
+          style={{ background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 13 }}
+        >↺</button>
+      </div>
+
+      <div
+        ref={shortsListRef}
+        onScroll={handleShortsScroll}
+        style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}
+      >
+        {shortsLoading && shortsList.length === 0 ? (
+          [0,1,2].map(i => (
+            <div key={i} style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center" }}>
+              <div className="skeleton-loader" style={{ width: 64, height: 36, borderRadius: 6, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton-loader" style={{ width: "70%", height: 11, borderRadius: 3, marginBottom: 6 }} />
+                <div className="skeleton-loader" style={{ width: "40%", height: 9, borderRadius: 3 }} />
+              </div>
+            </div>
+          ))
+        ) : shortsList.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: T.textFaint, fontSize: 11 }}>
+            No shorts yet — generate your first one →
+          </div>
+        ) : (
+          shortsList.map(s => (
+            <div
+              key={s.id}
+              style={{
+                padding: "10px 14px",
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                cursor: "pointer",
+                borderBottom: `1px solid ${T.border}20`,
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.bgCardHover}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              {/* Thumbnail */}
+              <div style={{
+                width: 64, height: 36, borderRadius: 6,
+                background: `linear-gradient(135deg,#4a9eff18,#00000020)`,
+                border: `1px solid ${T.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, fontSize: 14, opacity: 0.7,
+              }}>
+                {s.file_path ? "▶" : "⚙"}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 600, color: T.text,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  marginBottom: 3,
+                }}>
+                  {s.title || s.prompt?.slice(0, 40) || "Untitled Short"}
                 </div>
-
-                {/* Two modes */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-                  {/* Mode A: Generate from scratch */}
-                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 4 }}>
-                      ✨ Generate New Short
-                    </div>
-                    <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
-                      AI writes + narrates + renders a brand-new 9:16 Short from your prompt.
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>TOPIC / PROMPT</div>
-                      <textarea
-                        value={shortPrompt}
-                        onChange={e => setShortPrompt(e.target.value)}
-                        rows={3}
-                        placeholder="e.g. 'The quiet grief nobody talks about'"
-                        style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>AMBIENCE</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                        {[
-                          { v: "stars", emoji: "⭐", label: "Stars", desc: "Deep space drift" },
-                          { v: "aurora", emoji: "🌌", label: "Aurora", desc: "Rippling northern lights" },
-                          { v: "ocean", emoji: "🌊", label: "Ocean", desc: "Underwater light rays" },
-                          { v: "fire", emoji: "🔥", label: "Fire", desc: "Warm floating embers" },
-                          { v: "rain", emoji: "🌧", label: "Rain", desc: "Night city window" },
-                          { v: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
-                          { v: "candlelight", emoji: "🕯", label: "Candle", desc: "Soft flickering glow" },
-                          { v: "forest", emoji: "🌿", label: "Forest", desc: "Golden light canopy" },
-                        ].map(a => (
-                          <button key={a.v} onClick={() => setShortAmbience(a.v)} style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", textAlign: "left", border: `2px solid ${shortAmbience === a.v ? T.accent : T.border}`, background: shortAmbience === a.v ? `${T.accent}18` : T.inputBg, color: T.text, fontFamily: "inherit" }}>
-                            <div style={{ fontSize: 11, fontWeight: 700 }}>{a.emoji} {a.label}</div>
-                            <div style={{ fontSize: 10, color: T.textDim }}>{a.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
-                    <button onClick={handleGenerateShort} disabled={shortGenerating || !shortPrompt.trim()} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortGenerating || !shortPrompt.trim() ? T.border : T.accent, color: shortGenerating || !shortPrompt.trim() ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortGenerating || !shortPrompt.trim() ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
-                      {shortGenerating ? "⚡ GENERATING..." : "⚡ GENERATE SHORT"}
-                    </button>
-                  </div>
-
-                  {/* Mode B: Clip from existing video */}
-                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 4 }}>
-                      ✂️ Clip Existing Video
-                    </div>
-                    <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
-                      Auto-clips the best 59 seconds from a video in your library and crops to 9:16 portrait.
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>SELECT VIDEO</div>
-                      <select
-                        value={shortClipVideoId}
-                        onChange={e => setShortClipVideoId(e.target.value)}
-                        style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
-                      >
-                        <option value="">— Pick a video —</option>
-                        {videos.filter(v => v.status === "posted" || v.status === "ready").map(v => (
-                          <option key={v.id} value={v.id}>{v.title || v.id.slice(0,16)}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16, padding: "10px 12px", background: T.bgSub, borderRadius: 8, lineHeight: 1.6 }}>
-                      ℹ️ The first ~25% of the video is skipped (usually intro). The next 59s is cropped to a center portrait frame and uploaded to YouTube as a Short.
-                    </div>
-                    {shortClipError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortClipError}</div>}
-                    {shortClipSuccess && <div style={{ fontSize: 11, color: T.accentGreen, marginBottom: 10 }}>{shortClipSuccess}</div>}
-                    <button onClick={handleClipShort} disabled={shortClipping || !shortClipVideoId} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortClipping || !shortClipVideoId ? T.border : T.accentGreen, color: shortClipping || !shortClipVideoId ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortClipping || !shortClipVideoId ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
-                      {shortClipping ? "✂️ PROCESSING..." : "✂️ CREATE SHORT"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tips */}
-                <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 18px" }}>
-                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SHORTS TIPS</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                    {[
-                      { icon: "⏱", title: "Max 59 Seconds", desc: "YouTube Shorts must be under 60s to qualify for the Shorts feed." },
-                      { icon: "📱", title: "9:16 Portrait", desc: "All Shorts are rendered at 1080×1920 — vertical mobile-first format." },
-                      { icon: "🚀", title: "Auto Upload", desc: "Generated Shorts are automatically uploaded to your YouTube channel." },
-                    ].map(tip => (
-                      <div key={tip.icon} style={{ background: T.bgSub, borderRadius: 10, padding: "12px 14px" }}>
-                        <div style={{ fontSize: 18, marginBottom: 6 }}>{tip.icon}</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 4 }}>{tip.title}</div>
-                        <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5 }}>{tip.desc}</div>
-                      </div>
-                    ))}
-                  </div>
+                <div style={{ fontSize: 10, color: T.textFaint }}>
+                  {s.status === "ready" ? "✅ Ready" : s.status === "failed" ? "❌ Failed" : "⚙ " + s.status}
+                  {s.duration_seconds ? ` · ${s.duration_seconds}s` : ""}
                 </div>
               </div>
+            </div>
+          ))
+        )}
+        {shortsLoading && shortsList.length > 0 && (
+          <div style={{ textAlign: "center", padding: 12, color: T.textFaint, fontSize: 11 }}>Loading more...</div>
+        )}
+        {shortsHasMore === false && shortsList.length > 0 && (
+          <div style={{ textAlign: "center", padding: 10, color: T.textFaint, fontSize: 10 }}>All shorts loaded</div>
+        )}
+      </div>
+    </div>
+
+    {/* RIGHT — Generate forms */}
+    <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: T.text, marginBottom: 6 }}>
+          ⚡ YouTube Shorts Studio
+        </div>
+        <div style={{ fontSize: 12, color: T.textDim }}>
+          Generate portrait 9:16 videos or clip your best existing content into Shorts.
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+        {/* Mode A: Generate from scratch */}
+        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 4 }}>
+            ✨ Generate New Short
+          </div>
+          <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
+            AI writes + narrates + renders a brand-new 9:16 Short from your prompt.
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>TOPIC / PROMPT</div>
+            <textarea
+              value={shortPrompt}
+              onChange={e => setShortPrompt(e.target.value)}
+              rows={3}
+              placeholder="e.g. 'The quiet grief nobody talks about'"
+              style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>AMBIENCE</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {[
+                { v: "stars", emoji: "⭐", label: "Stars", desc: "Deep space drift" },
+                { v: "aurora", emoji: "🌌", label: "Aurora", desc: "Northern lights" },
+                { v: "ocean", emoji: "🌊", label: "Ocean", desc: "Underwater rays" },
+                { v: "fire", emoji: "🔥", label: "Fire", desc: "Floating embers" },
+                { v: "rain", emoji: "🌧", label: "Rain", desc: "Night city window" },
+                { v: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
+              ].map(a => (
+                <button key={a.v} onClick={() => setShortAmbience(a.v)} style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", textAlign: "left", border: `2px solid ${shortAmbience === a.v ? T.accent : T.border}`, background: shortAmbience === a.v ? `${T.accent}18` : T.inputBg, color: T.text, fontFamily: "inherit" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700 }}>{a.emoji} {a.label}</div>
+                  <div style={{ fontSize: 10, color: T.textDim }}>{a.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
+          <button onClick={handleGenerateShort} disabled={shortGenerating || !shortPrompt.trim()} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortGenerating || !shortPrompt.trim() ? T.border : T.accent, color: shortGenerating || !shortPrompt.trim() ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortGenerating || !shortPrompt.trim() ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+            {shortGenerating ? "⚡ GENERATING..." : "⚡ GENERATE SHORT"}
+          </button>
+        </div>
+
+        {/* Mode B: Clip from existing video */}
+        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 4 }}>
+            ✂️ Clip Existing Video
+          </div>
+          <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
+            Auto-clips the best 59s from a video in your library, crops to 9:16 portrait.
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>SELECT VIDEO</div>
+            <select
+              value={shortClipVideoId}
+              onChange={e => setShortClipVideoId(e.target.value)}
+              style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
+            >
+              <option value="">— Pick a video —</option>
+              {videos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path).map(v => (
+                <option key={v.id} value={v.id}>{v.title || v.id.slice(0,16)}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16, padding: "10px 12px", background: T.bgSub, borderRadius: 8, lineHeight: 1.6 }}>
+            ℹ️ First ~25% skipped (intro), next 59s center-cropped to portrait and saved as a Short.
+          </div>
+          {shortClipError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortClipError}</div>}
+          {shortClipSuccess && <div style={{ fontSize: 11, color: T.accentGreen, marginBottom: 10 }}>{shortClipSuccess}</div>}
+          <button onClick={handleClipShort} disabled={shortClipping || !shortClipVideoId} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortClipping || !shortClipVideoId ? T.border : T.accentGreen, color: shortClipping || !shortClipVideoId ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortClipping || !shortClipVideoId ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+            {shortClipping ? "✂️ PROCESSING..." : "✂️ CREATE SHORT"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 18px" }}>
+        <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SHORTS TIPS</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {[
+            { icon: "⏱", title: "Max 59 Seconds", desc: "YouTube Shorts must be under 60s to qualify for the Shorts feed." },
+            { icon: "📱", title: "9:16 Portrait", desc: "All Shorts are rendered at 1080×1920 — vertical mobile-first format." },
+            { icon: "👁", title: "Review Before Upload", desc: "Shorts are saved as Ready — you upload to YouTube when satisfied." },
+          ].map(tip => (
+            <div key={tip.icon} style={{ background: T.bgSub, borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 18, marginBottom: 6 }}>{tip.icon}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 4 }}>{tip.title}</div>
+              <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5 }}>{tip.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
             )}
 
             {/* ── Billing & Quotas Tab ──────────────────────────────────────────── */}
@@ -3234,33 +3354,32 @@ export default function Dashboard() {
                                   background: T.bgBase,
                                 }}
                               >
-                                {v.thumbnail_url ? (
-                                  <img
-                                    src={v.thumbnail_url}
-                                    alt={v.title}
-                                    style={{
-                                      position: "absolute",
-                                      inset: 0,
-                                      width: "100%",
-                                      height: "100%",
-                                      objectFit: "cover",
-                                    }}
-                                  />
-                                ) : (
-                                  <div
-                                    style={{
-                                      position: "absolute",
-                                      inset: 0,
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      color: T.textFaint,
-                                      fontSize: 28,
-                                    }}
-                                  >
-                                    ▶
-                                  </div>
-                                )}
+                                <img
+                                  src={v.thumbnail_url}
+                                  alt={v.title}
+                                  style={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                    display: v.thumbnail_url ? "block" : "none",
+                                  }}
+                                  onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+                                />
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    display: v.thumbnail_url ? "none" : "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: T.textFaint,
+                                    fontSize: 28,
+                                  }}
+                                >
+                                  ▶
+                                </div>
                                 <div
                                   style={{
                                     position: "absolute",
@@ -5070,7 +5189,10 @@ export default function Dashboard() {
 
             {/* ── SETTINGS TAB ────────────────────────────────────────────────────── */}
             {tab === "settings" && (
-              <div style={{ maxWidth: 520 }}>
+              <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
+
+                {/* ── LEFT COLUMN: Automation ── */}
+                <div style={{ flex: 1, minWidth: 0, maxWidth: 540 }}>
                 <div
                   style={{
                     fontFamily: "'Syne',sans-serif",
@@ -5080,7 +5202,7 @@ export default function Dashboard() {
                     marginBottom: 20,
                   }}
                 >
-                  Configuration
+                  Automation
                 </div>
 
                 {/* ── Automation toggles ── */}
@@ -5813,68 +5935,352 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                <div
-                  style={{
-                    padding: "12px 16px",
-                    background: `${T.accentYellow}0a`,
-                    border: `1px solid ${T.accentYellow}22`,
-                    borderRadius: 10,
-                    fontSize: 11,
-                    color: T.accentYellow,
-                    marginBottom: 20,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  ⚠ API keys are configured in{" "}
-                  <code
-                    style={{
-                      background: T.inputBg,
-                      padding: "1px 5px",
-                      borderRadius: 3,
-                    }}
-                  >
-                    backend/.env
-                  </code>
-                  . Restart the backend after changes.
-                </div>
-                {[
-                  ["LLM MODEL", "Groq — llama-3.3-70b-versatile"],
-                  ["TTS ENGINE", "ElevenLabs — Adam voice (deep)"],
-                  ["TTS QUALITY", "mp3_44100_192 · stability 0.80"],
-                  ["VIDEO RESOLUTION", "1920×1080 @ 30fps"],
-                  ["CAPTIONS", "Whisper base + FFmpeg burn"],
-                  ["STOCK CLIPS", "Pexels API (Pixabay fallback)"],
-                  ["DATABASE", "Supabase PostgreSQL"],
-                  ["TASK QUEUE", "Celery + Redis"],
-                  ["YOUTUBE QUOTA", "10,000 units/day ≈ 6 uploads"],
-                ].map(([k, v]) => (
+                {/* ── Auto-Short Settings ── */}
+                {autoShortSettings && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>
+                      AUTO-SHORT
+                    </div>
+                    <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px" }}>
+                      {/* Enable toggle */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>📱 Auto-Generate Shorts</div>
+                          <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                            Automatically generates portrait 9:16 Shorts on a schedule
+                          </div>
+                        </div>
+                        <div
+                          onClick={() => setAutoShortSettings(s => ({ ...s, enabled: !s.enabled }))}
+                          style={{
+                            width: 44, height: 24, borderRadius: 12,
+                            background: autoShortSettings.enabled ? T.accentGreen : T.border,
+                            cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0,
+                          }}
+                        >
+                          <div style={{
+                            position: "absolute", top: 3,
+                            left: autoShortSettings.enabled ? 23 : 3,
+                            width: 18, height: 18, borderRadius: "50%",
+                            background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                          }} />
+                        </div>
+                      </div>
+
+                      {/* Days of week */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>RUN ON DAYS</div>
+                        <div style={{ display: "flex", gap: 5 }}>
+                          {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d, i) => (
+                            <button key={i}
+                              onClick={() => {
+                                const days = autoShortSettings.days.includes(i)
+                                  ? autoShortSettings.days.filter(x => x !== i)
+                                  : [...autoShortSettings.days, i].sort();
+                                setAutoShortSettings(s => ({ ...s, days }));
+                              }}
+                              style={{
+                                flex: 1, padding: "5px 0", borderRadius: 6,
+                                border: `1px solid ${autoShortSettings.days.includes(i) ? T.accent + "80" : T.border}`,
+                                background: autoShortSettings.days.includes(i) ? `${T.accent}15` : "transparent",
+                                color: autoShortSettings.days.includes(i) ? T.accent : T.textFaint,
+                                fontSize: 9, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.06em",
+                              }}
+                            >{d}</button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginTop: 5 }}>
+                          {autoShortSettings.days.length} days/week · runs at {autoShortSettings.hour}:00 UTC
+                        </div>
+                      </div>
+
+                      {/* Hour input */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>RUN HOUR (UTC)</div>
+                        <input
+                          type="number" min={0} max={23}
+                          value={autoShortSettings.hour}
+                          onChange={e => setAutoShortSettings(s => ({ ...s, hour: parseInt(e.target.value) || 0 }))}
+                          style={{
+                            width: 80, padding: "5px 8px", borderRadius: 6,
+                            border: `1px solid ${T.border}`, background: T.inputBg,
+                            color: T.text, fontSize: 12, fontFamily: "inherit",
+                          }}
+                        />
+                      </div>
+
+                      {/* Ambience selector */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>AMBIENCE</div>
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                          {["stars","aurora","ocean","fire","rain","galaxy"].map(a => (
+                            <button key={a}
+                              onClick={() => setAutoShortSettings(s => ({ ...s, ambience: a }))}
+                              style={{
+                                padding: "5px 10px", borderRadius: 6,
+                                border: `1px solid ${autoShortSettings.ambience === a ? T.accent + "80" : T.border}`,
+                                background: autoShortSettings.ambience === a ? `${T.accent}15` : "transparent",
+                                color: autoShortSettings.ambience === a ? T.accent : T.textFaint,
+                                fontSize: 10, fontFamily: "inherit", cursor: "pointer", textTransform: "capitalize",
+                              }}
+                            >{a}</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Save + Run Now */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                        <button
+                          onClick={async () => {
+                            setAutoShortSaving(true);
+                            try {
+                              await saveAutoShortSettings(autoShortSettings);
+                              showToast("Auto-short settings saved");
+                            } catch (e) {
+                              showToast("Failed to save", "error");
+                            } finally {
+                              setAutoShortSaving(false);
+                            }
+                          }}
+                          style={{
+                            flex: 1, padding: "8px 0", borderRadius: 7,
+                            border: `1px solid ${T.accent}50`, background: `${T.accent}10`,
+                            color: T.accent, fontSize: 11, fontFamily: "inherit",
+                            cursor: "pointer", letterSpacing: "0.06em",
+                          }}
+                        >
+                          {autoShortSaving ? "Saving..." : "💾 Save Settings"}
+                        </button>
+                        <button
+                          disabled={autoShortRunning}
+                          onClick={async () => {
+                            try {
+                              const res = await triggerAutoShort();
+                              const vid = res?.video_id;
+                              if (!vid) { showToast("Server did not return a video ID", "error"); return; }
+                              setAutoShortJobId(vid);
+                              setAutoShortPrompt(res.topic || "");
+                              setAutoShortRunning(true);
+                              setAutoShortStep(1);
+                              setAutoShortLogs([]);
+                              autoShortLogLineRef.current = 0;
+                              showToast("📱 Auto-short started!");
+
+                              const stepMap = { generating:1, scripted:2, voiced:3, assembled:4, captioned:5, labeled:5, ready:6, posted:6 };
+                              const stepPoll = setInterval(async () => {
+                                try {
+                                  const { data: st } = await api.get(`/videos/${vid}`);
+                                  if (st?.status) setAutoShortStep(stepMap[st.status] ?? 1);
+                                  if (["ready","posted","failed"].includes(st?.status)) {
+                                    clearInterval(stepPoll);
+                                    clearInterval(autoShortLogPollRef.current);
+                                    setAutoShortRunning(false);
+                                    if (st.status === "failed") showToast("Auto-short failed", "error");
+                                    else { showToast("✅ Auto-short ready!"); refresh(); }
+                                  }
+                                } catch (e) {}
+                              }, 4000);
+
+                              autoShortLogPollRef.current = setInterval(async () => {
+                                try {
+                                  const { data: ld } = await api.get(`/videos/${vid}/logs?since=${autoShortLogLineRef.current}`);
+                                  if (ld?.lines?.length > 0) {
+                                    autoShortLogLineRef.current += ld.lines.length;
+                                    setAutoShortLogs(prev => [...prev, ...ld.lines].slice(-300));
+                                    setTimeout(() => autoShortLogsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+                                  }
+                                  if (ld?.done) clearInterval(autoShortLogPollRef.current);
+                                } catch (e) {}
+                              }, 1500);
+                            } catch (e) {
+                              showToast(e.response?.data?.detail || "Failed to trigger", "error");
+                            }
+                          }}
+                          style={{
+                            padding: "8px 14px", borderRadius: 7,
+                            border: `1px solid ${autoShortRunning ? T.border : T.accentGreen + "60"}`,
+                            background: autoShortRunning ? "transparent" : `${T.accentGreen}10`,
+                            color: autoShortRunning ? T.textFaint : T.accentGreen,
+                            fontSize: 11, fontFamily: "inherit",
+                            cursor: autoShortRunning ? "not-allowed" : "pointer", letterSpacing: "0.06em",
+                          }}
+                        >
+                          {autoShortRunning ? "⚙ Running..." : "▶ Run Now"}
+                        </button>
+                      </div>
+
+                      {/* Progress panel */}
+                      {autoShortRunning && (
+                        <div style={{ marginTop: 16, borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
+                          {autoShortPrompt && (
+                            <div style={{ fontSize: 11, color: T.textMid, marginBottom: 12, fontStyle: "italic" }}>
+                              "{autoShortPrompt}"
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: 14 }}>
+                            {STEPS.map((s, i) => {
+                              const done = i < autoShortStep - 1, active = i === autoShortStep - 1;
+                              return (
+                                <div key={s} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                                    <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <div style={{
+                                        width: 24, height: 24, borderRadius: "50%",
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        fontSize: 10, fontWeight: 700,
+                                        background: done ? T.accentGreen : active ? T.accent : T.bgDeep,
+                                        color: done || active ? "white" : T.textFaint,
+                                        transition: "all 0.4s",
+                                        boxShadow: active ? `0 0 14px ${T.accent}80` : "none", zIndex: 1,
+                                      }}>
+                                        {done ? "✓" : i + 1}
+                                      </div>
+                                    </div>
+                                    <div style={{
+                                      fontSize: 8, color: active ? T.accent : done ? T.accentGreen : T.textFaint,
+                                      letterSpacing: "0.06em", whiteSpace: "nowrap",
+                                    }}>
+                                      {s.toUpperCase()}
+                                    </div>
+                                  </div>
+                                  {i < STEPS.length - 1 && (
+                                    <div style={{
+                                      flex: 1, height: 2,
+                                      background: done ? T.accentGreen : T.border,
+                                      margin: "0 3px", marginBottom: 18, transition: "background 0.4s",
+                                    }} />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              onClick={() => setShowAutoShortLogs(true)}
+                              style={{
+                                flex: 1, padding: "6px 0", borderRadius: 6,
+                                border: `1px solid ${T.border}`, background: "transparent",
+                                color: T.textMid, fontSize: 10, fontFamily: "inherit",
+                                letterSpacing: "0.07em", cursor: "pointer",
+                              }}
+                            >📋 VIEW LOGS</button>
+                            <button
+                              onClick={() => {
+                                clearInterval(autoShortLogPollRef.current);
+                                setAutoShortRunning(false);
+                                setAutoShortStep(0);
+                                showToast("Cancelled", "error");
+                              }}
+                              style={{
+                                padding: "6px 12px", borderRadius: 6,
+                                border: `1px solid ${T.accentRed}40`, background: `${T.accentRed}08`,
+                                color: T.accentRed, fontSize: 10, fontFamily: "inherit",
+                                cursor: "pointer", letterSpacing: "0.07em",
+                              }}
+                            >🛑 CANCEL</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                </div>{/* end LEFT COLUMN */}
+
+                {/* ── RIGHT COLUMN: Configuration ── */}
+                <div style={{ width: 320, flexShrink: 0, position: "sticky", top: 20 }}>
                   <div
-                    key={k}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "12px 16px",
-                      background: T.bgCard,
-                      borderRadius: 9,
-                      marginBottom: 6,
-                      border: `1px solid ${T.border}`,
+                      fontFamily: "'Syne',sans-serif",
+                      fontWeight: 700,
+                      fontSize: 20,
+                      color: T.text,
+                      marginBottom: 20,
                     }}
                   >
-                    <span
+                    Configuration
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      background: `${T.accentYellow}0a`,
+                      border: `1px solid ${T.accentYellow}22`,
+                      borderRadius: 10,
+                      fontSize: 11,
+                      color: T.accentYellow,
+                      marginBottom: 16,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    ⚠ API keys are configured in{" "}
+                    <code style={{ background: T.inputBg, padding: "1px 5px", borderRadius: 3 }}>
+                      backend/.env
+                    </code>
+                    . Restart the backend after changes.
+                  </div>
+
+                  {[
+                    ["LLM MODEL", "Groq — llama-3.3-70b-versatile"],
+                    ["TTS ENGINE", "ElevenLabs — Adam voice (deep)"],
+                    ["TTS QUALITY", "mp3_44100_192 · stability 0.80"],
+                    ["VIDEO RESOLUTION", "1920×1080 @ 30fps"],
+                    ["CAPTIONS", "Whisper base + FFmpeg burn"],
+                    ["STOCK CLIPS", "Pexels API (Pixabay fallback)"],
+                    ["DATABASE", "Supabase PostgreSQL"],
+                    ["YOUTUBE QUOTA", "10,000 units/day ≈ 6 uploads"],
+                  ].map(([k, v]) => (
+                    <div
+                      key={k}
                       style={{
-                        fontSize: 10,
-                        color: T.textDim,
-                        letterSpacing: "0.1em",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "10px 14px",
+                        background: T.bgCard,
+                        borderRadius: 9,
+                        marginBottom: 6,
+                        border: `1px solid ${T.border}`,
                       }}
                     >
-                      {k}
-                    </span>
-                    <span style={{ fontSize: 12, color: T.textMid }}>{v}</span>
-                  </div>
-                ))}
+                      <span style={{ fontSize: 9, color: T.textDim, letterSpacing: "0.1em" }}>{k}</span>
+                      <span style={{ fontSize: 11, color: T.textMid }}>{v}</span>
+                    </div>
+                  ))}
+                </div>{/* end RIGHT COLUMN */}
+
               </div>
             )}
+
+                {/* Auto-short log modal */}
+                {showAutoShortLogs && (
+                  <div
+                    onClick={() => setShowAutoShortLogs(false)}
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+                  >
+                    <div
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: "100%", maxWidth: 700, maxHeight: "70vh", background: "#0a0a0f", border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden" }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: `1px solid ${T.border}` }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: T.text, letterSpacing: "0.1em" }}>AUTO-SHORT LOGS</div>
+                        <button onClick={() => setShowAutoShortLogs(false)} style={{ background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 18 }}>✕</button>
+                      </div>
+                      <div style={{ flex: 1, overflowY: "auto", padding: "12px 18px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
+                        {autoShortLogs.length === 0 ? (
+                          <div style={{ color: T.textFaint }}>Waiting for pipeline output...</div>
+                        ) : (
+                          autoShortLogs.map((line, i) => (
+                            <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : "#a0d0a0" }}>
+                              {line}
+                            </div>
+                          ))
+                        )}
+                        <div ref={autoShortLogsEndRef} />
+                      </div>
+                    </div>
+                  </div>
+                )}
           </div>
         </div>
 

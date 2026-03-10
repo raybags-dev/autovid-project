@@ -20,16 +20,12 @@ FPS = 30
 
 # ── Ambience styles for from-scratch Shorts ──────────────────────────────────
 AMBIENCE_STYLES = {
-    "stars":        "Zoom through a cluster of stars — slow drift, subtle twinkle, deep space blue/purple",
-    "aurora":       "Aurora borealis rippling — green and purple waves across a dark sky",
-    "ocean":        "Slow-motion deep ocean — shafts of light filtering through blue water",
-    "fire":         "Warm glowing embers — slow floating sparks on black background",
-    "rain":         "Rainy window at night — city lights blurred through raindrops",
-    "forest":       "Sunlight through forest canopy — slow sway, golden light rays",
-    "citynight":    "Timelapse city at night — light trails, bokeh, warm tones",
-    "clouds":       "Timelapse clouds — soft white clouds drifting across a blue sky",
-    "galaxy":       "Slow rotation through a spiral galaxy — deep blues and purples",
-    "candlelight":  "Single candle flame — soft warm glow, subtle flicker in darkness",
+    "stars":   "Zoom through a cluster of stars — slow drift, subtle twinkle, deep space blue/purple",
+    "aurora":  "Aurora borealis rippling — green and purple waves across a dark sky",
+    "ocean":   "Slow-motion deep ocean — shafts of light filtering through blue water",
+    "fire":    "Warm glowing embers — slow floating sparks on black background",
+    "rain":    "Rainy window at night — city lights blurred through raindrops",
+    "galaxy":  "Slow rotation through a spiral galaxy — deep blues and purples",
 }
 
 
@@ -132,8 +128,6 @@ def generate_short_visual(duration: int = 45, ambience: str = "stars") -> str:
         frames = _gen_rain(n_frames)
     elif style == "galaxy":
         frames = _gen_galaxy(n_frames)
-    elif style == "candlelight":
-        frames = _gen_candlelight(n_frames)
     else:
         frames = _gen_star_zoom(n_frames)  # default
 

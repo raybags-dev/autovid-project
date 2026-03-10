@@ -1,11 +1,11 @@
 version: "3.9"
 
 services:
-  # ── 4 Backend instances ──────────────────────────────────────────
+  # ── 2 Backend instances (1.4 GB each — pipeline needs ~900MB peak) ──
   backend-1:
     build: ./backend
     restart: unless-stopped
-    mem_limit: 800m
+    mem_limit: 1400m
     env_file: .env
     volumes:
       - video_output:/app/output
@@ -16,7 +16,7 @@ services:
   backend-2:
     build: ./backend
     restart: unless-stopped
-    mem_limit: 800m
+    mem_limit: 1400m
     env_file: .env
     volumes:
       - video_output:/app/output
@@ -24,29 +24,7 @@ services:
     expose:
       - "8000"
 
-  backend-3:
-    build: ./backend
-    restart: unless-stopped
-    mem_limit: 800m
-    env_file: .env
-    volumes:
-      - video_output:/app/output
-      - ./backend/token.json:/app/token.json:ro
-    expose:
-      - "8000"
-
-  backend-4:
-    build: ./backend
-    restart: unless-stopped
-    mem_limit: 800m
-    env_file: .env
-    volumes:
-      - video_output:/app/output
-      - ./backend/token.json:/app/token.json:ro
-    expose:
-      - "8000"
-
-  # ── Nginx load balancer across 4 backends ────────────────────────
+  # ── Nginx load balancer ──────────────────────────────────────────────
   nginx-lb:
     image: nginx:alpine
     restart: unless-stopped
@@ -57,10 +35,8 @@ services:
     depends_on:
       - backend-1
       - backend-2
-      - backend-3
-      - backend-4
 
-  # ── Frontend ─────────────────────────────────────────────────────
+  # ── Frontend ─────────────────────────────────────────────────────────
   frontend:
     build: ./frontend
     restart: unless-stopped

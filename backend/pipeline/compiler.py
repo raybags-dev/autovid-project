@@ -213,3 +213,135 @@ def create_compilation(
                     os.unlink(f)
             except Exception:
                 pass
+
+
+def _extract_audio(video_path: str, output_mp3: str):
+    """
+    Extract audio track from a video file as MP3.
+    Downloads first if video_path is a remote URL.
+    """
+    local_path = video_path
+    tmp_download = None
+
+    if video_path.startswith("http://") or video_path.startswith("https://"):
+        print(f"⬇️  Downloading video for audio extraction...")
+        import tempfile as _tf
+        tmp_download = _tf.mktemp(suffix=".mp4")
+        _download(video_path, tmp_download)
+        local_path = tmp_download
+
+    try:
+        result = subprocess.run([
+            "ffmpeg", "-y",
+            "-i", local_path,
+            "-vn",              # no video stream
+            "-acodec", "libmp3lame",
+            "-b:a", "192k",
+            "-ar", "44100",
+            output_mp3,
+        ], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Audio extraction failed: {result.stderr[-400:]}")
+        print(f"   ✅ Audio extracted → {Path(output_mp3).name}")
+    finally:
+        if tmp_download and os.path.exists(tmp_download):
+            os.unlink(tmp_download)
+
+
+def _concat_audio_files(audio_files: list, output_path: str):
+    """Concatenate multiple MP3 files into a single MP3."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        for p in audio_files:
+            f.write(f"file '{p}'\n")
+        list_file = f.name
+
+    try:
+        result = subprocess.run([
+            "ffmpeg", "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", list_file,
+            "-acodec", "libmp3lame",
+            "-b:a", "192k",
+            "-ar", "44100",
+            output_path,
+        ], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Audio concat failed: {result.stderr[-400:]}")
+    finally:
+        os.unlink(list_file)
+
+
+def create_mp3_compilation(
+    compilation_id: str,
+    clips: list,   # [{video_id, file_path, narration_url, title, ...}]
+    title: str,
+) -> str:
+    """
+    Concatenate narration MP3 tracks from multiple videos into a single podcast-style MP3.
+    If a clip has no narration_url, automatically extracts audio from its video file.
+    Returns the Supabase URL of the combined MP3.
+    """
+    print(f"\n{'='*60}")
+    print(f"[MP3 COMPILER] Starting | ID: {compilation_id[:8]}...")
+    print(f"  Title:  {title}")
+    print(f"  Clips:  {len(clips)}")
+    print(f"{'='*60}\n")
+
+    tmpdir = tempfile.mkdtemp(prefix="autovid_mp3_")
+    audio_files = []
+
+    try:
+        db.set_status(compilation_id, "generating")
+
+        for i, clip in enumerate(clips):
+            narration_url = clip.get("narration_url")
+            file_path     = clip.get("file_path", "")
+            clip_title    = (clip.get("title") or f"Clip {i+1}")[:30]
+
+            dest = os.path.join(tmpdir, f"audio_{i:03d}.mp3")
+
+            if narration_url:
+                print(f"   Clip {i+1} '{clip_title}': using saved narration MP3")
+                _download(narration_url, dest)
+                audio_files.append(dest)
+            elif file_path:
+                print(f"   Clip {i+1} '{clip_title}': no narration MP3 — extracting from video...")
+                _extract_audio(file_path, dest)
+                audio_files.append(dest)
+            else:
+                print(f"   Clip {i+1} '{clip_title}': ⚠️ no audio source, skipping")
+
+        if not audio_files:
+            raise ValueError("No audio sources found — all clips were skipped")
+
+        # Concatenate
+        db.update_video(compilation_id, status="voiced")
+        output_mp3 = os.path.join(tmpdir, f"{compilation_id}_podcast.mp3")
+        print(f"🔗 Concatenating {len(audio_files)} audio tracks...")
+        _concat_audio_files(audio_files, output_mp3)
+
+        size_mb = Path(output_mp3).stat().st_size / (1024 * 1024)
+        print(f"✅ MP3 compilation ready: {size_mb:.1f}MB")
+
+        # Upload to Supabase narrations bucket
+        db.update_video(compilation_id, status="assembled")
+        from pipeline.storage import upload_narration_to_storage
+        narration_url_out = upload_narration_to_storage(output_mp3, compilation_id)
+
+        db.update_video(compilation_id,
+                        narration_url=narration_url_out,
+                        file_path=narration_url_out,
+                        status="ready")
+
+        print(f"☁️  MP3 uploaded: {narration_url_out}")
+        return narration_url_out
+
+    except Exception as e:
+        db.set_status(compilation_id, "failed", error_message=str(e))
+        print(f"❌ MP3 compilation failed: {e}")
+        raise
+
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)

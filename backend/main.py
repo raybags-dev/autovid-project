@@ -719,6 +719,70 @@ def trigger_auto_generate(user: str = Depends(verify_token)):
     }
 
 
+# ── Auto-Short Settings ──────────────────────────────────────────────────────
+
+class AutoShortSettings(BaseModel):
+    enabled:  bool
+    days:     list
+    topics:   list
+    hour:     int
+    ambience: str = "aurora"
+
+@app.get("/auto-short/settings")
+def get_auto_short_settings_endpoint(user: str = Depends(verify_token)):
+    from pipeline.auto_generator import get_auto_short_settings
+    return get_auto_short_settings()
+
+@app.post("/auto-short/settings")
+def save_auto_short_settings_endpoint(req: AutoShortSettings, user: str = Depends(verify_token)):
+    from pipeline.auto_generator import save_auto_short_settings
+    settings = {
+        "enabled":  req.enabled,
+        "days":     req.days,
+        "topics":   req.topics,
+        "hour":     req.hour,
+        "ambience": req.ambience,
+    }
+    save_auto_short_settings(settings)
+    return {"message": "Auto-short settings saved", "settings": settings}
+
+@app.post("/auto-short/trigger")
+def trigger_auto_short(user: str = Depends(verify_token)):
+    """Manually trigger one auto-generated short."""
+    import threading
+    from pipeline.auto_generator import run_auto_short, get_auto_short_settings, _pick_next_short_topic
+
+    settings = get_auto_short_settings()
+    topics   = settings.get("topics", [])
+    if not topics:
+        raise HTTPException(status_code=400, detail="No topics configured in auto-short settings")
+
+    topic    = _pick_next_short_topic(topics)
+    ambience = settings.get("ambience", "aurora")
+
+    record   = db.create_video(f"[Short] {topic}")
+    video_id = record["id"]
+    _register_pipeline(video_id)
+
+    def _cb(info: dict):
+        step = info.get("step", "?") if isinstance(info, dict) else str(info)
+        msg  = info.get("message", "") if isinstance(info, dict) else ""
+        _push_log(video_id, f"[{step}] {msg}")
+
+    def _run():
+        try:
+            from pipeline.orchestrator import run_short_pipeline
+            run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb)
+            _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
+        except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+        finally:
+            _unregister_pipeline(video_id)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"message": "Auto-short started", "video_id": video_id, "topic": topic}
+
+
 @app.get("/billing")
 def get_billing(user: str = Depends(verify_token)):
     """Aggregate billing/subscription info from all integrated services."""
@@ -1072,23 +1136,32 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
     def do_short():
         try:
             from pipeline.shorts_generator import create_short_from_video
-            short_path = create_short_from_video(video["file_path"], video_id)
-            from pipeline.youtube_uploader import upload_video
-            title = f"#Shorts {(video['title'] or 'AutoVid')[:90]}"
-            result = upload_video(
-                video_path=short_path,
-                title=title,
-                description=video.get('description','') + "\n\n#Shorts #AutoVid #AI",
-                labels=(video.get("labels") or []) + ["Shorts", "AI", "short"],
-                privacy="public",
-                category=video.get("category") or "Entertainment",
-            )
+            short_path = create_short_from_video(video["file_path"], video_id + "_short")
+            # Save short to Supabase (don't auto-upload to YouTube)
+            from pipeline.storage import upload_to_storage
+            short_id = video_id + "_short"
+            storage_url = upload_to_storage(short_path, short_id)
+            # Create a new DB record for the short
+            import uuid
+            short_record_id = str(uuid.uuid4())
+            db.create_video(f"[Short] {video.get('title','')}")
+            short_v = db.get_client().table("videos").insert({
+                "id": short_record_id,
+                "prompt": f"[Short clip of: {video.get('title',video_id)}]",
+                "title": f"#Shorts {(video.get('title') or 'AutoVid')[:85]}",
+                "description": (video.get("description") or "") + "\n\n#Shorts #AutoVid #AI",
+                "status": "ready",
+                "labels": (video.get("labels") or []) + ["short", "Shorts", "AI"],
+                "file_path": storage_url,
+                "resolution": "1080x1920",
+            }).execute()
             import os
             if os.path.exists(short_path):
                 os.unlink(short_path)
-            print(f"✅ Short uploaded: {result['youtube_url']}")
+            print(f"✅ Short saved to Supabase: {storage_url}")
         except Exception as e:
             print(f"❌ Short creation failed: {e}")
+            import traceback; traceback.print_exc()
 
     background_tasks.add_task(do_short)
     return {"message": "Short creation started", "video_id": video_id}
@@ -1106,13 +1179,42 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
 
 
 def run_short_pipeline(prompt: str, ambience: str = "stars"):
-    """Generate a YouTube Short from scratch using the main pipeline."""
+    """Generate a YouTube Short from scratch — portrait 9:16, no auto-upload."""
     try:
-        enriched_prompt = f"[SHORT:{ambience}] {prompt}"
-        run_pipeline(prompt=enriched_prompt, profile="funny", auto_upload=True)
+        from pipeline.orchestrator import run_short_pipeline as _short_pipeline
+        _short_pipeline(prompt=prompt, ambience=ambience)
     except Exception as e:
         print(f"❌ Short pipeline failed: {e}")
 
+
+@app.get("/shorts")
+def list_shorts(
+    limit: int = 25,
+    offset: int = 0,
+    user: str = Depends(verify_token),
+):
+    """List all videos tagged as Shorts."""
+    try:
+        client = db.get_client()
+        # Fetch both "short" and "Shorts" labeled videos
+        result = (
+            client.table("videos")
+            .select("*")
+            .or_("labels.cs.{short},labels.cs.{Shorts}")
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        print(f"❌ list_shorts error: {e}")
+        return []
+
+
+@app.post("/cache/clear")
+def clear_cache(user: str = Depends(verify_token)):
+    """Signal that clients should clear their local cache."""
+    return {"cleared": True, "message": "Cache cleared — refresh to load fresh data"}
 
 
 # Auto-reply toggle — loaded from DB on startup so it survives restarts
@@ -1290,6 +1392,20 @@ def startup():
     except Exception as e:
         print(f"⚠️  Auto-generator scheduler failed to start: {e}")
 
+    # Auto-short scheduler
+    try:
+        from pipeline.auto_generator import start_auto_short_scheduler
+        start_auto_short_scheduler()
+    except Exception as e:
+        print(f"⚠️  Auto-short scheduler failed to start: {e}")
+
+    # Output sweeper — deletes stale files older than 1 hour
+    try:
+        from pipeline.orchestrator import start_output_sweeper
+        start_output_sweeper()
+    except Exception as e:
+        print(f"⚠️  Output sweeper failed to start: {e}")
+
     print("✅ AutoVid API ready → http://localhost:8000")
     print("   Docs: http://localhost:8000/docs")
 
@@ -1303,10 +1419,12 @@ class CompilationClip(BaseModel):
     title:     Optional[str] = ""
     start:     Optional[float] = 0.0
     end:       Optional[float] = None   # None = use full clip
+    narration_url: Optional[str] = None
 
 class CompilationRequest(BaseModel):
     title: str
     clips: list[CompilationClip]
+    mode: str = "video"   # "video" | "mp3"
 
 
 @app.get("/compilations")
@@ -1334,8 +1452,12 @@ def create_compilation(
     clips_data = [c.dict() for c in req.clips]
 
     def run():
-        from pipeline.compiler import create_compilation as _compile
-        _compile(compilation_id=comp_id, clips=clips_data, title=req.title)
+        if req.mode == "mp3":
+            from pipeline.compiler import create_mp3_compilation as _compile_mp3
+            _compile_mp3(compilation_id=comp_id, clips=clips_data, title=req.title)
+        else:
+            from pipeline.compiler import create_compilation as _compile
+            _compile(compilation_id=comp_id, clips=clips_data, title=req.title)
 
     background_tasks.add_task(run)
     return {"compilation_id": comp_id, "message": "Compilation started", "clip_count": len(req.clips)}

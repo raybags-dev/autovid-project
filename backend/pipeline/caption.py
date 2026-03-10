@@ -157,8 +157,25 @@ CAPTION_STYLE = {
     "Bold": 1,
 }
 
+SHORT_CAPTION_STYLE = {
+    "FontName": "Arial",
+    "FontSize": 18,               # Smaller font for narrow portrait video
+    "PrimaryColour": "&H00FFFFFF",
+    "OutlineColour": "&H00000000",
+    "BackColour": "&H00000000",
+    "BorderStyle": 1,
+    "Outline": 3,
+    "Shadow": 1,
+    "Alignment": 2,               # Bottom center
+    "MarginV": 120,               # Higher from bottom for short format
+    "MarginL": 40,                # Left margin to keep text in frame
+    "MarginR": 40,                # Right margin to keep text in frame
+    "Bold": 1,
+    "WrapStyle": 0,               # Smart wrapping
+}
 
-def burn_captions(video_path: str, srt_path: str, video_id: str) -> str:
+
+def burn_captions(video_path: str, srt_path: str, video_id: str, is_short: bool = False) -> str:
     """
     Burn SRT captions directly into the video using FFmpeg.
     This creates a new MP4 with captions permanently embedded.
@@ -168,7 +185,8 @@ def burn_captions(video_path: str, srt_path: str, video_id: str) -> str:
     output_path = config.VIDEOS_OUTPUT_DIR / f"{video_id}_captioned.mp4"
 
     # Build style string for FFmpeg subtitles filter
-    style_parts = ",".join(f"{k}={v}" for k, v in CAPTION_STYLE.items())
+    style_dict = SHORT_CAPTION_STYLE if is_short else CAPTION_STYLE
+    style_parts = ",".join(f"{k}={v}" for k, v in style_dict.items())
 
     # Escape path for ffmpeg filter (Windows compatibility)
     srt_escaped = str(srt_path).replace("\\", "/").replace(":", "\\:")
@@ -210,7 +228,7 @@ def burn_captions(video_path: str, srt_path: str, video_id: str) -> str:
 # ── Public Entry Point ────────────────────────────────────────────────────────
 
 def add_captions(video_path: str, audio_path: str, video_id: str,
-                 whisper_model: str = "base") -> str:
+                 whisper_model: str = "base", is_short: bool = False) -> str:
     """
     Full captioning pipeline:
     1. Transcribe audio with Whisper
@@ -231,11 +249,12 @@ def add_captions(video_path: str, audio_path: str, video_id: str,
     with open(transcript_path, "w") as f:
         json.dump({"text": whisper_result["text"], "words": whisper_result["words"]}, f)
 
-    # Generate SRT
-    generate_srt(whisper_result, srt_path)
+    # Generate SRT — use shorter lines for portrait shorts
+    max_chars = 25 if is_short else 40
+    generate_srt(whisper_result, srt_path, max_chars_per_line=max_chars)
 
     # Burn into video
-    final_path = burn_captions(video_path, str(srt_path), video_id)
+    final_path = burn_captions(video_path, str(srt_path), video_id, is_short=is_short)
 
     return final_path
 
