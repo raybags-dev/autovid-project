@@ -14,7 +14,7 @@ import urllib.parse
 import requests
 
 TOKEN_KEY = "spotify_token"
-REDIRECT_URI = "https://4lifemystery.com/api/spotify/callback"
+REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "https://4lifemystery.com/api/spotify/callback")
 SCOPES = " ".join([
     "user-read-private",
     "user-read-email",

@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
-import profileImg   from "../assets/4life_mystery.png";
 import faceImg         from "../assets/static/face.jpg";
 import brokenThumb     from "../assets/static/broken-video-placeholder.png";
 import faceVideo    from "../assets/static/face.mp4";
