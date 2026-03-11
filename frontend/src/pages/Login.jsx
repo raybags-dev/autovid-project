@@ -130,7 +130,7 @@ export default function Login() {
           <span
             style={{ fontSize: 10, color: "#ff3250", letterSpacing: "0.1em" }}
           >
-            SUPERUSER ACCESS ONLY
+            UNAUTHORIZED
           </span>
         </div>
 
