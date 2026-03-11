@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
-import mainLogo     from "../assets/logo/main-logo.png";
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
 import profileImg   from "../assets/4life_mystery.png";
+import faceImg      from "../assets/static/face.jpg";
+import nebularVideo from "../assets/static/nebular.mp4";
+import metrixVideo  from "../assets/static/metrix.mp4";
 
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4life_mystery",
@@ -117,8 +119,9 @@ export default function LandingPage() {
   const [activeSection, setActiveSection] = useState("hero");
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [carouselIdx,   setCarouselIdx]   = useState(0);
-  const wrapperRef = useRef(null);
-  const autoRef    = useRef(null);
+  const wrapperRef  = useRef(null);
+  const autoRef     = useRef(null);
+  const heroVidRef  = useRef(null);
 
   const c = theme === "dark" ? DARK : LIGHT;
 
@@ -149,6 +152,11 @@ export default function LandingPage() {
       observers.push(obs);
     });
     return () => observers.forEach(o => o.disconnect());
+  }, []);
+
+  // Slow down hero video
+  useEffect(() => {
+    if (heroVidRef.current) heroVidRef.current.playbackRate = 0.55;
   }, []);
 
   // Carousel auto-advance
@@ -200,6 +208,8 @@ export default function LandingPage() {
           position: sticky; top: 0; left: 0; right: 0; z-index: 300;
           transition: background 0.35s, border-color 0.35s, backdrop-filter 0.35s;
           border-bottom: 1px solid transparent;
+          /* always float transparent over hero video */
+          background: transparent;
         }
         .lp-nav.scrolled {
           background: var(--nav-bg);
@@ -208,6 +218,12 @@ export default function LandingPage() {
           border-bottom-color: rgba(255,80,30,0.12);
           box-shadow: 0 2px 32px rgba(0,0,0,0.18);
         }
+        /* Force nav text white on hero video */
+        .lp-nav:not(.scrolled) .lp-navlink { color: rgba(255,255,255,0.65)!important; }
+        .lp-nav:not(.scrolled) .lp-navlink:hover,
+        .lp-nav:not(.scrolled) .lp-navlink.active { color: #ff8866!important; }
+        .lp-nav:not(.scrolled) .soc-icon { color: rgba(255,255,255,0.6)!important; border-color: rgba(255,255,255,0.18)!important; }
+        .lp-nav:not(.scrolled) .theme-toggle { color: rgba(255,255,255,0.55)!important; border-color: rgba(255,255,255,0.2)!important; background: rgba(255,255,255,0.06)!important; }
         .lp-navlink {
           color: var(--text-m);
           text-decoration: none;
@@ -397,11 +413,13 @@ export default function LandingPage() {
         }
         .theme-toggle:hover { transform:scale(1.06); }
 
-        /* ── IMAGE HOVER ──────────────────────────────── */
-        .hero-img { transition:filter 0.4s, transform 0.4s; }
-        .hero-img:hover { filter:drop-shadow(0 0 80px rgba(220,70,0,0.38)); transform:scale(1.02); pointer-events:auto; }
-        .profile-img { transition:filter 0.4s, transform 0.4s; display:block; width:320px; height:320px; }
-        @media (max-width:600px) { .profile-img { width:220px !important; height:220px !important; } }
+        /* ── HERO VIDEO OVERLAP — nav overlays video ── */
+        #hero { margin-top: -62px; }
+
+        /* ── FACE FEATURE IMAGE ───────────────────────── */
+        .face-feature { pointer-events: auto; }
+        .face-feature img { pointer-events: none; }
+        @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
 
         /* ── RESPONSIVE ───────────────────────────────── */
         @media (max-width:900px) {
@@ -496,75 +514,90 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-      <section id="hero" style={{ minHeight: "100vh", display: "flex", alignItems: "center", position: "relative", padding: "100px 20px 80px", overflow: "clip" }}>
-        <div className="grid-bg" />
-        <div style={{ position: "absolute", width: "60vw", height: "60vw", maxWidth: 700, maxHeight: 700, borderRadius: "50%", background: `radial-gradient(circle,rgba(180,40,0,0.07),transparent 68%)`, top: "10%", right: "-10%", pointerEvents: "none", animation: "glow 7s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", width: "40vw", height: "40vw", maxWidth: 500, maxHeight: 500, borderRadius: "50%", background: `radial-gradient(circle,rgba(0,80,200,0.06),transparent 68%)`, bottom: "10%", left: "-5%", pointerEvents: "none", animation: "glow 9s 2s ease-in-out infinite" }} />
+      {/* ══ HERO — full-screen nebula video banner ════════════════════════════ */}
+      <section id="hero" style={{ position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-        <div style={{ maxWidth: 1180, margin: "0 auto", width: "100%", position: "relative", zIndex: 1 }}>
-          <div className="hero-grid" style={{ display: "grid", gridTemplateColumns: "1fr 420px", gap: 48, alignItems: "center" }}>
+        {/* Video background */}
+        <video
+          ref={heroVidRef}
+          autoPlay muted loop playsInline
+          onCanPlay={() => { if (heroVidRef.current) heroVidRef.current.playbackRate = 0.55; }}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}
+        >
+          <source src={nebularVideo} type="video/mp4" />
+        </video>
 
-            <div>
-              <div className="anim-1" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 16px", borderRadius: 100, background: "rgba(255,80,30,0.08)", border: "1px solid rgba(255,80,30,0.2)", marginBottom: 28 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff5533", display: "inline-block", animation: "glow 2s ease-in-out infinite" }} />
-                <span style={{ fontSize: 10, color: "#ff6633", letterSpacing: "0.16em" }}>LIFE · MYSTERY · CONNECTION</span>
-              </div>
+        {/* Gradient overlay — dark vignette */}
+        <div style={{ position: "absolute", inset: 0, zIndex: 1,
+          background: "linear-gradient(to bottom, rgba(3,6,15,0.38) 0%, rgba(3,6,15,0.55) 50%, rgba(3,6,15,0.92) 100%)" }} />
 
-              <h1 className="syne anim-2" style={{ fontWeight: 800, fontSize: "clamp(34px,6vw,66px)", lineHeight: 1.08, letterSpacing: "-0.03em", marginBottom: 20, color: c.text }}>
-                The questions<br />
-                <span className="grad-fire">worth asking</span><br />
-                <span style={{ color: c.text }}>live here.</span>
-              </h1>
+        {/* Main content — centred over video */}
+        <div style={{ position: "relative", zIndex: 2, flex: 1, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", textAlign: "center",
+          padding: "100px 24px 0", gap: 0 }}>
 
-              <div className="anim-2" style={{ marginBottom: 22 }}>
-                <img src={uncoverLogo} alt="Uncover the Unknown"
-                  style={{ height: "clamp(26px,4vw,42px)", width: "auto", objectFit: "contain", opacity: 0.9 }} />
-              </div>
-
-              <p className="anim-3" style={{ fontSize: "clamp(13px,1.5vw,15px)", color: c.textM, lineHeight: 1.85, maxWidth: 520, marginBottom: 36 }}>
-                4Life Mystery is a space for real conversations about life — its meaning, its mysteries, and everything between. No algorithm. No noise. Just honest human thought.
-              </p>
-
-              <div className="anim-4" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 48 }}>
-                <button onClick={() => scrollTo("content")} className="lp-btn lp-btn-fire">EXPLORE CONTENT</button>
-                <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost">▶ WATCH ON YOUTUBE</a>
-              </div>
-
-              <div className="hero-stats anim-4" style={{ display: "flex", gap: 44, flexWrap: "wrap" }}>
-                {[["10K+","FOLLOWERS"],["50+","EPISODES"],["∞","QUESTIONS"]].map(([n,l]) => (
-                  <div key={l}>
-                    <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(24px,3vw,32px)" }}>{n}</div>
-                    <div style={{ fontSize: 9, color: c.textD, letterSpacing: "0.2em", marginTop: 4 }}>{l}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Privacy links – visible above fold for Google OAuth */}
-              <div className="anim-4" style={{ marginTop: 52, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontSize: 10, color: c.textD2, letterSpacing: "0.08em" }}>4LIFEMYSTERY.COM</span>
-                <Link to="/privacy-policy" style={{ fontSize: 10, color: c.textD, textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#ff6633"}
-                  onMouseLeave={e => e.currentTarget.style.color = c.textD}>Privacy Policy</Link>
-                <Link to="/terms-of-service" style={{ fontSize: 10, color: c.textD, textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#ff6633"}
-                  onMouseLeave={e => e.currentTarget.style.color = c.textD}>Terms of Service</Link>
-              </div>
-
-              {/* Scroll nudge */}
-              <button onClick={() => scrollTo("about")} style={{ marginTop: 40, display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "8px 16px" }}>
-                <span style={{ fontSize: 9, color: c.textD, letterSpacing: "0.2em" }}>SCROLL</span>
-                <div style={{ width: 26, height: 40, border: `1px solid rgba(255,80,30,0.3)`, borderRadius: 13, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 6 }}>
-                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#ff5533", animation: "scrollPulse 1.8s ease-in-out infinite" }} />
-                </div>
-              </button>
-            </div>
-
-            <div className="hero-logo-col" style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-              <img src={mainLogo} alt="4Life Mystery" className="hero-img"
-                style={{ width: "100%", maxWidth: 380, height: "auto", objectFit: "contain", filter: "drop-shadow(0 0 60px rgba(200,60,0,0.25))" }} />
-            </div>
+          {/* Badge */}
+          <div className="anim-1" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 18px",
+            borderRadius: 100, background: "rgba(255,80,30,0.1)", border: "1px solid rgba(255,80,30,0.25)", marginBottom: 28 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff5533", display: "inline-block", animation: "glow 2s ease-in-out infinite" }} />
+            <span style={{ fontSize: 10, color: "#ff8866", letterSpacing: "0.18em" }}>LIFE · MYSTERY · CONNECTION</span>
           </div>
+
+          {/* Headline */}
+          <h1 className="syne anim-2" style={{ fontWeight: 800, fontSize: "clamp(36px,7vw,80px)", lineHeight: 1.06,
+            letterSpacing: "-0.03em", marginBottom: 18, color: "#fff", textShadow: "0 2px 40px rgba(0,0,0,0.6)", maxWidth: 900 }}>
+            The questions{" "}<span className="grad-fire">worth asking</span>{" "}live here.
+          </h1>
+
+          {/* Uncover tagline */}
+          <div className="anim-2" style={{ marginBottom: 20 }}>
+            <img src={uncoverLogo} alt="Uncover the Unknown"
+              style={{ height: "clamp(22px,3.5vw,38px)", width: "auto", objectFit: "contain", opacity: 0.85, filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.5))" }} />
+          </div>
+
+          {/* Description */}
+          <p className="anim-3" style={{ fontSize: "clamp(13px,1.5vw,16px)", color: "rgba(220,230,245,0.78)",
+            lineHeight: 1.85, maxWidth: 600, marginBottom: 36, textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>
+            4Life Mystery is a space for real conversations about life — its meaning, its mysteries, and everything between.
+            No algorithm. No noise. Just honest human thought.
+          </p>
+
+          {/* Stats */}
+          <div className="hero-stats anim-3" style={{ display: "flex", gap: 44, flexWrap: "wrap", justifyContent: "center", marginBottom: 36 }}>
+            {[["10K+","FOLLOWERS"],["50+","EPISODES"],["∞","QUESTIONS"]].map(([n,l]) => (
+              <div key={l} style={{ textAlign: "center" }}>
+                <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(22px,3vw,30px)" }}>{n}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "0.2em", marginTop: 4 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA buttons */}
+          <div className="anim-4" style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", marginBottom: 0 }}>
+            <button onClick={() => scrollTo("content")} className="lp-btn lp-btn-fire">EXPLORE CONTENT</button>
+            <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost"
+              style={{ color: "#fff", borderColor: "rgba(255,255,255,0.22)" }}>▶ WATCH ON YOUTUBE</a>
+          </div>
+        </div>
+
+        {/* Bottom bar — privacy links + scroll nudge */}
+        <div style={{ position: "relative", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "18px 32px 24px", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}>4LIFEMYSTERY.COM</span>
+            <Link to="/privacy-policy" style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#ff7755"}
+              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.45)"}>Privacy Policy</Link>
+            <Link to="/terms-of-service" style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#ff7755"}
+              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.45)"}>Terms of Service</Link>
+          </div>
+          <button onClick={() => scrollTo("about")} style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}>
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em" }}>SCROLL</span>
+            <div style={{ width: 24, height: 38, border: "1px solid rgba(255,80,30,0.4)", borderRadius: 12, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 5 }}>
+              <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#ff5533", animation: "scrollPulse 1.8s ease-in-out infinite" }} />
+            </div>
+          </button>
         </div>
       </section>
 
@@ -574,24 +607,25 @@ export default function LandingPage() {
           <span className="section-tag">WHAT IS 4LIFE MYSTERY</span>
           <div className="about-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "center" }}>
 
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
-              <div style={{ position: "relative" }}>
-                {/* Glow ring */}
-                <div style={{ position: "absolute", inset: -6, borderRadius: "50%", background: "conic-gradient(from 0deg, #ff5533, #ff9020, #ff5533)", opacity: 0.6, filter: "blur(8px)", zIndex: 0 }} />
-                <img src={profileImg} alt="4Life Mystery" className="profile-img"
-                  style={{ borderRadius: "50%", objectFit: "cover", objectPosition: "top center",
-                    border: "3px solid rgba(255,85,51,0.4)",
-                    filter: "drop-shadow(0 0 32px rgba(150,40,0,0.5))",
-                    position: "relative", zIndex: 1,
-                    transition: "transform 0.4s, filter 0.4s" }}
-                  onMouseEnter={e => { e.currentTarget.style.transform="scale(1.04)"; e.currentTarget.style.filter="drop-shadow(0 0 48px rgba(255,80,30,0.7))"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.filter="drop-shadow(0 0 32px rgba(150,40,0,0.5))"; }}
-                />
+            {/* Face image — fills the container completely */}
+            <div style={{ position: "relative", borderRadius: 24, overflow: "hidden", minHeight: 520,
+              boxShadow: "0 24px 80px rgba(0,0,0,0.5)", border: "1px solid rgba(255,80,30,0.15)" }}
+              className="face-feature">
+              <img src={faceImg} alt="4Life Mystery" style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+                objectFit: "cover", objectPosition: "center top",
+                transition: "transform 0.6s ease" }}
+                onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
+                onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+              />
+              {/* Gradient overlay with name badge */}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0,
+                background: "linear-gradient(to top, rgba(3,6,15,0.92) 0%, transparent 55%)",
+                padding: "32px 24px 24px" }}>
+                <div className="syne" style={{ fontWeight: 700, fontSize: 16, color: "#fff", marginBottom: 4 }}>4Life Mystery</div>
+                <div style={{ fontSize: 10, color: "rgba(255,160,100,0.8)", letterSpacing: "0.14em" }}>CREATOR · THINKER · STORYTELLER</div>
               </div>
-              <div style={{ textAlign: "center", background: theme === "dark" ? "rgba(3,6,15,0.7)" : "rgba(245,242,235,0.85)", backdropFilter: "blur(16px) saturate(160%)", borderRadius: 12, padding: "12px 24px", border: `1px solid rgba(255,80,30,0.2)` }}>
-                <div className="syne" style={{ fontWeight: 700, fontSize: 14, marginBottom: 3, color: c.text }}>4Life Mystery</div>
-                <div style={{ fontSize: 10, color: c.textM, letterSpacing: "0.12em" }}>CREATOR · THINKER · STORYTELLER</div>
-              </div>
+              {/* Fire glow corners */}
+              <div style={{ position: "absolute", inset: 0, borderRadius: 24, boxShadow: "inset 0 0 60px rgba(255,60,20,0.08)", pointerEvents: "none" }} />
             </div>
 
             <div>
@@ -762,6 +796,30 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ══ MATRIX VIDEO BREAK ════════════════════════════════════════════════ */}
+      <div style={{ position: "relative", width: "100%", height: "min(420px,55vw)", overflow: "hidden" }}>
+        <video autoPlay muted loop playsInline
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}>
+          <source src={metrixVideo} type="video/mp4" />
+        </video>
+        {/* vignette + tinted overlay */}
+        <div style={{ position: "absolute", inset: 0,
+          background: "linear-gradient(to bottom, rgba(3,6,15,0.65) 0%, rgba(3,6,15,0.35) 50%, rgba(3,6,15,0.72) 100%)" }} />
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 16, textAlign: "center", padding: "0 24px" }}>
+          <div className="syne" style={{ fontWeight: 800, fontSize: "clamp(20px,4vw,42px)", color: "#fff",
+            letterSpacing: "-0.02em", textShadow: "0 2px 30px rgba(0,0,0,0.7)" }}>
+            The answers are{" "}<span className="grad-fire">out there.</span>
+          </div>
+          <p style={{ fontSize: "clamp(12px,1.4vw,15px)", color: "rgba(200,215,235,0.7)", maxWidth: 560, lineHeight: 1.75 }}>
+            Every mystery starts with a question. Join the community.
+          </p>
+          <button onClick={() => scrollTo("community")} className="lp-btn lp-btn-fire" style={{ marginTop: 8 }}>
+            JOIN THE COMMUNITY
+          </button>
+        </div>
+      </div>
 
       {/* ══ COMMUNITY ═════════════════════════════════════════════════════════ */}
       <section id="community" style={{ padding:"100px 20px 120px",position:"relative",overflow:"clip" }}>
