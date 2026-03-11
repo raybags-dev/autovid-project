@@ -423,8 +423,24 @@ export default function LandingPage() {
         #hero { margin-top: -62px; }
 
         /* ── FACE FEATURE IMAGE ───────────────────────── */
-        .face-feature { pointer-events: auto; }
+        @keyframes hairSway {
+          0%   { transform: rotate(-0.6deg) translateX(-3px) scale(1.018); filter: brightness(1) saturate(1); }
+          30%  { transform: rotate(0.3deg)  translateX(1px)  scale(1.022); filter: brightness(1.03) saturate(1.04); }
+          60%  { transform: rotate(0.7deg)  translateX(4px)  scale(1.02);  filter: brightness(1.01) saturate(1.02); }
+          100% { transform: rotate(-0.6deg) translateX(-3px) scale(1.018); filter: brightness(1) saturate(1); }
+        }
+        @keyframes hairOverlay {
+          0%,100% { opacity: 0.18; transform: translateX(-8px); }
+          50%      { opacity: 0.08; transform: translateX(8px); }
+        }
+        .face-feature { pointer-events: auto; overflow: hidden; }
+        .face-sway { animation: hairSway 6s ease-in-out infinite; transform-origin: bottom center; will-change: transform; }
         .face-feature img { pointer-events: none; }
+        .face-wind-overlay {
+          position: absolute; inset: 0; z-index: 2; pointer-events: none;
+          background: linear-gradient(105deg, transparent 40%, rgba(255,220,180,0.08) 55%, transparent 65%);
+          animation: hairOverlay 6s ease-in-out infinite;
+        }
         @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
 
         /* ── BUTTON GROUPS ────────────────────────────── */
@@ -640,12 +656,11 @@ export default function LandingPage() {
             <div style={{ position: "relative", borderRadius: 24, overflow: "hidden", minHeight: 520,
               boxShadow: "0 24px 80px rgba(0,0,0,0.5)", border: "1px solid rgba(255,80,30,0.15)" }}
               className="face-feature">
-              <img src={faceImg} alt="4Life Mystery" style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
-                objectFit: "cover", objectPosition: "center top",
-                transition: "transform 0.6s ease" }}
-                onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
-                onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-              />
+              <img src={faceImg} alt="4Life Mystery" className="face-sway"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "105%",
+                objectFit: "cover", objectPosition: "center top" }} />
+              {/* Subtle light shimmer simulating wind-shifted light */}
+              <div className="face-wind-overlay" />
               {/* Gradient overlay with name badge */}
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0,
                 background: "linear-gradient(to top, rgba(3,6,15,0.92) 0%, transparent 55%)",
