@@ -125,6 +125,8 @@ export default function LandingPage() {
   const [slideDir,      setSlideDir]      = useState("right");
   const [ytVideos,      setYtVideos]      = useState([]);
   const [ytLoading,     setYtLoading]     = useState(true);
+  const [modalVideo,    setModalVideo]    = useState(null);   // { id, title, url }
+  const [sampleIdx,     setSampleIdx]     = useState(-1);     // auto-preview cycling
   const wrapperRef  = useRef(null);
   const autoRef     = useRef(null);
   const heroVidRef  = useRef(null);
@@ -167,6 +169,23 @@ export default function LandingPage() {
       .then(d => setYtVideos(d.videos || []))
       .catch(() => setYtVideos([]))
       .finally(() => setYtLoading(false));
+  }, []);
+
+  // Auto-sample: cycle through videos every 5 seconds (muted preview)
+  useEffect(() => {
+    if (ytVideos.length === 0 || modalVideo) return;
+    setSampleIdx(0);
+    const t = setInterval(() => {
+      setSampleIdx(i => (i + 1) % ytVideos.length);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [ytVideos, modalVideo]);
+
+  // Close modal on Escape
+  useEffect(() => {
+    const fn = e => { if (e.key === "Escape") setModalVideo(null); };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
   }, []);
 
   // Slow down hero video
@@ -462,24 +481,53 @@ export default function LandingPage() {
         .yt-card { border-radius:16px; overflow:hidden; cursor:pointer; text-decoration:none; display:block;
           background:var(--card-bg); border:1px solid var(--card-br); box-shadow:var(--card-sh,none);
           transition:transform 0.28s, box-shadow 0.28s, border-color 0.28s; position:relative; }
-        .yt-card:hover { transform:translateY(-5px); border-color:rgba(255,0,0,0.35); box-shadow:0 14px 44px rgba(255,0,0,0.15); }
-        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#0a0a0a; }
+        .yt-card:hover { transform:translateY(-5px); border-color:rgba(200,40,40,0.4); box-shadow:0 14px 44px rgba(180,30,30,0.18); }
+        .yt-card.sampling { border-color:rgba(200,40,40,0.5); box-shadow:0 0 0 2px rgba(200,40,40,0.25); }
+        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#080808; }
         .yt-thumb img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
-        .yt-card:hover .yt-thumb img { transform:scale(1.06); }
+        .yt-card:hover .yt-thumb img { transform:scale(1.04); }
+        .yt-thumb iframe { position:absolute; inset:0; width:100%; height:100%; border:none; display:block; }
         .yt-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-          background:rgba(0,0,0,0.25); opacity:0; transition:opacity 0.3s; }
+          background:rgba(0,0,0,0.12); opacity:0.55; transition:opacity 0.3s; pointer-events:none; }
         .yt-card:hover .yt-play { opacity:1; }
-        .yt-play-btn { width:52px; height:52px; border-radius:50%; background:rgba(255,0,0,0.9);
-          display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff;
-          box-shadow:0 4px 20px rgba(255,0,0,0.5); transform:scale(0.85); transition:transform 0.25s; }
+        .yt-play.sampling-active { opacity:0; }
+        .yt-play-btn { width:clamp(44px,32%,90px); aspect-ratio:1/1; border-radius:50%;
+          background:rgba(195,40,40,0.82);
+          display:flex; align-items:center; justify-content:center;
+          box-shadow:0 4px 28px rgba(160,20,20,0.55); transform:scale(0.88); transition:transform 0.25s, opacity 0.25s; }
         .yt-card:hover .yt-play-btn { transform:scale(1); }
+        .yt-play-btn svg { width:38%; height:38%; fill:#fff; margin-left:8%; }
+        .yt-play-btn.disabled { opacity:0.3; background:rgba(100,100,100,0.6); box-shadow:none; }
+        .yt-sample-label { position:absolute; top:8px; left:8px; background:rgba(195,40,40,0.85);
+          color:#fff; font-size:9px; letter-spacing:0.12em; padding:3px 8px; border-radius:4px;
+          font-family:sans-serif; font-weight:700; }
         .yt-info { padding:14px 16px 16px; }
         .yt-title { font-size:13px; font-weight:600; line-height:1.45; margin-bottom:8px;
           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
         .yt-meta { display:flex; gap:14px; font-size:10px; letter-spacing:0.06em; }
         .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);
           background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:10px; }
-        @media (max-width:900px) { .yt-grid { grid-template-columns:repeat(2,1fr)!important; } }
+        /* ── VIDEO MODAL ─────────────────────────────── */
+        .yt-modal-backdrop { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center;
+          background:rgba(0,0,0,0.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+          animation:fadeIn 0.22s ease; padding:20px; }
+        .yt-modal-box { width:min(82vw,1100px); display:flex; flex-direction:column; gap:0;
+          border-radius:18px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.6);
+          border:1px solid rgba(200,40,40,0.25); animation:modalIn 0.28s cubic-bezier(0.34,1.3,0.64,1); }
+        .yt-modal-frame { width:100%; aspect-ratio:16/9; background:#000; }
+        .yt-modal-frame iframe { width:100%; height:100%; border:none; display:block; }
+        .yt-modal-bar { display:flex; align-items:center; justify-content:space-between; gap:12px;
+          padding:14px 18px; background:#0d0d12; border-top:1px solid rgba(255,255,255,0.06); }
+        .yt-modal-title { font-size:13px; font-weight:600; color:#e8f4ff; flex:1; min-width:0;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:sans-serif; }
+        .yt-modal-actions { display:flex; gap:10px; flex-shrink:0; }
+        .yt-modal-btn { padding:7px 16px; border-radius:8px; border:none; cursor:pointer; font-size:11px;
+          font-weight:700; letter-spacing:0.06em; font-family:sans-serif; transition:opacity 0.2s; }
+        .yt-modal-btn:hover { opacity:0.8; }
+        .yt-modal-btn.yt { background:rgba(195,40,40,0.9); color:#fff; }
+        .yt-modal-btn.close { background:rgba(255,255,255,0.1); color:#cdd8e8; }
+        @keyframes modalIn { from { opacity:0; transform:scale(0.92) translateY(18px); } to { opacity:1; transform:scale(1) translateY(0); } }
+        @media (max-width:900px) { .yt-grid { grid-template-columns:repeat(2,1fr)!important; } .yt-modal-box { width:95vw; } }
         @media (max-width:540px) { .yt-grid { grid-template-columns:1fr!important; } }
 
         /* ── BUTTON GROUPS ────────────────────────────── */
@@ -871,51 +919,103 @@ export default function LandingPage() {
           {/* Video grid */}
           {!ytLoading && ytVideos.length > 0 && (
             <div className="yt-grid" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh }}>
-              {ytVideos.map(v => (
-                <a key={v.id} href={`https://www.youtube.com/watch?v=${v.id}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="yt-card" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh }}>
-                  <div className="yt-thumb">
-                    <img
-                      src={v.thumbnail || brokenThumb}
-                      alt={v.title}
-                      onError={e => { e.currentTarget.src = brokenThumb; }}
-                    />
-                    <div className="yt-play">
-                      <div className="yt-play-btn">▶</div>
-                    </div>
-                    {v.duration && (
-                      <div style={{ position:"absolute", bottom:8, right:8, background:"rgba(0,0,0,0.8)",
-                        color:"#fff", fontSize:10, padding:"2px 6px", borderRadius:4, letterSpacing:"0.04em" }}>
-                        {v.duration}
+              {ytVideos.map((v, idx) => {
+                const isSampling = sampleIdx === idx;
+                const isBroken   = !v.id;
+                return (
+                  <div key={v.id || idx}
+                    className={`yt-card${isSampling ? " sampling" : ""}`}
+                    style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh, cursor: isBroken ? "default" : "pointer" }}
+                    onClick={() => !isBroken && setModalVideo(v)}
+                  >
+                    <div className="yt-thumb">
+                      {/* Muted iframe preview when sampling */}
+                      {isSampling && v.id && (
+                        <iframe
+                          src={`https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&start=30`}
+                          allow="autoplay; encrypted-media"
+                          title={v.title}
+                        />
+                      )}
+                      <img
+                        src={v.thumbnail || brokenThumb}
+                        alt={v.title}
+                        onError={e => { e.currentTarget.src = brokenThumb; }}
+                        style={{ opacity: isSampling ? 0 : 1, transition:"opacity 0.4s" }}
+                      />
+                      <div className={`yt-play${isSampling ? " sampling-active" : ""}`}>
+                        <div className={`yt-play-btn${isBroken ? " disabled" : ""}`}>
+                          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="yt-info">
-                    <div className="yt-title syne" style={{ color:c.text }}>{v.title}</div>
-                    <div className="yt-meta" style={{ color:c.textD }}>
-                      <span>▶ {Number(v.views).toLocaleString()} views</span>
-                      <span>♥ {Number(v.likes).toLocaleString()}</span>
-                      {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
+                      {isSampling && (
+                        <div className="yt-sample-label">● PREVIEW</div>
+                      )}
+                      {v.duration && !isSampling && (
+                        <div style={{ position:"absolute", bottom:8, right:8, background:"rgba(0,0,0,0.8)",
+                          color:"#fff", fontSize:10, padding:"2px 6px", borderRadius:4, letterSpacing:"0.04em" }}>
+                          {v.duration}
+                        </div>
+                      )}
+                    </div>
+                    <div className="yt-info">
+                      <div className="yt-title syne" style={{ color:c.text }}>{v.title}</div>
+                      <div className="yt-meta" style={{ color:c.textD }}>
+                        <span>▶ {Number(v.views||0).toLocaleString()} views</span>
+                        <span>♥ {Number(v.likes||0).toLocaleString()}</span>
+                        {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
+                      </div>
                     </div>
                   </div>
-                </a>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {/* Empty / error state */}
           {!ytLoading && ytVideos.length === 0 && (
-            <div style={{ marginTop:40, display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:20 }} className="yt-grid">
+            <div className="yt-grid" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr }}>
               {[...Array(6)].map((_,i) => (
-                <div key={i} style={{ borderRadius:16, overflow:"hidden", background:c.cardBg, border:`1px solid ${c.cardBr}` }}>
-                  <img src={brokenThumb} alt="Video unavailable"
-                    style={{ width:"100%", aspectRatio:"16/9", objectFit:"cover", display:"block", opacity:0.5 }} />
-                  <div style={{ padding:"14px 16px", textAlign:"center" }}>
+                <div key={i} className="yt-card" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, cursor:"default" }}>
+                  <div className="yt-thumb">
+                    <img src={brokenThumb} alt="Video unavailable" style={{ opacity:0.45 }} />
+                    <div className="yt-play" style={{ opacity:1 }}>
+                      <div className="yt-play-btn disabled">
+                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="yt-info">
                     <div style={{ fontSize:11, color:c.textD, letterSpacing:"0.08em" }}>VIDEO UNAVAILABLE</div>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Video modal */}
+          {modalVideo && (
+            <div className="yt-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setModalVideo(null); }}>
+              <div className="yt-modal-box">
+                <div className="yt-modal-frame">
+                  <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${modalVideo.id}?autoplay=1&rel=0&modestbranding=1`}
+                    allow="autoplay; fullscreen; encrypted-media"
+                    allowFullScreen
+                    title={modalVideo.title}
+                  />
+                </div>
+                <div className="yt-modal-bar">
+                  <div className="yt-modal-title">{modalVideo.title}</div>
+                  <div className="yt-modal-actions">
+                    <a href={`https://www.youtube.com/watch?v=${modalVideo.id}`} target="_blank" rel="noopener noreferrer"
+                      className="yt-modal-btn yt" style={{ textDecoration:"none" }}>
+                      ↗ YouTube
+                    </a>
+                    <button className="yt-modal-btn close" onClick={() => setModalVideo(null)}>✕ Close</button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
