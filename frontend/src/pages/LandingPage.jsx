@@ -127,6 +127,7 @@ export default function LandingPage() {
   const [ytLoading,     setYtLoading]     = useState(true);
   const [modalVideo,    setModalVideo]    = useState(null);   // { id, title, url }
   const [showBackTop,   setShowBackTop]   = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const wrapperRef  = useRef(null);
   const autoRef     = useRef(null);
   const heroVidRef  = useRef(null);
@@ -171,11 +172,15 @@ export default function LandingPage() {
       .finally(() => setYtLoading(false));
   }, []);
 
-  // Back-to-top visibility (uses wrapper scroll, same as nav scroll detection)
+  // Back-to-top visibility + scroll progress (uses wrapper scroll)
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    const fn = () => setShowBackTop(el.scrollTop > 600);
+    const fn = () => {
+      setShowBackTop(el.scrollTop > 600);
+      const maxScroll = el.scrollHeight - el.clientHeight;
+      setScrollProgress(maxScroll > 0 ? Math.min(1, el.scrollTop / maxScroll) : 0);
+    };
     el.addEventListener("scroll", fn, { passive: true });
     return () => el.removeEventListener("scroll", fn);
   }, []);
@@ -527,6 +532,40 @@ export default function LandingPage() {
         .yt-modal-btn.yt { background:rgba(195,40,40,0.9); color:#fff; }
         .yt-modal-btn.close { background:rgba(255,255,255,0.1); color:#cdd8e8; }
         @keyframes modalIn { from { opacity:0; transform:scale(0.92) translateY(18px); } to { opacity:1; transform:scale(1) translateY(0); } }
+        /* ── BACKDROP FILTER ON INTERACTIVE / VISIBLE ELEMENTS ── */
+        .lp-card { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+        .lp-btn  { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+        .topic-pill { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+        .soc-icon   { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+        .yt-card    { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+
+        /* ── PARALLAX BLOB ────────────────────────────── */
+        @keyframes blobMorph {
+          0%   { border-radius: 62% 38% 55% 45% / 50% 45% 55% 50%; }
+          20%  { border-radius: 40% 60% 70% 30% / 60% 35% 65% 40%; }
+          40%  { border-radius: 72% 28% 45% 55% / 38% 68% 32% 62%; }
+          60%  { border-radius: 35% 65% 30% 70% / 55% 45% 65% 35%; }
+          80%  { border-radius: 58% 42% 62% 38% / 48% 62% 38% 52%; }
+          100% { border-radius: 62% 38% 55% 45% / 50% 45% 55% 50%; }
+        }
+        .parallax-blob {
+          animation: blobMorph 9s ease-in-out infinite;
+          position: fixed;
+          pointer-events: none;
+          z-index: 0;
+          width: 520px;
+          height: 520px;
+          background: radial-gradient(ellipse at 38% 52%,
+            rgba(255,55,15,0.09) 0%,
+            rgba(180,30,10,0.06) 30%,
+            rgba(0,70,190,0.04) 60%,
+            transparent 74%
+          );
+          filter: blur(52px);
+          will-change: transform, opacity;
+          mix-blend-mode: screen;
+        }
+
         /* ── BACK TO TOP ─────────────────────────────── */
         .back-to-top { position:fixed; bottom:28px; right:28px; z-index:800;
           width:46px; height:46px; border-radius:50%; border:2px solid rgba(210,50,50,0.5);
@@ -585,6 +624,31 @@ export default function LandingPage() {
           .mini-grid { grid-template-columns:1fr!important; }
         }
       `}</style>
+
+      {/* ══ PARALLAX BLOB ══════════════════════════════════════════════════════ */}
+      {(() => {
+        const p = scrollProgress;
+        // Fade in 0→8%, full 8→85%, fade out 85→100%
+        const opacity = p < 0.08 ? p / 0.08 * 0.7
+          : p > 0.85 ? (1 - p) / 0.15 * 0.7
+          : 0.7;
+        // Move from bottom-left (off screen) toward top-right
+        const x = `calc(-18vw + ${p * 130}vw)`;
+        const y = `calc(92vh - ${p * 170}vh)`;
+        // Grow slightly then shrink as it rises
+        const scale = 1 + Math.sin(p * Math.PI) * 0.35;
+        return (
+          <div
+            className="parallax-blob"
+            style={{
+              left: x,
+              top: y,
+              opacity,
+              transform: `scale(${scale}) rotate(${p * 38}deg)`,
+            }}
+          />
+        );
+      })()}
 
       {/* ══ SIDE SECTION INDICATOR ════════════════════════════════════════════ */}
       <div className="side-nav" style={{ position: "fixed", left: 18, top: "50%", transform: "translateY(-50%)" }}>
@@ -741,18 +805,12 @@ export default function LandingPage() {
       {/* ══ ABOUT ═════════════════════════════════════════════════════════════ */}
       <section id="about" style={{ padding: "100px 20px", background: c.bgAlt, borderTop: `1px solid ${c.secBr}` }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-          <span className="section-tag">WHAT IS 4LIFE MYSTERY</span>
-          <div style={{ marginBottom: 32 }}>
-            <img src={uncoverLogo} alt="Uncover the Unknown"
-              style={{ height: "clamp(36px,5vw,64px)", width: "auto", objectFit: "contain",
-                opacity: theme === "dark" ? 0.92 : 0.85,
-                filter: theme === "dark" ? "drop-shadow(0 2px 16px rgba(255,80,30,0.25))" : "none" }} />
-          </div>
-          <div className="about-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "center" }}>
+          <div className="about-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "stretch" }}>
 
             {/* Face image — fills the container completely */}
             <div style={{ position: "relative", borderRadius: 24, overflow: "hidden", minHeight: 520,
-              boxShadow: "0 24px 80px rgba(0,0,0,0.5)", border: "1px solid rgba(255,80,30,0.15)" }}
+              boxShadow: "0 24px 80px rgba(0,0,0,0.5)", border: "1px solid rgba(255,80,30,0.15)",
+              height: "100%" }}
               className="face-feature">
               {/* Poster image — always rendered, hidden once video plays */}
               <img src={faceImg} alt="4Life Mystery" className="face-sway face-poster"
