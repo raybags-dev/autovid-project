@@ -434,55 +434,6 @@ def retry_video(video_id: str, background_tasks: BackgroundTasks, user: str = De
     return {"message": "Retry started", "video_id": video_id}
 
 
-@app.post("/videos/{video_id}/retry-upload")
-def retry_upload(video_id: str, req: UploadRequest = None, background_tasks: BackgroundTasks = None, user: str = Depends(verify_token)):
-    """Re-attempt YouTube upload without rebuilding the video. Works on ready/failed videos that already have a file."""
-    video = db.get_video(video_id)
-    if not video:
-        raise HTTPException(status_code=404, detail="Video not found")
-    if not video.get("file_path"):
-        raise HTTPException(status_code=400, detail="No video file — regenerate the video first")
-    if video["status"] not in {"ready", "failed"}:
-        raise HTTPException(status_code=400, detail=f"Cannot retry upload: status is '{video['status']}'")
-
-    req = req or UploadRequest()
-    title       = (req.title       or video.get("title")       or "AutoVid Video")[:100]
-    description = (req.description or video.get("description") or "")[:5000]
-    tags        = req.tags         or video.get("labels")       or []
-    privacy     = req.privacy      or "public"
-    category    = req.category     or video.get("category")     or "Entertainment"
-
-    def do_retry():
-        import urllib.request as _req, tempfile, os as _os
-        from pathlib import Path as _P
-        tmp_file = None
-        try:
-            db.update_video(video_id, status="uploading", error_message=None)
-            file_path = video["file_path"]
-            if file_path and file_path.startswith("http"):
-                tmp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-                _req.urlretrieve(file_path, tmp_file.name)
-                file_path = tmp_file.name
-            from pipeline.youtube_uploader import upload_video, record_upload
-            result = upload_video(
-                video_path=file_path, title=title, description=description,
-                labels=tags, category=category, privacy=privacy,
-                thumbnail_path=video.get("thumbnail_url"),
-            )
-            db.set_posted(video_id, result["youtube_id"], result["youtube_url"])
-            record_upload()
-        except Exception as e:
-            db.update_video(video_id, status="ready", error_message=f"YouTube upload failed: {e}"[:500])
-            print(f"❌ Retry upload failed: {e}")
-        finally:
-            if tmp_file:
-                try: _os.unlink(tmp_file.name)
-                except Exception: pass
-
-    background_tasks.add_task(do_retry)
-    return {"message": "Upload retry started", "video_id": video_id}
-
-
 class UploadRequest(BaseModel):
     title:       Optional[str] = None
     description: Optional[str] = None
@@ -557,6 +508,53 @@ def upload_to_youtube(video_id: str, req: UploadRequest, background_tasks: Backg
 
     background_tasks.add_task(do_upload)
     return {"message": "Upload started", "video_id": video_id}
+
+
+@app.post("/videos/{video_id}/retry-upload")
+def retry_upload(video_id: str, req: UploadRequest, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+    """Re-attempt YouTube upload without rebuilding the video. Works on ready/failed videos that have a file."""
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.get("file_path"):
+        raise HTTPException(status_code=400, detail="No video file — regenerate the video first")
+    if video["status"] not in {"ready", "failed"}:
+        raise HTTPException(status_code=400, detail=f"Cannot retry upload: status is '{video['status']}'")
+
+    title       = (req.title       or video.get("title")       or "AutoVid Video")[:100]
+    description = (req.description or video.get("description") or "")[:5000]
+    tags        = req.tags         or video.get("labels")       or []
+    privacy     = req.privacy      or "public"
+    category    = req.category     or video.get("category")     or "Entertainment"
+
+    def do_retry():
+        import urllib.request as _ureq, tempfile, os as _os
+        tmp_file = None
+        try:
+            db.update_video(video_id, status="uploading", error_message=None)
+            file_path = video["file_path"]
+            if file_path and file_path.startswith("http"):
+                tmp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+                _ureq.urlretrieve(file_path, tmp_file.name)
+                file_path = tmp_file.name
+            from pipeline.youtube_uploader import upload_video, record_upload
+            result = upload_video(
+                video_path=file_path, title=title, description=description,
+                labels=tags, category=category, privacy=privacy,
+                thumbnail_path=video.get("thumbnail_url"),
+            )
+            db.set_posted(video_id, result["youtube_id"], result["youtube_url"])
+            record_upload()
+        except Exception as e:
+            db.update_video(video_id, status="ready", error_message=f"YouTube upload failed: {e}"[:500])
+            print(f"❌ Retry upload failed: {e}")
+        finally:
+            if tmp_file:
+                try: _os.unlink(tmp_file.name)
+                except Exception: pass
+
+    background_tasks.add_task(do_retry)
+    return {"message": "Upload retry started", "video_id": video_id}
 
 
 @app.patch("/videos/{video_id}")
