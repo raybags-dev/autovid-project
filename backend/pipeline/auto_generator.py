@@ -298,26 +298,37 @@ def save_auto_short_settings(settings: dict):
     db.set_setting("auto_short_ambience", settings.get("ambience", DEFAULT_SHORT_AMBIENCE))
 
 
-def _pick_next_short_topic(topics: list) -> str:
-    """Pick the next unused short topic, never repeating."""
+def _pick_next_short_topic(topics: list) -> tuple:
+    """
+    Pick the next unused topic+angle combo, never repeating.
+    Each topic gets cycled through all SHORT_ANGLES before any combo repeats.
+    Returns (topic, angle).
+    """
+    from pipeline.script_gen import SHORT_ANGLES
+
     try:
         used_raw = db.get_setting("auto_short_used_topics", default="[]")
         used = set(json.loads(used_raw))
     except Exception:
         used = set()
 
-    # Filter out used topics
-    available = [t for t in topics if t not in used]
-    if not available:
-        # All used — reset and start over
-        used = set()
-        available = list(topics)
-        print("🔄 Auto-short: all topics used, resetting list")
+    # Build all possible combos — topic::angle_index
+    all_combos = [f"{t}::{i}" for t in topics for i in range(len(SHORT_ANGLES))]
+    available  = [c for c in all_combos if c not in used]
 
-    topic = available[0]  # always take first available (topics are ordered)
-    used.add(topic)
+    if not available:
+        # Full cycle exhausted — reset
+        used = set()
+        available = list(all_combos)
+        print("🔄 Auto-short: all topic+angle combos used, resetting")
+
+    combo = available[0]
+    used.add(combo)
     db.set_setting("auto_short_used_topics", json.dumps(list(used)))
-    return topic
+
+    topic_str, angle_idx = combo.rsplit("::", 1)
+    angle = SHORT_ANGLES[int(angle_idx)]
+    return topic_str, angle
 
 
 def run_auto_short(push_log_fn=None, unregister_fn=None):
@@ -331,8 +342,8 @@ def run_auto_short(push_log_fn=None, unregister_fn=None):
         print("⚠️  Auto-short: no topics configured")
         return None
 
-    topic = _pick_next_short_topic(topics)
-    print(f"📱 Auto-short: generating short for: {topic}")
+    topic, angle = _pick_next_short_topic(topics)
+    print(f"📱 Auto-short: '{topic}' | angle: {angle[:50]}...")
 
     video_id = None
     try:
@@ -346,7 +357,7 @@ def run_auto_short(push_log_fn=None, unregister_fn=None):
             if push_log_fn:
                 push_log_fn(video_id, f"[{step}] {msg}")
 
-        run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb)
+        run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb, angle=angle)
         print(f"✅ Auto-short: pipeline complete for {video_id}")
         return video_id
     except Exception as e:
