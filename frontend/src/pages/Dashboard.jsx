@@ -16,6 +16,7 @@ import api, {
   getQuota,
   getStats,
   getYouTubeDetails,
+  listCompilations,
   listShorts,
   listVideos,
   moderateComment,
@@ -366,6 +367,28 @@ function LegalNavDropdown({ T }) {
           >
             Terms of Service ↗
           </a>
+          <a
+            href="https://4lifemystery.com"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "block",
+              padding: "5px 12px",
+              borderRadius: 6,
+              color: T.textFaint,
+              fontSize: 10,
+              textDecoration: "none",
+              letterSpacing: "0.04em",
+              transition: "color 0.15s",
+              marginTop: 4,
+              borderTop: `1px solid ${T.border}`,
+              paddingTop: 8,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#ff6633"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = T.textFaint; }}
+          >
+            🌐 4lifemystery.com ↗
+          </a>
         </div>
       )}
     </div>
@@ -412,6 +435,7 @@ export default function Dashboard() {
   const [cardCommentText, setCardCommentText] = useState("");
   const [postingCardComment, setPostingCardComment] = useState(false);
   const [billing, setBilling] = useState(null);
+  const [libraryComps, setLibraryComps] = useState([]);
   const [channelVideos, setChannelVideos] = useState([]);
   const [channelLoading, setChannelLoading] = useState(false);
   const [channelError, setChannelError] = useState("");
@@ -553,6 +577,7 @@ export default function Dashboard() {
     if (tab === "billing") fetchBilling();
     if (tab === "channel") fetchChannel(false); // use cache, don't burn quota
     if (tab === "shorts") loadShorts(true);
+    if (tab === "library") listCompilations().then(r => setLibraryComps(Array.isArray(r) ? r : [])).catch(() => {});
   }, [tab, fetchBilling, fetchChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sessionGenerating = useRef(false);
@@ -1458,8 +1483,9 @@ export default function Dashboard() {
               },
               { id: "script", icon: "✍", label: "Script Studio" },
               { id: "shorts", icon: "⚡", label: "Shorts Studio" },
+              { id: "library", icon: "🗂", label: "Library" },
               { id: "channel", icon: "▶", label: "My Channel" },
-              { id: "billing", icon: "◑", label: "Billing" },
+              { id: "billing", icon: "◑", label: "Subscriptions" },
               { id: "analytics", icon: "◈", label: "Analytics" },
               { id: "compilations", icon: "🎬", label: "Compilations" },
               { id: "settings", icon: "◎", label: "Settings" },
@@ -1651,10 +1677,12 @@ export default function Dashboard() {
                 ? "Script Studio"
                 : tab === "shorts"
                 ? "Shorts Studio"
+                : tab === "library"
+                ? "Library"
                 : tab === "channel"
                 ? "My Channel"
                 : tab === "billing"
-                ? "Billing & Quotas"
+                ? "Subscriptions & Quotas"
                 : tab === "compilations"
                 ? "Compilations"
                 : tab === "analytics"
@@ -3214,6 +3242,25 @@ export default function Dashboard() {
                                 : "🚀 UPLOAD TO YOUTUBE"}
                             </button>
                           )}
+                          {/* MP3 narration download — show for any video with a narration */}
+                          {v.narration_url && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`); }}
+                              title="Download narration MP3"
+                              style={{
+                                fontSize: 10,
+                                color: "#a0d090",
+                                padding: "4px 10px",
+                                background: "#a0d09010",
+                                borderRadius: 5,
+                                border: "1px solid #a0d09030",
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              🎙 MP3
+                            </button>
+                          )}
                           {/* TikTok upload button — show for ready/posted videos when connected */}
                           {tiktokConnected && (v.status === "ready" || v.status === "posted") && v.file_path && (
                             <button
@@ -3319,24 +3366,6 @@ export default function Dashboard() {
                                   ▶ YouTube
                                 </a>
                               )}
-                              {v.narration_url && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`); }}
-                                  title="Download narration MP3"
-                                  style={{
-                                    fontSize: 10,
-                                    color: "#a0d090",
-                                    padding: "4px 10px",
-                                    background: "#a0d09010",
-                                    borderRadius: 5,
-                                    border: "1px solid #a0d09030",
-                                    cursor: "pointer",
-                                    fontFamily: "inherit",
-                                  }}
-                                >
-                                  🎙 MP3
-                                </button>
-                              )}
                               <span
                                 style={{ fontSize: 10, color: T.textFaint }}
                               >
@@ -3387,6 +3416,24 @@ export default function Dashboard() {
                                 </div>
                               </span>
                             </>
+                          )}
+                          {/* Make Short — available for ready videos (not posted) */}
+                          {v.status === "ready" && v.file_path && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setShortsModal(v); }}
+                              style={{
+                                fontSize: 10,
+                                color: T.textFaint,
+                                padding: "4px 10px",
+                                background: "transparent",
+                                borderRadius: 5,
+                                border: `1px solid ${T.border}`,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              📱 Make Short
+                            </button>
                           )}
                           {v.status === "uploading" && (
                             <span
@@ -5592,6 +5639,146 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* ── LIBRARY TAB ─────────────────────────────────────────────────────── */}
+            {tab === "library" && (() => {
+              const isCompAudio = (c) =>
+                (c.labels || []).includes("mp3") ||
+                c.file_path?.toLowerCase().endsWith(".mp3") ||
+                c.title?.toLowerCase().includes("podcast");
+              const regularVideos = videos.filter(
+                (v) => !(v.labels || []).includes("compilation") && v.file_path
+              );
+              const mp3Videos = videos.filter((v) => !!v.narration_url);
+              const videoComps = libraryComps.filter((c) => !isCompAudio(c));
+              const audioComps = libraryComps.filter((c) => isCompAudio(c));
+
+              const colStyle = {
+                background: T.bgCard,
+                border: `1px solid ${T.border}`,
+                borderRadius: 14,
+                padding: 16,
+                minWidth: 0,
+              };
+              const colHead = {
+                fontSize: 9,
+                color: T.textFaint,
+                letterSpacing: "0.16em",
+                marginBottom: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              };
+              const libRow = (item, ext, onDl) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "9px 0",
+                    borderBottom: `1px solid ${T.border}`,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, color: T.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.title || item.id}
+                    </div>
+                    <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>
+                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : "—"}
+                      {item.duration_seconds ? ` · ${Math.floor(item.duration_seconds / 60)}:${String(item.duration_seconds % 60).padStart(2, "0")}` : ""}
+                    </div>
+                  </div>
+                  {item.status && (
+                    <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: item.status === "posted" || item.status === "ready" ? `${T.accentGreen}18` : `${T.border}`, color: item.status === "posted" || item.status === "ready" ? T.accentGreen : T.textFaint, letterSpacing: "0.08em" }}>
+                      {item.status.toUpperCase()}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleDownload(item.file_path || item.narration_url, `${item.title || item.id}.${ext}`)}
+                    disabled={!item.file_path && !item.narration_url}
+                    title={`Download .${ext}`}
+                    style={{ fontSize: 11, padding: "4px 9px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textMid, cursor: item.file_path || item.narration_url ? "pointer" : "default", opacity: item.file_path || item.narration_url ? 1 : 0.3, fontFamily: "inherit", flexShrink: 0 }}
+                  >
+                    ↓ .{ext}
+                  </button>
+                </div>
+              );
+
+              return (
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                    {/* Videos / MP4 */}
+                    <div style={colStyle}>
+                      <div style={colHead}>
+                        <span>🎬 VIDEOS · MP4</span>
+                        <span style={{ background: `${T.accent}18`, color: T.accent, padding: "1px 7px", borderRadius: 10, fontSize: 9 }}>{regularVideos.length}</span>
+                      </div>
+                      {regularVideos.length === 0 ? (
+                        <div style={{ fontSize: 11, color: T.textFaint, textAlign: "center", padding: "20px 0" }}>No videos yet</div>
+                      ) : (
+                        <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                          {regularVideos.map((v) => libRow(v, "mp4"))}
+                        </div>
+                      )}
+                    </div>
+                    {/* MP3 Narrations */}
+                    <div style={colStyle}>
+                      <div style={colHead}>
+                        <span>🎙 MP3 · NARRATIONS</span>
+                        <span style={{ background: "rgba(160,208,144,0.12)", color: "#a0d090", padding: "1px 7px", borderRadius: 10, fontSize: 9 }}>{mp3Videos.length}</span>
+                      </div>
+                      {mp3Videos.length === 0 ? (
+                        <div style={{ fontSize: 11, color: T.textFaint, textAlign: "center", padding: "20px 0" }}>No narrations yet</div>
+                      ) : (
+                        <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                          {mp3Videos.map((v) => (
+                            <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${T.border}` }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 11, color: T.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.title || v.id}</div>
+                                <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>{v.created_at ? new Date(v.created_at).toLocaleDateString() : "—"}</div>
+                              </div>
+                              <button onClick={() => handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`)} style={{ fontSize: 11, padding: "4px 9px", borderRadius: 6, border: `1px solid #a0d09030`, background: "#a0d09010", color: "#a0d090", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>↓ .mp3</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Compilations row */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    {/* Video Compilations */}
+                    <div style={colStyle}>
+                      <div style={colHead}>
+                        <span>🔗 COMPILATIONS · VIDEO</span>
+                        <span style={{ background: `${T.accentYellow}18`, color: T.accentYellow, padding: "1px 7px", borderRadius: 10, fontSize: 9 }}>{videoComps.length}</span>
+                      </div>
+                      {videoComps.length === 0 ? (
+                        <div style={{ fontSize: 11, color: T.textFaint, textAlign: "center", padding: "20px 0" }}>No video compilations</div>
+                      ) : (
+                        <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                          {videoComps.map((c) => libRow(c, "mp4"))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Audio Compilations */}
+                    <div style={colStyle}>
+                      <div style={colHead}>
+                        <span>🎵 COMPILATIONS · MP3</span>
+                        <span style={{ background: "rgba(29,185,84,0.12)", color: "#1db954", padding: "1px 7px", borderRadius: 10, fontSize: 9 }}>{audioComps.length}</span>
+                      </div>
+                      {audioComps.length === 0 ? (
+                        <div style={{ fontSize: 11, color: T.textFaint, textAlign: "center", padding: "20px 0" }}>No MP3 compilations</div>
+                      ) : (
+                        <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                          {audioComps.map((c) => libRow(c, "mp3"))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── ANALYTICS TAB ───────────────────────────────────────────────────── */}
             {tab === "compilations" && (
               <CompilationStudio T={T} showToast={showToast} videos={videos} />
@@ -5608,6 +5795,27 @@ export default function Dashboard() {
                   }}
                 >
                   {[
+                    {
+                      label: "TOTAL VIDEOS",
+
+                      value: stats.total || 0,
+                      color: T.accent,
+                    },
+                    {
+                      label: "LIVE ON YOUTUBE",
+                      value: stats.posted || 0,
+                      color: T.accentGreen,
+                    },
+                    {
+                      label: "TOTAL VIEWS",
+                      value: stats.total_views != null ? fmtNum(stats.total_views) : "—",
+                      color: "#a0d090",
+                    },
+                    {
+                      label: "TOTAL LIKES",
+                      value: stats.total_likes != null ? fmtNum(stats.total_likes) : "—",
+                      color: T.accentYellow,
+                    },
                     {
                       label: "SUCCESS RATE",
                       value: stats.total
@@ -5638,6 +5846,16 @@ export default function Dashboard() {
                           new Date(Date.now() - 7 * 86400000),
                       ).length,
                       color: T.accentYellow,
+                    },
+                    {
+                      label: "FAILED",
+                      value: stats.failed || 0,
+                      color: T.accentRed,
+                    },
+                    {
+                      label: "NARRATIONS",
+                      value: videos.filter((v) => !!v.narration_url).length,
+                      color: "#a0d090",
                     },
                   ].map((s) => (
                     <div key={s.label} className="stat-card">
@@ -8367,8 +8585,8 @@ export default function Dashboard() {
         <nav className="mobile-bottom-nav">
           {[
             { id: "videos", icon: "▣", label: "Video Studio" },
-            { id: "shorts", icon: "⚡", label: "Shorts Studio" },
-            { id: "script", icon: "✍", label: "Script" },
+            { id: "shorts", icon: "⚡", label: "Shorts" },
+            { id: "library", icon: "🗂", label: "Library" },
             { id: "channel", icon: "▶", label: "Channel" },
             { id: "settings", icon: "◎", label: "Settings" },
           ].map(n => (
