@@ -5,6 +5,7 @@ import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
 import profileImg   from "../assets/4life_mystery.png";
 import faceImg      from "../assets/static/face.jpg";
+import faceVideo    from "../assets/static/face.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
 import metrixVideo  from "../assets/static/metrix.mp4";
 
@@ -656,11 +657,23 @@ export default function LandingPage() {
             <div style={{ position: "relative", borderRadius: 24, overflow: "hidden", minHeight: 520,
               boxShadow: "0 24px 80px rgba(0,0,0,0.5)", border: "1px solid rgba(255,80,30,0.15)" }}
               className="face-feature">
-              <img src={faceImg} alt="4Life Mystery" className="face-sway"
+              {/* Poster image — always rendered, hidden once video plays */}
+              <img src={faceImg} alt="4Life Mystery" className="face-sway face-poster"
                 style={{ position: "absolute", inset: 0, width: "100%", height: "105%",
-                objectFit: "cover", objectPosition: "center top" }} />
-              {/* Subtle light shimmer simulating wind-shifted light */}
-              <div className="face-wind-overlay" />
+                  objectFit: "cover", objectPosition: "center top", zIndex: 1, transition: "opacity 0.8s ease" }} />
+              {/* Video — invisible until canplay, then fades in over the image */}
+              <video
+                autoPlay muted loop playsInline
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+                  objectFit: "cover", objectPosition: "center top", zIndex: 2, opacity: 0, transition: "opacity 0.8s ease" }}
+                onCanPlay={e => {
+                  e.currentTarget.style.opacity = "1";
+                  const poster = e.currentTarget.previousElementSibling;
+                  if (poster) poster.style.opacity = "0";
+                }}
+              >
+                <source src={faceVideo} type="video/mp4" />
+              </video>
               {/* Gradient overlay with name badge */}
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0,
                 background: "linear-gradient(to top, rgba(3,6,15,0.92) 0%, transparent 55%)",
