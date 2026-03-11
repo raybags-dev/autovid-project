@@ -132,7 +132,7 @@ def upload_to_storage(local_path: str, video_id: str, cb=None) -> str:
     return public_url
 
 
-def upload_narration_to_storage(audio_path: str, video_id: str, cb=None) -> str:
+def upload_narration_to_storage(audio_path: str, video_id: str, cb=None, filename: str = None) -> str:
     """
     Upload the raw narration MP3 to Supabase Storage (narrations bucket).
     Returns the permanent public URL, or raises on failure.
@@ -148,7 +148,7 @@ def upload_narration_to_storage(audio_path: str, video_id: str, cb=None) -> str:
     if not audio_path.exists():
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-    filename = f"{video_id}_narration.mp3"
+    filename = filename or f"{video_id}_narration.mp3"
     size_mb  = audio_path.stat().st_size / (1024 * 1024)
     print(f"🎙  Uploading narration to Supabase: {filename} ({size_mb:.1f} MB)")
 

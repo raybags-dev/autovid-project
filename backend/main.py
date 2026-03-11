@@ -95,6 +95,72 @@ def health():
     return {"status": "ok", "service": "AutoVid API"}
 
 
+# ── Podcast RSS Feed ───────────────────────────────────────────────────────────
+
+def _escape_xml(text: str) -> str:
+    return (str(text)
+        .replace("&", "&amp;").replace("<", "&lt;")
+        .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+@app.get("/podcast/feed.xml")
+def podcast_feed():
+    """
+    RSS 2.0 + iTunes podcast feed.
+    Submit this URL once at podcasters.spotify.com — new episodes appear automatically.
+    Public endpoint (no auth) so Spotify can fetch it.
+    """
+    from fastapi.responses import Response
+    from datetime import datetime, timezone
+
+    all_videos = db.list_videos(limit=500)
+    episodes   = [v for v in all_videos if v.get("narration_url") and v.get("title")]
+
+    base_url      = config.BASE_URL.rstrip("/")
+    feed_url      = f"{base_url}/api/podcast/feed.xml"
+    channel_title = _escape_xml(config.PODCAST_TITLE)
+    channel_desc  = _escape_xml(config.PODCAST_DESCRIPTION)
+
+    items_xml = ""
+    for v in episodes:
+        pub_raw = v.get("posted_at") or v.get("created_at", "")
+        try:
+            dt = datetime.fromisoformat(pub_raw.replace("Z", "+00:00"))
+            rfc_date = dt.strftime("%a, %d %b %Y %H:%M:%S +0000")
+        except Exception:
+            rfc_date = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
+
+        dur = v.get("duration_seconds") or 0
+        items_xml += f"""
+  <item>
+    <title>{_escape_xml(v['title'])}</title>
+    <description>{_escape_xml((v.get('description') or '')[:500])}</description>
+    <pubDate>{rfc_date}</pubDate>
+    <enclosure url="{v['narration_url']}" type="audio/mpeg" length="0"/>
+    <guid isPermaLink="false">{v['id']}</guid>
+    <itunes:duration>{dur // 60}:{dur % 60:02d}</itunes:duration>
+    <link>{v.get('youtube_url', base_url)}</link>
+  </item>"""
+
+    rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+  xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>{channel_title}</title>
+    <link>{base_url}</link>
+    <description>{channel_desc}</description>
+    <language>en-us</language>
+    <itunes:author>{channel_title}</itunes:author>
+    <itunes:explicit>no</itunes:explicit>
+    <atom:link href="{feed_url}" rel="self" type="application/rss+xml"/>
+    {items_xml}
+  </channel>
+</rss>"""
+
+    return Response(content=rss, media_type="application/rss+xml")
+
+
 # ── Video models ──────────────────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
@@ -323,6 +389,55 @@ def retry_video(video_id: str, background_tasks: BackgroundTasks, user: str = De
     return {"message": "Retry started", "video_id": video_id}
 
 
+@app.post("/videos/{video_id}/retry-upload")
+def retry_upload(video_id: str, req: UploadRequest = None, background_tasks: BackgroundTasks = None, user: str = Depends(verify_token)):
+    """Re-attempt YouTube upload without rebuilding the video. Works on ready/failed videos that already have a file."""
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.get("file_path"):
+        raise HTTPException(status_code=400, detail="No video file — regenerate the video first")
+    if video["status"] not in {"ready", "failed"}:
+        raise HTTPException(status_code=400, detail=f"Cannot retry upload: status is '{video['status']}'")
+
+    req = req or UploadRequest()
+    title       = (req.title       or video.get("title")       or "AutoVid Video")[:100]
+    description = (req.description or video.get("description") or "")[:5000]
+    tags        = req.tags         or video.get("labels")       or []
+    privacy     = req.privacy      or "public"
+    category    = req.category     or video.get("category")     or "Entertainment"
+
+    def do_retry():
+        import urllib.request as _req, tempfile, os as _os
+        from pathlib import Path as _P
+        tmp_file = None
+        try:
+            db.update_video(video_id, status="uploading", error_message=None)
+            file_path = video["file_path"]
+            if file_path and file_path.startswith("http"):
+                tmp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+                _req.urlretrieve(file_path, tmp_file.name)
+                file_path = tmp_file.name
+            from pipeline.youtube_uploader import upload_video, record_upload
+            result = upload_video(
+                video_path=file_path, title=title, description=description,
+                labels=tags, category=category, privacy=privacy,
+                thumbnail_path=video.get("thumbnail_url"),
+            )
+            db.set_posted(video_id, result["youtube_id"], result["youtube_url"])
+            record_upload()
+        except Exception as e:
+            db.update_video(video_id, status="ready", error_message=f"YouTube upload failed: {e}"[:500])
+            print(f"❌ Retry upload failed: {e}")
+        finally:
+            if tmp_file:
+                try: _os.unlink(tmp_file.name)
+                except Exception: pass
+
+    background_tasks.add_task(do_retry)
+    return {"message": "Upload retry started", "video_id": video_id}
+
+
 class UploadRequest(BaseModel):
     title:       Optional[str] = None
     description: Optional[str] = None
@@ -355,7 +470,7 @@ def upload_to_youtube(video_id: str, req: UploadRequest, background_tasks: Backg
         import urllib.request, tempfile, os as _os
         from pathlib import Path as _P
         try:
-            db.set_status(video_id, "uploading")
+            db.update_video(video_id, status="uploading", error_message=None)
             file_path = video["file_path"]
 
             if file_path and not file_path.startswith("http") and not _P(file_path).exists():
@@ -390,7 +505,9 @@ def upload_to_youtube(video_id: str, req: UploadRequest, background_tasks: Backg
                     local.unlink()
 
         except Exception as e:
-            db.set_failed(video_id, f"YouTube upload failed: {e}")
+            # Keep status "ready" so the video can still be uploaded to other platforms
+            # or retried for YouTube without rebuilding the entire video.
+            db.update_video(video_id, status="ready", error_message=f"YouTube upload failed: {e}"[:500])
             print(f"❌ Upload failed: {e}")
 
     background_tasks.add_task(do_upload)

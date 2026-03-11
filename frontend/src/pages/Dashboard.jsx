@@ -28,6 +28,7 @@ import api, {
   postComment,
   replyComment,
   retryVideo,
+  retryUploadVideo,
   saveAutoShortSettings,
   syncYoutube,
   triggerAutoComment,
@@ -874,6 +875,17 @@ export default function Dashboard() {
       showToast("Retry started");
     } catch (e) {
       showToast("Retry failed", "error");
+    }
+  };
+
+  const handleRetryUpload = async (id, e) => {
+    e.stopPropagation();
+    try {
+      await retryUploadVideo(id);
+      refresh();
+      showToast("YouTube upload retry started");
+    } catch (err) {
+      showToast(err?.response?.data?.detail || "Retry upload failed", "error");
     }
   };
   // YouTube modal state
@@ -2748,7 +2760,7 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        {v.status === "failed" && v.error_message && (
+                        {v.error_message && (v.status === "failed" || v.status === "ready") && (
                           <div
                             style={{
                               marginTop: 10,
@@ -2761,7 +2773,7 @@ export default function Dashboard() {
                               display: "flex",
                               justifyContent: "space-between",
                               alignItems: "center",
-                              gap: 12,
+                              gap: 8,
                             }}
                           >
                             <span
@@ -2769,22 +2781,39 @@ export default function Dashboard() {
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
+                                flex: 1,
                               }}
                             >
                               ⚠ {v.error_message.split("\n")[0]}
                             </span>
-                            <button
-                              className="btn-sm"
-                              onClick={(e) => handleRetry(v.id, e)}
-                              style={{
-                                color: T.accentRed,
-                                borderColor: "rgba(200,40,60,0.25)",
-                                background: "rgba(200,40,60,0.07)",
-                                flexShrink: 0,
-                              }}
-                            >
-                              RETRY
-                            </button>
+                            {v.status === "failed" && (
+                              <button
+                                className="btn-sm"
+                                onClick={(e) => handleRetry(v.id, e)}
+                                style={{
+                                  color: T.accentRed,
+                                  borderColor: "rgba(200,40,60,0.25)",
+                                  background: "rgba(200,40,60,0.07)",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                RETRY
+                              </button>
+                            )}
+                            {v.status === "ready" && v.file_path && (
+                              <button
+                                className="btn-sm"
+                                onClick={(e) => handleRetryUpload(v.id, e)}
+                                style={{
+                                  color: T.accentYellow,
+                                  borderColor: `${T.accentYellow}40`,
+                                  background: `${T.accentYellow}0d`,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                RETRY UPLOAD
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -5709,6 +5738,36 @@ export default function Dashboard() {
                           </div>
                         );
                       })()}
+                    </div>
+
+                    {/* ── Podcast RSS Feed ─────────────────────────────────── */}
+                    <div style={{ gridColumn: "1/-1", background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                        <div style={{ fontSize: 20 }}>🎙</div>
+                        <div>
+                          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 13 }}>Podcast RSS Feed</div>
+                          <div style={{ fontSize: 10, color: T.textMid, textTransform: "uppercase", letterSpacing: "0.08em" }}>Spotify for Podcasters</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 12 }}>
+                        Submit this URL once at{" "}
+                        <a href="https://podcasters.spotify.com" target="_blank" rel="noreferrer" style={{ color: "#1db954" }}>podcasters.spotify.com</a>.
+                        New episodes appear automatically when MP3s are generated.
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input readOnly value={`${window.location.origin}/api/podcast/feed.xml`}
+                          style={{ flex: 1, background: T.bgBase, border: `1px solid ${T.border}`, borderRadius: 7,
+                                   color: T.text, fontSize: 10, padding: "7px 10px", fontFamily: "monospace", outline: "none" }} />
+                        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/podcast/feed.xml`); showToast("RSS URL copied!"); }}
+                          style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid rgba(29,185,84,0.4)",
+                                   background: "rgba(29,185,84,0.1)", color: "#1db954", fontSize: 11,
+                                   cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                          COPY URL
+                        </button>
+                      </div>
+                      <div style={{ fontSize: 10, color: T.textFaint, marginTop: 8 }}>
+                        {videos.filter(v => !!v.narration_url).length} episode{videos.filter(v => !!v.narration_url).length !== 1 ? "s" : ""} available
+                      </div>
                     </div>
 
                     {/* Refresh button */}
