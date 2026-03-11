@@ -126,7 +126,7 @@ export default function LandingPage() {
   const [ytVideos,      setYtVideos]      = useState([]);
   const [ytLoading,     setYtLoading]     = useState(true);
   const [modalVideo,    setModalVideo]    = useState(null);   // { id, title, url }
-  const [sampleIdx,     setSampleIdx]     = useState(-1);     // auto-preview cycling
+  const [showBackTop,   setShowBackTop]   = useState(false);
   const wrapperRef  = useRef(null);
   const autoRef     = useRef(null);
   const heroVidRef  = useRef(null);
@@ -171,15 +171,14 @@ export default function LandingPage() {
       .finally(() => setYtLoading(false));
   }, []);
 
-  // Auto-sample: cycle through videos every 5 seconds (muted preview)
+  // Back-to-top visibility (uses wrapper scroll, same as nav scroll detection)
   useEffect(() => {
-    if (ytVideos.length === 0 || modalVideo) return;
-    setSampleIdx(0);
-    const t = setInterval(() => {
-      setSampleIdx(i => (i + 1) % ytVideos.length);
-    }, 5000);
-    return () => clearInterval(t);
-  }, [ytVideos, modalVideo]);
+    const el = wrapperRef.current;
+    if (!el) return;
+    const fn = () => setShowBackTop(el.scrollTop > 600);
+    el.addEventListener("scroll", fn, { passive: true });
+    return () => el.removeEventListener("scroll", fn);
+  }, []);
 
   // Close modal on Escape
   useEffect(() => {
@@ -482,25 +481,26 @@ export default function LandingPage() {
           background:var(--card-bg); border:1px solid var(--card-br); box-shadow:var(--card-sh,none);
           transition:transform 0.28s, box-shadow 0.28s, border-color 0.28s; position:relative; }
         .yt-card:hover { transform:translateY(-5px); border-color:rgba(200,40,40,0.4); box-shadow:0 14px 44px rgba(180,30,30,0.18); }
-        .yt-card.sampling { border-color:rgba(200,40,40,0.5); box-shadow:0 0 0 2px rgba(200,40,40,0.25); }
         .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#080808; }
         .yt-thumb img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
         .yt-card:hover .yt-thumb img { transform:scale(1.04); }
-        .yt-thumb iframe { position:absolute; inset:0; width:100%; height:100%; border:none; display:block; }
+        /* glassmorphic play overlay — always visible, intensifies on hover */
         .yt-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-          background:rgba(0,0,0,0.12); opacity:0.55; transition:opacity 0.3s; pointer-events:none; }
-        .yt-card:hover .yt-play { opacity:1; }
-        .yt-play.sampling-active { opacity:0; }
-        .yt-play-btn { width:clamp(44px,32%,90px); aspect-ratio:1/1; border-radius:50%;
-          background:rgba(195,40,40,0.82);
+          background:rgba(0,0,0,0.08); opacity:0.65; transition:opacity 0.3s, background 0.3s; pointer-events:none; }
+        .yt-card:hover .yt-play { opacity:1; background:rgba(0,0,0,0.22); }
+        /* glassmorphic circle — mirrors dashboard .play-btn but in red */
+        .yt-play-btn { width:clamp(52px,30%,88px); aspect-ratio:1/1; border-radius:50%;
+          background:rgba(195,38,38,0.18); border:2px solid rgba(210,50,50,0.55);
+          backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
           display:flex; align-items:center; justify-content:center;
-          box-shadow:0 4px 28px rgba(160,20,20,0.55); transform:scale(0.88); transition:transform 0.25s, opacity 0.25s; }
-        .yt-card:hover .yt-play-btn { transform:scale(1); }
-        .yt-play-btn svg { width:38%; height:38%; fill:#fff; margin-left:8%; }
-        .yt-play-btn.disabled { opacity:0.3; background:rgba(100,100,100,0.6); box-shadow:none; }
-        .yt-sample-label { position:absolute; top:8px; left:8px; background:rgba(195,40,40,0.85);
-          color:#fff; font-size:9px; letter-spacing:0.12em; padding:3px 8px; border-radius:4px;
-          font-family:sans-serif; font-weight:700; }
+          box-shadow:0 4px 24px rgba(160,20,20,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
+          transform:scale(0.9); transition:transform 0.25s, background 0.25s, box-shadow 0.25s; }
+        .yt-card:hover .yt-play-btn { transform:scale(1.05); background:rgba(195,38,38,0.32);
+          box-shadow:0 6px 32px rgba(180,20,20,0.55), inset 0 1px 0 rgba(255,255,255,0.12); }
+        .yt-play-btn svg { width:36%; height:36%; fill:#fff; margin-left:7%;
+          filter:drop-shadow(0 1px 4px rgba(0,0,0,0.6)); }
+        .yt-play-btn.disabled { opacity:0.28; border-color:rgba(150,150,150,0.3);
+          background:rgba(80,80,80,0.15); box-shadow:none; cursor:default; }
         .yt-info { padding:14px 16px 16px; }
         .yt-title { font-size:13px; font-weight:600; line-height:1.45; margin-bottom:8px;
           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -527,7 +527,18 @@ export default function LandingPage() {
         .yt-modal-btn.yt { background:rgba(195,40,40,0.9); color:#fff; }
         .yt-modal-btn.close { background:rgba(255,255,255,0.1); color:#cdd8e8; }
         @keyframes modalIn { from { opacity:0; transform:scale(0.92) translateY(18px); } to { opacity:1; transform:scale(1) translateY(0); } }
-        @media (max-width:900px) { .yt-grid { grid-template-columns:repeat(2,1fr)!important; } .yt-modal-box { width:95vw; } }
+        /* ── BACK TO TOP ─────────────────────────────── */
+        .back-to-top { position:fixed; bottom:28px; right:28px; z-index:800;
+          width:46px; height:46px; border-radius:50%; border:2px solid rgba(210,50,50,0.5);
+          background:rgba(195,38,38,0.16); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+          display:flex; align-items:center; justify-content:center; cursor:pointer;
+          box-shadow:0 4px 20px rgba(160,20,20,0.35), inset 0 1px 0 rgba(255,255,255,0.07);
+          transition:opacity 0.3s, transform 0.3s, background 0.25s, box-shadow 0.25s;
+          color:#fff; font-size:18px; }
+        .back-to-top:hover { background:rgba(195,38,38,0.32); transform:translateY(-3px) scale(1.07);
+          box-shadow:0 8px 28px rgba(180,20,20,0.5), inset 0 1px 0 rgba(255,255,255,0.12); }
+        .back-to-top.hidden { opacity:0; pointer-events:none; transform:translateY(12px); }
+        @media (max-width:900px) { .yt-grid { grid-template-columns:repeat(2,1fr)!important; } .yt-modal-box { width:95vw; } .back-to-top { bottom:80px; right:18px; } }
         @media (max-width:540px) { .yt-grid { grid-template-columns:1fr!important; } }
 
         /* ── BUTTON GROUPS ────────────────────────────── */
@@ -920,39 +931,26 @@ export default function LandingPage() {
           {!ytLoading && ytVideos.length > 0 && (
             <div className="yt-grid" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh }}>
               {ytVideos.map((v, idx) => {
-                const isSampling = sampleIdx === idx;
-                const isBroken   = !v.id;
+                const isBroken = !v.id;
                 return (
                   <div key={v.id || idx}
-                    className={`yt-card${isSampling ? " sampling" : ""}`}
+                    className="yt-card"
                     style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh, cursor: isBroken ? "default" : "pointer" }}
                     onClick={() => !isBroken && setModalVideo(v)}
                   >
                     <div className="yt-thumb">
-                      {/* Muted iframe preview when sampling */}
-                      {isSampling && v.id && (
-                        <iframe
-                          src={`https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&start=30`}
-                          allow="autoplay; encrypted-media"
-                          title={v.title}
-                        />
-                      )}
                       <img
                         src={v.thumbnail || brokenThumb}
                         alt={v.title}
                         onError={e => { e.currentTarget.src = brokenThumb; }}
-                        style={{ opacity: isSampling ? 0 : 1, transition:"opacity 0.4s" }}
                       />
-                      <div className={`yt-play${isSampling ? " sampling-active" : ""}`}>
+                      <div className="yt-play">
                         <div className={`yt-play-btn${isBroken ? " disabled" : ""}`}>
                           <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </div>
                       </div>
-                      {isSampling && (
-                        <div className="yt-sample-label">● PREVIEW</div>
-                      )}
-                      {v.duration && !isSampling && (
-                        <div style={{ position:"absolute", bottom:8, right:8, background:"rgba(0,0,0,0.8)",
+                      {v.duration && (
+                        <div style={{ position:"absolute", bottom:8, right:8, background:"rgba(0,0,0,0.75)",
                           color:"#fff", fontSize:10, padding:"2px 6px", borderRadius:4, letterSpacing:"0.04em" }}>
                           {v.duration}
                         </div>
@@ -1224,6 +1222,16 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Back to top */}
+      <button
+        className={`back-to-top${showBackTop ? "" : " hidden"}`}
+        onClick={() => wrapperRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+        title="Back to top"
+        aria-label="Back to top"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 4l-8 8h5v8h6v-8h5z"/></svg>
+      </button>
     </div>
   );
 }
