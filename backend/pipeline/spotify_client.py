@@ -80,15 +80,18 @@ def exchange_code(code: str):
     client_id, client_secret = _creds()
     resp = requests.post(
         "https://accounts.spotify.com/api/token",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
         data={
-            "grant_type":   "authorization_code",
-            "code":         code,
-            "redirect_uri": REDIRECT_URI,
+            "grant_type":    "authorization_code",
+            "code":          code,
+            "redirect_uri":  REDIRECT_URI,
+            "client_id":     client_id,
+            "client_secret": client_secret,
         },
-        auth=(client_id, client_secret),
         timeout=15,
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        raise RuntimeError(f"Spotify token exchange failed ({resp.status_code}): {resp.text}")
     save_token(resp.json())
 
 
@@ -100,11 +103,13 @@ def _refresh() -> str:
         raise RuntimeError("No Spotify refresh token stored — re-connect via /spotify/connect")
     resp = requests.post(
         "https://accounts.spotify.com/api/token",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
         data={
             "grant_type":    "refresh_token",
             "refresh_token": token["refresh_token"],
+            "client_id":     client_id,
+            "client_secret": client_secret,
         },
-        auth=(client_id, client_secret),
         timeout=15,
     )
     resp.raise_for_status()
