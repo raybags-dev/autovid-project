@@ -57,18 +57,32 @@ celery_app.conf.beat_schedule = {
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
 @celery_app.task(bind=True, name="workers.celery_worker.run_video_pipeline")
-def run_video_pipeline(self, prompt: str, auto_upload: bool = True):
+def run_video_pipeline(
+    self,
+    prompt: str,
+    auto_upload: bool = True,
+    profile: str = "educational",
+    visual_mood: str = None,
+    music_style: str = "ambient",
+    video_id: str = None,
+):
     """
     Celery task: Run the full video generation pipeline.
-    Call this from FastAPI instead of background_tasks for better reliability.
+    Queues jobs so multiple requests are processed one at a time.
     """
     from pipeline.orchestrator import run_pipeline
 
-    # Update task state so frontend can poll progress
-    self.update_state(state="STARTED", meta={"prompt": prompt, "step": "initializing"})
+    self.update_state(state="STARTED", meta={"prompt": prompt, "step": "initializing", "video_id": video_id})
 
     try:
-        result = run_pipeline(prompt, auto_upload=auto_upload)
+        result = run_pipeline(
+            prompt=prompt,
+            auto_upload=auto_upload,
+            profile=profile,
+            visual_mood=visual_mood,
+            music_style=music_style,
+            video_id=video_id,
+        )
         return {"status": "success", "video_id": result["id"], "title": result.get("title")}
     except Exception as e:
         self.update_state(state="FAILURE", meta={"error": str(e)})

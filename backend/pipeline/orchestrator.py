@@ -189,6 +189,47 @@ def step_upload_youtube(
     return result
 
 
+def step_save_mixed_mp3(final_path: str, video_id: str, cb=None) -> Optional[str]:
+    """
+    Extract the fully-mixed audio (narration + background music) from the final
+    video file and upload it to Supabase as a permanent MP3.
+    Overwrites narration_url with this richer version.
+    Non-fatal — failure is logged but does not abort the pipeline.
+    """
+    mixed_mp3 = config.AUDIO_OUTPUT_DIR / f"{video_id}_mixed.mp3"
+    _log("MP3", "Extracting mixed audio from final video...", cb)
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(final_path),
+        "-vn",                  # drop video stream
+        "-acodec", "libmp3lame",
+        "-q:a", "2",            # high-quality VBR (~190 kbps)
+        str(mixed_mp3),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not mixed_mp3.exists():
+        _log("MP3", f"⚠️  Mixed MP3 extraction failed: {result.stderr[-200:]}", cb)
+        return None
+
+    size_mb = mixed_mp3.stat().st_size / (1024 * 1024)
+    _log("MP3", f"✅ Mixed MP3: {mixed_mp3.name} ({size_mb:.1f} MB)", cb)
+
+    try:
+        url = upload_narration_to_storage(
+            str(mixed_mp3), video_id, cb,
+            filename=f"{video_id}_mixed.mp3",
+        )
+        db.update_video(video_id, narration_url=url)
+        _log("MP3", "✅ Mixed MP3 saved to cloud", cb)
+        return url
+    except Exception as e:
+        _log("MP3", f"⚠️  Mixed MP3 upload failed: {e}", cb)
+        return None
+    finally:
+        mixed_mp3.unlink(missing_ok=True)
+
+
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
 def cleanup(video_id: str, audio_path=None, captioned_path=None, delete_final: bool = True):
@@ -388,6 +429,12 @@ def run_pipeline(
             except Exception as e:
                 _log("MUSIC", f"⚠️  Music mixing skipped: {e}", cb)
 
+        # ── 9a-ii. Save mixed MP3 (narration + music) to Supabase ────────────
+        try:
+            step_save_mixed_mp3(final_path, video_id, cb)
+        except Exception as e:
+            _log("MP3", f"⚠️  Mixed MP3 step failed (non-fatal): {e}", cb)
+
         # ── 9b. Upload final video to Supabase Storage ────────────────────────
         # This gives us a permanent public URL for playback in the dashboard
         # even after local files are cleaned up
@@ -546,6 +593,12 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
                     _log("MUSIC", "✅ Background music mixed", cb)
             except Exception as e:
                 _log("MUSIC", f"⚠️  Music mixing skipped: {e}", cb)
+
+        # 7a-ii. Save mixed MP3 (narration + music) to Supabase
+        try:
+            step_save_mixed_mp3(final_path, video_id, cb)
+        except Exception as e:
+            _log("MP3", f"⚠️  Mixed MP3 step failed (non-fatal): {e}", cb)
 
         # 8. Upload to Supabase
         try:

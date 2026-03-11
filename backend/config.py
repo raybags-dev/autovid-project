@@ -82,6 +82,11 @@ AUDIO_BITRATE      = os.getenv("AUDIO_BITRATE", "192k")
 # ── Redis ─────────────────────────────────────────────────────────────────────
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# ── Podcast ───────────────────────────────────────────────────────────────────
+BASE_URL             = os.getenv("BASE_URL", "https://4lifemystery.com")
+PODCAST_TITLE        = os.getenv("PODCAST_TITLE", "4Life Mystery Podcast")
+PODCAST_DESCRIPTION  = os.getenv("PODCAST_DESCRIPTION", "AI-generated mystery and unknown stories narrated for your ears")
+
 
 def validate():
     """Call at startup to check required keys are set."""
