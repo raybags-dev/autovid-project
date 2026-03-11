@@ -21,5 +21,5 @@ export default function ProtectedRoute({ children }) {
         INITIALIZING SYSTEM...
       </div>
     );
-  return user ? children : <Navigate to="/" replace />;
+  return user ? children : <Navigate to="/login" replace />;
 }

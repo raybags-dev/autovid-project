@@ -16,7 +16,7 @@ export default function Login() {
   }, []);
   useEffect(() => {
     if (user) navigate("/dashboard");
-  }, [user]);
+  }, [user, navigate]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -70,6 +70,12 @@ export default function Login() {
       <div className="glow" />
 
       <div className={`card ${mounted ? "mounted" : ""}`}>
+        {/* Back to home */}
+        <a href="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 10, color: "#1a3a5a", textDecoration: "none", letterSpacing: "0.08em", marginBottom: 20, transition: "color 0.2s" }}
+          onMouseEnter={e => e.currentTarget.style.color = "#00b4ff"}
+          onMouseLeave={e => e.currentTarget.style.color = "#1a3a5a"}
+        >← BACK TO HOME</a>
+
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div
