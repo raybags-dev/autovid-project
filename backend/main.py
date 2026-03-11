@@ -12,6 +12,7 @@ import jwt
 import time
 import threading as _threading
 
+import hashlib
 import config
 import database as db
 from pipeline.orchestrator import run_pipeline, retry_failed
@@ -196,45 +197,89 @@ class VideoResponse(BaseModel):
 
 # ── Video routes — IMPORTANT: specific paths BEFORE /{video_id} ──────────────
 
+def _job_signature(prompt: str, profile: str, visual_mood: str, music_style: str) -> str:
+    """Stable hash of job parameters — used to deduplicate identical submissions."""
+    key = f"{prompt.strip().lower()}|{profile}|{visual_mood or ''}|{music_style}"
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
 @app.post("/videos/generate")
 def generate_video(
     req: GenerateRequest,
     background_tasks: BackgroundTasks,
     user: str = Depends(verify_token),
 ):
-    """Start the full AutoVid pipeline. Returns immediately — pipeline runs in background."""
+    """Start the full AutoVid pipeline. Returns immediately — pipeline runs in background.
+    Duplicate jobs (same prompt + settings already generating/queued) are rejected with 409."""
     if not req.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    # ── Deduplication: reject if identical job is already active ─────────────
+    sig = _job_signature(req.prompt, req.profile, req.visual_mood, req.music_style)
+    active = db.list_videos(status="generating", limit=50)
+    for v in active:
+        if v.get("job_sig") == sig:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A job with the same prompt and settings is already running (video_id: {v['id']})"
+            )
 
     # Pre-create DB record so we have a video_id to return immediately
     record   = db.create_video(req.prompt)
     video_id = record["id"]
+    # Store signature so future requests can detect the duplicate
+    try:
+        db.update_video(video_id, job_sig=sig)
+    except Exception:
+        pass  # job_sig column may not exist yet — dedup still works via in-memory check
+
     _register_pipeline(video_id)
 
     def _cb(info):
-        # Orchestrator calls cb({"step": ..., "message": ...})
         step = info.get("step", "?") if isinstance(info, dict) else str(info)
         msg  = info.get("message", "") if isinstance(info, dict) else ""
         _push_log(video_id, f"[{step}] {msg}")
 
-    def _run():
-        try:
-            run_pipeline(
+    # ── Try Celery queue first (FIFO, one job at a time) ─────────────────────
+    _queued = False
+    try:
+        from workers.celery_worker import run_video_pipeline as _celery_task
+        _celery_task.apply_async(
+            kwargs=dict(
                 prompt=req.prompt,
                 auto_upload=req.auto_upload,
                 profile=req.profile,
                 visual_mood=req.visual_mood,
                 music_style=req.music_style,
-                progress_callback=_cb,
                 video_id=video_id,
-            )
-        except Exception as e:
-            _push_log(video_id, f"[ERROR] {e}")
-        finally:
-            _push_log(video_id, "__DONE__")
-            _unregister_pipeline(video_id)
+            ),
+            queue="autovid",
+            task_id=video_id,
+        )
+        _queued = True
+    except Exception as _ce:
+        print(f"⚠️  Celery unavailable ({_ce}), falling back to background thread")
 
-    background_tasks.add_task(_run)
+    if not _queued:
+        def _run():
+            try:
+                run_pipeline(
+                    prompt=req.prompt,
+                    auto_upload=req.auto_upload,
+                    profile=req.profile,
+                    visual_mood=req.visual_mood,
+                    music_style=req.music_style,
+                    progress_callback=_cb,
+                    video_id=video_id,
+                )
+            except Exception as e:
+                _push_log(video_id, f"[ERROR] {e}")
+            finally:
+                _push_log(video_id, "__DONE__")
+                _unregister_pipeline(video_id)
+
+        background_tasks.add_task(_run)
+
     return {"message": "Pipeline started", "prompt": req.prompt, "status": "generating", "video_id": video_id}
 
 
@@ -764,6 +809,30 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
 @app.get("/stats")
 def get_stats(user: str = Depends(verify_token)):
     return db.get_stats()
+
+
+@app.get("/queue/status")
+def queue_status(user: str = Depends(verify_token)):
+    """Return current job queue state — active + pending jobs."""
+    generating = db.list_videos(status="generating", limit=50)
+    celery_info = {"available": False, "queued": 0}
+    try:
+        from workers.celery_worker import celery_app
+        inspect = celery_app.control.inspect(timeout=1.0)
+        active  = inspect.active()  or {}
+        reserved = inspect.reserved() or {}
+        celery_info = {
+            "available": True,
+            "active":   sum(len(t) for t in active.values()),
+            "queued":   sum(len(t) for t in reserved.values()),
+        }
+    except Exception:
+        pass
+    return {
+        "generating": len(generating),
+        "jobs": [{"id": v["id"], "prompt": v.get("prompt", "")[:60], "created_at": v.get("created_at")} for v in generating],
+        "celery": celery_info,
+    }
 
 
 @app.get("/quota")

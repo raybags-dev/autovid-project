@@ -1,7 +1,31 @@
 version: "3.9"
 
 services:
-  # ── 2 Backend instances (1.4 GB each — pipeline needs ~900MB peak) ──
+  # ── Redis (job queue broker) ──────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    expose:
+      - "6379"
+
+  # ── Celery worker (processes video jobs one at a time, FIFO) ──────────
+  celery-worker:
+    build: ./backend
+    restart: unless-stopped
+    mem_limit: 1600m
+    env_file: .env
+    environment:
+      - APP_ENV=production
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - video_output:/app/output
+      - ./backend/youtube_token.json:/app/youtube_token.json
+    depends_on:
+      - redis
+    command: celery -A workers.celery_worker worker --loglevel=info --concurrency=1 -Q autovid
+
+  # ── 2 Backend instances (API only — no pipeline work) ─────────────────
   backend-1:
     build: ./backend
     restart: unless-stopped
@@ -9,9 +33,12 @@ services:
     env_file: .env
     environment:
       - APP_ENV=production
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - video_output:/app/output
       - ./backend/youtube_token.json:/app/youtube_token.json
+    depends_on:
+      - redis
     expose:
       - "8000"
 
@@ -22,9 +49,12 @@ services:
     env_file: .env
     environment:
       - APP_ENV=production
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - video_output:/app/output
       - ./backend/youtube_token.json:/app/youtube_token.json
+    depends_on:
+      - redis
     expose:
       - "8000"
 
