@@ -136,12 +136,12 @@ export default function LandingPage() {
   const item = CAROUSEL[carouselIdx];
 
   return (
-    <div style={{ background: "#03060f", color: "#e0eaf5", fontFamily: "'DM Mono','Fira Code',monospace", overflowX: "hidden" }}>
+    <div style={{ background: "#03060f", color: "#e0eaf5", fontFamily: "'DM Mono','Fira Code',monospace" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; font-size: 17.5px; }
-        body { background: #03060f; zoom: 1.08; }
+        html { scroll-behavior: smooth; font-size: 17.5px; overflow-x: hidden; }
+        body { background: #03060f; overflow-x: hidden; zoom: 1.08; }
         /* disable text selection / copy */
         body { -webkit-user-select: none; -moz-user-select: none; user-select: none; }
         img  { -webkit-user-drag: none; pointer-events: none; }
@@ -571,7 +571,7 @@ export default function LandingPage() {
       </section>
 
       {/* ══ COMMUNITY + COMMENTS ══════════════════════════════════════════════ */}
-      <section id="community" style={{ padding: "100px 20px", position: "relative", overflow: "hidden" }}>
+      <section id="community" style={{ padding: "100px 20px 120px", position: "relative" }}>
         <div className="grid-bg" />
         <div style={{ position: "absolute", width: "60vw", height: "60vw", maxWidth: 700, maxHeight: 700, borderRadius: "50%", background: "radial-gradient(circle,rgba(150,40,0,0.05),transparent 70%)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", pointerEvents: "none" }} />
 
