@@ -17,6 +17,7 @@ SHORT_WIDTH  = 1080
 SHORT_HEIGHT = 1920
 SHORT_MAX_DURATION = 59   # YouTube Shorts must be ≤ 60 seconds
 FPS = 30
+LOOP_SECONDS = 4  # Generate this many seconds of unique frames, then FFmpeg-loop to full duration
 
 # ── Ambience styles for from-scratch Shorts ──────────────────────────────────
 AMBIENCE_STYLES = {
@@ -107,31 +108,55 @@ def create_short_from_video(video_path: str, video_id: str) -> str:
 def generate_short_visual(duration: int = 45, ambience: str = "stars") -> str:
     """
     Generates a looping portrait (9:16) visual for a YouTube Short.
+    Generates LOOP_SECONDS of unique frames then uses FFmpeg to loop to full duration.
     Returns path to the MP4 file.
     """
+    import math
     output_path = str(Path(tempfile.gettempdir()) / f"short_visual_{uuid.uuid4().hex[:8]}.mp4")
-    n_frames = duration * FPS
+    loop_frames = LOOP_SECONDS * FPS
 
-    print(f"🎬 Generating Short visual: {ambience} ({duration}s, {n_frames} frames)")
+    print(f"🎬 Generating Short visual: {ambience} ({duration}s, {loop_frames} frames + FFmpeg loop)")
 
     style = ambience.lower()
 
     if style == "stars":
-        frames = _gen_star_zoom(n_frames)
+        frames = _gen_star_zoom(loop_frames)
     elif style == "aurora":
-        frames = _gen_aurora(n_frames)
+        frames = _gen_aurora(loop_frames)
     elif style == "ocean":
-        frames = _gen_ocean(n_frames)
+        frames = _gen_ocean(loop_frames)
     elif style == "fire":
-        frames = _gen_fire(n_frames)
+        frames = _gen_fire(loop_frames)
     elif style == "rain":
-        frames = _gen_rain(n_frames)
+        frames = _gen_rain(loop_frames)
     elif style == "galaxy":
-        frames = _gen_galaxy(n_frames)
+        frames = _gen_galaxy(loop_frames)
     else:
-        frames = _gen_star_zoom(n_frames)  # default
+        frames = _gen_star_zoom(loop_frames)  # default
 
-    _frames_to_mp4(frames, output_path, fps=FPS)
+    # Write the short loop segment to a temp file
+    loop_path = str(Path(tempfile.gettempdir()) / f"short_loop_{uuid.uuid4().hex[:8]}.mp4")
+    _frames_to_mp4(frames, loop_path, fps=FPS)
+
+    # Use FFmpeg to loop the segment to the full target duration
+    loops_needed = math.ceil(duration / LOOP_SECONDS) + 1
+    result = subprocess.run([
+        "ffmpeg", "-y",
+        "-stream_loop", str(loops_needed),
+        "-i", loop_path,
+        "-t", str(duration),
+        "-c", "copy",
+        output_path
+    ], capture_output=True, text=True)
+
+    try:
+        os.unlink(loop_path)
+    except Exception:
+        pass
+
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg loop failed: {result.stderr[-300:]}")
+
     print(f"✅ Short visual ready: {output_path}")
     return output_path
 
@@ -139,141 +164,162 @@ def generate_short_visual(duration: int = 45, ambience: str = "stars") -> str:
 # ── Visual generators (portrait 1080x1920) ────────────────────────────────────
 
 def _gen_star_zoom(n_frames: int) -> list:
-    """Zoom through a star cluster — deep space, slow drift."""
+    """Zoom through a star cluster — deep space, slow drift. Fully vectorized."""
     rng = np.random.default_rng(42)
-    # Generate stars
     n_stars = 800
     star_x = rng.uniform(0, SHORT_WIDTH,  n_stars)
     star_y = rng.uniform(0, SHORT_HEIGHT, n_stars)
-    star_b = rng.uniform(0.4, 1.0, n_stars)   # brightness
-    star_s = rng.uniform(0.5, 2.5, n_stars)   # size
+    star_b = rng.uniform(0.4, 1.0, n_stars)
+    star_s = rng.uniform(0.5, 2.5, n_stars)
+    j_idx  = np.arange(n_stars, dtype=np.float32)
 
-    frames = []
     cx, cy = SHORT_WIDTH / 2, SHORT_HEIGHT / 2
 
+    # Static background gradient (computed once)
+    ys = np.arange(SHORT_HEIGHT, dtype=np.float32)
+    intensity = (8 + (ys / SHORT_HEIGHT) * 12)
+    bg = np.zeros((SHORT_HEIGHT, SHORT_WIDTH, 3), dtype=np.float32)
+    bg[:, :, 0] = intensity[:, None]
+    bg[:, :, 1] = (intensity / 2)[:, None]
+    bg[:, :, 2] = (intensity * 2)[:, None]
+
+    # Static nebula glow mask (computed once)
+    dy_vals = np.arange(-80, 81, 4, dtype=np.float32)
+    dx_vals = np.arange(-50, 51, 4, dtype=np.float32)
+    DY, DX  = np.meshgrid(dy_vals, dx_vals, indexing='ij')
+    dist    = np.sqrt(DX**2 + DY**2)
+    nebula_mask  = dist < 80
+    nebula_alpha = np.where(nebula_mask, np.maximum(0.0, 1.0 - dist / 80.0) * 0.12, 0.0)
+    nebula_gy    = (cy + dy_vals).astype(int)
+    nebula_gx    = (cx + dx_vals).astype(int)
+    valid_y = (nebula_gy >= 0) & (nebula_gy < SHORT_HEIGHT)
+    valid_x = (nebula_gx >= 0) & (nebula_gx < SHORT_WIDTH)
+
+    frames = []
     for i in range(n_frames):
         t = i / n_frames
-        zoom = 1.0 + t * 0.8   # zoom in over time
+        zoom    = 1.0 + t * 0.8
         drift_x = np.sin(t * np.pi * 0.5) * 40
         drift_y = -t * 60
 
-        frame = np.zeros((SHORT_HEIGHT, SHORT_WIDTH, 3), dtype=np.uint8)
+        frame = bg.copy()
 
-        # Deep space background gradient
-        for y in range(0, SHORT_HEIGHT, 4):
-            intensity = int(8 + (y / SHORT_HEIGHT) * 12)
-            frame[y:y+4, :] = [intensity, intensity//2, intensity*2]
+        # Stars — vectorized positions and brightness
+        sx = ((star_x - cx) * zoom + cx + drift_x).astype(int)
+        sy = ((star_y - cy) * zoom + cy + drift_y).astype(int)
+        twinkle = 0.7 + 0.3 * np.sin(t * 6 * np.pi + j_idx * 0.5)
+        b = star_b * twinkle * 255
+        valid = (sx >= 0) & (sx < SHORT_WIDTH) & (sy >= 0) & (sy < SHORT_HEIGHT)
+        vsx, vsy, vb = sx[valid], sy[valid], b[valid]
+        frame[vsy, vsx, 0] = np.minimum(255, vb)
+        frame[vsy, vsx, 1] = np.minimum(255, vb * 0.85)
+        frame[vsy, vsx, 2] = np.minimum(255, vb * 0.6)
 
-        # Draw stars with zoom
-        for j in range(n_stars):
-            sx = int((star_x[j] - cx) * zoom + cx + drift_x)
-            sy = int((star_y[j] - cy) * zoom + cy + drift_y)
-            if 0 <= sx < SHORT_WIDTH and 0 <= sy < SHORT_HEIGHT:
-                twinkle = 0.7 + 0.3 * np.sin(t * 6 * np.pi + j * 0.5)
-                b = int(star_b[j] * twinkle * 255)
-                s = max(1, int(star_s[j] * zoom))
-                color = (min(255, b), min(255, int(b * 0.85)), min(255, int(b * 0.6)))
-                x0, x1 = max(0, sx-s), min(SHORT_WIDTH,  sx+s+1)
-                y0, y1 = max(0, sy-s), min(SHORT_HEIGHT, sy+s+1)
-                frame[y0:y1, x0:x1] = color
+        # Nebula glow — vectorized over the small grid
+        glow_r = 60 + 30 * np.sin(t * np.pi)
+        for di, gy in enumerate(nebula_gy):
+            if not valid_y[di]:
+                continue
+            row_alpha = nebula_alpha[di, :]
+            gx_valid  = nebula_gx[valid_x]
+            a_valid   = row_alpha[valid_x]
+            frame[gy, gx_valid, 0] = np.minimum(255, frame[gy, gx_valid, 0] + glow_r * a_valid)
+            frame[gy, gx_valid, 1] = np.minimum(255, frame[gy, gx_valid, 1] + 20    * a_valid)
+            frame[gy, gx_valid, 2] = np.minimum(255, frame[gy, gx_valid, 2] + 80    * a_valid)
 
-        # Subtle nebula glow in center
-        glow_r = int(60 + 30 * np.sin(t * np.pi))
-        for dy in range(-80, 81, 4):
-            for dx in range(-50, 51, 4):
-                dist = np.sqrt(dx**2 + dy**2)
-                if dist < 80:
-                    gy = int(cy + dy)
-                    gx = int(cx + dx)
-                    if 0 <= gx < SHORT_WIDTH and 0 <= gy < SHORT_HEIGHT:
-                        alpha = max(0, 1 - dist/80) * 0.12
-                        frame[gy, gx] = np.clip(
-                            frame[gy, gx] + np.array([glow_r, 20, 80]) * alpha, 0, 255
-                        ).astype(np.uint8)
-
-        frames.append(frame)
+        frames.append(np.clip(frame, 0, 255).astype(np.uint8))
 
     return frames
 
 
 def _gen_aurora(n_frames: int) -> list:
-    """Aurora borealis — green/purple rippling waves."""
+    """Aurora borealis — green/purple rippling waves. Fully vectorized."""
+    ys = np.arange(SHORT_HEIGHT, dtype=np.float32)
+    xs = np.arange(SHORT_WIDTH,  dtype=np.float32)
+
+    # Static star field (same every frame)
+    rng_stars = np.random.default_rng(7)
+    star_x = rng_stars.integers(0, SHORT_WIDTH,    200)
+    star_y = rng_stars.integers(0, SHORT_HEIGHT//3, 200)
+    star_b = rng_stars.uniform(100, 200, 200).astype(np.float32)
+
+    # Static sky gradient
+    darkness = (5 + (ys / SHORT_HEIGHT) * 15)  # (H,)
+    sky = np.stack([darkness / 3, darkness / 2, darkness], axis=-1)  # (H, 3)
+    sky_base = np.broadcast_to(sky[:, None, :], (SHORT_HEIGHT, SHORT_WIDTH, 3)).copy()
+
     frames = []
     for i in range(n_frames):
         t = i / FPS
-        frame = np.zeros((SHORT_HEIGHT, SHORT_WIDTH, 3), dtype=np.uint8)
+        frame = sky_base.copy()
 
-        # Dark sky gradient
-        for y in range(SHORT_HEIGHT):
-            darkness = int(5 + (y / SHORT_HEIGHT) * 15)
-            frame[y, :] = [darkness // 3, darkness // 2, darkness]
-
-        # Aurora bands
+        # Aurora bands — vectorized over all (H, W) at once
         for band in range(4):
             band_center = SHORT_HEIGHT * (0.2 + band * 0.15)
-            for x in range(SHORT_WIDTH):
-                wave = np.sin(x * 0.008 + t * 0.8 + band * 1.2) * 60
-                wave2 = np.sin(x * 0.004 + t * 0.5 + band * 0.7) * 40
-                y_pos = int(band_center + wave + wave2)
-                thickness = 40 + int(20 * np.sin(t * 1.2 + band))
-                for dy in range(-thickness, thickness):
-                    gy = y_pos + dy
-                    if 0 <= gy < SHORT_HEIGHT:
-                        alpha = max(0, 1 - abs(dy) / thickness) * 0.6
-                        g = int(180 * alpha * (0.7 + 0.3 * np.sin(t + band)))
-                        p = int(120 * alpha * (0.5 + 0.5 * np.sin(t * 1.3 + band + 1)))
-                        frame[gy, x] = np.clip(
-                            frame[gy, x] + [p//3, g, p], 0, 255
-                        ).astype(np.uint8)
+            wave  = np.sin(xs * 0.008 + t * 0.8 + band * 1.2) * 60  # (W,)
+            wave2 = np.sin(xs * 0.004 + t * 0.5 + band * 0.7) * 40  # (W,)
+            y_pos = band_center + wave + wave2                         # (W,)
+            thickness = 40 + 20 * float(np.sin(t * 1.2 + band))
+
+            # dy[h, w] = distance of row h from band center at column w
+            dy = ys[:, None] - y_pos[None, :]           # (H, W)
+            alpha = np.maximum(0.0, 1.0 - np.abs(dy) / thickness) * 0.6
+
+            g = float(180 * (0.7 + 0.3 * np.sin(t + band)))
+            p = float(120 * (0.5 + 0.5 * np.sin(t * 1.3 + band + 1)))
+            frame[:, :, 0] += alpha * (p / 3)
+            frame[:, :, 1] += alpha * g
+            frame[:, :, 2] += alpha * p
 
         # Stars
-        rng = np.random.default_rng(7)
-        for _ in range(200):
-            sx = rng.integers(0, SHORT_WIDTH)
-            sy = rng.integers(0, SHORT_HEIGHT // 3)
-            b = int(rng.uniform(100, 200))
-            frame[sy, sx] = [b, b, b]
+        frame[star_y, star_x, 0] = star_b
+        frame[star_y, star_x, 1] = star_b
+        frame[star_y, star_x, 2] = star_b
 
-        frames.append(frame)
+        frames.append(np.clip(frame, 0, 255).astype(np.uint8))
     return frames
 
 
 def _gen_ocean(n_frames: int) -> list:
-    """Deep ocean — light shafts through blue water."""
+    """Deep ocean — light shafts through blue water. Fully vectorized."""
+    ys = np.arange(SHORT_HEIGHT, dtype=np.float32)
+    xs = np.arange(SHORT_WIDTH,  dtype=np.float32)
+
+    # Static depth gradient
+    depth = ys / SHORT_HEIGHT  # (H,)
+    bg = np.zeros((SHORT_HEIGHT, SHORT_WIDTH, 3), dtype=np.float32)
+    bg[:, :, 0] = (depth * 10)[:, None]
+    bg[:, :, 1] = (40 + depth * 80)[:, None]
+    bg[:, :, 2] = (120 - depth * 60)[:, None]
+
+    intensity_base = np.maximum(0, 1 - ys / SHORT_HEIGHT) * 0.35  # (H,)
+
     frames = []
     for i in range(n_frames):
         t = i / FPS
-        frame = np.zeros((SHORT_HEIGHT, SHORT_WIDTH, 3), dtype=np.uint8)
+        frame = bg.copy()
 
-        for y in range(SHORT_HEIGHT):
-            depth = y / SHORT_HEIGHT
-            r = int(0  + depth * 10)
-            g = int(40 + depth * 80)
-            b = int(120 - depth * 60)
-            frame[y, :] = [r, g, b]
-
-        # Light shafts from top
+        # Light shafts — vectorized over (H, W) per shaft
         for shaft in range(5):
-            shaft_x = int(SHORT_WIDTH * (0.1 + shaft * 0.2) + np.sin(t * 0.4 + shaft) * 30)
-            for y in range(SHORT_HEIGHT):
-                spread = int(20 + y * 0.15 + np.sin(t * 0.7 + shaft) * 10)
-                intensity = max(0, 1 - y / SHORT_HEIGHT) * 0.35
-                for dx in range(-spread, spread):
-                    x = shaft_x + dx
-                    if 0 <= x < SHORT_WIDTH:
-                        alpha = intensity * max(0, 1 - abs(dx) / spread)
-                        frame[y, x] = np.clip(
-                            frame[y, x] + [int(20*alpha), int(60*alpha), int(80*alpha)], 0, 255
-                        ).astype(np.uint8)
+            shaft_x = SHORT_WIDTH * (0.1 + shaft * 0.2) + np.sin(t * 0.4 + shaft) * 30
+            spread = 20 + ys * 0.15 + np.sin(t * 0.7 + shaft) * 10  # (H,)
+
+            dx = np.abs(xs[None, :] - shaft_x)               # (1, W) → broadcast to (H, W)
+            alpha = intensity_base[:, None] * np.maximum(0.0, 1.0 - dx / spread[:, None])
+
+            frame[:, :, 0] += 20 * alpha
+            frame[:, :, 1] += 60 * alpha
+            frame[:, :, 2] += 80 * alpha
 
         # Floating particles
         rng = np.random.default_rng(i % 30)
-        for _ in range(50):
-            px = rng.integers(0, SHORT_WIDTH)
-            py = rng.integers(0, SHORT_HEIGHT)
-            frame[py, px] = np.clip(frame[py, px] + [20, 40, 60], 0, 255).astype(np.uint8)
+        px = rng.integers(0, SHORT_WIDTH,  50)
+        py = rng.integers(0, SHORT_HEIGHT, 50)
+        frame[py, px, 0] += 20
+        frame[py, px, 1] += 40
+        frame[py, px, 2] += 60
 
-        frames.append(frame)
+        frames.append(np.clip(frame, 0, 255).astype(np.uint8))
     return frames
 
 
@@ -321,7 +367,7 @@ def _gen_fire(n_frames: int) -> list:
 
 
 def _gen_rain(n_frames: int) -> list:
-    """Rainy window — city lights blurred through raindrops."""
+    """Rainy window — city lights blurred through raindrops. Fully vectorized."""
     rng = np.random.default_rng(55)
     n_drops = 200
     drop_x = rng.uniform(0, SHORT_WIDTH,  n_drops).tolist()
@@ -329,46 +375,55 @@ def _gen_rain(n_frames: int) -> list:
     drop_v = rng.uniform(3, 8, n_drops).tolist()
     drop_l = rng.integers(10, 40, n_drops).tolist()
 
+    ys = np.arange(SHORT_HEIGHT, dtype=np.float32)
+    xs = np.arange(SHORT_WIDTH,  dtype=np.float32)
+
+    # Pre-render static bokeh background (city lights don't move)
+    bokeh_bg = np.zeros((SHORT_HEIGHT, SHORT_WIDTH, 3), dtype=np.float32)
+    rng_bokeh = np.random.default_rng(55)
+    colors_list = [(255,150,50),(50,150,255),(255,255,100),(200,100,255)]
+    for light in range(15):
+        lx = int(SHORT_WIDTH  * (light / 15.0 + 0.03))
+        ly = int(SHORT_HEIGHT * rng_bokeh.uniform(0.3, 0.8))
+        col = np.array(colors_list[light % len(colors_list)], dtype=np.float32)
+        radius = int(rng_bokeh.integers(40, 100))
+        y0, y1 = max(0, ly - radius), min(SHORT_HEIGHT, ly + radius)
+        x0, x1 = max(0, lx - radius), min(SHORT_WIDTH,  lx + radius)
+        if y1 > y0 and x1 > x0:
+            dy = ys[y0:y1, None] - ly
+            dx = xs[None, x0:x1] - lx
+            dist = np.sqrt(dx**2 + dy**2)
+            alpha = np.maximum(0.0, 1.0 - dist / radius) * 0.15
+            bokeh_bg[y0:y1, x0:x1] += alpha[:, :, None] * col[None, None, :]
+
     frames = []
     for i in range(n_frames):
-        frame = np.zeros((SHORT_HEIGHT, SHORT_WIDTH, 3), dtype=np.uint8)
+        frame = bokeh_bg.copy()
 
-        # Blurred city light bokeh background
-        for light in range(15):
-            lx = int(SHORT_WIDTH  * (light / 15.0 + 0.03))
-            ly = int(SHORT_HEIGHT * rng.uniform(0.3, 0.8))
-            colors = [(255,150,50),(50,150,255),(255,255,100),(200,100,255)]
-            col = colors[light % len(colors)]
-            radius = rng.integers(40, 100)
-            for dy in range(-radius, radius):
-                for dx in range(-radius, radius):
-                    dist = np.sqrt(dx**2 + dy**2)
-                    if dist < radius:
-                        px, py = lx + dx, ly + dy
-                        if 0 <= px < SHORT_WIDTH and 0 <= py < SHORT_HEIGHT:
-                            alpha = max(0, (1 - dist/radius)) * 0.15
-                            frame[py, px] = np.clip(
-                                frame[py, px] + np.array(col) * alpha, 0, 255
-                            ).astype(np.uint8)
-
-        # Rain drops
+        # Advance rain drops
         for j in range(n_drops):
             drop_y[j] += drop_v[j]
             if drop_y[j] > SHORT_HEIGHT:
                 drop_y[j] = 0
                 drop_x[j] = rng.uniform(0, SHORT_WIDTH)
 
-            dx, dy = int(drop_x[j]), int(drop_y[j])
+        # Draw rain drops (vectorized per drop streak)
+        for j in range(n_drops):
+            dx_val = int(drop_x[j])
+            dy_val = int(drop_y[j])
+            if not (0 <= dx_val < SHORT_WIDTH):
+                continue
             length = drop_l[j]
-            for dl in range(length):
-                py = dy + dl
-                if 0 <= dx < SHORT_WIDTH and 0 <= py < SHORT_HEIGHT:
-                    alpha = 1 - dl / length
-                    frame[py, dx] = np.clip(
-                        frame[py, dx] + [int(150*alpha), int(180*alpha), int(220*alpha)], 0, 255
-                    ).astype(np.uint8)
+            y_end = min(dy_val + length, SHORT_HEIGHT)
+            if dy_val >= y_end:
+                continue
+            dl = np.arange(y_end - dy_val, dtype=np.float32)
+            alpha = 1.0 - dl / length
+            frame[dy_val:y_end, dx_val, 0] += 150 * alpha
+            frame[dy_val:y_end, dx_val, 1] += 180 * alpha
+            frame[dy_val:y_end, dx_val, 2] += 220 * alpha
 
-        frames.append(frame)
+        frames.append(np.clip(frame, 0, 255).astype(np.uint8))
     return frames
 
 
@@ -477,6 +532,7 @@ def _get_duration(video_path: str) -> float:
 def _frames_to_mp4(frames: list, output_path: str, fps: int = 30):
     """Write numpy frames to MP4 using FFmpeg pipe."""
     import subprocess as sp
+    import threading
     h, w = frames[0].shape[:2]
     cmd = [
         "ffmpeg", "-y",
@@ -494,10 +550,20 @@ def _frames_to_mp4(frames: list, output_path: str, fps: int = 30):
         output_path
     ]
     proc = sp.Popen(cmd, stdin=sp.PIPE, stderr=sp.PIPE)
+    # Drain stderr in a background thread to prevent PIPE buffer deadlock.
+    # Without this, ffmpeg blocks writing progress output once the 64KB pipe
+    # buffer fills, while Python is blocked writing frames to stdin → deadlock.
+    stderr_chunks = []
+    def _drain_stderr():
+        stderr_chunks.append(proc.stderr.read())
+    drain_thread = threading.Thread(target=_drain_stderr, daemon=True)
+    drain_thread.start()
     for frame in frames:
         proc.stdin.write(frame.tobytes())
     proc.stdin.close()
     proc.wait()
+    drain_thread.join()
     if proc.returncode != 0:
-        raise RuntimeError(f"FFmpeg write failed: {proc.stderr.read().decode()[-300:]}")
+        stderr_data = b"".join(stderr_chunks)
+        raise RuntimeError(f"FFmpeg write failed: {stderr_data.decode()[-300:]}")
 

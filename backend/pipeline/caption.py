@@ -192,13 +192,13 @@ def burn_captions(video_path: str, srt_path: str, video_id: str, is_short: bool 
     srt_escaped = str(srt_path).replace("\\", "/").replace(":", "\\:")
 
     # FFmpeg command to burn subtitles
-    # -map 0:v and -map 0:a explicitly include both video AND audio streams
+    # -map 0:v always included; -map 0:a? is optional (generated short visuals have no audio)
     cmd = [
         "ffmpeg", "-y",
         "-i", video_path,
         "-vf", f"subtitles='{srt_escaped}':force_style='{style_parts}'",
         "-map", "0:v",             # Explicitly include video stream
-        "-map", "0:a",             # Explicitly include audio stream
+        "-map", "0:a?",            # Include audio if present (? = optional, avoids error on silent visuals)
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "20",

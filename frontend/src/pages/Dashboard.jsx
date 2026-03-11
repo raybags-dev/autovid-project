@@ -681,8 +681,25 @@ export default function Dashboard() {
             }
             if (ld?.done) {
               clearInterval(shortLogPollRef.current);
+              clearInterval(shortStepPollRef.current);
               setShortGenerating(false);
+              // Fetch completed video for title, then show toast
+              try {
+                const { data: done } = await api.get(`/videos/${vid}`);
+                const t = done?.title || "Short";
+                showToast(`⚡ "${t.length > 45 ? t.slice(0, 45) + "…" : t}" is ready!`);
+              } catch (_) {
+                showToast("⚡ Short generation complete!");
+              }
+              // Auto-dismiss the progress panel after 2s
+              setTimeout(() => {
+                setShortPipeStep(0);
+                setShortLogVideoId(null);
+                setShortLogs([]);
+                setShowShortLogs(false);
+              }, 2000);
               refresh();
+              loadShorts(true);
             }
           } catch (_) {}
         }, 1500);
@@ -3511,13 +3528,16 @@ export default function Dashboard() {
             const isUnposted = isReady && !isOnYt;
             const uploadingYt = shortsUploading[`yt_${s.id}`];
             const uploadingTt = shortsUploading[`tt_${s.id}`];
+            const canPlay = !!getVideoUrl(s.file_path);
             return (
               <div
                 key={s.id}
+                onClick={() => canPlay && setPreview(s)}
                 style={{
                   padding: "10px 14px",
                   borderBottom: `1px solid ${T.border}20`,
                   transition: "background 0.15s",
+                  cursor: canPlay ? "pointer" : "default",
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = T.bgCardHover}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -3526,10 +3546,13 @@ export default function Dashboard() {
                   {/* Portrait thumbnail */}
                   <div style={{
                     width: 36, height: 64, borderRadius: 6,
-                    background: `linear-gradient(180deg,#4a9eff18,#00000028)`,
-                    border: `1px solid ${T.border}`,
+                    background: canPlay
+                      ? `linear-gradient(180deg,#4a9eff30,#00000060)`
+                      : `linear-gradient(180deg,#4a9eff18,#00000028)`,
+                    border: `1px solid ${canPlay ? T.accent + "60" : T.border}`,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 14, opacity: 0.7,
+                    flexShrink: 0, fontSize: canPlay ? 18 : 14,
+                    transition: "all 0.15s",
                   }}>
                     {s.file_path ? "▶" : "⚙"}
                   </div>
