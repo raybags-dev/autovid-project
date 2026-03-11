@@ -110,6 +110,21 @@ export default function LandingPage() {
     return () => clearInterval(autoRef.current);
   }, []);
 
+  // disable copy / right-click
+  useEffect(() => {
+    const block = (e) => e.preventDefault();
+    document.addEventListener("contextmenu",  block);
+    document.addEventListener("selectstart",  block);
+    document.addEventListener("dragstart",    block);
+    document.addEventListener("copy",         block);
+    return () => {
+      document.removeEventListener("contextmenu",  block);
+      document.removeEventListener("selectstart",  block);
+      document.removeEventListener("dragstart",    block);
+      document.removeEventListener("copy",         block);
+    };
+  }, []);
+
   const goPrev  = () => { clearInterval(autoRef.current); setCarouselIdx(i => (i - 1 + CAROUSEL.length) % CAROUSEL.length); };
   const goNext  = () => { clearInterval(autoRef.current); setCarouselIdx(i => (i + 1) % CAROUSEL.length); };
   const goTo    = (i) => { clearInterval(autoRef.current); setCarouselIdx(i); };
@@ -125,8 +140,13 @@ export default function LandingPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
-        body { background: #03060f; }
+        html { scroll-behavior: smooth; font-size: 17.5px; }
+        body { background: #03060f; zoom: 1.08; }
+        /* disable text selection / copy */
+        body { -webkit-user-select: none; -moz-user-select: none; user-select: none; }
+        img  { -webkit-user-drag: none; pointer-events: none; }
+        a, button { pointer-events: auto; }
+        iframe { pointer-events: auto; }
 
         /* NAV */
         .lp-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 300; transition: background 0.35s, border-color 0.35s; border-bottom: 1px solid transparent; }
