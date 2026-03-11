@@ -26,7 +26,32 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <!-- Static pre-render for crawlers that do not execute JavaScript -->
+    <div style="font-family:sans-serif;max-width:860px;margin:0 auto;padding:40px 24px;background:#03060f;color:#e0eaf5;min-height:100vh;">
+      <h1 style="font-size:2rem;margin-bottom:8px;">4Life Mystery</h1>
+      <p style="font-size:1rem;color:#aac;margin-bottom:24px;">Uncover the Unknown</p>
+      <p style="line-height:1.8;color:#99b;margin-bottom:16px;">
+        4Life Mystery is a content platform dedicated to exploring unsolved cases, conspiracy theories,
+        human psychology, and the deep questions of existence. We publish long-form video essays,
+        podcast episodes, and community discussions across YouTube, Spotify, and TikTok.
+      </p>
+      <p style="line-height:1.8;color:#99b;margin-bottom:32px;">
+        Our mission is to create a space where curious minds can pause, question, and think deeply
+        about the world — beyond the noise and surface-level takes of mainstream media.
+      </p>
+      <nav style="margin-bottom:32px;">
+        <a href="https://www.youtube.com/@4life_mystery" style="color:#00b4ff;margin-right:24px;">YouTube</a>
+        <a href="https://open.spotify.com/show/2ZIZRXomO55COqXyJXgy5s" style="color:#00b4ff;margin-right:24px;">Spotify Podcast</a>
+        <a href="https://www.tiktok.com/@lifemystery183284" style="color:#00b4ff;">TikTok</a>
+      </nav>
+      <footer style="border-top:1px solid #1a2a3a;padding-top:20px;font-size:0.85rem;color:#556;">
+        <a href="/privacy-policy" style="color:#00b4ff;margin-right:20px;">Privacy Policy</a>
+        <a href="/terms-of-service" style="color:#00b4ff;">Terms of Service</a>
+        <p style="margin-top:12px;">© 2026 4Life Mystery · 4lifemystery.com</p>
+      </footer>
+    </div>
+  </div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 
