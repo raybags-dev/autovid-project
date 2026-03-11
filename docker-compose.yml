@@ -11,7 +11,7 @@ services:
       - APP_ENV=production
     volumes:
       - video_output:/app/output
-      - ./backend/token.json:/app/token.json:ro
+      - ./backend/youtube_token.json:/app/youtube_token.json
     expose:
       - "8000"
 
@@ -24,7 +24,7 @@ services:
       - APP_ENV=production
     volumes:
       - video_output:/app/output
-      - ./backend/token.json:/app/token.json:ro
+      - ./backend/youtube_token.json:/app/youtube_token.json
     expose:
       - "8000"
 
