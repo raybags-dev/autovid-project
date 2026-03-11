@@ -412,7 +412,8 @@ export default function LandingPage() {
         /* ── IMAGE HOVER ──────────────────────────────── */
         .hero-img { transition:filter 0.4s, transform 0.4s; }
         .hero-img:hover { filter:drop-shadow(0 0 80px rgba(220,70,0,0.38)); transform:scale(1.02); pointer-events:auto; }
-        .profile-img { transition:filter 0.4s, transform 0.4s; display:block; }
+        .profile-img { transition:filter 0.4s, transform 0.4s; display:block; width:320px; height:320px; }
+        @media (max-width:600px) { .profile-img { width:220px !important; height:220px !important; } }
 
         /* ── RESPONSIVE ───────────────────────────────── */
         @media (max-width:900px) {
@@ -585,20 +586,23 @@ export default function LandingPage() {
           <span className="section-tag">WHAT IS 4LIFE MYSTERY</span>
           <div className="about-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "center" }}>
 
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <div style={{ position: "relative", maxWidth: 400, width: "100%" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+              <div style={{ position: "relative" }}>
+                {/* Glow ring */}
+                <div style={{ position: "absolute", inset: -6, borderRadius: "50%", background: "conic-gradient(from 0deg, #ff5533, #ff9020, #ff5533)", opacity: 0.6, filter: "blur(8px)", zIndex: 0 }} />
                 <img src={profileImg} alt="4Life Mystery" className="profile-img"
-                  style={{ width: "100%", height: "auto", borderRadius: 20, objectFit: "cover",
-                    filter: "drop-shadow(0 0 40px rgba(150,40,0,0.3))",
-                    boxShadow: c.cardSh !== "none" ? "0 8px 48px rgba(0,0,0,0.15)" : "none",
-                    transition: "filter 0.4s, transform 0.4s" }}
-                  onMouseEnter={e => { e.currentTarget.style.transform="scale(1.02)"; e.currentTarget.style.pointerEvents="auto"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform="scale(1)"; }}
+                  style={{ borderRadius: "50%", objectFit: "cover", objectPosition: "top center",
+                    border: "3px solid rgba(255,85,51,0.4)",
+                    filter: "drop-shadow(0 0 32px rgba(150,40,0,0.5))",
+                    position: "relative", zIndex: 1,
+                    transition: "transform 0.4s, filter 0.4s" }}
+                  onMouseEnter={e => { e.currentTarget.style.transform="scale(1.04)"; e.currentTarget.style.filter="drop-shadow(0 0 48px rgba(255,80,30,0.7))"; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.filter="drop-shadow(0 0 32px rgba(150,40,0,0.5))"; }}
                 />
-                <div style={{ position: "absolute", bottom: 20, left: 20, right: 20, background: theme === "dark" ? "rgba(3,6,15,0.82)" : "rgba(245,242,235,0.88)", backdropFilter: "blur(16px) saturate(160%)", borderRadius: 12, padding: "14px 18px", border: `1px solid rgba(255,80,30,0.2)` }}>
-                  <div className="syne" style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: c.text }}>4Life Mystery</div>
-                  <div style={{ fontSize: 10, color: c.textM, letterSpacing: "0.1em" }}>CREATOR · THINKER · STORYTELLER</div>
-                </div>
+              </div>
+              <div style={{ textAlign: "center", background: theme === "dark" ? "rgba(3,6,15,0.7)" : "rgba(245,242,235,0.85)", backdropFilter: "blur(16px) saturate(160%)", borderRadius: 12, padding: "12px 24px", border: `1px solid rgba(255,80,30,0.2)` }}>
+                <div className="syne" style={{ fontWeight: 700, fontSize: 14, marginBottom: 3, color: c.text }}>4Life Mystery</div>
+                <div style={{ fontSize: 10, color: c.textM, letterSpacing: "0.12em" }}>CREATOR · THINKER · STORYTELLER</div>
               </div>
             </div>
 
