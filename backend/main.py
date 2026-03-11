@@ -778,8 +778,9 @@ def trigger_auto_short(user: str = Depends(verify_token)):
     if not topics:
         raise HTTPException(status_code=400, detail="No topics configured in auto-short settings")
 
-    topic    = _pick_next_short_topic(topics)
-    ambience = settings.get("ambience", "aurora")
+    topic       = _pick_next_short_topic(topics)
+    ambience    = settings.get("ambience", "aurora")
+    music_style = settings.get("music_style", "ambient")
 
     record   = db.create_video(f"[Short] {topic}")
     video_id = record["id"]
@@ -793,7 +794,7 @@ def trigger_auto_short(user: str = Depends(verify_token)):
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline
-            run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb)
+            run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -1252,6 +1253,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     """Generate a brand-new YouTube Short from scratch (portrait 9:16)."""
     prompt = body.get("prompt", "")
     ambience = body.get("ambience", "stars")
+    music_style = body.get("music_style", "ambient")
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt required")
 
@@ -1267,7 +1269,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-            _short_pipeline(prompt=prompt, ambience=ambience, video_id=video_id, cb=_cb)
+            _short_pipeline(prompt=prompt, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")

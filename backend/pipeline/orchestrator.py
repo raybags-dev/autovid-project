@@ -466,7 +466,7 @@ def retry_failed(video_id: str, cb=None) -> dict:
 SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
 
 
-def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None, auto_upload_youtube: bool = False) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "ambient") -> dict:
     """
     YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
@@ -534,6 +534,18 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
 
         # 7. Merge audio
         final_path = step_merge_audio(captioned_path, audio_path, video_id, cb)
+
+        # 7a. Mix background music
+        if music_style and music_style != 'none':
+            try:
+                from pipeline.music_mixer import mix_background_music
+                _log("MUSIC", f"Mixing background music ({music_style})...", cb)
+                mixed = mix_background_music(final_path, music_style, video_id)
+                if mixed and mixed != final_path:
+                    final_path = mixed
+                    _log("MUSIC", "✅ Background music mixed", cb)
+            except Exception as e:
+                _log("MUSIC", f"⚠️  Music mixing skipped: {e}", cb)
 
         # 8. Upload to Supabase
         try:
