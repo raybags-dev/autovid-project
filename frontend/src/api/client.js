@@ -228,6 +228,13 @@ export const uploadToTikTok = async (id, privacy = "SELF_ONLY") => {
   return data;
 };
 
+// ── Spotify ───────────────────────────────────────────────────────────────────
+export const getSpotifyStatus    = async () => { const { data } = await api.get("/spotify/status");     return data; };
+export const getSpotifyConnectUrl = async () => { const { data } = await api.get("/spotify/connect");    return data; };
+export const disconnectSpotify   = async () => { const { data } = await api.post("/spotify/disconnect"); return data; };
+export const getSpotifyTopTracks = async (limit = 10, range = "long_term") => { const { data } = await api.get("/spotify/top-tracks", { params: { limit, time_range: range } }); return data; };
+export const getSpotifyTopArtists = async (limit = 10, range = "long_term") => { const { data } = await api.get("/spotify/top-artists", { params: { limit, time_range: range } }); return data; };
+
 export const updateVideoMeta = async (id, fields) => {
   const { data } = await api.patch(`/videos/${id}`, fields);
   return data;

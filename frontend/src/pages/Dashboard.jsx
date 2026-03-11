@@ -12,6 +12,11 @@ import api, {
   getTikTokStatus,
   disconnectTikTok,
   uploadToTikTok,
+  getSpotifyStatus,
+  getSpotifyConnectUrl,
+  disconnectSpotify,
+  getSpotifyTopTracks,
+  getSpotifyTopArtists,
   getComments,
   getQuota,
   getStats,
@@ -806,6 +811,10 @@ export default function Dashboard() {
       .catch(() => {});
     api.get("/auto-short/settings").then(r => setAutoShortSettings(r.data)).catch(() => {});
     getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {});
+    getSpotifyStatus().then(r => {
+      setSpotifyConnected(r.connected);
+      if (r.connected) setSpotifyProfile(r);
+    }).catch(() => {});
   }, [tab]);
 
   // Infinite scroll — load more channel videos when bottom sentinel is visible
@@ -889,6 +898,11 @@ export default function Dashboard() {
   const [autoShortRunning, setAutoShortRunning] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [tiktokLoading, setTiktokLoading] = useState(false);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [spotifyLoading, setSpotifyLoading] = useState(false);
+  const [spotifyProfile, setSpotifyProfile] = useState(null);
+  const [spotifyTopTracks, setSpotifyTopTracks] = useState([]);
+  const [spotifyTopArtists, setSpotifyTopArtists] = useState([]);
   const [tiktokUploading, setTiktokUploading] = useState({});
   const [autoShortJobId, setAutoShortJobId] = useState(null);
   const [autoShortPrompt, setAutoShortPrompt] = useState("");
@@ -5609,6 +5623,94 @@ export default function Dashboard() {
                       </div>
                     )}
 
+                    {/* ── Spotify ── */}
+                    <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                        <div style={{ fontSize: 22 }}>🎵</div>
+                        <div>
+                          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 13 }}>Spotify</div>
+                          <div style={{ fontSize: 10, color: T.textMid, textTransform: "uppercase", letterSpacing: "0.08em" }}>Listener Analytics</div>
+                        </div>
+                        <div style={{ marginLeft: "auto", fontSize: 10, padding: "3px 8px", borderRadius: 6,
+                          background: spotifyConnected ? "#1db95420" : `${T.border}`,
+                          color: spotifyConnected ? "#1db954" : T.textFaint,
+                          border: `1px solid ${spotifyConnected ? "#1db95440" : T.border}` }}>
+                          {spotifyConnected ? "● CONNECTED" : "● NOT CONNECTED"}
+                        </div>
+                      </div>
+                      {!spotifyConnected ? (
+                        <div style={{ textAlign: "center", padding: "20px 0" }}>
+                          <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 14 }}>Connect Spotify to see listener data and top content analytics</div>
+                          <button
+                            onClick={async () => { try { const { url } = await getSpotifyConnectUrl(); window.location.href = url; } catch {} }}
+                            style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid rgba(29,185,84,0.5)", background: "rgba(29,185,84,0.12)", color: "#1db954", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em", fontWeight: 600 }}
+                          >
+                            CONNECT SPOTIFY →
+                          </button>
+                        </div>
+                      ) : (() => {
+                        // Lazily fetch top tracks/artists once connected
+                        if (spotifyTopTracks.length === 0 && spotifyConnected) {
+                          getSpotifyTopTracks(5).then(setSpotifyTopTracks).catch(() => {});
+                          getSpotifyTopArtists(5).then(setSpotifyTopArtists).catch(() => {});
+                        }
+                        return (
+                          <div>
+                            {spotifyProfile && (
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 16 }}>
+                                {[
+                                  ["Display Name", spotifyProfile.display_name || "—"],
+                                  ["Email",         spotifyProfile.email || "—"],
+                                  ["Country",       spotifyProfile.country || "—"],
+                                  ["Followers",     (spotifyProfile.followers ?? 0).toLocaleString?.() ?? "0"],
+                                  ["Account",       "Spotify Premium"],
+                                  ["Status",        "Active"],
+                                ].map(([k, v]) => (
+                                  <div key={k} style={{ background: T.bgBase, borderRadius: 8, padding: "8px 10px" }}>
+                                    <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 2, textTransform: "uppercase" }}>{k}</div>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: T.text, wordBreak: "break-all" }}>{v}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {spotifyTopTracks.length > 0 && (
+                              <div style={{ marginBottom: 14 }}>
+                                <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.12em", marginBottom: 10 }}>TOP TRACKS · ALL TIME</div>
+                                {spotifyTopTracks.map((t, i) => (
+                                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${T.border}` }}>
+                                    <div style={{ fontSize: 9, color: T.textFaint, width: 14, textAlign: "right", flexShrink: 0 }}>{i + 1}</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: 11, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                                      <div style={{ fontSize: 9, color: T.textFaint }}>{t.artists?.join(", ")}</div>
+                                    </div>
+                                    <div style={{ fontSize: 9, color: "#1db954", flexShrink: 0 }}>♫ {t.popularity}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {spotifyTopArtists.length > 0 && (
+                              <div>
+                                <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.12em", marginBottom: 10 }}>TOP ARTISTS · ALL TIME</div>
+                                {spotifyTopArtists.map((a, i) => (
+                                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${T.border}` }}>
+                                    <div style={{ fontSize: 9, color: T.textFaint, width: 14, textAlign: "right", flexShrink: 0 }}>{i + 1}</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>{a.name}</div>
+                                      <div style={{ fontSize: 9, color: T.textFaint }}>{a.genres?.slice(0, 3).join(", ") || "—"}</div>
+                                    </div>
+                                    <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>👥 {(a.followers ?? 0).toLocaleString?.()}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div style={{ textAlign: "right", marginTop: 12 }}>
+                              <a href="https://open.spotify.com" target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "#1db954", textDecoration: "none", letterSpacing: "0.06em" }}>OPEN SPOTIFY →</a>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
                     {/* Refresh button */}
                     <div
                       style={{
@@ -7075,6 +7177,70 @@ export default function Dashboard() {
                       >
                         CONNECT
                       </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Spotify Connect ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SPOTIFY</div>
+                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: spotifyConnected && spotifyProfile ? 14 : 0 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>
+                          {spotifyConnected ? "✅ Spotify Connected" : "🎵 Connect Spotify"}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                          {spotifyConnected
+                            ? `${spotifyProfile?.display_name || "Account"} · ${spotifyProfile?.email || ""}`
+                            : "Authorise to enable podcast analytics & listener data"}
+                        </div>
+                      </div>
+                      {spotifyConnected ? (
+                        <button
+                          onClick={async () => {
+                            setSpotifyLoading(true);
+                            await disconnectSpotify().catch(() => {});
+                            setSpotifyConnected(false);
+                            setSpotifyProfile(null);
+                            setSpotifyTopTracks([]);
+                            setSpotifyTopArtists([]);
+                            setSpotifyLoading(false);
+                          }}
+                          disabled={spotifyLoading}
+                          style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", flexShrink: 0 }}
+                        >
+                          DISCONNECT
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            setSpotifyLoading(true);
+                            try {
+                              const { url } = await getSpotifyConnectUrl();
+                              window.location.href = url;
+                            } catch { setSpotifyLoading(false); }
+                          }}
+                          disabled={spotifyLoading}
+                          style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid rgba(29,185,84,0.5)", background: "rgba(29,185,84,0.1)", color: "#1db954", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", flexShrink: 0 }}
+                        >
+                          {spotifyLoading ? "..." : "CONNECT"}
+                        </button>
+                      )}
+                    </div>
+                    {spotifyConnected && spotifyProfile && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        {[
+                          ["Country", spotifyProfile.country || "—"],
+                          ["Followers", (spotifyProfile.followers ?? "—").toLocaleString?.() ?? "—"],
+                          ["Account", "Premium" ],
+                        ].map(([k, v]) => (
+                          <div key={k} style={{ background: T.bgBase, borderRadius: 8, padding: "8px 10px" }}>
+                            <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 2 }}>{k}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
