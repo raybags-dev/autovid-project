@@ -110,18 +110,16 @@ export default function LandingPage() {
     return () => clearInterval(autoRef.current);
   }, []);
 
-  // disable copy / right-click
+  // disable copy / right-click (keep selectstart OUT — it blocks touch scrolling on iOS)
   useEffect(() => {
     const block = (e) => e.preventDefault();
-    document.addEventListener("contextmenu",  block);
-    document.addEventListener("selectstart",  block);
-    document.addEventListener("dragstart",    block);
-    document.addEventListener("copy",         block);
+    document.addEventListener("contextmenu", block);
+    document.addEventListener("copy",        block);
+    document.addEventListener("dragstart",   block);
     return () => {
-      document.removeEventListener("contextmenu",  block);
-      document.removeEventListener("selectstart",  block);
-      document.removeEventListener("dragstart",    block);
-      document.removeEventListener("copy",         block);
+      document.removeEventListener("contextmenu", block);
+      document.removeEventListener("copy",        block);
+      document.removeEventListener("dragstart",   block);
     };
   }, []);
 
@@ -185,8 +183,9 @@ export default function LandingPage() {
         .side-dot:hover .side-label { opacity: 1; }
 
         /* ANIMATIONS */
-        @keyframes fadeUp { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes glow   { 0%,100% { opacity:0.5; } 50% { opacity:1; } }
+        @keyframes fadeUp    { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes glow      { 0%,100% { opacity:0.5; } 50% { opacity:1; } }
+        @keyframes scrollPulse { 0%,100% { opacity:0.25; transform:translateY(0); } 50% { opacity:0.9; transform:translateY(6px); } }
         .anim-1 { animation: fadeUp 0.7s ease both; }
         .anim-2 { animation: fadeUp 0.7s 0.12s ease both; }
         .anim-3 { animation: fadeUp 0.7s 0.24s ease both; }
@@ -309,7 +308,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-      <section id="hero" style={{ minHeight: "100vh", display: "flex", alignItems: "center", position: "relative", padding: "100px 20px 80px" }}>
+      <section id="hero" style={{ minHeight: "100vh", display: "flex", alignItems: "center", position: "relative", padding: "100px 20px 80px", overflow: "clip" }}>
         <div className="grid-bg" />
         <div style={{ position: "absolute", width: "60vw", height: "60vw", maxWidth: 700, maxHeight: 700, borderRadius: "50%", background: "radial-gradient(circle,rgba(180,40,0,0.07),transparent 68%)", top: "10%", right: "-10%", pointerEvents: "none", animation: "glow 7s ease-in-out infinite" }} />
         <div style={{ position: "absolute", width: "40vw", height: "40vw", maxWidth: 500, maxHeight: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(0,80,200,0.06),transparent 68%)", bottom: "10%", left: "-5%", pointerEvents: "none", animation: "glow 9s 2s ease-in-out infinite" }} />
@@ -376,6 +375,14 @@ export default function LandingPage() {
               Terms of Service
             </Link>
           </div>
+
+          {/* scroll nudge */}
+          <button onClick={() => scrollTo("about")} style={{ position: "absolute", bottom: 32, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", zIndex: 2, padding: "8px 16px" }}>
+            <span style={{ fontSize: 9, color: "#1a3a5a", letterSpacing: "0.2em" }}>SCROLL</span>
+            <div style={{ width: 26, height: 40, border: "1px solid rgba(255,80,30,0.3)", borderRadius: 13, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 6 }}>
+              <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#ff5533", animation: "scrollPulse 1.8s ease-in-out infinite" }} />
+            </div>
+          </button>
         </div>
       </section>
 
@@ -571,7 +578,7 @@ export default function LandingPage() {
       </section>
 
       {/* ══ COMMUNITY + COMMENTS ══════════════════════════════════════════════ */}
-      <section id="community" style={{ padding: "100px 20px 120px", position: "relative" }}>
+      <section id="community" style={{ padding: "100px 20px 120px", position: "relative", overflow: "clip" }}>
         <div className="grid-bg" />
         <div style={{ position: "absolute", width: "60vw", height: "60vw", maxWidth: 700, maxHeight: 700, borderRadius: "50%", background: "radial-gradient(circle,rgba(150,40,0,0.05),transparent 70%)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", pointerEvents: "none" }} />
 
