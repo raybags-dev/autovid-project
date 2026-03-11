@@ -159,18 +159,6 @@ export default function LandingPage() {
     return () => clearInterval(autoRef.current);
   }, []);
 
-  // Disable copy / right-click
-  useEffect(() => {
-    const block = (e) => e.preventDefault();
-    document.addEventListener("contextmenu", block);
-    document.addEventListener("copy",        block);
-    document.addEventListener("dragstart",   block);
-    return () => {
-      document.removeEventListener("contextmenu", block);
-      document.removeEventListener("copy",        block);
-      document.removeEventListener("dragstart",   block);
-    };
-  }, []);
 
   const goPrev   = () => { clearInterval(autoRef.current); setCarouselIdx(i => (i - 1 + CAROUSEL.length) % CAROUSEL.length); };
   const goNext   = () => { clearInterval(autoRef.current); setCarouselIdx(i => (i + 1) % CAROUSEL.length); };
