@@ -4,7 +4,8 @@ import { Link } from "react-router-dom";
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
 import profileImg   from "../assets/4life_mystery.png";
-import faceImg      from "../assets/static/face.jpg";
+import faceImg         from "../assets/static/face.jpg";
+import brokenThumb     from "../assets/static/broken-video-placeholder.png";
 import faceVideo    from "../assets/static/face.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
 import metrixVideo  from "../assets/static/metrix.mp4";
@@ -20,6 +21,7 @@ const SECTIONS = [
   { id: "hero",      label: "HOME" },
   { id: "about",     label: "ABOUT" },
   { id: "content",   label: "CONTENT" },
+  { id: "videos",    label: "VIDEOS" },
   { id: "podcast",   label: "PODCAST" },
   { id: "topics",    label: "TOPICS" },
   { id: "community", label: "COMMUNITY" },
@@ -121,6 +123,8 @@ export default function LandingPage() {
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [carouselIdx,   setCarouselIdx]   = useState(0);
   const [slideDir,      setSlideDir]      = useState("right");
+  const [ytVideos,      setYtVideos]      = useState([]);
+  const [ytLoading,     setYtLoading]     = useState(true);
   const wrapperRef  = useRef(null);
   const autoRef     = useRef(null);
   const heroVidRef  = useRef(null);
@@ -154,6 +158,15 @@ export default function LandingPage() {
       observers.push(obs);
     });
     return () => observers.forEach(o => o.disconnect());
+  }, []);
+
+  // Fetch public YouTube videos
+  useEffect(() => {
+    fetch("/api/public/channel-videos")
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => setYtVideos(d.videos || []))
+      .catch(() => setYtVideos([]))
+      .finally(() => setYtLoading(false));
   }, []);
 
   // Slow down hero video
@@ -443,6 +456,31 @@ export default function LandingPage() {
           animation: hairOverlay 6s ease-in-out infinite;
         }
         @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
+
+        /* ── YOUTUBE VIDEO GRID ──────────────────────── */
+        .yt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:40px; }
+        .yt-card { border-radius:16px; overflow:hidden; cursor:pointer; text-decoration:none; display:block;
+          background:var(--card-bg); border:1px solid var(--card-br); box-shadow:var(--card-sh,none);
+          transition:transform 0.28s, box-shadow 0.28s, border-color 0.28s; position:relative; }
+        .yt-card:hover { transform:translateY(-5px); border-color:rgba(255,0,0,0.35); box-shadow:0 14px 44px rgba(255,0,0,0.15); }
+        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#0a0a0a; }
+        .yt-thumb img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
+        .yt-card:hover .yt-thumb img { transform:scale(1.06); }
+        .yt-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+          background:rgba(0,0,0,0.25); opacity:0; transition:opacity 0.3s; }
+        .yt-card:hover .yt-play { opacity:1; }
+        .yt-play-btn { width:52px; height:52px; border-radius:50%; background:rgba(255,0,0,0.9);
+          display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff;
+          box-shadow:0 4px 20px rgba(255,0,0,0.5); transform:scale(0.85); transition:transform 0.25s; }
+        .yt-card:hover .yt-play-btn { transform:scale(1); }
+        .yt-info { padding:14px 16px 16px; }
+        .yt-title { font-size:13px; font-weight:600; line-height:1.45; margin-bottom:8px;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .yt-meta { display:flex; gap:14px; font-size:10px; letter-spacing:0.06em; }
+        .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);
+          background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:10px; }
+        @media (max-width:900px) { .yt-grid { grid-template-columns:repeat(2,1fr)!important; } }
+        @media (max-width:540px) { .yt-grid { grid-template-columns:1fr!important; } }
 
         /* ── BUTTON GROUPS ────────────────────────────── */
         .btn-group { display:flex; gap:12px; flex-wrap:wrap; }
@@ -797,6 +835,89 @@ export default function LandingPage() {
             </div>
           </div>
           <a href={SOCIAL.tiktok} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost tiktok-btn" style={{ borderColor:"rgba(0,242,234,0.3)",color:"#00f2ea" }}>♪ FOLLOW ON TIKTOK</a>
+        </div>
+      </section>
+
+      {/* ══ YOUTUBE VIDEOS ════════════════════════════════════════════════════ */}
+      <section id="videos" style={{ padding:"100px 20px", borderTop:`1px solid ${c.secBr}` }}>
+        <div style={{ maxWidth:1180, margin:"0 auto" }}>
+          <span className="section-tag" style={{ color:"#ff0000" }}>YOUTUBE</span>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:16, marginBottom:4 }}>
+            <h2 className="syne" style={{ fontWeight:800, fontSize:"clamp(26px,4vw,38px)", color:c.text }}>
+              Latest <span className="grad-fire">videos</span>
+            </h2>
+            <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer"
+              className="lp-btn lp-btn-ghost" style={{ fontSize:11 }}>
+              VIEW CHANNEL →
+            </a>
+          </div>
+
+          {/* Loading skeletons */}
+          {ytLoading && (
+            <div className="yt-grid">
+              {[...Array(6)].map((_,i) => (
+                <div key={i} style={{ borderRadius:16, overflow:"hidden", background:c.cardBg, border:`1px solid ${c.cardBr}` }}>
+                  <div className="yt-skeleton" style={{ width:"100%", aspectRatio:"16/9" }} />
+                  <div style={{ padding:"14px 16px 16px", display:"flex", flexDirection:"column", gap:8 }}>
+                    <div className="yt-skeleton" style={{ height:14, width:"90%", borderRadius:6 }} />
+                    <div className="yt-skeleton" style={{ height:14, width:"60%", borderRadius:6 }} />
+                    <div className="yt-skeleton" style={{ height:10, width:"40%", borderRadius:6, marginTop:4 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Video grid */}
+          {!ytLoading && ytVideos.length > 0 && (
+            <div className="yt-grid" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh }}>
+              {ytVideos.map(v => (
+                <a key={v.id} href={`https://www.youtube.com/watch?v=${v.id}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="yt-card" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh }}>
+                  <div className="yt-thumb">
+                    <img
+                      src={v.thumbnail || brokenThumb}
+                      alt={v.title}
+                      onError={e => { e.currentTarget.src = brokenThumb; }}
+                    />
+                    <div className="yt-play">
+                      <div className="yt-play-btn">▶</div>
+                    </div>
+                    {v.duration && (
+                      <div style={{ position:"absolute", bottom:8, right:8, background:"rgba(0,0,0,0.8)",
+                        color:"#fff", fontSize:10, padding:"2px 6px", borderRadius:4, letterSpacing:"0.04em" }}>
+                        {v.duration}
+                      </div>
+                    )}
+                  </div>
+                  <div className="yt-info">
+                    <div className="yt-title syne" style={{ color:c.text }}>{v.title}</div>
+                    <div className="yt-meta" style={{ color:c.textD }}>
+                      <span>▶ {Number(v.views).toLocaleString()} views</span>
+                      <span>♥ {Number(v.likes).toLocaleString()}</span>
+                      {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Empty / error state */}
+          {!ytLoading && ytVideos.length === 0 && (
+            <div style={{ marginTop:40, display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:20 }} className="yt-grid">
+              {[...Array(6)].map((_,i) => (
+                <div key={i} style={{ borderRadius:16, overflow:"hidden", background:c.cardBg, border:`1px solid ${c.cardBr}` }}>
+                  <img src={brokenThumb} alt="Video unavailable"
+                    style={{ width:"100%", aspectRatio:"16/9", objectFit:"cover", display:"block", opacity:0.5 }} />
+                  <div style={{ padding:"14px 16px", textAlign:"center" }}>
+                    <div style={{ fontSize:11, color:c.textD, letterSpacing:"0.08em" }}>VIDEO UNAVAILABLE</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
