@@ -29,8 +29,8 @@ CODE_VERIFIER_KEY = "tiktok_code_verifier"
 # ── Token helpers ──────────────────────────────────────────────────────────────
 
 def _db():
-    from database import db as _db_module
-    return _db_module
+    import database
+    return database
 
 def save_token(token_data: dict):
     token_data["saved_at"] = int(time.time())
