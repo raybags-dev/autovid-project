@@ -56,28 +56,39 @@ def _compress_video(input_path: Path, output_path: Path, target_mb: int = 40) ->
     return output_path
 
 
+def _stream_upload(url: str, file_path: Path, content_type: str, headers: dict) -> None:
+    """
+    Upload a file to a URL using chunked streaming via requests.
+    Avoids loading the entire file into memory — critical for large videos.
+    Raises on non-2xx status.
+    """
+    import requests
+
+    with open(file_path, "rb") as f:
+        resp = requests.post(
+            url,
+            data=f,
+            headers={**headers, "Content-Type": content_type},
+            timeout=(30, 600),  # 30s connect, 10min transfer
+        )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Storage upload failed {resp.status_code}: {resp.text[:300]}")
+
+
 def upload_to_storage(local_path: str, video_id: str, cb=None) -> str:
     """
     Upload a local video file to Supabase Storage bucket.
-    Automatically compresses if file exceeds Supabase free tier limit (50MB).
+    Uses chunked streaming (no full-file read into RAM) for speed.
     Returns the permanent public URL for playback.
-    Raises on failure so caller can log and continue.
     """
-    import subprocess
-    import tempfile
-    from supabase import create_client
-
-    # Use the service key — anon key doesn't have storage write access
     if not config.SUPABASE_SERVICE_KEY:
         raise RuntimeError("SUPABASE_SERVICE_KEY not set in .env")
-
-    client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
 
     local_path = Path(local_path)
     if not local_path.exists():
         raise FileNotFoundError(f"Video file not found: {local_path}")
 
-    # Compress if needed
+    # Compress only if truly oversized (Pro tier limit)
     size_mb = local_path.stat().st_size / (1024 * 1024)
     upload_path = local_path
     compressed_tmp = None
@@ -86,33 +97,37 @@ def upload_to_storage(local_path: str, video_id: str, cb=None) -> str:
         compressed_tmp = local_path.parent / f"{video_id}_upload_compressed.mp4"
         upload_path = _compress_video(local_path, compressed_tmp, target_mb=40)
 
-    filename   = f"{video_id}_final.mp4"
-    file_bytes = upload_path.read_bytes()
-    final_mb   = len(file_bytes) / (1024 * 1024)
-
+    filename = f"{video_id}_final.mp4"
+    final_mb = upload_path.stat().st_size / (1024 * 1024)
     print(f"☁️  Uploading to Supabase Storage: {filename} ({final_mb:.1f} MB)")
 
-    # Remove old version if it exists (idempotent re-runs)
+    base = config.SUPABASE_URL.rstrip("/")
+    upload_url = f"{base}/storage/v1/object/{BUCKET}/{filename}"
+    auth_headers = {
+        "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
+        "x-upsert": "true",
+    }
+
+    # Delete old version first (idempotent)
     try:
-        client.storage.from_(BUCKET).remove([filename])
+        import requests as _r
+        _r.delete(
+            f"{base}/storage/v1/object/{BUCKET}",
+            json={"prefixes": [filename]},
+            headers=auth_headers,
+            timeout=10,
+        )
     except Exception:
         pass
 
-    # Upload the file
-    client.storage.from_(BUCKET).upload(
-        path=filename,
-        file=file_bytes,
-        file_options={"content-type": "video/mp4", "upsert": "true"},
-    )
+    # Stream upload — no full read into memory
+    _stream_upload(upload_url, upload_path, "video/mp4", auth_headers)
 
     # Clean up temp compressed file
     if compressed_tmp and compressed_tmp.exists():
         compressed_tmp.unlink(missing_ok=True)
 
-    # Build public URL
-    base = config.SUPABASE_URL.rstrip("/")
     public_url = f"{base}/storage/v1/object/public/{BUCKET}/{filename}"
-
     print(f"   ✅ Stored at: {public_url}")
     return public_url
 
@@ -123,36 +138,29 @@ def upload_narration_to_storage(audio_path: str, video_id: str, cb=None) -> str:
     Returns the permanent public URL, or raises on failure.
     Create bucket 'narrations' in Supabase → Public: ON before using.
     """
-    from supabase import create_client
-
     NARRATION_BUCKET = "narrations"
 
     if not config.SUPABASE_SERVICE_KEY:
         raise RuntimeError("SUPABASE_SERVICE_KEY not set in .env")
 
-    client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
     audio_path = Path(audio_path)
 
     if not audio_path.exists():
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-    filename   = f"{video_id}_narration.mp3"
-    file_bytes = audio_path.read_bytes()
-    size_mb    = len(file_bytes) / (1024 * 1024)
+    filename = f"{video_id}_narration.mp3"
+    size_mb  = audio_path.stat().st_size / (1024 * 1024)
     print(f"🎙  Uploading narration to Supabase: {filename} ({size_mb:.1f} MB)")
 
-    try:
-        client.storage.from_(NARRATION_BUCKET).remove([filename])
-    except Exception:
-        pass
+    base = config.SUPABASE_URL.rstrip("/")
+    upload_url = f"{base}/storage/v1/object/{NARRATION_BUCKET}/{filename}"
+    auth_headers = {
+        "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
+        "x-upsert": "true",
+    }
 
-    client.storage.from_(NARRATION_BUCKET).upload(
-        path=filename,
-        file=file_bytes,
-        file_options={"content-type": "audio/mpeg", "upsert": "true"},
-    )
+    _stream_upload(upload_url, audio_path, "audio/mpeg", auth_headers)
 
-    base       = config.SUPABASE_URL.rstrip("/")
     public_url = f"{base}/storage/v1/object/public/{NARRATION_BUCKET}/{filename}"
     print(f"   ✅ Narration stored: {public_url}")
     return public_url

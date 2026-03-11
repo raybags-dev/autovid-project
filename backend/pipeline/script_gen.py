@@ -265,6 +265,29 @@ def generate_short_script(prompt: str) -> dict:
         if field not in script_data:
             raise ValueError(f"Short script missing required field: {field}")
 
+    # Hard-enforce word limits on each part — LLMs often exceed the requested counts
+    def _truncate_words(text: str, max_words: int) -> str:
+        words = text.split()
+        if len(words) <= max_words:
+            return text
+        # Cut at word boundary, keep complete sentence if possible
+        truncated = words[:max_words]
+        result = " ".join(truncated)
+        # Add period if doesn't end with punctuation
+        if result and result[-1] not in ".!?":
+            result += "."
+        return result
+
+    script_data["hook"] = _truncate_words(script_data["hook"], 15)
+
+    # Cap to 5 segments max, each 35 words max
+    segments = script_data["segments"][:5]
+    for seg in segments:
+        seg["text"] = _truncate_words(seg["text"], 35)
+    script_data["segments"] = segments
+
+    script_data["outro"] = _truncate_words(script_data["outro"], 20)
+
     all_lines = [script_data["hook"]]
     all_lines += [seg["text"] for seg in script_data["segments"]]
     all_lines.append(script_data["outro"])
@@ -275,7 +298,7 @@ def generate_short_script(prompt: str) -> dict:
     script_data["is_short"] = True
 
     print(f"✅ Short script generated: '{script_data['title']}'")
-    print(f"   Words: {word_count}, estimated {script_data['estimated_duration']}s")
+    print(f"   Words: {word_count} (hard-capped), estimated {script_data['estimated_duration']}s")
 
     return script_data
 

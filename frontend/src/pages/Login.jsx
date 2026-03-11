@@ -204,6 +204,18 @@ export default function Login() {
         >
           AUTOVID v1.0 · INTERNAL DASHBOARD
         </div>
+
+        <div style={{ marginTop: 16, textAlign: "center", fontSize: 10, color: "#1a3a5a" }}>
+          <a href="/privacy-policy" style={{ color: "#1a5070", textDecoration: "none", letterSpacing: "0.06em" }}
+            onMouseEnter={e => e.target.style.color = "#00b4ff"}
+            onMouseLeave={e => e.target.style.color = "#1a5070"}
+          >Privacy Policy</a>
+          <span style={{ margin: "0 8px", opacity: 0.4 }}>·</span>
+          <a href="/terms-of-service" style={{ color: "#1a5070", textDecoration: "none", letterSpacing: "0.06em" }}
+            onMouseEnter={e => e.target.style.color = "#00b4ff"}
+            onMouseLeave={e => e.target.style.color = "#1a5070"}
+          >Terms of Service</a>
+        </div>
       </div>
     </div>
   );
