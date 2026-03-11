@@ -119,6 +119,7 @@ export default function LandingPage() {
   const [activeSection, setActiveSection] = useState("hero");
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [carouselIdx,   setCarouselIdx]   = useState(0);
+  const [slideDir,      setSlideDir]      = useState("right");
   const wrapperRef  = useRef(null);
   const autoRef     = useRef(null);
   const heroVidRef  = useRef(null);
@@ -168,9 +169,9 @@ export default function LandingPage() {
   }, []);
 
 
-  const goPrev   = () => { clearInterval(autoRef.current); setCarouselIdx(i => (i - 1 + CAROUSEL.length) % CAROUSEL.length); };
-  const goNext   = () => { clearInterval(autoRef.current); setCarouselIdx(i => (i + 1) % CAROUSEL.length); };
-  const goTo     = (i) => { clearInterval(autoRef.current); setCarouselIdx(i); };
+  const goPrev   = () => { clearInterval(autoRef.current); setSlideDir("left");  setCarouselIdx(i => (i - 1 + CAROUSEL.length) % CAROUSEL.length); };
+  const goNext   = () => { clearInterval(autoRef.current); setSlideDir("right"); setCarouselIdx(i => (i + 1) % CAROUSEL.length); };
+  const goTo     = (i) => { clearInterval(autoRef.current); setSlideDir(i > carouselIdx ? "right" : "left"); setCarouselIdx(i); };
   const scrollTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMenuOpen(false);
@@ -252,10 +253,10 @@ export default function LandingPage() {
 
         /* ── BUTTONS ──────────────────────────────────── */
         .lp-btn {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 12px 22px; border-radius: 10px;
-          font-family: 'DM Mono', monospace; font-size: 11px;
-          font-weight: 500; letter-spacing: 0.1em;
+          display: inline-flex; align-items: center; gap: 10px;
+          padding: 15px 28px; border-radius: 12px;
+          font-family: 'DM Mono', monospace; font-size: 12px;
+          font-weight: 500; letter-spacing: 0.12em;
           cursor: pointer; transition: all 0.22s;
           text-decoration: none; border: none;
           white-space: nowrap; position: relative; overflow: hidden;
@@ -269,13 +270,13 @@ export default function LandingPage() {
           pointer-events: none;
         }
         .lp-btn:hover::after { transform: translateX(110%); }
-        .lp-btn-fire { background: linear-gradient(135deg,#cc2200,#ff5533,#ff8844); color:#fff; }
-        .lp-btn-fire:hover { opacity:0.88; transform:translateY(-2px); box-shadow:0 8px 28px rgba(255,80,30,0.4); }
-        .lp-btn-ghost { background:transparent; color: var(--text-light,#c0d4e8); border:1px solid rgba(255,255,255,0.13); }
-        [data-theme="light"] .lp-btn-ghost { color:#444; border-color:rgba(0,0,0,0.15); }
-        .lp-btn-ghost:hover { border-color:rgba(255,80,30,0.45); color:#ff6633; background:rgba(255,80,30,0.06); }
-        .lp-btn-green { background:linear-gradient(135deg,#1db954,#1ed760); color:#fff; }
-        .lp-btn-green:hover { opacity:0.88; transform:translateY(-2px); box-shadow:0 8px 28px rgba(29,185,84,0.35); }
+        .lp-btn-fire { background: linear-gradient(135deg,#cc2200,#ff5533,#ff8844); color:#fff; box-shadow: 0 4px 20px rgba(255,80,30,0.25); }
+        .lp-btn-fire:hover { opacity:0.92; transform:translateY(-3px) scale(1.03); box-shadow:0 12px 36px rgba(255,80,30,0.5); }
+        .lp-btn-ghost { background:transparent; color: var(--text-light,#c0d4e8); border:1px solid rgba(255,255,255,0.18); }
+        [data-theme="light"] .lp-btn-ghost { color:#444; border-color:rgba(0,0,0,0.18); }
+        .lp-btn-ghost:hover { border-color:rgba(255,80,30,0.5); color:#ff6633; background:rgba(255,80,30,0.07); transform:translateY(-2px); }
+        .lp-btn-green { background:linear-gradient(135deg,#1db954,#1ed760); color:#fff; box-shadow: 0 4px 20px rgba(29,185,84,0.25); }
+        .lp-btn-green:hover { opacity:0.92; transform:translateY(-3px) scale(1.03); box-shadow:0 12px 36px rgba(29,185,84,0.45); }
 
         /* ── CARDS ────────────────────────────────────── */
         .lp-card {
@@ -340,10 +341,15 @@ export default function LandingPage() {
         @keyframes glow       { 0%,100%{opacity:0.5} 50%{opacity:1} }
         @keyframes scrollPulse{ 0%,100%{opacity:0.25;transform:translateY(0)} 50%{opacity:0.9;transform:translateY(6px)} }
         @keyframes shimmer    { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        @keyframes slideInRight { from{opacity:0;transform:translateX(48px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes slideInLeft  { from{opacity:0;transform:translateX(-48px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes slideInUp    { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:translateY(0)} }
         .anim-1 { animation:fadeUp 0.7s ease both; }
         .anim-2 { animation:fadeUp 0.7s 0.12s ease both; }
         .anim-3 { animation:fadeUp 0.7s 0.24s ease both; }
         .anim-4 { animation:fadeUp 0.7s 0.36s ease both; }
+        .carousel-slide { animation:slideInRight 0.42s cubic-bezier(0.22,1,0.36,1) both; }
+        .carousel-slide-icon { animation:slideInLeft 0.42s 0.06s cubic-bezier(0.22,1,0.36,1) both; }
 
         /* ── SOCIAL ICONS ─────────────────────────────── */
         .soc-icon {
@@ -684,7 +690,8 @@ export default function LandingPage() {
           </div>
 
           <div className="carousel-main" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24 }}>
-            <div style={{ background:c.cardBg,border:`1px solid ${item.color}28`,borderRadius:18,padding:"30px 28px",display:"flex",flexDirection:"column",transition:"all 0.4s",boxShadow:c.cardSh }}>
+            <div key={`slide-${carouselIdx}`} className={slideDir === "right" ? "carousel-slide" : "carousel-slide-icon"}
+              style={{ background:c.cardBg,border:`1px solid ${item.color}28`,borderRadius:18,padding:"30px 28px",display:"flex",flexDirection:"column",boxShadow:c.cardSh }}>
               <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:20 }}>
                 <span style={{ fontSize:9,padding:"5px 12px",borderRadius:100,background:`${item.color}14`,color:item.color,border:`1px solid ${item.color}28`,letterSpacing:"0.12em" }}>{item.platform}</span>
                 <span style={{ fontSize:9,color:c.textD,letterSpacing:"0.1em" }}>{item.tag}</span>
@@ -695,13 +702,14 @@ export default function LandingPage() {
                 {item.icon} WATCH / LISTEN NOW
               </a>
             </div>
-            <div style={{ background:`linear-gradient(145deg,${theme==="dark"?"rgba(0,0,0,0.5)":c.cardBg},${item.color}0c)`,border:`1px solid ${item.color}1a`,borderRadius:18,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,minHeight:240,transition:"all 0.4s",padding:24,boxShadow:c.cardSh }}>
-              <div style={{ fontSize:52,color:item.color,opacity:0.55,transition:"transform 0.3s" }}
-                onMouseEnter={e => e.currentTarget.style.transform="scale(1.15)"}
-                onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}
+            <div key={`icon-${carouselIdx}`} className={slideDir === "right" ? "carousel-slide-icon" : "carousel-slide"}
+              style={{ background:`linear-gradient(145deg,${theme==="dark"?"rgba(0,0,0,0.5)":c.cardBg},${item.color}0c)`,border:`1px solid ${item.color}1a`,borderRadius:18,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,minHeight:240,padding:24,boxShadow:c.cardSh }}>
+              <div style={{ fontSize:60,color:item.color,opacity:0.6,transition:"transform 0.3s,opacity 0.3s" }}
+                onMouseEnter={e => { e.currentTarget.style.transform="scale(1.18)"; e.currentTarget.style.opacity="0.9"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.opacity="0.6"; }}
               >{item.icon}</div>
               <div style={{ fontSize:10,color:c.textD,letterSpacing:"0.18em" }}>AVAILABLE ON {item.platform}</div>
-              <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ fontSize:10,color:item.color,textDecoration:"none",letterSpacing:"0.1em",border:`1px solid ${item.color}30`,padding:"8px 18px",borderRadius:8,transition:"all 0.2s" }}>OPEN →</a>
+              <a href={item.link} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ fontSize:10,padding:"10px 20px" }}>OPEN →</a>
             </div>
           </div>
 
