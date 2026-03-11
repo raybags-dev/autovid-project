@@ -1008,6 +1008,56 @@ _channel_videos_cache: dict = {"data": None, "fetched_at": 0}
 CHANNEL_CACHE_TTL = 3600  # 1 hour
 
 
+@app.get("/public/channel-videos")
+def get_public_channel_videos():
+    """Public endpoint — returns cached public channel videos for the landing page.
+    No auth required. Serves from the shared cache populated by the authed endpoint.
+    Falls back to a fresh fetch if cache is empty.
+    """
+    import time
+    global _channel_videos_cache
+    age = time.time() - _channel_videos_cache["fetched_at"]
+    if _channel_videos_cache["data"] is not None and age < CHANNEL_CACHE_TTL:
+        data = _channel_videos_cache["data"]
+        public_videos = [v for v in data.get("videos", []) if v.get("privacy") == "public"]
+        return {"videos": public_videos[:12], "total": len(public_videos)}
+    # Cache empty — do a fresh fetch (best-effort, no error thrown to public)
+    try:
+        from pipeline.youtube_uploader import get_authenticated_service
+        service = get_authenticated_service()
+        ch = service.channels().list(part="contentDetails", mine=True).execute()
+        uploads_playlist = ch["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        req = service.playlistItems().list(
+            part="snippet,contentDetails", playlistId=uploads_playlist, maxResults=12)
+        res = req.execute()
+        video_ids = [i["contentDetails"]["videoId"] for i in res.get("items", [])]
+        videos = []
+        if video_ids:
+            details = service.videos().list(
+                part="snippet,statistics,status", id=",".join(video_ids)).execute()
+            for item in details.get("items", []):
+                sn = item["snippet"]
+                st = item.get("statistics", {})
+                status = item.get("status", {})
+                if status.get("privacyStatus") != "public":
+                    continue
+                thumbnails = sn.get("thumbnails", {})
+                thumb = (thumbnails.get("high") or thumbnails.get("medium") or thumbnails.get("default") or {}).get("url")
+                videos.append({
+                    "id": item["id"], "title": sn.get("title", ""),
+                    "thumbnail": thumb, "published_at": sn.get("publishedAt"),
+                    "views": int(st.get("viewCount", 0)),
+                    "likes": int(st.get("likeCount", 0)),
+                    "comments": int(st.get("commentCount", 0)),
+                })
+        _channel_videos_cache["data"] = {"videos": videos, "total": len(videos)}
+        _channel_videos_cache["fetched_at"] = time.time()
+        return {"videos": videos, "total": len(videos)}
+    except Exception as e:
+        print(f"⚠️  Public channel videos fetch failed: {e}")
+        return {"videos": [], "total": 0, "error": str(e)}
+
+
 @app.get("/channel/videos")
 def get_channel_videos(refresh: bool = False, user: str = Depends(verify_token)):
     """Fetch all videos from the authenticated YouTube channel.
