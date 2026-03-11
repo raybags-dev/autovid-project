@@ -23,7 +23,7 @@ services:
       - ./backend/youtube_token.json:/app/youtube_token.json
     depends_on:
       - redis
-    command: celery -A workers.celery_worker worker --loglevel=info --concurrency=1 -Q autovid
+    command: python -m celery -A workers.celery_worker worker --loglevel=info --concurrency=1 -Q autovid
 
   # ── 2 Backend instances (API only — no pipeline work) ─────────────────
   backend-1:
