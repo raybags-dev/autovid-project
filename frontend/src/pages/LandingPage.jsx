@@ -1,36 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
-// ── Update these with your real channel/profile URLs ─────────────────────────
+// ── Social links ──────────────────────────────────────────────────────────────
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4lifemystery",
-  tiktok:  "https://www.tiktok.com/@4lifemystery",
-  spotify: "https://open.spotify.com/show/YOUR_SHOW_ID", // replace YOUR_SHOW_ID
+  tiktok:  "https://www.tiktok.com/@lifemystery183284",
+  spotify: "https://open.spotify.com/show/2ZIZRXomO55COqXyJXgy5s",
 };
 
-// Replace videoId values with real YouTube video IDs from your channel
+// YouTube video IDs from @4lifemystery — paste the 11-char ID from each video URL
+// e.g. for https://youtu.be/dQw4w9WgXcQ the ID is dQw4w9WgXcQ
 const VIDEOS = [
-  {
-    id: 1,
-    videoId: "YOUR_VIDEO_ID_1",
-    title: "Why Does Life Feel Meaningless?",
-    desc: "An honest look at the void many of us feel — and what it might actually be trying to tell us.",
-    tag: "Existence",
-  },
-  {
-    id: 2,
-    videoId: "YOUR_VIDEO_ID_2",
-    title: "The Mystery of Human Connection",
-    desc: "Why do some people feel like strangers even in a crowd — and what we can do about it.",
-    tag: "Relationships",
-  },
-  {
-    id: 3,
-    videoId: "YOUR_VIDEO_ID_3",
-    title: "Fear, Uncertainty & Living Fully",
-    desc: "Uncertainty isn't the enemy of a good life. It might be the whole point.",
-    tag: "Mental Health",
-  },
+  { id: 1, videoId: "", title: "Video 1", desc: "", tag: "Life" },
+  { id: 2, videoId: "", title: "Video 2", desc: "", tag: "Life" },
+  { id: 3, videoId: "", title: "Video 3", desc: "", tag: "Life" },
+  { id: 4, videoId: "", title: "Video 4", desc: "", tag: "Life" },
+  { id: 5, videoId: "", title: "Video 5", desc: "", tag: "Life" },
 ];
 
 const CAROUSEL = [
@@ -71,7 +56,7 @@ const TOPICS = [
   { name: "Society & Culture",  icon: "◓", count: 22 },
 ];
 
-const SPOTIFY_SHOW_ID = "YOUR_SHOW_ID"; // replace with real Spotify show ID
+const SPOTIFY_SHOW_ID = "2ZIZRXomO55COqXyJXgy5s";
 
 export default function LandingPage() {
   const [scrolled,     setScrolled]     = useState(false);
@@ -195,14 +180,11 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Right */}
+          {/* Right — social icons only, no login button */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="soc-icon hide-mobile" title="YouTube">▶</a>
             <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="soc-icon hide-mobile" title="TikTok">♪</a>
             <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="soc-icon hide-mobile" title="Spotify">◎</a>
-            <Link to="/login" style={{ padding: "9px 20px", borderRadius: 8, background: "rgba(0,180,255,0.08)", border: "1px solid rgba(0,180,255,0.2)", color: "#00b4ff", fontSize: 10, letterSpacing: "0.1em", textDecoration: "none", fontFamily: "'DM Mono',monospace", transition: "all 0.2s", whiteSpace: "nowrap" }}>
-              SIGN IN →
-            </Link>
           </div>
         </div>
       </nav>
@@ -351,7 +333,7 @@ export default function LandingPage() {
 
       {/* ═══════════════════ VIDEOS ═══════════════════ */}
       <section style={{ padding: "110px 28px" }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <span className="section-tag">WATCH</span>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36 }}>
             <h2 className="syne" style={{ fontWeight: 800, fontSize: 38 }}>
@@ -360,34 +342,40 @@ export default function LandingPage() {
             <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ fontSize: 10 }}>VIEW CHANNEL →</a>
           </div>
 
-          <div className="grid-3">
-            {VIDEOS.map(v => (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 20 }}>
+            {VIDEOS.filter(v => v.videoId).map(v => (
               <div key={v.id} className="lp-card" style={{ overflow: "hidden" }}>
-                {/* Thumbnail / embed placeholder */}
-                {v.videoId && !v.videoId.startsWith("YOUR") ? (
-                  <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden" }}>
-                    <iframe
-                      src={`https://www.youtube.com/embed/${v.videoId}?rel=0&modestbranding=1`}
-                      title={v.title}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-                    />
-                  </div>
-                ) : (
-                  /* Placeholder when video ID not yet set */
-                  <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 180, background: "linear-gradient(145deg,rgba(255,68,68,0.06),rgba(0,0,0,0.4))", textDecoration: "none", gap: 12, flexDirection: "column" }}>
-                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,68,68,0.12)", border: "1px solid rgba(255,68,68,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "#ff4444" }}>▶</div>
-                    <div style={{ fontSize: 10, color: "#2a5070", letterSpacing: "0.1em" }}>WATCH ON YOUTUBE</div>
+                {/* Embedded player */}
+                <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden" }}>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${v.videoId}?rel=0&modestbranding=1`}
+                    title={v.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                  />
+                </div>
+                <div style={{ padding: "16px 18px 18px" }}>
+                  <span style={{ fontSize: 9, padding: "4px 10px", borderRadius: 100, background: "rgba(0,180,255,0.08)", color: "#00b4ff", border: "1px solid rgba(0,180,255,0.18)", letterSpacing: "0.1em", marginBottom: 10, display: "inline-block" }}>{v.tag}</span>
+                  <div className="syne" style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.4, marginBottom: 8, color: "#e0eaf5" }}>{v.title}</div>
+                  {v.desc && <p style={{ fontSize: 11, color: "#4a6a8a", lineHeight: 1.7, marginBottom: 12 }}>{v.desc}</p>}
+                  <a href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 10, color: "#ff4444", textDecoration: "none", letterSpacing: "0.08em", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    ▶ WATCH ON YOUTUBE →
                   </a>
-                )}
-                <div style={{ padding: "20px 20px 22px" }}>
-                  <span style={{ fontSize: 9, padding: "4px 10px", borderRadius: 100, background: "rgba(0,180,255,0.08)", color: "#00b4ff", border: "1px solid rgba(0,180,255,0.18)", letterSpacing: "0.1em", marginBottom: 12, display: "inline-block" }}>{v.tag}</span>
-                  <div className="syne" style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.4, marginBottom: 10, color: "#e0eaf5" }}>{v.title}</div>
-                  <p style={{ fontSize: 12, color: "#4a6a8a", lineHeight: 1.72 }}>{v.desc}</p>
                 </div>
               </div>
             ))}
+
+            {/* Channel CTA card — always shown */}
+            <div className="lp-card" style={{ overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 240, padding: 28, textAlign: "center", background: "linear-gradient(145deg,rgba(255,68,68,0.05),rgba(0,0,0,0.3))" }}>
+              <div style={{ width: 60, height: 60, borderRadius: "50%", background: "rgba(255,68,68,0.1)", border: "1px solid rgba(255,68,68,0.28)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, color: "#ff4444", marginBottom: 18 }}>▶</div>
+              <div className="syne" style={{ fontWeight: 700, fontSize: 15, color: "#e0eaf5", marginBottom: 8 }}>More on YouTube</div>
+              <div style={{ fontSize: 11, color: "#4a6a8a", marginBottom: 22, lineHeight: 1.7 }}>Watch all episodes on the channel</div>
+              <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fill" style={{ fontSize: 10, padding: "10px 22px" }}>
+                VIEW CHANNEL →
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -398,7 +386,7 @@ export default function LandingPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <div style={{ width: 52, height: 52, borderRadius: 14, background: "rgba(0,242,234,0.08)", border: "1px solid rgba(0,242,234,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#00f2ea" }}>♪</div>
             <div>
-              <div className="syne" style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>@4lifemystery on TikTok</div>
+              <div className="syne" style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>@lifemystery183284 on TikTok</div>
               <div style={{ fontSize: 12, color: "#4a6a8a" }}>60-second truths. Bite-sized thoughts that hit hard.</div>
             </div>
           </div>
