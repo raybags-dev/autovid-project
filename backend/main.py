@@ -1628,6 +1628,76 @@ def tiktok_disconnect(user: str = Depends(verify_token)):
     disconnect()
     return {"message": "TikTok disconnected"}
 
+# ── Spotify OAuth ──────────────────────────────────────────────────────────────
+
+@app.get("/spotify/connect")
+def spotify_connect(user: str = Depends(verify_token)):
+    """Return the Spotify authorization URL for the frontend to redirect to."""
+    from pipeline.spotify_client import get_auth_url
+    return {"url": get_auth_url()}
+
+@app.get("/spotify/callback")
+def spotify_callback(code: str = None, error: str = None):
+    """Spotify redirects here after user approval. Exchange code for tokens."""
+    from fastapi.responses import HTMLResponse
+    if error:
+        return HTMLResponse(f"""
+        <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>Spotify Auth Failed</h2><p>{error}</p>
+        <a href="https://4lifemystery.com/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
+        """)
+    try:
+        from pipeline.spotify_client import exchange_code
+        exchange_code(code)
+        return HTMLResponse("""
+        <html><body style="background:#08080f;color:#1db954;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>✅ Spotify Connected!</h2><p>You can close this tab and return to the dashboard.</p>
+        <a href="https://4lifemystery.com/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
+        """)
+    except Exception as e:
+        return HTMLResponse(f"""
+        <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>Spotify Auth Error</h2><p>{e}</p>
+        <a href="https://4lifemystery.com/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
+        """)
+
+@app.get("/spotify/status")
+def spotify_status(user: str = Depends(verify_token)):
+    from pipeline.spotify_client import is_connected, load_token, get_profile
+    token = load_token()
+    if not token:
+        return {"connected": False}
+    try:
+        profile = get_profile()
+        return {
+            "connected":    True,
+            "display_name": profile.get("display_name"),
+            "email":        profile.get("email"),
+            "country":      profile.get("country"),
+            "followers":    profile.get("followers", {}).get("total"),
+            "image":        (profile.get("images") or [{}])[0].get("url"),
+        }
+    except Exception:
+        return {"connected": True, "display_name": None}
+
+@app.post("/spotify/disconnect")
+def spotify_disconnect(user: str = Depends(verify_token)):
+    from pipeline.spotify_client import disconnect
+    disconnect()
+    return {"message": "Spotify disconnected"}
+
+@app.get("/spotify/top-tracks")
+def spotify_top_tracks(limit: int = 10, time_range: str = "long_term", user: str = Depends(verify_token)):
+    from pipeline.spotify_client import get_top_tracks
+    tracks = get_top_tracks(limit=limit, time_range=time_range)
+    return [{"name": t["name"], "artists": [a["name"] for a in t["artists"]], "popularity": t.get("popularity"), "preview_url": t.get("preview_url")} for t in tracks]
+
+@app.get("/spotify/top-artists")
+def spotify_top_artists(limit: int = 10, time_range: str = "long_term", user: str = Depends(verify_token)):
+    from pipeline.spotify_client import get_top_artists
+    artists = get_top_artists(limit=limit, time_range=time_range)
+    return [{"name": a["name"], "genres": a.get("genres", []), "followers": a.get("followers", {}).get("total"), "popularity": a.get("popularity")} for a in artists]
+
 @app.post("/videos/{video_id}/upload-tiktok")
 def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: BackgroundTasks = None, user: str = Depends(verify_token)):
     """Upload a ready video to TikTok."""
