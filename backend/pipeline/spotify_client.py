@@ -24,10 +24,6 @@ SCOPES = " ".join([
 ])
 
 
-def _db():
-    from database import db as _db_module
-    return _db_module
-
 
 def _creds():
     client_id = os.getenv("SPOTIFY_CLIENT_ID", "")
@@ -40,12 +36,14 @@ def _creds():
 # ── Token storage ──────────────────────────────────────────────────────────────
 
 def save_token(data: dict):
+    import database
     data["saved_at"] = time.time()
-    _db().set_setting(TOKEN_KEY, json.dumps(data))
+    database.set_setting(TOKEN_KEY, json.dumps(data))
 
 
 def load_token() -> dict | None:
-    raw = _db().get_setting(TOKEN_KEY, "")
+    import database
+    raw = database.get_setting(TOKEN_KEY, "")
     if not raw:
         return None
     try:
@@ -59,7 +57,8 @@ def is_connected() -> bool:
 
 
 def disconnect():
-    _db().set_setting(TOKEN_KEY, "")
+    import database
+    database.set_setting(TOKEN_KEY, "")
 
 
 # ── OAuth helpers ──────────────────────────────────────────────────────────────
