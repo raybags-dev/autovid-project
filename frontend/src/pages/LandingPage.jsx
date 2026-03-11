@@ -427,6 +427,12 @@ export default function LandingPage() {
         .face-feature img { pointer-events: none; }
         @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
 
+        /* ── BUTTON GROUPS ────────────────────────────── */
+        .btn-group { display:flex; gap:12px; flex-wrap:wrap; }
+
+        /* ── TOPIC PILLS ──────────────────────────────── */
+        .topics-grid { display:flex; flex-wrap:wrap; gap:10px; margin-top:28px; }
+
         /* ── RESPONSIVE ───────────────────────────────── */
         @media (max-width:900px) {
           .side-nav { display:none!important; }
@@ -441,11 +447,28 @@ export default function LandingPage() {
           .mini-grid { grid-template-columns:1fr 1fr!important; }
           .comments-grid { grid-template-columns:1fr!important; }
         }
+        @media (max-width:640px) {
+          /* Buttons: equal width, full container, stacked */
+          .btn-group { flex-direction:column; width:100%; align-items:stretch; }
+          .btn-group .lp-btn { width:100%; justify-content:center; text-align:center; }
+          /* Topics: full width, left-justified icon + label + count */
+          .topics-grid { flex-direction:column; }
+          .topic-pill { width:100%!important; justify-content:space-between!important; border-radius:12px!important; }
+          /* Podcast buttons */
+          .podcast-btns { flex-direction:column!important; width:100%!important; align-items:stretch!important; }
+          .podcast-btns .lp-btn { width:100%!important; justify-content:center!important; }
+          /* Hero: reduce padding so content fits */
+          #hero { min-height:100svh!important; height:auto!important; }
+          .hero-content-pad { padding-top:80px!important; }
+          .hero-stats { gap:20px!important; }
+          .hero-bottom-bar { flex-direction:column!important; align-items:center!important; gap:8px!important; }
+          /* Single buttons span full width */
+          .tiktok-btn { width:100%!important; justify-content:center!important; }
+        }
         @media (max-width:540px) {
           .footer-grid { grid-template-columns:1fr!important; }
           .about-pillars { grid-template-columns:1fr!important; }
           .mini-grid { grid-template-columns:1fr!important; }
-          .hero-stats { gap:28px!important; }
         }
       `}</style>
 
@@ -521,7 +544,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ══ HERO — full-screen nebula video banner ════════════════════════════ */}
-      <section id="hero" style={{ position: "relative", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <section id="hero" style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
         {/* Video background */}
         <video
@@ -538,68 +561,62 @@ export default function LandingPage() {
           background: "linear-gradient(to bottom, rgba(3,6,15,0.38) 0%, rgba(3,6,15,0.55) 50%, rgba(3,6,15,0.92) 100%)" }} />
 
         {/* Main content — centred over video */}
-        <div style={{ position: "relative", zIndex: 2, flex: 1, display: "flex", flexDirection: "column",
+        <div className="hero-content-pad" style={{ position: "relative", zIndex: 2, flex: 1, display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center", textAlign: "center",
-          padding: "100px 24px 0", gap: 0 }}>
+          padding: "110px 24px 32px", gap: 0 }}>
 
           {/* Badge */}
           <div className="anim-1" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 18px",
-            borderRadius: 100, background: "rgba(255,80,30,0.1)", border: "1px solid rgba(255,80,30,0.25)", marginBottom: 28 }}>
+            borderRadius: 100, background: "rgba(255,80,30,0.1)", border: "1px solid rgba(255,80,30,0.25)", marginBottom: 22 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff5533", display: "inline-block", animation: "glow 2s ease-in-out infinite" }} />
             <span style={{ fontSize: 10, color: "#ff8866", letterSpacing: "0.18em" }}>LIFE · MYSTERY · CONNECTION</span>
           </div>
 
           {/* Headline */}
-          <h1 className="syne anim-2" style={{ fontWeight: 800, fontSize: "clamp(36px,7vw,80px)", lineHeight: 1.06,
-            letterSpacing: "-0.03em", marginBottom: 18, color: "#fff", textShadow: "0 2px 40px rgba(0,0,0,0.6)", maxWidth: 900 }}>
+          <h1 className="syne anim-2" style={{ fontWeight: 800, fontSize: "clamp(34px,7vw,80px)", lineHeight: 1.06,
+            letterSpacing: "-0.03em", marginBottom: 20, color: "#fff", textShadow: "0 2px 40px rgba(0,0,0,0.6)", maxWidth: 900 }}>
             The questions{" "}<span className="grad-fire">worth asking</span>{" "}live here.
           </h1>
 
-          {/* Uncover tagline */}
-          <div className="anim-2" style={{ marginBottom: 20 }}>
-            <img src={uncoverLogo} alt="Uncover the Unknown"
-              style={{ height: "clamp(22px,3.5vw,38px)", width: "auto", objectFit: "contain", opacity: 0.85, filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.5))" }} />
-          </div>
-
           {/* Description */}
-          <p className="anim-3" style={{ fontSize: "clamp(13px,1.5vw,16px)", color: "rgba(220,230,245,0.78)",
-            lineHeight: 1.85, maxWidth: 600, marginBottom: 36, textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>
+          <p className="anim-3" style={{ fontSize: "clamp(13px,1.5vw,15px)", color: "rgba(220,230,245,0.75)",
+            lineHeight: 1.85, maxWidth: 580, marginBottom: 28, textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>
             4Life Mystery is a space for real conversations about life — its meaning, its mysteries, and everything between.
             No algorithm. No noise. Just honest human thought.
           </p>
 
           {/* Stats */}
-          <div className="hero-stats anim-3" style={{ display: "flex", gap: 44, flexWrap: "wrap", justifyContent: "center", marginBottom: 36 }}>
+          <div className="hero-stats anim-3" style={{ display: "flex", gap: 40, flexWrap: "wrap", justifyContent: "center", marginBottom: 32 }}>
             {[["10K+","FOLLOWERS"],["50+","EPISODES"],["∞","QUESTIONS"]].map(([n,l]) => (
               <div key={l} style={{ textAlign: "center" }}>
-                <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(22px,3vw,30px)" }}>{n}</div>
+                <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(20px,3vw,30px)" }}>{n}</div>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "0.2em", marginTop: 4 }}>{l}</div>
               </div>
             ))}
           </div>
 
           {/* CTA buttons */}
-          <div className="anim-4" style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", marginBottom: 0 }}>
-            <button onClick={() => scrollTo("content")} className="lp-btn lp-btn-fire">EXPLORE CONTENT</button>
+          <div className="anim-4 btn-group" style={{ justifyContent: "center", width: "100%", maxWidth: 500 }}>
+            <button onClick={() => scrollTo("content")} className="lp-btn lp-btn-fire" style={{ flex: 1 }}>EXPLORE CONTENT</button>
             <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost"
-              style={{ color: "#fff", borderColor: "rgba(255,255,255,0.22)" }}>▶ WATCH ON YOUTUBE</a>
+              style={{ flex: 1, color: "#fff", borderColor: "rgba(255,255,255,0.22)", justifyContent: "center" }}>▶ WATCH ON YOUTUBE</a>
           </div>
         </div>
 
         {/* Bottom bar — privacy links + scroll nudge */}
-        <div style={{ position: "relative", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "18px 32px 24px", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}>4LIFEMYSTERY.COM</span>
-            <Link to="/privacy-policy" style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
+        <div className="hero-bottom-bar" style={{ position: "relative", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 28px 20px", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.22)", letterSpacing: "0.1em" }}>4LIFEMYSTERY.COM</span>
+            <Link to="/privacy-policy" style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
               onMouseEnter={e => e.currentTarget.style.color = "#ff7755"}
-              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.45)"}>Privacy Policy</Link>
-            <Link to="/terms-of-service" style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
+              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.42)"}>Privacy Policy</Link>
+            <Link to="/terms-of-service" style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
               onMouseEnter={e => e.currentTarget.style.color = "#ff7755"}
-              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.45)"}>Terms of Service</Link>
+              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.42)"}>Terms of Service</Link>
           </div>
           <button onClick={() => scrollTo("about")} style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}>
-            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em" }}>SCROLL</span>
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.28)", letterSpacing: "0.2em" }}>SCROLL</span>
             <div style={{ width: 24, height: 38, border: "1px solid rgba(255,80,30,0.4)", borderRadius: 12, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 5 }}>
               <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#ff5533", animation: "scrollPulse 1.8s ease-in-out infinite" }} />
             </div>
@@ -611,6 +628,12 @@ export default function LandingPage() {
       <section id="about" style={{ padding: "100px 20px", background: c.bgAlt, borderTop: `1px solid ${c.secBr}` }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <span className="section-tag">WHAT IS 4LIFE MYSTERY</span>
+          <div style={{ marginBottom: 32 }}>
+            <img src={uncoverLogo} alt="Uncover the Unknown"
+              style={{ height: "clamp(36px,5vw,64px)", width: "auto", objectFit: "contain",
+                opacity: theme === "dark" ? 0.92 : 0.85,
+                filter: theme === "dark" ? "drop-shadow(0 2px 16px rgba(255,80,30,0.25))" : "none" }} />
+          </div>
           <div className="about-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "center" }}>
 
             {/* Face image — fills the container completely */}
@@ -660,9 +683,9 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire">JOIN THE CONVERSATION</a>
-                <button onClick={() => scrollTo("community")} className="lp-btn lp-btn-ghost">COMMUNITY →</button>
+              <div className="btn-group">
+                <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire" style={{ flex: 1, justifyContent: "center" }}>JOIN THE CONVERSATION</a>
+                <button onClick={() => scrollTo("community")} className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center" }}>COMMUNITY →</button>
               </div>
             </div>
           </div>
@@ -745,7 +768,7 @@ export default function LandingPage() {
               <div style={{ fontSize:12,color:c.textM }}>60-second truths. Bite-sized thoughts that hit hard.</div>
             </div>
           </div>
-          <a href={SOCIAL.tiktok} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ borderColor:"rgba(0,242,234,0.3)",color:"#00f2ea" }}>♪ FOLLOW ON TIKTOK</a>
+          <a href={SOCIAL.tiktok} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost tiktok-btn" style={{ borderColor:"rgba(0,242,234,0.3)",color:"#00f2ea" }}>♪ FOLLOW ON TIKTOK</a>
         </div>
       </section>
 
@@ -764,9 +787,9 @@ export default function LandingPage() {
               <p style={{ color:c.textM,lineHeight:1.92,fontSize:13,marginBottom:32 }}>
                 From the mystery of consciousness to navigating grief, love, and the strangeness of being human. New episodes every week.
               </p>
-              <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-                <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-green">◎ LISTEN NOW</a>
-                <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost">ALL EPISODES →</a>
+              <div className="btn-group podcast-btns">
+                <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-green" style={{ flex: 1, justifyContent: "center" }}>◎ LISTEN NOW</a>
+                <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center" }}>ALL EPISODES →</a>
               </div>
             </div>
             <div style={{ borderRadius:16,overflow:"hidden",border:"1px solid rgba(29,185,84,0.18)",boxShadow:c.cardSh }}>
@@ -792,13 +815,13 @@ export default function LandingPage() {
             </h2>
             <p style={{ color:c.textM,fontSize:12,lineHeight:1.7,maxWidth:340 }}>Every topic is a doorway. Pick one that resonates.</p>
           </div>
-          <div style={{ display:"flex",flexWrap:"wrap",gap:10,marginTop:28 }}>
+          <div className="topics-grid">
             {TOPICS.map(t2 => (
               <a key={t2.name} href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="topic-pill"
                 style={{ background:c.cardBg,border:`1px solid ${c.cardBr}`,color:c.textM,boxShadow:c.cardSh }}>
                 <span style={{ color:"#ff5533" }}>{t2.icon}</span>
-                <span>{t2.name}</span>
-                <span style={{ fontSize:9,color:c.textD }}>{t2.count}</span>
+                <span style={{ flex: 1 }}>{t2.name}</span>
+                <span style={{ fontSize:9,color:c.textD,flexShrink:0 }}>{t2.count}</span>
               </a>
             ))}
           </div>
@@ -845,10 +868,10 @@ export default function LandingPage() {
                 Join the discussion — share what moves you, what you're questioning, or what you want explored next.
               </p>
             </div>
-            <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
-              <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire">▶ YOUTUBE</a>
-              <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ borderColor:"rgba(0,242,234,0.3)",color:"#00f2ea" }}>♪ TIKTOK</a>
-              <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ borderColor:"rgba(29,185,84,0.3)",color:"#1db954" }}>◎ SPOTIFY</a>
+            <div className="btn-group" style={{ marginTop: 4 }}>
+              <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire" style={{ flex: 1, justifyContent: "center" }}>▶ YOUTUBE</a>
+              <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center", borderColor:"rgba(0,242,234,0.3)",color:"#00f2ea" }}>♪ TIKTOK</a>
+              <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center", borderColor:"rgba(29,185,84,0.3)",color:"#1db954" }}>◎ SPOTIFY</a>
             </div>
           </div>
 
