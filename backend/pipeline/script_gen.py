@@ -225,12 +225,33 @@ Return ONLY this JSON structure — no markdown, no explanation, only raw JSON:
 """
 
 
-def generate_short_script(prompt: str) -> dict:
+# Creative angles injected per generation to guarantee unique content
+# even when the same topic is reused across cycles.
+SHORT_ANGLES = [
+    "from a deeply personal, human-story perspective — make it feel like a confession",
+    "through the lens of modern neuroscience and psychology — what the science actually reveals",
+    "from a philosophical and existential angle — question what we assume to be true",
+    "with surprising, counterintuitive insights that challenge everything the viewer thinks they know",
+    "through forgotten historical stories and real human examples most people have never heard",
+    "from the perspective of what we never say out loud — the uncomfortable truth",
+    "through the lens of nature and the natural world — use animals, ecosystems, physics as metaphor",
+    "with a focus on the emotional and spiritual dimensions — what it means to be human",
+    "through the lens of culture clash — how different civilisations have answered this differently",
+    "from the angle of what children understand that adults have forgotten",
+]
+
+
+def generate_short_script(prompt: str, angle: str = None) -> dict:
     """
     Generate a concise short-form script targeting ~200 words (~80s at 150wpm).
     Designed to fit within the 90-second YouTube Shorts limit.
+
+    angle: optional creative lens injected into the prompt to guarantee uniqueness
+           when the same topic is generated multiple times.
     """
-    print(f"📝 Generating short script: '{prompt}'")
+    print(f"📝 Generating short script: '{prompt}'" + (f" [angle: {angle[:40]}...]" if angle else ""))
+
+    angle_directive = f"\n\nCreative angle — approach this EXCLUSIVELY through this lens: {angle}" if angle else ""
 
     client = get_groq()
     system = (
@@ -250,9 +271,9 @@ def generate_short_script(prompt: str) -> dict:
         model=config.GROQ_MODEL,
         messages=[
             {"role": "system", "content": system + SHORT_SCRIPT_SCHEMA},
-            {"role": "user", "content": f"Write a powerful 90-second YouTube Short about: {prompt}\n\nTarget 180-210 words total. Make every word count."},
+            {"role": "user", "content": f"Write a powerful 90-second YouTube Short about: {prompt}{angle_directive}\n\nTarget 180-210 words total. Make every word count."},
         ],
-        temperature=0.80,
+        temperature=0.82,
         max_tokens=1024,
         response_format={"type": "json_object"},
     )
