@@ -2736,7 +2736,7 @@ export default function Dashboard() {
                             }}
                           >
                             {vUrl ? (
-                              // Supabase URL — fully playable
+                              // Supabase URL — fully playable video
                               <div
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2770,6 +2770,43 @@ export default function Dashboard() {
                                   }}
                                 >
                                   ▶
+                                </span>
+                              </div>
+                            ) : v.narration_url && !IN_PROGRESS.includes(v.status) && v.status !== "failed" ? (
+                              // Audio-only — MP3 play button
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreview(v);
+                                }}
+                                style={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  background: "rgba(29,185,84,0.15)",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                  transition: "background 0.2s",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.background =
+                                    "rgba(29,185,84,0.3)")
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.background =
+                                    "rgba(29,185,84,0.15)")
+                                }
+                              >
+                                <span
+                                  style={{
+                                    fontSize: 20,
+                                    color: "#1db954",
+                                    textShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                                  }}
+                                >
+                                  🎙
                                 </span>
                               </div>
                             ) : IN_PROGRESS.includes(v.status) ? (
@@ -8302,6 +8339,38 @@ export default function Dashboard() {
                       );
                     }}
                   />
+                ) : preview.narration_url ? (
+                  <div style={{
+                    padding: "40px 32px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 20,
+                    background: "#0a0a10",
+                  }}>
+                    <div style={{ fontSize: 48 }}>🎙</div>
+                    <div style={{
+                      fontSize: 13,
+                      color: "rgba(255,255,255,0.55)",
+                      textAlign: "center",
+                      maxWidth: 400,
+                      lineHeight: 1.6,
+                    }}>
+                      {preview.title || "Podcast Episode"}
+                    </div>
+                    <audio
+                      controls
+                      autoPlay
+                      style={{
+                        width: "100%",
+                        maxWidth: 520,
+                        outline: "none",
+                        borderRadius: 8,
+                      }}
+                      src={preview.narration_url}
+                      onError={() => showToast("Audio failed to load", "error")}
+                    />
+                  </div>
                 ) : (
                   <div
                     style={{
