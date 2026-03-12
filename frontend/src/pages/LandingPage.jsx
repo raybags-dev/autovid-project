@@ -504,12 +504,13 @@ export default function LandingPage() {
   // Reset carousel position when column count changes
   useEffect(() => { setYtIdx(0); }, [ytCols]);
 
-  // YouTube carousel auto-advance
+  // YouTube hero auto-advance (3 videos max, loop)
   useEffect(() => {
-    if (ytVideos.length > ytCols) {
+    const total = Math.min(ytVideos.length, 3);
+    if (total > 1) {
       ytAutoRef.current = setInterval(() => {
-        setYtIdx(i => (i >= ytVideos.length - ytCols ? 0 : i + 1));
-      }, 4200);
+        setYtIdx(i => (i + 1) % total);
+      }, 5500);
     }
     return () => clearInterval(ytAutoRef.current);
   }, [ytVideos]);
@@ -553,12 +554,13 @@ export default function LandingPage() {
   const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
   const ytPause  = () => clearInterval(ytAutoRef.current);
   const ytResume = () => {
-    if (ytVideos.length > ytCols) {
-      ytAutoRef.current = setInterval(() => setYtIdx(i => (i >= ytVideos.length - ytCols ? 0 : i + 1)), 4200);
+    const total = Math.min(ytVideos.length, 3);
+    if (total > 1) {
+      ytAutoRef.current = setInterval(() => setYtIdx(i => (i + 1) % total), 5500);
     }
   };
-  const ytPrev = () => { ytPause(); setYtIdx(i => Math.max(0, i - 1)); };
-  const ytNext = (total) => { ytPause(); setYtIdx(i => (i >= total - ytCols ? 0 : i + 1)); };
+  const ytPrev = () => { ytPause(); const t = Math.min(ytVideos.length, 3); setYtIdx(i => (i - 1 + t) % t); };
+  const ytNext = () => { ytPause(); const t = Math.min(ytVideos.length, 3); setYtIdx(i => (i + 1) % t); };
 
   const item = CAROUSEL[carouselIdx];
 
@@ -916,6 +918,44 @@ export default function LandingPage() {
         .soc-icon   { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
         .yt-card    { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
 
+        /* ── NETFLIX HERO ─────────────────────────────── */
+        .yt-hero { position:relative; width:100%; height:clamp(280px,42vw,560px); overflow:hidden; border-radius:20px; cursor:pointer; }
+        .yt-hero-bg { position:absolute; inset:0; background-size:cover; background-position:center; transition:transform 0.8s ease; }
+        .yt-hero:hover .yt-hero-bg { transform:scale(1.04); }
+        .yt-hero-overlay { position:absolute; inset:0; background:linear-gradient(to right, rgba(3,6,15,0.92) 0%, rgba(3,6,15,0.6) 55%, rgba(3,6,15,0.1) 85%, transparent 100%); pointer-events:none; }
+        .yt-hero-content { position:absolute; inset:0; display:flex; align-items:flex-end; padding:clamp(22px,4vw,52px); pointer-events:none; }
+        .yt-hero-text { max-width:min(520px,70%); transition:transform 0.42s cubic-bezier(0.4,0,0.2,1), opacity 0.42s ease; pointer-events:auto; }
+        .yt-hero:hover .yt-hero-text { transform:translateX(-36px); opacity:0; pointer-events:none; }
+        .yt-hero-badge { display:inline-block; padding:5px 12px; border-radius:6px; background:rgba(195,28,28,0.9); color:#fff; font-size:9px; font-weight:700; letter-spacing:0.14em; margin-bottom:14px; }
+        .yt-hero-title { font-family:'Syne',sans-serif; font-weight:800; font-size:clamp(16px,2.8vw,34px); color:#fff; line-height:1.25; margin-bottom:12px; text-shadow:0 2px 20px rgba(0,0,0,0.8); }
+        .yt-hero-meta { display:flex; gap:14px; font-size:11px; color:rgba(255,255,255,0.55); margin-bottom:20px; letter-spacing:0.04em; flex-wrap:wrap; }
+        .yt-hero-cta { display:inline-flex; align-items:center; gap:8px; padding:11px 22px; border-radius:10px; background:rgba(195,38,38,0.9); color:#fff; border:none; cursor:pointer; font-size:11px; font-weight:700; letter-spacing:0.1em; font-family:inherit; transition:background 0.2s, transform 0.2s; }
+        .yt-hero-cta:hover { background:rgba(220,38,38,1); transform:scale(1.04); }
+        .yt-hero-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.42s; pointer-events:none; }
+        .yt-hero:hover .yt-hero-play { opacity:1; pointer-events:auto; }
+        .yt-hero-play-btn { width:74px; height:74px; border-radius:50%; background:rgba(195,38,38,0.9); border:3px solid rgba(255,100,70,0.7); display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); box-shadow:0 8px 40px rgba(180,20,20,0.7); transition:transform 0.25s, background 0.2s; cursor:pointer; }
+        .yt-hero-play-btn:hover { transform:scale(1.12); background:rgba(220,38,38,1); }
+        .yt-hero-play-btn svg { width:36px; height:36px; fill:#fff; margin-left:5px; }
+        .yt-hero-side-arr { position:absolute; top:50%; transform:translateY(-50%); z-index:10; background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.15); border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:rgba(255,255,255,0.7); font-size:1.6rem; line-height:1; transition:all 0.2s; backdrop-filter:blur(6px); }
+        .yt-hero-side-arr:hover { background:rgba(195,38,38,0.8); color:#fff; border-color:rgba(200,40,40,0.5); }
+        .yt-hero-side-arr.left { left:16px; }
+        .yt-hero-side-arr.right { right:16px; }
+        .yt-hero-dots { display:flex; gap:8px; justify-content:center; margin-top:18px; align-items:center; }
+        .yt-hero-dot { border:none; cursor:pointer; padding:0; transition:all 0.32s; height:7px; border-radius:4px; }
+        @media (max-width:600px) { .yt-hero { height:clamp(220px,56vw,360px); } .yt-hero-side-arr { width:36px; height:36px; font-size:1.3rem; } }
+
+        /* ── FEATURED CONTENT BUTTON — full width on mobile ── */
+        @media (max-width:640px) { .feat-cta-btn { align-self:stretch!important; justify-content:center!important; width:100%!important; } }
+
+        /* ── FOOTER MOBILE ────────────────────────────── */
+        @media (max-width:540px) {
+          .footer-grid > div { text-align:center; display:flex; flex-direction:column; align-items:center; }
+          .footer-grid .soc-icon-row { justify-content:center; }
+          .ft-link { text-align:center; padding-left:0!important; }
+          button.ft-link:hover { padding-left:0!important; }
+          .footer-bottom-bar { flex-direction:column!important; align-items:center!important; gap:14px!important; text-align:center; width:100%; }
+        }
+
 
         /* ── BACK TO TOP ─────────────────────────────── */
         .back-to-top { position:fixed; bottom:28px; right:28px; z-index:800;
@@ -992,7 +1032,7 @@ export default function LandingPage() {
 
       {/* ══ MOBILE FULLSCREEN MENU ════════════════════════════════════════════ */}
       {menuOpen && (
-        <div className="mob-menu" style={{ background: theme === "dark" ? "rgba(3,6,15,0.94)" : "rgba(245,242,235,0.94)" }}>
+        <div className="mob-menu" style={{ background: theme === "dark" ? "rgba(3,6,15,0.97)" : "rgba(245,242,235,0.97)" }}>
           <button className="mob-close" onClick={() => setMenuOpen(false)} style={{ color: c.textM }}>✕</button>
           <img src={lifeLogoLong} alt="4Life Mystery" style={{ height: 44, width: "auto", objectFit: "contain", marginBottom: 12 }} />
           {SECTIONS.map(({ id, label }) => (
@@ -1239,7 +1279,7 @@ export default function LandingPage() {
               </div>
               <h3 className="syne" style={{ fontWeight:800,fontSize:"clamp(20px,2.5vw,27px)",lineHeight:1.28,marginBottom:16,color:c.text }}>{item.title}</h3>
               <p style={{ color:c.textM,lineHeight:1.84,fontSize:13,flex:1,marginBottom:28 }}>{item.excerpt}</p>
-              <a href={item.link} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire" style={{ alignSelf:"flex-start" }}>
+              <a href={item.link} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire feat-cta-btn" style={{ alignSelf:"flex-start" }}>
                 {item.icon} WATCH / LISTEN NOW
               </a>
             </div>
@@ -1320,117 +1360,69 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {/* Carousel area — padded to give arrows room */}
-          <div className="yt-stage-wrap">
-            {/* ── Loading skeletons ── */}
-            {ytLoading && (
-              <div className="yt-stage">
-                <div className="yt-carousel-win">
-                  <div className="yt-carousel-track">
-                    {[...Array(ytCols)].map((_,i) => (
-                      <div key={i} className="yt-card" style={{ flex:`0 0 calc((100% - ${(ytCols-1)*22}px) / ${ytCols})`, cursor:"default" }}>
-                        <div className="yt-skeleton" style={{ width:"100%", aspectRatio:"16/9" }} />
-                        <div style={{ padding:"12px 16px 16px", display:"flex", flexDirection:"column", gap:8 }}>
-                          <div className="yt-skeleton" style={{ height:13, width:"88%", borderRadius:6 }} />
-                          <div className="yt-skeleton" style={{ height:13, width:"60%", borderRadius:6 }} />
-                          <div className="yt-skeleton" style={{ height:9, width:"38%", borderRadius:6, marginTop:4 }} />
-                        </div>
+          {/* Netflix Hero */}
+          {ytLoading ? (
+            <div className="yt-skeleton" style={{ width:"100%", height:"clamp(280px,42vw,560px)", borderRadius:20 }} />
+          ) : (() => {
+            const heroVideos = ytVideos.slice(0, 3);
+            if (heroVideos.length === 0) return null;
+            const v = heroVideos[ytIdx % heroVideos.length];
+            const total = heroVideos.length;
+            return (
+              <div onMouseEnter={ytPause} onMouseLeave={ytResume}>
+                <div className="yt-hero" onClick={() => setModalVideo(v)}>
+                  {/* Background */}
+                  <div className="yt-hero-bg" style={{ backgroundImage: v.thumbnail ? `url(${v.thumbnail})` : "none" }} />
+                  {/* Left-heavy dark overlay */}
+                  <div className="yt-hero-overlay" />
+                  {/* Text content */}
+                  <div className="yt-hero-content">
+                    <div className="yt-hero-text">
+                      <div className="yt-hero-badge">▶ YOUTUBE</div>
+                      <div className="yt-hero-title">{v.title}</div>
+                      <div className="yt-hero-meta">
+                        <span>▶ {Number(v.views||0).toLocaleString()} views</span>
+                        <span>♥ {Number(v.likes||0).toLocaleString()}</span>
+                        {v.duration && <span>⏱ {v.duration}</span>}
                       </div>
+                      <button className="yt-hero-cta" onClick={e => { e.stopPropagation(); setModalVideo(v); }}>
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="white" style={{ marginRight:2 }}><path d="M8 5v14l11-7z"/></svg>
+                        WATCH NOW
+                      </button>
+                    </div>
+                  </div>
+                  {/* Centered play on hover */}
+                  <div className="yt-hero-play">
+                    <div className="yt-hero-play-btn" onClick={e => { e.stopPropagation(); setModalVideo(v); }}>
+                      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                  </div>
+                  {/* Side arrows */}
+                  {total > 1 && <>
+                    <button className="yt-hero-side-arr left" onClick={e => { e.stopPropagation(); ytPrev(); }}>‹</button>
+                    <button className="yt-hero-side-arr right" onClick={e => { e.stopPropagation(); ytNext(); }}>›</button>
+                  </>}
+                  {/* Duration badge */}
+                  {v.duration && <div className="yt-badge-dur" style={{ position:"absolute", top:14, right:14 }}>{v.duration}</div>}
+                </div>
+                {/* Dots */}
+                {total > 1 && (
+                  <div className="yt-hero-dots">
+                    {heroVideos.map((_,i) => (
+                      <button key={i} className="yt-hero-dot"
+                        onClick={() => { ytPause(); setYtIdx(i); }}
+                        style={{
+                          background: i === ytIdx ? "#ff5533" : "rgba(255,255,255,0.2)",
+                          width: i === ytIdx ? 24 : 8,
+                          borderRadius: i === ytIdx ? 4 : "50%",
+                        }}
+                      />
                     ))}
                   </div>
-                </div>
+                )}
               </div>
-            )}
-
-            {/* ── Carousel ── */}
-            {!ytLoading && (() => {
-              const videos = ytVideos.length > 0 ? ytVideos : [...Array(6)].map((_,i) => ({ _empty: true, id: null, _key: i }));
-              const total = videos.length;
-              const maxIdx = Math.max(0, total - ytCols);
-              const cardPx = ytStepPx > 0 ? ytStepPx - 22 : 0;
-              const cardStyle = cardPx > 0 ? { flex:`0 0 ${cardPx}px`, minWidth:`${cardPx}px` } : { flex:`0 0 calc((100% - ${(ytCols-1)*22}px) / ${ytCols})` };
-              const trackTransform = ytStepPx > 0 ? `translateX(${-ytIdx * ytStepPx}px)` : "translateX(0)";
-              return (
-                <div onMouseEnter={ytPause} onMouseLeave={ytResume}>
-                  <div className="yt-stage">
-                    {/* Prev */}
-                    <button className="yt-arr prev" disabled={ytIdx === 0} onClick={ytPrev}>‹</button>
-
-                    {/* Track window */}
-                    <div className="yt-carousel-win" ref={ytWinRef}>
-                      <div className="yt-carousel-track" style={{ transform: trackTransform }}>
-                        {videos.map((v, idx) => {
-                          const empty = v._empty || !v.id;
-                          return (
-                            <div key={v.id || v._key || idx}
-                              className="yt-card"
-                              style={{ ...cardStyle, cursor: empty ? "default" : "pointer" }}
-                              onClick={() => !empty && setModalVideo(v)}
-                            >
-                              <div className="yt-thumb">
-                                {!empty && v.thumbnail && (
-                                  <img src={v.thumbnail} alt={v.title}
-                                    onError={e => { e.currentTarget.style.display = "none"; }} />
-                                )}
-                                {empty && (
-                                  <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.1)", letterSpacing:"0.18em" }}>NO VIDEO</span>
-                                  </div>
-                                )}
-                                <div className="yt-thumb-grad" />
-                                {!empty && v.title && (
-                                  <div className="yt-thumb-title">
-                                    <div className="ttl">{v.title}</div>
-                                  </div>
-                                )}
-                                <div className="yt-play">
-                                  <div className={`yt-play-btn${empty ? " disabled" : ""}`}>
-                                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                  </div>
-                                </div>
-                                {!empty && <div className="yt-badge-yt">▶ YOUTUBE</div>}
-                                {!empty && v.duration && <div className="yt-badge-dur">{v.duration}</div>}
-                              </div>
-                              <div className="yt-meta-row" style={{ color:c.textD }}>
-                                {empty ? (
-                                  <span style={{ fontSize:10, letterSpacing:"0.1em" }}>UNAVAILABLE</span>
-                                ) : (
-                                  <>
-                                    <span style={{ color:"#ff5533" }}>▶ {Number(v.views||0).toLocaleString()}</span>
-                                    <span>♥ {Number(v.likes||0).toLocaleString()}</span>
-                                    {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Next */}
-                    <button className="yt-arr next" disabled={ytIdx >= maxIdx} onClick={() => ytNext(total)}>›</button>
-                  </div>
-
-                  {/* Dots — outside .yt-stage so arrows center on card height */}
-                  {total > ytCols && (
-                    <div className="yt-dots">
-                      {Array.from({ length: maxIdx + 1 }, (_, i) => (
-                        <button key={i} className="yt-dot"
-                          onClick={() => { ytPause(); setYtIdx(i); }}
-                          style={{
-                            background: ytIdx === i ? "#ff5533" : "rgba(255,255,255,0.18)",
-                            width: ytIdx === i ? 22 : 7,
-                            borderRadius: ytIdx === i ? 4 : "50%",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
+            );
+          })()}
 
           {/* Video modal */}
           {modalVideo && (
@@ -1480,7 +1472,7 @@ export default function LandingPage() {
                 <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center" }}>ALL EPISODES →</a>
               </div>
             </div>
-            <div style={{ borderRadius:16,overflow:"hidden",border:"1px solid rgba(29,185,84,0.18)",boxShadow:c.cardSh }}>
+            <div style={{ borderRadius:16,overflow:"hidden",border:"1px solid rgba(29,185,84,0.25)",boxShadow:"0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",background:"rgba(3,6,15,0.85)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)" }}>
               <iframe
                 src={`https://open.spotify.com/embed/show/${SPOTIFY_SHOW_ID}?utm_source=generator&theme=0`}
                 width="100%" height="352"
@@ -1600,7 +1592,7 @@ export default function LandingPage() {
               <p style={{ fontSize:12,color:c.ftLink,lineHeight:1.84,maxWidth:250,marginBottom:20 }}>
                 A space for real conversations about life — its meaning, its mysteries, and everything in between.
               </p>
-              <div style={{ display:"flex",gap:10 }}>
+              <div className="soc-icon-row" style={{ display:"flex",gap:10 }}>
                 <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="soc-icon" title="YouTube" style={{ "--text-m":c.ftLink,"--soc-br":c.socBr }}>▶</a>
                 <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="soc-icon" title="TikTok"  style={{ "--text-m":c.ftLink,"--soc-br":c.socBr }}>♪</a>
                 <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="soc-icon" title="Spotify" style={{ "--text-m":c.ftLink,"--soc-br":c.socBr }}>◎</a>
@@ -1632,7 +1624,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div style={{ borderTop:`1px solid ${c.secBr}`,paddingTop:22,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10 }}>
+          <div className="footer-bottom-bar" style={{ borderTop:`1px solid ${c.secBr}`,paddingTop:22,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10 }}>
             <div style={{ fontSize:11,color:c.textD }}>© 2026 4Life Mystery · 4lifemystery.com · All rights reserved.</div>
             <div style={{ display:"flex",gap:20,alignItems:"center" }}>
               <Link to="/privacy-policy"   style={{ fontSize:10,color:c.textD,textDecoration:"none" }}>Privacy</Link>
