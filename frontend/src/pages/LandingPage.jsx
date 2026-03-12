@@ -5,6 +5,7 @@ import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
 import faceImg         from "../assets/static/face.jpg";
 import jajja2         from "../assets/static/jajja2.jpg";
+import freedomImg     from "../assets/static/freedom.jpg";
 import faceVideo    from "../assets/static/face.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
 import metrixVideo  from "../assets/static/metrix.mp4";
@@ -168,7 +169,13 @@ function BlogSection({ c, theme }) {
       });
       const data = await res.json();
       if (res.ok) {
-        setComments(prev => prev.map(c => c.id === commentId ? { ...c, likes_count: data.likes_count, liked_by_me: data.liked } : c));
+        setComments(prev => prev.map(c => {
+          if (c.id === commentId) return { ...c, likes_count: data.likes_count, liked_by_me: data.liked };
+          if (c.replies?.some(r => r.id === commentId)) {
+            return { ...c, replies: c.replies.map(r => r.id === commentId ? { ...r, likes_count: data.likes_count, liked_by_me: data.liked } : r) };
+          }
+          return c;
+        }));
       }
     } catch(e) {}
     finally { setLikingId(null); }
@@ -327,7 +334,7 @@ function BlogSection({ c, theme }) {
 
                 {/* Replies — always visible, indented subtree */}
                 {comment.replies?.length > 0 && (
-                  <div style={{ marginLeft: 42, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ marginLeft: 42, marginTop: 12, display: "flex", flexDirection: "column", gap: 2 }}>
                     {comment.replies.map(reply => (
                       <div key={reply.id} style={{ display: "flex", gap: 9, padding: "10px 14px", borderLeft: `2px solid ${reply.is_admin_reply ? "rgba(255,80,30,0.35)" : isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"}`, opacity: reply._pending ? 0.65 : 1 }}>
                         <div style={{ width: 26, height: 26, borderRadius: "50%", background: reply.is_admin_reply ? "linear-gradient(135deg,#cc2200,#ff5533)" : `hsl(${reply.name.charCodeAt(0)*13%360},45%,30%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
@@ -340,7 +347,14 @@ function BlogSection({ c, theme }) {
                             {reply._pending && <span style={{ fontSize: 8, background: "rgba(245,158,11,0.12)", color: "#f59e0b", padding: "1px 5px", borderRadius: 8, letterSpacing: "0.08em" }}>PENDING</span>}
                             <span style={{ fontSize: 10, color: c.textM }}>{formatDate(reply.created_at)}</span>
                           </div>
-                          <p style={{ fontSize: 12, color: reply._pending ? c.textM : c.textM, lineHeight: 1.65, margin: 0 }}>{reply.content}</p>
+                          <p style={{ fontSize: 12, color: c.textM, lineHeight: 1.65, margin: 0, marginBottom: reply._pending ? 0 : 6 }}>{reply.content}</p>
+                          {!reply._pending && (
+                            <button onClick={() => handleLike(reply.id)} disabled={likingId === reply.id}
+                              style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: reply.liked_by_me ? "#ff5533" : c.textM, fontSize: 10, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
+                              <span style={{ fontSize: 11 }}>{reply.liked_by_me ? "♥" : "♡"}</span>
+                              <span>{reply.likes_count || 0}</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -380,13 +394,17 @@ export default function LandingPage() {
   const [modalVideo,    setModalVideo]    = useState(null);   // { id, title, url }
   const [showBackTop,   setShowBackTop]   = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [ytCols,        setYtCols]        = useState(3);
   const wrapperRef    = useRef(null);
   const autoRef       = useRef(null);
   const heroVidRef    = useRef(null);
   const topicsBgRef    = useRef(null);
   const communityBgRef = useRef(null);
   const contentBgRef   = useRef(null);
+  const videoBgRef     = useRef(null);
   const ytAutoRef      = useRef(null);
+  const ytWinRef       = useRef(null);
+  const [ytStepPx,    setYtStepPx]    = useState(0);
 
   const c = theme === "dark" ? DARK : LIGHT;
 
@@ -449,16 +467,47 @@ export default function LandingPage() {
         const rect = document.getElementById("content")?.getBoundingClientRect();
         if (rect) contentBgRef.current.style.transform = `translateY(${-rect.top * 0.22}px) scale(1.3)`;
       }
+      if (videoBgRef.current) {
+        const rect = document.getElementById("videos")?.getBoundingClientRect();
+        if (rect) videoBgRef.current.style.transform = `translateY(${-rect.top * 0.25}px) scale(1.35)`;
+      }
     };
     el.addEventListener("scroll", fn, { passive: true });
     return () => el.removeEventListener("scroll", fn);
   }, []);
 
+  // Responsive ytCols + pixel step measurement
+  useEffect(() => {
+    const upd = () => {
+      const cols = window.innerWidth < 540 ? 1 : window.innerWidth < 900 ? 2 : 3;
+      setYtCols(cols);
+    };
+    upd();
+    window.addEventListener("resize", upd);
+    return () => window.removeEventListener("resize", upd);
+  }, []);
+
+  // Measure carousel step in pixels whenever ytCols changes
+  useEffect(() => {
+    const measure = () => {
+      if (ytWinRef.current) {
+        const w = ytWinRef.current.offsetWidth;
+        if (w > 0) setYtStepPx((w - (ytCols - 1) * 22) / ytCols + 22);
+      }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [ytCols]);
+
+  // Reset carousel position when column count changes
+  useEffect(() => { setYtIdx(0); }, [ytCols]);
+
   // YouTube carousel auto-advance
   useEffect(() => {
-    if (ytVideos.length > 3) {
+    if (ytVideos.length > ytCols) {
       ytAutoRef.current = setInterval(() => {
-        setYtIdx(i => (i >= ytVideos.length - 3 ? 0 : i + 1));
+        setYtIdx(i => (i >= ytVideos.length - ytCols ? 0 : i + 1));
       }, 4200);
     }
     return () => clearInterval(ytAutoRef.current);
@@ -495,12 +544,12 @@ export default function LandingPage() {
   const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
   const ytPause  = () => clearInterval(ytAutoRef.current);
   const ytResume = () => {
-    if (ytVideos.length > 3) {
-      ytAutoRef.current = setInterval(() => setYtIdx(i => (i >= ytVideos.length - 3 ? 0 : i + 1)), 4200);
+    if (ytVideos.length > ytCols) {
+      ytAutoRef.current = setInterval(() => setYtIdx(i => (i >= ytVideos.length - ytCols ? 0 : i + 1)), 4200);
     }
   };
   const ytPrev = () => { ytPause(); setYtIdx(i => Math.max(0, i - 1)); };
-  const ytNext = (total) => { ytPause(); setYtIdx(i => (i >= total - 3 ? 0 : i + 1)); };
+  const ytNext = (total) => { ytPause(); setYtIdx(i => (i >= total - ytCols ? 0 : i + 1)); };
 
   const item = CAROUSEL[carouselIdx];
 
@@ -768,56 +817,62 @@ export default function LandingPage() {
         @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
 
         /* ── YT CAROUSEL ─────────────────────────────── */
-        .yt-carousel-outer { position:relative; padding:0 52px; }
-        .yt-carousel-win { overflow:hidden; }
-        .yt-carousel-track { display:flex; gap:20px; transition:transform 0.55s cubic-bezier(0.4,0,0.2,1); }
+        .yt-stage-wrap { padding:0 78px; }
+        @media (max-width:900px) { .yt-stage-wrap { padding:0 60px; } }
+        @media (max-width:600px) { .yt-stage-wrap { padding:0 50px; } }
+        .yt-stage { position:relative; }
+        .yt-carousel-win { overflow:hidden; border-radius:20px; }
+        .yt-carousel-track { display:flex; gap:22px; transition:transform 0.55s cubic-bezier(0.4,0,0.2,1); }
         .yt-card { flex-shrink:0; border-radius:18px; overflow:hidden; cursor:pointer;
-          background:var(--card-bg); border:1px solid var(--card-br);
-          box-shadow:0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
-          transition:transform 0.32s, box-shadow 0.32s, border-color 0.32s; }
-        .yt-card:hover { transform:translateY(-8px); border-color:rgba(200,40,40,0.55);
-          box-shadow:0 28px 70px rgba(0,0,0,0.65),0 6px 20px rgba(180,30,30,0.3); }
-        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#080810; }
-        .yt-thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform 0.5s; display:block; }
-        .yt-card:hover .yt-thumb img { transform:scale(1.06); }
-        .yt-thumb-grad { position:absolute; inset:0; background:linear-gradient(to top,rgba(4,4,14,0.95) 0%,rgba(4,4,14,0.55) 38%,transparent 65%); pointer-events:none; }
-        .yt-thumb-title { position:absolute; bottom:0; left:0; right:0; padding:14px 16px 13px; }
-        .yt-thumb-title .ttl { font-family:'Syne',sans-serif; font-weight:700; font-size:14px; line-height:1.42; color:#fff;
+          background:rgba(8,8,18,0.9); border:1px solid rgba(255,255,255,0.1);
+          box-shadow:0 20px 60px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.5);
+          transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.35s, border-color 0.3s; }
+        .yt-card:hover { transform:translateY(-12px) scale(1.015); border-color:rgba(220,50,40,0.6);
+          box-shadow:0 36px 90px rgba(0,0,0,0.8), 0 8px 28px rgba(200,40,30,0.4); }
+        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#050510; }
+        .yt-thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform 0.55s; display:block; }
+        .yt-card:hover .yt-thumb img { transform:scale(1.08); }
+        .yt-thumb-grad { position:absolute; inset:0; background:linear-gradient(to top,rgba(4,4,16,0.98) 0%,rgba(4,4,16,0.5) 42%,transparent 68%); pointer-events:none; }
+        .yt-thumb-title { position:absolute; bottom:0; left:0; right:0; padding:16px 18px 14px; }
+        .yt-thumb-title .ttl { font-family:'Syne',sans-serif; font-weight:800; font-size:15px; line-height:1.38; color:#fff;
           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-          text-shadow:0 1px 8px rgba(0,0,0,0.7); }
+          text-shadow:0 2px 12px rgba(0,0,0,0.9); }
         .yt-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-          opacity:0.55; transition:opacity 0.3s; pointer-events:none; }
+          opacity:0; transition:opacity 0.3s; pointer-events:none; }
         .yt-card:hover .yt-play { opacity:1; }
-        .yt-play-btn { width:clamp(46px,20%,68px); aspect-ratio:1/1; border-radius:50%;
-          background:rgba(195,38,38,0.76); border:2px solid rgba(255,80,50,0.65);
-          backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+        .yt-play-btn { width:clamp(52px,18%,72px); aspect-ratio:1/1; border-radius:50%;
+          background:rgba(195,38,38,0.9); border:2.5px solid rgba(255,100,70,0.7);
+          backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
           display:flex; align-items:center; justify-content:center;
-          box-shadow:0 4px 28px rgba(160,20,20,0.5);
-          transform:scale(0.88); transition:transform 0.25s, background 0.25s; }
-        .yt-card:hover .yt-play-btn { transform:scale(1.06); background:rgba(210,38,38,0.9); }
-        .yt-play-btn svg { width:62%; height:62%; fill:#fff; margin-left:8%; filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5)); }
+          box-shadow:0 6px 32px rgba(180,20,20,0.65);
+          transform:scale(0.85); transition:transform 0.25s, background 0.25s; }
+        .yt-card:hover .yt-play-btn { transform:scale(1.08); background:rgba(220,38,38,0.95); }
+        .yt-play-btn svg { width:60%; height:60%; fill:#fff; margin-left:8%; filter:drop-shadow(0 1px 6px rgba(0,0,0,0.6)); }
         .yt-play-btn.disabled { opacity:0.18; border-color:rgba(150,150,150,0.25); background:rgba(50,50,50,0.2); box-shadow:none; }
-        .yt-badge-yt { position:absolute; top:10px; left:10px; background:rgba(195,28,28,0.88); color:#fff;
-          font-size:9px; font-weight:700; letter-spacing:0.1em; padding:3px 8px; border-radius:5px; backdrop-filter:blur(4px); }
-        .yt-badge-dur { position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.78); color:#fff;
-          font-size:10px; padding:2px 8px; border-radius:5px; letter-spacing:0.04em; backdrop-filter:blur(4px); }
-        .yt-meta-row { display:flex; gap:14px; align-items:center; padding:10px 14px 14px;
-          font-size:10px; letter-spacing:0.06em; flex-wrap:wrap; }
+        .yt-badge-yt { position:absolute; top:12px; left:12px; background:rgba(195,28,28,0.92); color:#fff;
+          font-size:9px; font-weight:700; letter-spacing:0.12em; padding:4px 9px; border-radius:5px; backdrop-filter:blur(4px); }
+        .yt-badge-dur { position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.85); color:#fff;
+          font-size:10px; padding:3px 9px; border-radius:5px; letter-spacing:0.04em; backdrop-filter:blur(4px); }
+        .yt-meta-row { display:flex; gap:16px; align-items:center; padding:14px 18px 16px; font-size:11px; letter-spacing:0.06em; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); }
         .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%);
           background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:10px; }
-        .yt-arr { position:absolute; top:0; bottom:2px; width:52px;
-          background:none; border:none;
-          color:rgba(255,255,255,0.45); font-size:44px; line-height:1;
+        /* Arrows — outside the track, centered on card height */
+        .yt-arr { position:absolute; top:50%; transform:translateY(-50%);
+          width:50px; height:50px; border-radius:50%;
+          background:rgba(8,8,20,0.82); border:1px solid rgba(255,255,255,0.18);
+          backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+          color:#fff; font-size:26px; line-height:1;
           display:flex; align-items:center; justify-content:center;
-          cursor:pointer; z-index:10; transition:color 0.2s, text-shadow 0.2s; padding:0; }
-        .yt-arr:hover:not(:disabled) { color:#fff; text-shadow:0 0 24px rgba(255,80,40,0.7); }
-        .yt-arr:disabled { opacity:0.12; cursor:default; }
-        .yt-arr.prev { left:0; }
-        .yt-arr.next { right:0; }
+          cursor:pointer; z-index:10; transition:all 0.22s; padding:0; }
+        .yt-arr:hover:not(:disabled) { background:rgba(190,35,35,0.85); border-color:rgba(255,80,50,0.6); transform:translateY(-50%) scale(1.12); box-shadow:0 4px 20px rgba(180,30,30,0.45); }
+        .yt-arr:disabled { opacity:0.18; cursor:default; }
+        .yt-arr.prev { right:calc(100% + 16px); }
+        .yt-arr.next { left:calc(100% + 16px); }
         .yt-dots { display:flex; gap:8px; justify-content:center; margin-top:28px; align-items:center; }
         .yt-dot { width:7px; height:7px; border-radius:50%; border:none; cursor:pointer; transition:all 0.32s; padding:0; }
-        @media (max-width:900px) { .yt-carousel-outer { padding:0 44px; } .yt-arr { width:44px; font-size:36px; } }
-        @media (max-width:640px) { .yt-carousel-outer { padding:0 36px; } .yt-arr { width:36px; font-size:30px; } }
+        @media (max-width:1100px) { .yt-arr.prev { right:calc(100% + 10px); } .yt-arr.next { left:calc(100% + 10px); } }
+        @media (max-width:900px) { .yt-arr { width:42px; height:42px; font-size:22px; } .yt-arr.prev { right:calc(100% + 8px); } .yt-arr.next { left:calc(100% + 8px); } }
+        @media (max-width:600px) { .yt-arr { width:36px; height:36px; font-size:18px; } .yt-arr.prev { right:calc(100% + 6px); } .yt-arr.next { left:calc(100% + 6px); } }
         /* ── VIDEO MODAL ─────────────────────────────── */
         .yt-modal-backdrop { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center;
           background:rgba(0,0,0,0.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
@@ -1216,137 +1271,146 @@ export default function LandingPage() {
       </section>
 
       {/* ══ YOUTUBE VIDEOS ════════════════════════════════════════════════════ */}
-      <section id="videos" style={{ padding:"100px 20px 110px", borderTop:`1px solid ${c.secBr}`, background: theme === "dark" ? "rgba(255,255,255,0.028)" : c.bg }}>
-        <div style={{ maxWidth:1220, margin:"0 auto" }}>
-          {/* Header */}
-          <span className="section-tag" style={{ color:"#ff0000" }}>YOUTUBE</span>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:16, marginBottom:40 }}>
-            <div>
-              <h2 className="syne" style={{ fontWeight:800, fontSize:"clamp(26px,4vw,38px)", color:c.text, marginBottom:6 }}>
-                Latest <span className="grad-fire">videos</span>
-              </h2>
-              <p style={{ fontSize:12, color:c.textM, letterSpacing:"0.04em" }}>Watch on YouTube · New content weekly</p>
-            </div>
+      <section id="videos" style={{ padding:"100px 20px 110px", borderTop:`1px solid ${c.secBr}`, position:"relative", overflow:"hidden" }}>
+        {/* Parallax background — freedom.jpg */}
+        <div ref={videoBgRef} style={{
+          position:"absolute", inset:"-35% 0",
+          backgroundImage:`url(${freedomImg})`,
+          backgroundSize:"cover", backgroundPosition:"center 45%",
+          opacity: theme === "dark" ? 0.38 : 0.13,
+          willChange:"transform", transform:"scale(1.35)",
+          pointerEvents:"none",
+        }} />
+        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
+          background: theme === "dark"
+            ? "linear-gradient(160deg,rgba(3,6,15,0.93) 0%,rgba(3,6,15,0.76) 50%,rgba(3,6,15,0.93) 100%)"
+            : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)" }} />
+
+        <div style={{ maxWidth:1220, margin:"0 auto", position:"relative", zIndex:1 }}>
+          {/* Header — centered */}
+          <div style={{ textAlign:"center", marginBottom:52 }}>
+            <span className="section-tag" style={{ color:"#ff0000" }}>YOUTUBE</span>
+            <h2 className="syne" style={{ fontWeight:800, fontSize:"clamp(26px,4vw,42px)", color:c.text, marginBottom:10 }}>
+              Latest <span className="grad-fire">videos</span>
+            </h2>
+            <p style={{ fontSize:13, color:c.textM, letterSpacing:"0.04em", marginBottom:22 }}>Watch on YouTube · New content weekly</p>
             <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer"
-              className="lp-btn lp-btn-ghost" style={{ fontSize:11, borderColor:"rgba(200,30,30,0.35)", color:"#ff5533" }}>
+              className="lp-btn lp-btn-ghost" style={{ fontSize:11, borderColor:"rgba(200,30,30,0.35)", color:"#ff5533", display:"inline-flex" }}>
               ▶ VIEW CHANNEL →
             </a>
           </div>
 
-          {/* ── Loading skeletons ── */}
-          {ytLoading && (
-            <div className="yt-carousel-outer">
-              <div className="yt-carousel-win">
-                <div className="yt-carousel-track" style={{ "--yt-card-w":"calc((100% - 40px) / 3)" }}>
-                  {[...Array(3)].map((_,i) => (
-                    <div key={i} className="yt-card" style={{ minWidth:"var(--yt-card-w)", "--card-bg":c.cardBg, "--card-br":c.cardBr, cursor:"default" }}>
-                      <div className="yt-skeleton" style={{ width:"100%", aspectRatio:"16/9" }} />
-                      <div style={{ padding:"10px 14px 14px", display:"flex", flexDirection:"column", gap:8 }}>
-                        <div className="yt-skeleton" style={{ height:13, width:"88%", borderRadius:6 }} />
-                        <div className="yt-skeleton" style={{ height:13, width:"60%", borderRadius:6 }} />
-                        <div className="yt-skeleton" style={{ height:9, width:"38%", borderRadius:6, marginTop:4 }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Carousel ── */}
-          {!ytLoading && (() => {
-            const videos = ytVideos.length > 0 ? ytVideos : [...Array(6)].map((_,i) => ({ _empty: true, id: null, _key: i }));
-            const total = videos.length;
-            const maxIdx = Math.max(0, total - 3);
-            const cardW = "calc((100% - 40px) / 3)";
-            return (
-              <div className="yt-carousel-outer"
-                onMouseEnter={ytPause}
-                onMouseLeave={ytResume}>
-                {/* Prev */}
-                <button className="yt-arr prev" disabled={ytIdx === 0} onClick={ytPrev}>‹</button>
-
-                {/* Track window */}
+          {/* Carousel area — padded to give arrows room */}
+          <div className="yt-stage-wrap">
+            {/* ── Loading skeletons ── */}
+            {ytLoading && (
+              <div className="yt-stage">
                 <div className="yt-carousel-win">
-                  <div className="yt-carousel-track" style={{
-                    transform: `translateX(calc(${-ytIdx} * (${cardW} + 20px)))`,
-                  }}>
-                    {videos.map((v, idx) => {
-                      const empty = v._empty || !v.id;
-                      return (
-                        <div key={v.id || v._key || idx}
-                          className="yt-card"
-                          style={{ minWidth: cardW, "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh,
-                            cursor: empty ? "default" : "pointer" }}
-                          onClick={() => !empty && setModalVideo(v)}
-                        >
-                          {/* Thumbnail */}
-                          <div className="yt-thumb">
-                            {!empty && v.thumbnail && (
-                              <img src={v.thumbnail} alt={v.title}
-                                onError={e => { e.currentTarget.style.display = "none"; }} />
-                            )}
-                            {empty && (
-                              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                                <span style={{ fontSize:9, color:"rgba(255,255,255,0.1)", letterSpacing:"0.18em" }}>NO VIDEO</span>
-                              </div>
-                            )}
-                            {/* gradient + title overlay */}
-                            <div className="yt-thumb-grad" />
-                            {!empty && v.title && (
-                              <div className="yt-thumb-title">
-                                <div className="ttl">{v.title}</div>
-                              </div>
-                            )}
-                            {/* play button */}
-                            <div className="yt-play">
-                              <div className={`yt-play-btn${empty ? " disabled" : ""}`}>
-                                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                              </div>
-                            </div>
-                            {/* badges */}
-                            {!empty && <div className="yt-badge-yt">▶ YOUTUBE</div>}
-                            {!empty && v.duration && <div className="yt-badge-dur">{v.duration}</div>}
-                          </div>
-                          {/* Meta row */}
-                          <div className="yt-meta-row" style={{ color:c.textD }}>
-                            {empty ? (
-                              <span style={{ fontSize:10, letterSpacing:"0.1em" }}>UNAVAILABLE</span>
-                            ) : (
-                              <>
-                                <span style={{ color:"#ff5533" }}>▶ {Number(v.views||0).toLocaleString()}</span>
-                                <span>♥ {Number(v.likes||0).toLocaleString()}</span>
-                                {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
-                              </>
-                            )}
-                          </div>
+                  <div className="yt-carousel-track">
+                    {[...Array(ytCols)].map((_,i) => (
+                      <div key={i} className="yt-card" style={{ flex:`0 0 calc((100% - ${(ytCols-1)*22}px) / ${ytCols})`, cursor:"default" }}>
+                        <div className="yt-skeleton" style={{ width:"100%", aspectRatio:"16/9" }} />
+                        <div style={{ padding:"12px 16px 16px", display:"flex", flexDirection:"column", gap:8 }}>
+                          <div className="yt-skeleton" style={{ height:13, width:"88%", borderRadius:6 }} />
+                          <div className="yt-skeleton" style={{ height:13, width:"60%", borderRadius:6 }} />
+                          <div className="yt-skeleton" style={{ height:9, width:"38%", borderRadius:6, marginTop:4 }} />
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Next */}
-                <button className="yt-arr next" disabled={ytIdx >= maxIdx} onClick={() => ytNext(total)}>›</button>
-
-                {/* Dots */}
-                {total > 3 && (
-                  <div className="yt-dots">
-                    {videos.map((_, i) => (
-                      <button key={i} className="yt-dot"
-                        onClick={() => { ytPause(); setYtIdx(Math.min(i, maxIdx)); }}
-                        style={{
-                          background: ytIdx === i ? "#ff5533" : "rgba(255,255,255,0.18)",
-                          width: ytIdx === i ? 22 : 7,
-                          borderRadius: ytIdx === i ? 4 : "50%",
-                        }}
-                      />
+                      </div>
                     ))}
                   </div>
-                )}
+                </div>
               </div>
-            );
-          })()}
+            )}
+
+            {/* ── Carousel ── */}
+            {!ytLoading && (() => {
+              const videos = ytVideos.length > 0 ? ytVideos : [...Array(6)].map((_,i) => ({ _empty: true, id: null, _key: i }));
+              const total = videos.length;
+              const maxIdx = Math.max(0, total - ytCols);
+              const cardPx = ytStepPx > 0 ? ytStepPx - 22 : 0;
+              const cardStyle = cardPx > 0 ? { flex:`0 0 ${cardPx}px`, minWidth:`${cardPx}px` } : { flex:`0 0 calc((100% - ${(ytCols-1)*22}px) / ${ytCols})` };
+              const trackTransform = ytStepPx > 0 ? `translateX(${-ytIdx * ytStepPx}px)` : "translateX(0)";
+              return (
+                <div onMouseEnter={ytPause} onMouseLeave={ytResume}>
+                  <div className="yt-stage">
+                    {/* Prev */}
+                    <button className="yt-arr prev" disabled={ytIdx === 0} onClick={ytPrev}>‹</button>
+
+                    {/* Track window */}
+                    <div className="yt-carousel-win" ref={ytWinRef}>
+                      <div className="yt-carousel-track" style={{ transform: trackTransform }}>
+                        {videos.map((v, idx) => {
+                          const empty = v._empty || !v.id;
+                          return (
+                            <div key={v.id || v._key || idx}
+                              className="yt-card"
+                              style={{ ...cardStyle, cursor: empty ? "default" : "pointer" }}
+                              onClick={() => !empty && setModalVideo(v)}
+                            >
+                              <div className="yt-thumb">
+                                {!empty && v.thumbnail && (
+                                  <img src={v.thumbnail} alt={v.title}
+                                    onError={e => { e.currentTarget.style.display = "none"; }} />
+                                )}
+                                {empty && (
+                                  <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.1)", letterSpacing:"0.18em" }}>NO VIDEO</span>
+                                  </div>
+                                )}
+                                <div className="yt-thumb-grad" />
+                                {!empty && v.title && (
+                                  <div className="yt-thumb-title">
+                                    <div className="ttl">{v.title}</div>
+                                  </div>
+                                )}
+                                <div className="yt-play">
+                                  <div className={`yt-play-btn${empty ? " disabled" : ""}`}>
+                                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                  </div>
+                                </div>
+                                {!empty && <div className="yt-badge-yt">▶ YOUTUBE</div>}
+                                {!empty && v.duration && <div className="yt-badge-dur">{v.duration}</div>}
+                              </div>
+                              <div className="yt-meta-row" style={{ color:c.textD }}>
+                                {empty ? (
+                                  <span style={{ fontSize:10, letterSpacing:"0.1em" }}>UNAVAILABLE</span>
+                                ) : (
+                                  <>
+                                    <span style={{ color:"#ff5533" }}>▶ {Number(v.views||0).toLocaleString()}</span>
+                                    <span>♥ {Number(v.likes||0).toLocaleString()}</span>
+                                    {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Next */}
+                    <button className="yt-arr next" disabled={ytIdx >= maxIdx} onClick={() => ytNext(total)}>›</button>
+                  </div>
+
+                  {/* Dots — outside .yt-stage so arrows center on card height */}
+                  {total > ytCols && (
+                    <div className="yt-dots">
+                      {Array.from({ length: maxIdx + 1 }, (_, i) => (
+                        <button key={i} className="yt-dot"
+                          onClick={() => { ytPause(); setYtIdx(i); }}
+                          style={{
+                            background: ytIdx === i ? "#ff5533" : "rgba(255,255,255,0.18)",
+                            width: ytIdx === i ? 22 : 7,
+                            borderRadius: ytIdx === i ? 4 : "50%",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
 
           {/* Video modal */}
           {modalVideo && (
