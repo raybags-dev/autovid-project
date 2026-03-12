@@ -175,8 +175,12 @@ def podcast_feed():
             rfc_date = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
 
         dur = v.get("duration_seconds") or 0
-        # Use YouTube thumbnail as per-episode artwork (1280x720 is acceptable)
-        ep_thumb = v.get("thumbnail_url") or ch_image
+        # Episode artwork — prefer YouTube thumbnail (public URL), fall back to channel image
+        yt_id = v.get("youtube_id") or ""
+        ep_thumb = (
+            f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg" if yt_id
+            else ch_image
+        )
         ep_image_xml = f'<itunes:image href="{ep_thumb}"/>' if ep_thumb else ""
         ep_link = v.get("youtube_url") or base_url
         ep_desc = _escape_xml((v.get("description") or v.get("title") or ""))
