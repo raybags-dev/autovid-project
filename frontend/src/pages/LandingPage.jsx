@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
 import faceImg         from "../assets/static/face.jpg";
-import jajja1         from "../assets/static/jajja1.jpg";
 import jajja2         from "../assets/static/jajja2.jpg";
 import faceVideo    from "../assets/static/face.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
@@ -25,7 +24,6 @@ const SECTIONS = [
   { id: "podcast",   label: "PODCAST" },
   { id: "topics",    label: "TOPICS" },
   { id: "community", label: "COMMUNITY" },
-  { id: "blog", label: "BLOG" },
 ];
 
 const CAROUSEL = [
@@ -56,21 +54,6 @@ const TOPICS = [
   { name: "Spirituality",        icon: "◑", count: 20 },
   { name: "Philosophy",          icon: "◒", count: 27 },
   { name: "Society & Culture",   icon: "◓", count: 22 },
-];
-
-const STATIC_COMMENTS = [
-  { id: 1, initials: "AM", name: "Alex M.",  time: "2 days ago",
-    text: "This channel completely changed how I think about my daily struggles. Thank you for always asking the right questions.",
-    likes: 24, color: "#ff5533" },
-  { id: 2, initials: "SK", name: "Sarah K.", time: "5 days ago",
-    text: "The episode about consciousness had me thinking for weeks. When's the next one dropping?",
-    likes: 18, color: "#0088ff" },
-  { id: 3, initials: "JT", name: "James T.", time: "1 week ago",
-    text: "Rarely do I find content that makes me genuinely uncomfortable in the best way possible. Keep going!",
-    likes: 31, color: "#1db954" },
-  { id: 4, initials: "LP", name: "Lisa P.",  time: "2 weeks ago",
-    text: "Found this through TikTok and binged every single episode. The Spotify podcast is incredible.",
-    likes: 45, color: "#a855f7" },
 ];
 
 // ── Theme tokens ──────────────────────────────────────────────────────────────
@@ -134,7 +117,10 @@ function BlogSection({ c, theme }) {
   const [formError, setFormError] = React.useState("");
   const [formSuccess, setFormSuccess] = React.useState("");
   const [likingId, setLikingId] = React.useState(null);
-  const [replyOpen, setReplyOpen] = React.useState(null); // comment id with open reply thread
+  const [replyOpen, setReplyOpen] = React.useState(null);    // comment id whose replies are expanded
+  const [replyForm, setReplyForm] = React.useState(null);    // comment id with open reply form
+  const [replyData, setReplyData] = React.useState({});      // { [commentId]: { name, content, submitting, error, success } }
+  const [pendingComment, setPendingComment] = React.useState(null); // optimistic placeholder
 
   const fp = getOrCreateFP();
 
@@ -165,7 +151,8 @@ function BlogSection({ c, theme }) {
       });
       const data = await res.json();
       if (!res.ok) { setFormError(data.detail || "Submission failed."); return; }
-      setFormSuccess("✓ Comment submitted! It will appear after review.");
+      setFormSuccess("✓ Submitted! Your comment will appear after review.");
+      setPendingComment({ name: form.name, content: form.content, _pending: true });
       setForm({ name: "", email: "", content: "" });
     } catch(e) { setFormError("Network error. Please try again."); }
     finally { setSubmitting(false); }
@@ -188,6 +175,33 @@ function BlogSection({ c, theme }) {
     finally { setLikingId(null); }
   };
 
+  const handleReplySubmit = async (commentId) => {
+    const rd = replyData[commentId] || {};
+    if (!rd.name?.trim() || !rd.content?.trim()) return;
+    setReplyData(prev => ({ ...prev, [commentId]: { ...prev[commentId], submitting: true, error: "" } }));
+    try {
+      const res = await fetch(`/api/blog/comments/${commentId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: rd.name, content: rd.content, fingerprint: fp })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReplyData(prev => ({ ...prev, [commentId]: { ...prev[commentId], submitting: false, error: data.detail || "Submission failed." } }));
+        return;
+      }
+      setReplyData(prev => ({ ...prev, [commentId]: { name: "", content: "", submitting: false, error: "", success: "✓ Reply submitted for review." } }));
+      setReplyForm(null);
+      // append a pending reply placeholder
+      setComments(prev => prev.map(c => c.id === commentId
+        ? { ...c, replies: [...(c.replies || []), { id: `pending-${Date.now()}`, name: rd.name, content: rd.content, created_at: new Date().toISOString(), _pending: true }] }
+        : c));
+      setReplyOpen(commentId);
+    } catch(e) {
+      setReplyData(prev => ({ ...prev, [commentId]: { ...prev[commentId], submitting: false, error: "Network error." } }));
+    }
+  };
+
   const formatDate = (iso) => {
     const d = new Date(iso);
     const diff = (Date.now() - d) / 1000;
@@ -198,113 +212,163 @@ function BlogSection({ c, theme }) {
   };
 
   const isDark = theme === "dark";
+  const inputSt = { padding: "10px 13px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 9, color: c.text, fontFamily: "inherit", fontSize: 12, outline: "none" };
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto" }}>
-      <span style={{ fontSize: 10, color: "#ff6633", letterSpacing: "0.22em", marginBottom: 14, display: "block" }}>COMMUNITY</span>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 48, flexWrap: "wrap", gap: 16 }}>
-        <h2 className="syne" style={{ fontWeight: 800, fontSize: "clamp(26px,4vw,40px)", color: c.text, lineHeight: 1.15 }}>
-          What's on <span className="grad-fire">your mind?</span>
-        </h2>
-        <span style={{ fontSize: 11, color: c.textM }}>{total} comment{total !== 1 ? "s" : ""}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
+        <span style={{ fontSize: 10, color: c.textD, letterSpacing: "0.16em" }}>DISCUSSION · {total} COMMENT{total !== 1 ? "S" : ""}</span>
       </div>
 
       {/* Submit form */}
-      <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 16, padding: "28px 28px 24px", marginBottom: 48, boxShadow: c.cardSh }}>
-        <div style={{ fontSize: 11, color: c.textM, letterSpacing: "0.1em", marginBottom: 20 }}>LEAVE A COMMENT</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <input placeholder="Your name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-            style={{ padding: "11px 14px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 10, color: c.text, fontFamily: "inherit", fontSize: 13, outline: "none" }} />
-          <input placeholder="Email (optional)" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-            style={{ padding: "11px 14px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 10, color: c.text, fontFamily: "inherit", fontSize: 13, outline: "none" }} />
+      <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "22px 22px 18px", marginBottom: 32, boxShadow: c.cardSh }}>
+        <div style={{ fontSize: 10, color: c.textM, letterSpacing: "0.1em", marginBottom: 16 }}>LEAVE A COMMENT</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <input placeholder="Your name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={inputSt} />
+          <input placeholder="Email (optional)" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inputSt} />
         </div>
         <textarea placeholder="Share your thoughts, questions, or feedback…" value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
-          rows={4} style={{ display: "block", width: "100%", padding: "11px 14px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 10, color: c.text, fontFamily: "inherit", fontSize: 13, outline: "none", resize: "vertical", marginBottom: 14 }} />
-        {formError && <div style={{ color: "#ff6060", fontSize: 12, marginBottom: 10 }}>⚠ {formError}</div>}
-        {formSuccess && <div style={{ color: "#1db954", fontSize: 12, marginBottom: 10 }}>{formSuccess}</div>}
+          rows={3} style={{ display: "block", width: "100%", ...inputSt, resize: "vertical", marginBottom: 10 }} />
+        {formError && <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 8 }}>⚠ {formError}</div>}
+        {formSuccess && <div style={{ color: "#1db954", fontSize: 11, marginBottom: 8 }}>{formSuccess}</div>}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, color: c.textD }}>Comments are reviewed before appearing.</span>
           <button onClick={handleSubmit} disabled={submitting}
-            style={{ padding: "10px 22px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontSize: 12, fontWeight: 500, letterSpacing: "0.1em", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1 }}>
+            style={{ padding: "9px 20px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 9, color: "#fff", fontFamily: "inherit", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1 }}>
             {submitting ? "SENDING…" : "POST COMMENT →"}
           </button>
         </div>
       </div>
 
-      {/* Comments list */}
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: c.textD, letterSpacing: "0.1em", fontSize: 11 }}>LOADING…</div>
-      ) : comments.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 60, color: c.textD, fontSize: 12, letterSpacing: "0.1em" }}>BE THE FIRST TO COMMENT</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {comments.map(comment => (
-            <div key={comment.id} style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "22px 24px", boxShadow: c.cardSh, position: "relative" }}>
-              {/* Top accent line */}
-              <div style={{ position: "absolute", top: 0, left: 24, right: 24, height: 2, background: "linear-gradient(90deg, rgba(255,80,30,0.25), transparent)", borderRadius: 2 }} />
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-                {/* Avatar */}
-                <div style={{ width: 40, height: 40, borderRadius: "50%", background: `hsl(${comment.name.charCodeAt(0) * 13 % 360},50%,30%)`, border: "1px solid rgba(255,80,30,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
-                  {comment.name[0].toUpperCase()}
+      {/* Comments list — scrollable */}
+      <div style={{ maxHeight: "80vh", overflowY: "auto", paddingRight: 4 }}>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 40, color: c.textD, letterSpacing: "0.1em", fontSize: 11 }}>LOADING…</div>
+        ) : (comments.length === 0 && !pendingComment) ? (
+          <div style={{ textAlign: "center", padding: 60, color: c.textD, fontSize: 12, letterSpacing: "0.1em" }}>BE THE FIRST TO COMMENT</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+
+            {/* Pending placeholder */}
+            {pendingComment && (
+              <div style={{ position: "relative", overflow: "hidden", background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "22px 24px", opacity: 0.75 }}>
+                <div style={{ filter: "blur(3px)", userSelect: "none", pointerEvents: "none" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,80,30,0.12)", border: "1px solid rgba(255,80,30,0.2)" }} />
+                    <div style={{ width: 100, height: 13, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", borderRadius: 6 }} />
+                  </div>
+                  <div style={{ height: 12, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", borderRadius: 5, marginBottom: 6, width: "88%" }} />
+                  <div style={{ height: 12, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", borderRadius: 5, width: "65%" }} />
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                    <span className="syne" style={{ fontWeight: 700, fontSize: 14, color: c.text }}>{comment.name}</span>
-                    <span style={{ fontSize: 10, color: c.textD }}>{formatDate(comment.created_at)}</span>
-                  </div>
-                  <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.75, margin: 0, marginBottom: 14 }}>{comment.content}</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                    <button onClick={() => handleLike(comment.id)} disabled={likingId === comment.id}
-                      style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: comment.liked_by_me ? "#ff5533" : c.textD, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
-                      <span style={{ fontSize: 14 }}>{comment.liked_by_me ? "♥" : "♡"}</span>
-                      <span>{comment.likes_count}</span>
-                    </button>
-                    {comment.replies?.length > 0 && (
-                      <button onClick={() => setReplyOpen(replyOpen === comment.id ? null : comment.id)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: c.textD, fontSize: 11, fontFamily: "inherit", padding: 0 }}>
-                        {replyOpen === comment.id ? "▾ HIDE REPLIES" : `▸ ${comment.replies.length} REPL${comment.replies.length === 1 ? "Y" : "IES"}`}
-                      </button>
-                    )}
-                  </div>
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                  <span style={{ fontSize: 11, color: "#ff7755", letterSpacing: "0.12em", fontWeight: 600 }}>PENDING REVIEW</span>
+                  <span style={{ fontSize: 10, color: c.textD }}>Your comment will appear once approved.</span>
                 </div>
               </div>
+            )}
 
-              {/* Replies */}
-              {replyOpen === comment.id && comment.replies?.length > 0 && (
-                <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${c.cardBr}`, display: "flex", flexDirection: "column", gap: 14 }}>
-                  {comment.replies.map(reply => (
-                    <div key={reply.id} style={{ display: "flex", gap: 12, paddingLeft: 16, borderLeft: `2px solid ${reply.is_admin_reply ? "rgba(255,80,30,0.4)" : "rgba(255,255,255,0.08)"}` }}>
-                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: reply.is_admin_reply ? "linear-gradient(135deg,#cc2200,#ff5533)" : `hsl(${reply.name.charCodeAt(0)*13%360},45%,28%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
-                        {reply.name[0].toUpperCase()}
+            {comments.map(comment => (
+              <div key={comment.id}>
+                {/* Main comment */}
+                <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "20px 22px", boxShadow: c.cardSh, position: "relative" }}>
+                  <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 2, background: "linear-gradient(90deg, rgba(255,80,30,0.2), transparent)", borderRadius: 2 }} />
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: "50%", background: `hsl(${comment.name.charCodeAt(0)*13%360},50%,30%)`, border: "1px solid rgba(255,80,30,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
+                      {comment.name[0].toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+                        <span className="syne" style={{ fontWeight: 700, fontSize: 13, color: c.text }}>{comment.name}</span>
+                        <span style={{ fontSize: 10, color: c.textD }}>{formatDate(comment.created_at)}</span>
                       </div>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                          <span className="syne" style={{ fontWeight: 700, fontSize: 12, color: reply.is_admin_reply ? "#ff7755" : c.text }}>{reply.name}</span>
-                          {reply.is_admin_reply && <span style={{ fontSize: 8, background: "rgba(255,80,30,0.15)", color: "#ff7755", padding: "1px 6px", borderRadius: 10, letterSpacing: "0.1em" }}>CREATOR</span>}
-                          <span style={{ fontSize: 10, color: c.textD }}>{formatDate(reply.created_at)}</span>
-                        </div>
-                        <p style={{ fontSize: 12, color: c.textM, lineHeight: 1.7, margin: 0 }}>{reply.content}</p>
+                      <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.75, margin: 0, marginBottom: 12 }}>{comment.content}</p>
+                      {/* Action row */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                        <button onClick={() => handleLike(comment.id)} disabled={likingId === comment.id}
+                          style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: comment.liked_by_me ? "#ff5533" : c.textD, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
+                          <span style={{ fontSize: 14 }}>{comment.liked_by_me ? "♥" : "♡"}</span>
+                          <span>{comment.likes_count}</span>
+                        </button>
+                        <button onClick={() => { setReplyForm(replyForm === comment.id ? null : comment.id); setReplyData(p => ({ ...p, [comment.id]: p[comment.id] || { name: "", content: "" } })); }}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: c.textD, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
+                          ↩ REPLY
+                        </button>
+                        {(comment.replies?.length > 0) && (
+                          <button onClick={() => setReplyOpen(replyOpen === comment.id ? null : comment.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: c.textD, fontSize: 11, fontFamily: "inherit", padding: 0 }}>
+                            {replyOpen === comment.id ? "▾ HIDE REPLIES" : `▸ ${comment.replies.length} REPL${comment.replies.length === 1 ? "Y" : "IES"}`}
+                          </button>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
 
-          {/* Pagination */}
-          {total > 20 && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 12 }}>
-              {page > 1 && (
-                <button onClick={() => load(page - 1)} style={{ padding: "8px 18px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>← PREV</button>
-              )}
-              {page * 20 < total && (
-                <button onClick={() => load(page + 1)} style={{ padding: "8px 18px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>NEXT →</button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+                {/* Inline reply form */}
+                {replyForm === comment.id && (
+                  <div style={{ marginLeft: 50, marginTop: 8, background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 11, padding: "16px 18px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                      <input placeholder="Your name *" value={replyData[comment.id]?.name || ""}
+                        onChange={e => setReplyData(p => ({ ...p, [comment.id]: { ...p[comment.id], name: e.target.value } }))}
+                        style={{ ...inputSt, fontSize: 11 }} />
+                      <input placeholder="Email (optional)" value={replyData[comment.id]?.email || ""}
+                        onChange={e => setReplyData(p => ({ ...p, [comment.id]: { ...p[comment.id], email: e.target.value } }))}
+                        style={{ ...inputSt, fontSize: 11 }} />
+                    </div>
+                    <textarea placeholder="Write a reply…" rows={2}
+                      value={replyData[comment.id]?.content || ""}
+                      onChange={e => setReplyData(p => ({ ...p, [comment.id]: { ...p[comment.id], content: e.target.value } }))}
+                      style={{ display: "block", width: "100%", ...inputSt, fontSize: 11, resize: "vertical", marginBottom: 8 }} />
+                    {replyData[comment.id]?.error && <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 6 }}>⚠ {replyData[comment.id].error}</div>}
+                    {replyData[comment.id]?.success && <div style={{ color: "#1db954", fontSize: 11, marginBottom: 6 }}>{replyData[comment.id].success}</div>}
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                      <button onClick={() => setReplyForm(null)} style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 7, color: c.textD, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>CANCEL</button>
+                      <button onClick={() => handleReplySubmit(comment.id)} disabled={replyData[comment.id]?.submitting}
+                        style={{ padding: "7px 16px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 7, color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: replyData[comment.id]?.submitting ? 0.6 : 1 }}>
+                        {replyData[comment.id]?.submitting ? "SENDING…" : "POST REPLY →"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Replies — YouTube-style indented thread */}
+                {replyOpen === comment.id && comment.replies?.length > 0 && (
+                  <div style={{ marginLeft: 50, marginTop: 6, display: "flex", flexDirection: "column", gap: 1 }}>
+                    {comment.replies.map(reply => (
+                      <div key={reply.id} style={{ display: "flex", gap: 10, padding: "12px 16px", background: reply._pending ? (isDark ? "rgba(255,80,30,0.04)" : "rgba(255,80,30,0.02)") : "transparent", borderRadius: 10, position: "relative", opacity: reply._pending ? 0.7 : 1 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: reply.is_admin_reply ? "linear-gradient(135deg,#cc2200,#ff5533)" : `hsl(${reply.name.charCodeAt(0)*13%360},45%,28%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
+                          {reply.name[0].toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                            <span className="syne" style={{ fontWeight: 700, fontSize: 12, color: reply.is_admin_reply ? "#ff7755" : c.text }}>{reply.name}</span>
+                            {reply.is_admin_reply && <span style={{ fontSize: 8, background: "rgba(255,80,30,0.15)", color: "#ff7755", padding: "1px 6px", borderRadius: 10, letterSpacing: "0.1em" }}>CREATOR</span>}
+                            {reply._pending && <span style={{ fontSize: 8, background: "rgba(245,158,11,0.15)", color: "#f59e0b", padding: "1px 6px", borderRadius: 10, letterSpacing: "0.1em" }}>PENDING</span>}
+                            <span style={{ fontSize: 10, color: c.textD }}>{formatDate(reply.created_at)}</span>
+                          </div>
+                          <p style={{ fontSize: 12, color: reply._pending ? c.textD : c.textM, lineHeight: 1.7, margin: 0 }}>{reply.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Pagination */}
+            {total > 20 && (
+              <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 8, paddingBottom: 8 }}>
+                {page > 1 && (
+                  <button onClick={() => load(page - 1)} style={{ padding: "7px 16px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>← PREV</button>
+                )}
+                {page * 20 < total && (
+                  <button onClick={() => load(page + 1)} style={{ padding: "7px 16px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>NEXT →</button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -327,6 +391,7 @@ export default function LandingPage() {
   const heroVidRef    = useRef(null);
   const topicsBgRef    = useRef(null);
   const communityBgRef = useRef(null);
+  const contentBgRef   = useRef(null);
   const ytAutoRef      = useRef(null);
 
   const c = theme === "dark" ? DARK : LIGHT;
@@ -385,6 +450,10 @@ export default function LandingPage() {
       if (communityBgRef.current) {
         const rect = document.getElementById("community")?.getBoundingClientRect();
         if (rect) communityBgRef.current.style.transform = `translateY(${-rect.top * 0.28}px) scale(1.35)`;
+      }
+      if (contentBgRef.current) {
+        const rect = document.getElementById("content")?.getBoundingClientRect();
+        if (rect) contentBgRef.current.style.transform = `translateY(${-rect.top * 0.22}px) scale(1.3)`;
       }
     };
     el.addEventListener("scroll", fn, { passive: true });
@@ -705,14 +774,15 @@ export default function LandingPage() {
         @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
 
         /* ── YT CAROUSEL ─────────────────────────────── */
-        .yt-carousel-outer { position:relative; padding:0 44px; }
+        .yt-carousel-outer { position:relative; padding:0 52px; }
         .yt-carousel-win { overflow:hidden; }
         .yt-carousel-track { display:flex; gap:20px; transition:transform 0.55s cubic-bezier(0.4,0,0.2,1); }
         .yt-card { flex-shrink:0; border-radius:18px; overflow:hidden; cursor:pointer;
-          background:var(--card-bg); border:1px solid var(--card-br); box-shadow:var(--card-sh,none);
+          background:var(--card-bg); border:1px solid var(--card-br);
+          box-shadow:0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
           transition:transform 0.32s, box-shadow 0.32s, border-color 0.32s; }
-        .yt-card:hover { transform:translateY(-8px); border-color:rgba(200,40,40,0.45);
-          box-shadow:0 22px 55px rgba(0,0,0,0.38),0 4px 16px rgba(180,30,30,0.22); }
+        .yt-card:hover { transform:translateY(-8px); border-color:rgba(200,40,40,0.55);
+          box-shadow:0 28px 70px rgba(0,0,0,0.65),0 6px 20px rgba(180,30,30,0.3); }
         .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#080810; }
         .yt-thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform 0.5s; display:block; }
         .yt-card:hover .yt-thumb img { transform:scale(1.06); }
@@ -741,20 +811,19 @@ export default function LandingPage() {
           font-size:10px; letter-spacing:0.06em; flex-wrap:wrap; }
         .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%);
           background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:10px; }
-        .yt-arr { position:absolute; top:38%; transform:translateY(-50%);
-          width:44px; height:44px; border-radius:50%;
-          background:rgba(10,10,20,0.8); border:1px solid rgba(255,255,255,0.14);
-          backdrop-filter:blur(10px); color:#fff; font-size:22px;
+        .yt-arr { position:absolute; top:0; bottom:2px; width:52px;
+          background:none; border:none;
+          color:rgba(255,255,255,0.45); font-size:44px; line-height:1;
           display:flex; align-items:center; justify-content:center;
-          cursor:pointer; z-index:10; transition:all 0.22s; padding:0; }
-        .yt-arr:hover:not(:disabled) { background:rgba(190,35,35,0.75); border-color:rgba(255,70,50,0.55); transform:translateY(-50%) scale(1.1); }
-        .yt-arr:disabled { opacity:0.18; cursor:default; }
+          cursor:pointer; z-index:10; transition:color 0.2s, text-shadow 0.2s; padding:0; }
+        .yt-arr:hover:not(:disabled) { color:#fff; text-shadow:0 0 24px rgba(255,80,40,0.7); }
+        .yt-arr:disabled { opacity:0.12; cursor:default; }
         .yt-arr.prev { left:0; }
         .yt-arr.next { right:0; }
         .yt-dots { display:flex; gap:8px; justify-content:center; margin-top:28px; align-items:center; }
         .yt-dot { width:7px; height:7px; border-radius:50%; border:none; cursor:pointer; transition:all 0.32s; padding:0; }
-        @media (max-width:900px) { .yt-carousel-outer { padding:0 36px; } }
-        @media (max-width:640px) { .yt-carousel-outer { padding:0 30px; } }
+        @media (max-width:900px) { .yt-carousel-outer { padding:0 44px; } .yt-arr { width:44px; font-size:36px; } }
+        @media (max-width:640px) { .yt-carousel-outer { padding:0 36px; } .yt-arr { width:36px; font-size:30px; } }
         /* ── VIDEO MODAL ─────────────────────────────── */
         .yt-modal-backdrop { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center;
           background:rgba(0,0,0,0.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
@@ -785,14 +854,12 @@ export default function LandingPage() {
 
         /* ── BACK TO TOP ─────────────────────────────── */
         .back-to-top { position:fixed; bottom:28px; right:28px; z-index:800;
-          width:46px; height:46px; border-radius:50%; border:2px solid rgba(210,50,50,0.5);
-          background:rgba(195,38,38,0.16); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+          width:46px; height:46px; border-radius:50%; border:none;
+          background:transparent;
           display:flex; align-items:center; justify-content:center; cursor:pointer;
-          box-shadow:0 4px 20px rgba(160,20,20,0.35), inset 0 1px 0 rgba(255,255,255,0.07);
-          transition:opacity 0.3s, transform 0.3s, background 0.25s, box-shadow 0.25s;
-          color:#fff; font-size:18px; }
-        .back-to-top:hover { background:rgba(195,38,38,0.32); transform:translateY(-3px) scale(1.07);
-          box-shadow:0 8px 28px rgba(180,20,20,0.5), inset 0 1px 0 rgba(255,255,255,0.12); }
+          transition:opacity 0.3s, transform 0.3s, background 0.25s;
+          color:rgba(255,255,255,0.5); font-size:18px; }
+        .back-to-top:hover { background:rgba(195,38,38,0.28); color:#fff; transform:translateY(-3px) scale(1.07); }
         .back-to-top.hidden { opacity:0; pointer-events:none; transform:translateY(12px); }
         @media (max-width:900px) { .yt-modal-box { width:95vw; } .back-to-top { bottom:80px; right:18px; } }
         @media (max-width:540px) { .yt-dot { display:none; } .yt-dot:nth-child(-n+5) { display:block; } }
@@ -1062,8 +1129,21 @@ export default function LandingPage() {
       </section>
 
       {/* ══ CAROUSEL ══════════════════════════════════════════════════════════ */}
-      <section id="content" style={{ padding: "100px 20px", borderTop: `1px solid ${c.secBr}` }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+      <section id="content" style={{ padding: "100px 20px", borderTop: `1px solid ${c.secBr}`, position: "relative", overflow: "hidden" }}>
+        {/* Parallax photo background — face */}
+        <div ref={contentBgRef} style={{
+          position: "absolute", inset: "-30% 0",
+          backgroundImage: `url(${faceImg})`,
+          backgroundSize: "cover", backgroundPosition: "center 35%",
+          opacity: theme === "dark" ? 0.10 : 0.05,
+          willChange: "transform", transform: "scale(1.3)",
+          pointerEvents: "none",
+        }} />
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+          background: theme === "dark"
+            ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(5,2,10,0.88) 50%,rgba(3,6,15,0.94) 100%)"
+            : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.92) 50%,rgba(245,242,235,0.96) 100%)" }} />
+        <div style={{ maxWidth: 1180, margin: "0 auto", position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
             <div>
               <span className="section-tag">FEATURED CONTENT</span>
@@ -1142,7 +1222,7 @@ export default function LandingPage() {
       </section>
 
       {/* ══ YOUTUBE VIDEOS ════════════════════════════════════════════════════ */}
-      <section id="videos" style={{ padding:"100px 20px 110px", borderTop:`1px solid ${c.secBr}`, background:c.bg }}>
+      <section id="videos" style={{ padding:"100px 20px 110px", borderTop:`1px solid ${c.secBr}`, background: theme === "dark" ? "rgba(255,255,255,0.028)" : c.bg }}>
         <div style={{ maxWidth:1220, margin:"0 auto" }}>
           {/* Header */}
           <span className="section-tag" style={{ color:"#ff0000" }}>YOUTUBE</span>
@@ -1397,10 +1477,10 @@ export default function LandingPage() {
 
       {/* ══ COMMUNITY ═════════════════════════════════════════════════════════ */}
       <section id="community" style={{ padding:"100px 20px 120px",position:"relative",overflow:"hidden" }}>
-        {/* Parallax photo background — jajja1 */}
+        {/* Parallax photo background — face */}
         <div ref={communityBgRef} style={{
           position:"absolute", inset:"-35% 0",
-          backgroundImage:`url(${jajja1})`,
+          backgroundImage:`url(${faceImg})`,
           backgroundSize:"cover", backgroundPosition:"center 20%",
           opacity: theme === "dark" ? 0.32 : 0.11,
           willChange:"transform", transform:"scale(1.35)",
@@ -1419,7 +1499,7 @@ export default function LandingPage() {
                 The conversation is just{" "}<span className="grad-fire">getting started.</span>
               </h2>
               <p style={{ color:c.textM,fontSize:13,lineHeight:1.84,maxWidth:560,marginTop:14 }}>
-                Join the discussion — share what moves you, what you're questioning, or what you want explored next.
+                Share your thoughts, ask questions, or tell us what you want explored next.
               </p>
             </div>
             <div className="btn-group" style={{ marginTop: 4 }}>
@@ -1428,55 +1508,8 @@ export default function LandingPage() {
               <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center", borderColor:"rgba(29,185,84,0.3)",color:"#1db954" }}>◎ SPOTIFY</a>
             </div>
           </div>
-
-          {/* Disabled comment form */}
-          <div style={{ position:"relative",marginBottom:40 }}>
-            <div style={{ background:c.cardBg,border:`1px solid ${c.cardBr}`,boxShadow:c.cardSh,borderRadius:16,padding:"24px 24px 20px",filter:"blur(1.5px)",pointerEvents:"none",userSelect:"none" }}>
-              <div style={{ display:"flex",gap:14,marginBottom:16 }}>
-                <div style={{ width:40,height:40,borderRadius:"50%",background:"rgba(255,80,30,0.12)",border:"1px solid rgba(255,80,30,0.2)",flexShrink:0 }} />
-                <input readOnly placeholder="Your name" className="comment-input" style={{ minHeight:"unset",height:40,background:c.inputBg,border:`1px solid ${c.inputBr}`,color:c.text }} />
-              </div>
-              <textarea readOnly placeholder="Share your thoughts…" className="comment-input" style={{ background:c.inputBg,border:`1px solid ${c.inputBr}`,color:c.text }} />
-              <div style={{ display:"flex",justifyContent:"flex-end",marginTop:12 }}>
-                <div className="lp-btn lp-btn-fire" style={{ opacity:0.5 }}>POST COMMENT</div>
-              </div>
-            </div>
-            <div className="coming-soon-overlay" style={{ background:theme==="dark"?"rgba(3,6,15,0.72)":"rgba(245,242,235,0.72)" }}>
-              <div style={{ fontSize:28,color:"#ff5533" }}>◉</div>
-              <div className="syne" style={{ fontWeight:700,fontSize:16,color:c.text }}>Comments Coming Soon</div>
-              <div style={{ fontSize:11,color:c.textM,letterSpacing:"0.1em",textAlign:"center",maxWidth:280,lineHeight:1.7 }}>
-                Full community features — post, comment, and connect — are in the works.
-              </div>
-            </div>
-          </div>
-
-          <div style={{ fontSize:10,color:c.textD,letterSpacing:"0.16em",marginBottom:20 }}>
-            RECENT DISCUSSION · {STATIC_COMMENTS.length} COMMENTS
-          </div>
-          <div className="comments-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16 }}>
-            {STATIC_COMMENTS.map(cc => (
-              <div key={cc.id} className="comment-card" style={{ "--card-bg":c.cardBg,"--card-br":c.cardBr }}>
-                <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:12 }}>
-                  <div style={{ width:38,height:38,borderRadius:"50%",background:`${cc.color}18`,border:`1px solid ${cc.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:cc.color,flexShrink:0 }}>{cc.initials}</div>
-                  <div>
-                    <div className="syne" style={{ fontWeight:700,fontSize:13,color:c.text }}>{cc.name}</div>
-                    <div style={{ fontSize:10,color:c.textD,letterSpacing:"0.06em" }}>{cc.time}</div>
-                  </div>
-                </div>
-                <p style={{ fontSize:12,color:c.textM,lineHeight:1.78,marginBottom:14 }}>{cc.text}</p>
-                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                  <span style={{ fontSize:14,color:c.textD }}>♥</span>
-                  <span style={{ fontSize:11,color:c.textD }}>{cc.likes}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <BlogSection c={c} theme={theme} />
         </div>
-      </section>
-
-      {/* ══ BLOG / COMMUNITY COMMENTS ═════════════════════════════════════════════ */}
-      <section id="blog" style={{ padding:"100px 20px 110px", background:c.bgAlt, borderTop:`1px solid ${c.secBr}` }}>
-        <BlogSection c={c} theme={theme} />
       </section>
 
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
