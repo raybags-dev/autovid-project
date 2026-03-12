@@ -211,6 +211,99 @@ def _generate_essay(topic: str) -> dict:
     return json.loads(raw)
 
 
+# ── Chunked TTS for long essays ───────────────────────────────────────────────
+
+_EL_CHUNK_SIZE = 4500   # ElevenLabs hard limit is 5000 chars; stay safely below
+
+def _chunk_text(text: str, max_chars: int = _EL_CHUNK_SIZE) -> list[str]:
+    """
+    Split text into chunks ≤ max_chars at paragraph → sentence boundaries.
+    Never cuts mid-sentence.
+    """
+    import re
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    chunks, current = [], ""
+    for para in paragraphs:
+        # If a single paragraph itself exceeds the limit, split at sentence boundaries
+        if len(para) > max_chars:
+            sentences = re.split(r'(?<=[.!?])\s+', para)
+            for sent in sentences:
+                if len(current) + len(sent) + 1 > max_chars and current:
+                    chunks.append(current.strip())
+                    current = sent
+                else:
+                    current = (current + " " + sent).strip() if current else sent
+        else:
+            if len(current) + len(para) + 2 > max_chars and current:
+                chunks.append(current.strip())
+                current = para
+            else:
+                current = (current + "\n\n" + para).strip() if current else para
+    if current:
+        chunks.append(current.strip())
+    return chunks
+
+
+def _synthesize_essay(essay: str, video_id: str, log_fn=None) -> str:
+    """
+    Synthesize a long essay using ElevenLabs by chunking into ≤4500-char pieces,
+    narrating each with the configured voice, then concatenating with ffmpeg.
+    Returns path to the final stitched MP3.
+    """
+    import subprocess
+    from pipeline.tts import _synthesize_elevenlabs, _clean_script, ELEVENLABS_FALLBACK_VOICE_ID
+
+    clean  = _clean_script(essay)
+    chunks = _chunk_text(clean)
+
+    if log_fn:
+        log_fn(f"[2/5] Essay split into {len(chunks)} chunks for TTS...")
+
+    voice_id = (
+        getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
+    )
+
+    chunk_paths = []
+    for i, chunk in enumerate(chunks, start=1):
+        chunk_path = config.AUDIO_OUTPUT_DIR / f"{video_id}_chunk{i:02d}.mp3"
+        if log_fn:
+            log_fn(f"[2/5] Chunk {i}/{len(chunks)} — {len(chunk)} chars...")
+
+        ok = _synthesize_elevenlabs(chunk, chunk_path, voice_id=voice_id)
+        if not ok:
+            # Try fallback ElevenLabs voice before giving up
+            ok = _synthesize_elevenlabs(chunk, chunk_path, voice_id=ELEVENLABS_FALLBACK_VOICE_ID)
+        if not ok:
+            raise RuntimeError(
+                f"ElevenLabs failed on chunk {i} — check quota at elevenlabs.io. "
+                f"Voice ID attempted: {voice_id}"
+            )
+        chunk_paths.append(str(chunk_path))
+
+    # Concatenate all chunks into one MP3 via ffmpeg concat demuxer
+    out_path = config.AUDIO_OUTPUT_DIR / f"{video_id}_narration.mp3"
+    if len(chunk_paths) == 1:
+        import shutil
+        shutil.move(chunk_paths[0], str(out_path))
+    else:
+        list_file = config.TEMP_DIR / f"{video_id}_chunks.txt"
+        with open(list_file, "w") as f:
+            for p in chunk_paths:
+                f.write(f"file '{p}'\n")
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+            "-i", str(list_file),
+            "-c", "copy", str(out_path),
+        ], capture_output=True, check=True)
+        list_file.unlink(missing_ok=True)
+        for p in chunk_paths:
+            Path(p).unlink(missing_ok=True)
+
+    if log_fn:
+        log_fn(f"[2/5] Narration stitched: {out_path.name}")
+    return str(out_path)
+
+
 def run_podcast_episode(
     topic: str = None,
     title: str = None,
@@ -226,8 +319,6 @@ def run_podcast_episode(
     If essay is provided, skip LLM generation and use it directly.
     If topic is provided without essay, generate essay via LLM.
     """
-    import uuid
-    from pipeline.tts import synthesize
     from pipeline.music_mixer import generate_music, mix_audio
     from pipeline.storage import upload_narration_to_storage
 
@@ -268,10 +359,8 @@ def run_podcast_episode(
                         prompt=topic or title or ep_title,
                         status="scripted")
 
-        # ── Step 2: TTS narration ──────────────────────────────────────────────
-        _log("[2/5] Synthesizing narration with TTS...")
-        audio_result = synthesize(ep_essay, video_id)
-        raw_mp3_path = audio_result["path"]
+        # ── Step 2: TTS narration (chunked — avoids ElevenLabs 5000-char limit) ─
+        raw_mp3_path = _synthesize_essay(ep_essay, video_id, log_fn=_log)
         _log(f"[2/5] Narration done: {Path(raw_mp3_path).name}")
         db.update_video(video_id, status="voiced")
 
