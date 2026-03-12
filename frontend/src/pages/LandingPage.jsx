@@ -125,14 +125,16 @@ export default function LandingPage() {
   const [slideDir,      setSlideDir]      = useState("right");
   const [ytVideos,      setYtVideos]      = useState([]);
   const [ytLoading,     setYtLoading]     = useState(true);
+  const [ytIdx,         setYtIdx]         = useState(0);
   const [modalVideo,    setModalVideo]    = useState(null);   // { id, title, url }
   const [showBackTop,   setShowBackTop]   = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const wrapperRef    = useRef(null);
   const autoRef       = useRef(null);
   const heroVidRef    = useRef(null);
-  const topicsBgRef   = useRef(null);
+  const topicsBgRef    = useRef(null);
   const communityBgRef = useRef(null);
+  const ytAutoRef      = useRef(null);
 
   const c = theme === "dark" ? DARK : LIGHT;
 
@@ -196,6 +198,16 @@ export default function LandingPage() {
     return () => el.removeEventListener("scroll", fn);
   }, []);
 
+  // YouTube carousel auto-advance
+  useEffect(() => {
+    if (ytVideos.length > 3) {
+      ytAutoRef.current = setInterval(() => {
+        setYtIdx(i => (i >= ytVideos.length - 3 ? 0 : i + 1));
+      }, 4200);
+    }
+    return () => clearInterval(ytAutoRef.current);
+  }, [ytVideos]);
+
   // Close modal on Escape
   useEffect(() => {
     const fn = e => { if (e.key === "Escape") setModalVideo(null); };
@@ -225,6 +237,14 @@ export default function LandingPage() {
     setMenuOpen(false);
   };
   const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
+  const ytPause  = () => clearInterval(ytAutoRef.current);
+  const ytResume = () => {
+    if (ytVideos.length > 3) {
+      ytAutoRef.current = setInterval(() => setYtIdx(i => (i >= ytVideos.length - 3 ? 0 : i + 1)), 4200);
+    }
+  };
+  const ytPrev = () => { ytPause(); setYtIdx(i => Math.max(0, i - 1)); };
+  const ytNext = (total) => { ytPause(); setYtIdx(i => (i >= total - 3 ? 0 : i + 1)); };
 
   const item = CAROUSEL[carouselIdx];
 
@@ -491,38 +511,57 @@ export default function LandingPage() {
         }
         @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
 
-        /* ── YOUTUBE VIDEO GRID ──────────────────────── */
-        .yt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:40px; }
-        .yt-card { border-radius:16px; overflow:hidden; cursor:pointer; text-decoration:none; display:block;
+        /* ── YT CAROUSEL ─────────────────────────────── */
+        .yt-carousel-outer { position:relative; padding:0 44px; }
+        .yt-carousel-win { overflow:hidden; }
+        .yt-carousel-track { display:flex; gap:20px; transition:transform 0.55s cubic-bezier(0.4,0,0.2,1); }
+        .yt-card { flex-shrink:0; border-radius:18px; overflow:hidden; cursor:pointer;
           background:var(--card-bg); border:1px solid var(--card-br); box-shadow:var(--card-sh,none);
-          transition:transform 0.28s, box-shadow 0.28s, border-color 0.28s; position:relative; }
-        .yt-card:hover { transform:translateY(-5px); border-color:rgba(200,40,40,0.4); box-shadow:0 14px 44px rgba(180,30,30,0.18); }
-        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:linear-gradient(135deg,#0a0a16 0%,#0d0812 50%,#0a0a18 100%); }
-        .yt-thumb img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
-        .yt-card:hover .yt-thumb img { transform:scale(1.04); }
-        /* glassmorphic play overlay — always visible, intensifies on hover */
+          transition:transform 0.32s, box-shadow 0.32s, border-color 0.32s; }
+        .yt-card:hover { transform:translateY(-8px); border-color:rgba(200,40,40,0.45);
+          box-shadow:0 22px 55px rgba(0,0,0,0.38),0 4px 16px rgba(180,30,30,0.22); }
+        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#080810; }
+        .yt-thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform 0.5s; display:block; }
+        .yt-card:hover .yt-thumb img { transform:scale(1.06); }
+        .yt-thumb-grad { position:absolute; inset:0; background:linear-gradient(to top,rgba(4,4,14,0.95) 0%,rgba(4,4,14,0.55) 38%,transparent 65%); pointer-events:none; }
+        .yt-thumb-title { position:absolute; bottom:0; left:0; right:0; padding:14px 16px 13px; }
+        .yt-thumb-title .ttl { font-family:'Syne',sans-serif; font-weight:700; font-size:14px; line-height:1.42; color:#fff;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+          text-shadow:0 1px 8px rgba(0,0,0,0.7); }
         .yt-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-          background:rgba(0,0,0,0.08); opacity:0.65; transition:opacity 0.3s, background 0.3s; pointer-events:none; }
-        .yt-card:hover .yt-play { opacity:1; background:rgba(0,0,0,0.22); }
-        /* glassmorphic circle — mirrors dashboard .play-btn but in red */
-        .yt-play-btn { width:clamp(52px,30%,88px); aspect-ratio:1/1; border-radius:50%;
-          background:rgba(195,38,38,0.18); border:2px solid rgba(210,50,50,0.55);
+          opacity:0.55; transition:opacity 0.3s; pointer-events:none; }
+        .yt-card:hover .yt-play { opacity:1; }
+        .yt-play-btn { width:clamp(46px,20%,68px); aspect-ratio:1/1; border-radius:50%;
+          background:rgba(195,38,38,0.76); border:2px solid rgba(255,80,50,0.65);
           backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
           display:flex; align-items:center; justify-content:center;
-          box-shadow:0 4px 24px rgba(160,20,20,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
-          transform:scale(0.9); transition:transform 0.25s, background 0.25s, box-shadow 0.25s; }
-        .yt-card:hover .yt-play-btn { transform:scale(1.05); background:rgba(195,38,38,0.32);
-          box-shadow:0 6px 32px rgba(180,20,20,0.55), inset 0 1px 0 rgba(255,255,255,0.12); }
-        .yt-play-btn svg { width:62%; height:62%; fill:#fff; margin-left:8%;
-          filter:drop-shadow(0 1px 4px rgba(0,0,0,0.6)); }
-        .yt-play-btn.disabled { opacity:0.28; border-color:rgba(150,150,150,0.3);
-          background:rgba(80,80,80,0.15); box-shadow:none; cursor:default; }
-        .yt-info { padding:14px 16px 16px; }
-        .yt-title { font-size:13px; font-weight:600; line-height:1.45; margin-bottom:8px;
-          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-        .yt-meta { display:flex; gap:14px; font-size:10px; letter-spacing:0.06em; }
-        .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);
+          box-shadow:0 4px 28px rgba(160,20,20,0.5);
+          transform:scale(0.88); transition:transform 0.25s, background 0.25s; }
+        .yt-card:hover .yt-play-btn { transform:scale(1.06); background:rgba(210,38,38,0.9); }
+        .yt-play-btn svg { width:62%; height:62%; fill:#fff; margin-left:8%; filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5)); }
+        .yt-play-btn.disabled { opacity:0.18; border-color:rgba(150,150,150,0.25); background:rgba(50,50,50,0.2); box-shadow:none; }
+        .yt-badge-yt { position:absolute; top:10px; left:10px; background:rgba(195,28,28,0.88); color:#fff;
+          font-size:9px; font-weight:700; letter-spacing:0.1em; padding:3px 8px; border-radius:5px; backdrop-filter:blur(4px); }
+        .yt-badge-dur { position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.78); color:#fff;
+          font-size:10px; padding:2px 8px; border-radius:5px; letter-spacing:0.04em; backdrop-filter:blur(4px); }
+        .yt-meta-row { display:flex; gap:14px; align-items:center; padding:10px 14px 14px;
+          font-size:10px; letter-spacing:0.06em; flex-wrap:wrap; }
+        .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%);
           background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:10px; }
+        .yt-arr { position:absolute; top:38%; transform:translateY(-50%);
+          width:44px; height:44px; border-radius:50%;
+          background:rgba(10,10,20,0.8); border:1px solid rgba(255,255,255,0.14);
+          backdrop-filter:blur(10px); color:#fff; font-size:22px;
+          display:flex; align-items:center; justify-content:center;
+          cursor:pointer; z-index:10; transition:all 0.22s; padding:0; }
+        .yt-arr:hover:not(:disabled) { background:rgba(190,35,35,0.75); border-color:rgba(255,70,50,0.55); transform:translateY(-50%) scale(1.1); }
+        .yt-arr:disabled { opacity:0.18; cursor:default; }
+        .yt-arr.prev { left:0; }
+        .yt-arr.next { right:0; }
+        .yt-dots { display:flex; gap:8px; justify-content:center; margin-top:28px; align-items:center; }
+        .yt-dot { width:7px; height:7px; border-radius:50%; border:none; cursor:pointer; transition:all 0.32s; padding:0; }
+        @media (max-width:900px) { .yt-carousel-outer { padding:0 36px; } }
+        @media (max-width:640px) { .yt-carousel-outer { padding:0 30px; } }
         /* ── VIDEO MODAL ─────────────────────────────── */
         .yt-modal-backdrop { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center;
           background:rgba(0,0,0,0.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
@@ -562,8 +601,8 @@ export default function LandingPage() {
         .back-to-top:hover { background:rgba(195,38,38,0.32); transform:translateY(-3px) scale(1.07);
           box-shadow:0 8px 28px rgba(180,20,20,0.5), inset 0 1px 0 rgba(255,255,255,0.12); }
         .back-to-top.hidden { opacity:0; pointer-events:none; transform:translateY(12px); }
-        @media (max-width:900px) { .yt-grid { grid-template-columns:repeat(2,1fr)!important; } .yt-modal-box { width:95vw; } .back-to-top { bottom:80px; right:18px; } }
-        @media (max-width:540px) { .yt-grid { grid-template-columns:1fr!important; } }
+        @media (max-width:900px) { .yt-modal-box { width:95vw; } .back-to-top { bottom:80px; right:18px; } }
+        @media (max-width:540px) { .yt-dot { display:none; } .yt-dot:nth-child(-n+5) { display:block; } }
 
         /* ── BUTTON GROUPS ────────────────────────────── */
         .btn-group { display:flex; gap:12px; flex-wrap:wrap; }
@@ -910,102 +949,137 @@ export default function LandingPage() {
       </section>
 
       {/* ══ YOUTUBE VIDEOS ════════════════════════════════════════════════════ */}
-      <section id="videos" style={{ padding:"100px 20px", borderTop:`1px solid ${c.secBr}` }}>
-        <div style={{ maxWidth:1180, margin:"0 auto" }}>
+      <section id="videos" style={{ padding:"100px 20px 110px", borderTop:`1px solid ${c.secBr}`, background:c.bg }}>
+        <div style={{ maxWidth:1220, margin:"0 auto" }}>
+          {/* Header */}
           <span className="section-tag" style={{ color:"#ff0000" }}>YOUTUBE</span>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:16, marginBottom:4 }}>
-            <h2 className="syne" style={{ fontWeight:800, fontSize:"clamp(26px,4vw,38px)", color:c.text }}>
-              Latest <span className="grad-fire">videos</span>
-            </h2>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:16, marginBottom:40 }}>
+            <div>
+              <h2 className="syne" style={{ fontWeight:800, fontSize:"clamp(26px,4vw,38px)", color:c.text, marginBottom:6 }}>
+                Latest <span className="grad-fire">videos</span>
+              </h2>
+              <p style={{ fontSize:12, color:c.textM, letterSpacing:"0.04em" }}>Watch on YouTube · New content weekly</p>
+            </div>
             <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer"
-              className="lp-btn lp-btn-ghost" style={{ fontSize:11 }}>
-              VIEW CHANNEL →
+              className="lp-btn lp-btn-ghost" style={{ fontSize:11, borderColor:"rgba(200,30,30,0.35)", color:"#ff5533" }}>
+              ▶ VIEW CHANNEL →
             </a>
           </div>
 
-          {/* Loading skeletons */}
+          {/* ── Loading skeletons ── */}
           {ytLoading && (
-            <div className="yt-grid">
-              {[...Array(6)].map((_,i) => (
-                <div key={i} style={{ borderRadius:16, overflow:"hidden", background:c.cardBg, border:`1px solid ${c.cardBr}` }}>
-                  <div className="yt-skeleton" style={{ width:"100%", aspectRatio:"16/9" }} />
-                  <div style={{ padding:"14px 16px 16px", display:"flex", flexDirection:"column", gap:8 }}>
-                    <div className="yt-skeleton" style={{ height:14, width:"90%", borderRadius:6 }} />
-                    <div className="yt-skeleton" style={{ height:14, width:"60%", borderRadius:6 }} />
-                    <div className="yt-skeleton" style={{ height:10, width:"40%", borderRadius:6, marginTop:4 }} />
-                  </div>
+            <div className="yt-carousel-outer">
+              <div className="yt-carousel-win">
+                <div className="yt-carousel-track" style={{ "--yt-card-w":"calc((100% - 40px) / 3)" }}>
+                  {[...Array(3)].map((_,i) => (
+                    <div key={i} className="yt-card" style={{ minWidth:"var(--yt-card-w)", "--card-bg":c.cardBg, "--card-br":c.cardBr, cursor:"default" }}>
+                      <div className="yt-skeleton" style={{ width:"100%", aspectRatio:"16/9" }} />
+                      <div style={{ padding:"10px 14px 14px", display:"flex", flexDirection:"column", gap:8 }}>
+                        <div className="yt-skeleton" style={{ height:13, width:"88%", borderRadius:6 }} />
+                        <div className="yt-skeleton" style={{ height:13, width:"60%", borderRadius:6 }} />
+                        <div className="yt-skeleton" style={{ height:9, width:"38%", borderRadius:6, marginTop:4 }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           )}
 
-          {/* Video grid */}
-          {!ytLoading && ytVideos.length > 0 && (
-            <div className="yt-grid" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh }}>
-              {ytVideos.map((v, idx) => {
-                const isBroken = !v.id;
-                return (
-                  <div key={v.id || idx}
-                    className="yt-card"
-                    style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh, cursor: isBroken ? "default" : "pointer" }}
-                    onClick={() => !isBroken && setModalVideo(v)}
-                  >
-                    <div className="yt-thumb">
-                      {v.thumbnail && (
-                        <img
-                          src={v.thumbnail}
-                          alt={v.title}
-                          onError={e => { e.currentTarget.style.display = "none"; }}
-                        />
-                      )}
-                      <div className="yt-play">
-                        <div className={`yt-play-btn${isBroken ? " disabled" : ""}`}>
-                          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                        </div>
-                      </div>
-                      {v.duration && (
-                        <div style={{ position:"absolute", bottom:8, right:8, background:"rgba(0,0,0,0.75)",
-                          color:"#fff", fontSize:10, padding:"2px 6px", borderRadius:4, letterSpacing:"0.04em" }}>
-                          {v.duration}
-                        </div>
-                      )}
-                    </div>
-                    <div className="yt-info">
-                      <div className="yt-title syne" style={{ color:c.text }}>{v.title}</div>
-                      <div className="yt-meta" style={{ color:c.textD }}>
-                        <span>▶ {Number(v.views||0).toLocaleString()} views</span>
-                        <span>♥ {Number(v.likes||0).toLocaleString()}</span>
-                        {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {/* ── Carousel ── */}
+          {!ytLoading && (() => {
+            const videos = ytVideos.length > 0 ? ytVideos : [...Array(6)].map((_,i) => ({ _empty: true, id: null, _key: i }));
+            const total = videos.length;
+            const maxIdx = Math.max(0, total - 3);
+            const cardW = "calc((100% - 40px) / 3)";
+            return (
+              <div className="yt-carousel-outer"
+                onMouseEnter={ytPause}
+                onMouseLeave={ytResume}>
+                {/* Prev */}
+                <button className="yt-arr prev" disabled={ytIdx === 0} onClick={ytPrev}>‹</button>
 
-          {/* Empty / error state */}
-          {!ytLoading && ytVideos.length === 0 && (
-            <div className="yt-grid" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr }}>
-              {[...Array(6)].map((_,i) => (
-                <div key={i} className="yt-card" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, cursor:"default" }}>
-                  <div className="yt-thumb">
-                    <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.1)", letterSpacing:"0.18em" }}>NO VIDEO</span>
-                    </div>
-                    <div className="yt-play" style={{ opacity:1 }}>
-                      <div className="yt-play-btn disabled">
-                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="yt-info">
-                    <div style={{ fontSize:11, color:c.textD, letterSpacing:"0.08em" }}>VIDEO UNAVAILABLE</div>
+                {/* Track window */}
+                <div className="yt-carousel-win">
+                  <div className="yt-carousel-track" style={{
+                    transform: `translateX(calc(${-ytIdx} * (${cardW} + 20px)))`,
+                  }}>
+                    {videos.map((v, idx) => {
+                      const empty = v._empty || !v.id;
+                      return (
+                        <div key={v.id || v._key || idx}
+                          className="yt-card"
+                          style={{ minWidth: cardW, "--card-bg":c.cardBg, "--card-br":c.cardBr, "--card-sh":c.cardSh,
+                            cursor: empty ? "default" : "pointer" }}
+                          onClick={() => !empty && setModalVideo(v)}
+                        >
+                          {/* Thumbnail */}
+                          <div className="yt-thumb">
+                            {!empty && v.thumbnail && (
+                              <img src={v.thumbnail} alt={v.title}
+                                onError={e => { e.currentTarget.style.display = "none"; }} />
+                            )}
+                            {empty && (
+                              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                <span style={{ fontSize:9, color:"rgba(255,255,255,0.1)", letterSpacing:"0.18em" }}>NO VIDEO</span>
+                              </div>
+                            )}
+                            {/* gradient + title overlay */}
+                            <div className="yt-thumb-grad" />
+                            {!empty && v.title && (
+                              <div className="yt-thumb-title">
+                                <div className="ttl">{v.title}</div>
+                              </div>
+                            )}
+                            {/* play button */}
+                            <div className="yt-play">
+                              <div className={`yt-play-btn${empty ? " disabled" : ""}`}>
+                                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                              </div>
+                            </div>
+                            {/* badges */}
+                            {!empty && <div className="yt-badge-yt">▶ YOUTUBE</div>}
+                            {!empty && v.duration && <div className="yt-badge-dur">{v.duration}</div>}
+                          </div>
+                          {/* Meta row */}
+                          <div className="yt-meta-row" style={{ color:c.textD }}>
+                            {empty ? (
+                              <span style={{ fontSize:10, letterSpacing:"0.1em" }}>UNAVAILABLE</span>
+                            ) : (
+                              <>
+                                <span style={{ color:"#ff5533" }}>▶ {Number(v.views||0).toLocaleString()}</span>
+                                <span>♥ {Number(v.likes||0).toLocaleString()}</span>
+                                {v.comments > 0 && <span>💬 {Number(v.comments).toLocaleString()}</span>}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+
+                {/* Next */}
+                <button className="yt-arr next" disabled={ytIdx >= maxIdx} onClick={() => ytNext(total)}>›</button>
+
+                {/* Dots */}
+                {total > 3 && (
+                  <div className="yt-dots">
+                    {videos.map((_, i) => (
+                      <button key={i} className="yt-dot"
+                        onClick={() => { ytPause(); setYtIdx(Math.min(i, maxIdx)); }}
+                        style={{
+                          background: ytIdx === i ? "#ff5533" : "rgba(255,255,255,0.18)",
+                          width: ytIdx === i ? 22 : 7,
+                          borderRadius: ytIdx === i ? 4 : "50%",
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Video modal */}
           {modalVideo && (
@@ -1075,7 +1149,7 @@ export default function LandingPage() {
           position:"absolute", inset:"-35% 0",
           backgroundImage:`url(${jajja2})`,
           backgroundSize:"cover", backgroundPosition:"center 30%",
-          opacity: theme === "dark" ? 0.13 : 0.07,
+          opacity: theme === "dark" ? 0.30 : 0.10,
           willChange:"transform", transform:"scale(1.35)",
           pointerEvents:"none",
         }} />
@@ -1135,7 +1209,7 @@ export default function LandingPage() {
           position:"absolute", inset:"-35% 0",
           backgroundImage:`url(${jajja1})`,
           backgroundSize:"cover", backgroundPosition:"center 20%",
-          opacity: theme === "dark" ? 0.14 : 0.08,
+          opacity: theme === "dark" ? 0.32 : 0.11,
           willChange:"transform", transform:"scale(1.35)",
           pointerEvents:"none",
         }} />
