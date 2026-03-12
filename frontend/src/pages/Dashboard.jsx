@@ -1201,9 +1201,12 @@ export default function Dashboard() {
     return null;
   };
 
-  const filtered = videos.filter(
-    (v) => filter === "all" || v.status === filter,
-  );
+  const filtered = videos.filter((v) => {
+    if (filter === "all") return true;
+    if (filter === "mp4") return !!v.file_path;
+    if (filter === "mp3") return !!v.narration_url;
+    return v.status === filter;
+  });
   const sc = (s) => STATUS[s] || STATUS.failed;
 
   return (
@@ -2459,22 +2462,42 @@ export default function Dashboard() {
                   >
                     FILTER
                   </span>
-                  {["all", "posted", "ready", "generating", "failed"].map(
-                    (f) => (
-                      <button
-                        key={f}
-                        className={`filter-btn ${filter === f ? "active" : ""}`}
-                        onClick={() => setFilter(f)}
-                      >
-                        {f.toUpperCase()}
-                        {f !== "all" && (
-                          <span style={{ marginLeft: 5, opacity: 0.5 }}>
-                            {videos.filter((v) => v.status === f).length}
-                          </span>
-                        )}
-                      </button>
-                    ),
-                  )}
+                  {["all", "posted", "ready", "generating", "failed"].map((f) => (
+                    <button
+                      key={f}
+                      className={`filter-btn ${filter === f ? "active" : ""}`}
+                      onClick={() => setFilter(f)}
+                    >
+                      {f.toUpperCase()}
+                      {f !== "all" && (
+                        <span style={{ marginLeft: 5, opacity: 0.5 }}>
+                          {videos.filter((v) => v.status === f).length}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                  {/* Type separator */}
+                  <span style={{ width: 1, height: 16, background: T.border, alignSelf: "center", flexShrink: 0 }} />
+                  <button
+                    className={`filter-btn ${filter === "mp4" ? "active" : ""}`}
+                    onClick={() => setFilter("mp4")}
+                    style={filter === "mp4" ? { background: "rgba(0,160,220,0.1)", borderColor: "rgba(0,160,220,0.35)", color: T.accent } : {}}
+                  >
+                    ▶ MP4
+                    <span style={{ marginLeft: 5, opacity: 0.5 }}>
+                      {videos.filter((v) => !!v.file_path).length}
+                    </span>
+                  </button>
+                  <button
+                    className={`filter-btn ${filter === "mp3" ? "active" : ""}`}
+                    onClick={() => setFilter("mp3")}
+                    style={filter === "mp3" ? { background: "rgba(29,185,84,0.1)", borderColor: "rgba(29,185,84,0.35)", color: "#1db954" } : {}}
+                  >
+                    ♪ MP3
+                    <span style={{ marginLeft: 5, opacity: 0.5 }}>
+                      {videos.filter((v) => !!v.narration_url).length}
+                    </span>
+                  </button>
                 </div>
 
                 {/* Video list */}
@@ -2501,6 +2524,10 @@ export default function Dashboard() {
                   >
                     {filter === "all"
                       ? "NO VIDEOS YET — GENERATE YOUR FIRST VIDEO ABOVE"
+                      : filter === "mp4"
+                      ? "NO MP4 FILES READY YET"
+                      : filter === "mp3"
+                      ? "NO MP3 FILES YET — MP3 IS GENERATED ALONGSIDE EACH VIDEO"
                       : `NO ${filter.toUpperCase()} VIDEOS`}
                   </div>
                 ) : (
