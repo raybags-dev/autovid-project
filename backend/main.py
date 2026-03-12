@@ -2,7 +2,7 @@
 AutoVid — FastAPI Backend
 Main application entry point with all API routes.
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -1927,6 +1927,231 @@ def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: Backgroun
 
     background_tasks.add_task(do_upload)
     return {"message": "TikTok upload started", "video_id": video_id}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BLOG / PUBLIC COMMENTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+import hashlib as _hashlib
+import time as _time
+from collections import defaultdict as _defaultdict
+
+# Simple in-memory rate limiter: ip → list of timestamps
+_blog_rate: dict = _defaultdict(list)
+_BLOG_RATE_LIMIT = 3   # max comments per IP
+_BLOG_RATE_WINDOW = 3600  # seconds (1 hour)
+
+def _check_blog_rate(ip: str) -> bool:
+    """Returns True if allowed, False if rate-limited."""
+    now = _time.time()
+    _blog_rate[ip] = [t for t in _blog_rate[ip] if now - t < _BLOG_RATE_WINDOW]
+    if len(_blog_rate[ip]) >= _BLOG_RATE_LIMIT:
+        return False
+    _blog_rate[ip].append(now)
+    return True
+
+def _profanity_check(text: str) -> bool:
+    """Returns True if text contains profanity."""
+    try:
+        from better_profanity import profanity
+        profanity.load_censor_words()
+        return profanity.contains_profanity(text)
+    except ImportError:
+        # Fallback basic list
+        BAD = ["fuck","shit","bitch","asshole","cunt","nigger","faggot","retard","whore","slut"]
+        lower = text.lower()
+        return any(w in lower for w in BAD)
+
+class BlogCommentIn(BaseModel):
+    name: str
+    email: Optional[str] = None
+    content: str
+    fingerprint: str
+
+class BlogLikeIn(BaseModel):
+    fingerprint: str
+
+class BlogRejectIn(BaseModel):
+    reason: str
+
+class BlogReplyIn(BaseModel):
+    content: str
+
+@app.get("/blog/comments")
+async def get_blog_comments(page: int = 1, limit: int = 20, fp: str = ""):
+    db_client = db.get_client()
+    offset = (page - 1) * limit
+    # Top-level approved comments
+    res = (db_client.table("blog_comments")
+             .select("*")
+             .eq("status", "approved")
+             .is_("parent_id", "null")
+             .order("created_at", desc=True)
+             .range(offset, offset + limit - 1)
+             .execute())
+    comments = res.data or []
+    comment_ids = [c["id"] for c in comments]
+
+    # Fetch approved replies for these comments
+    replies_map: dict = {}
+    if comment_ids:
+        rep_res = (db_client.table("blog_comments")
+                     .select("*")
+                     .eq("status", "approved")
+                     .in_("parent_id", comment_ids)
+                     .order("created_at", desc=False)
+                     .execute())
+        for r in (rep_res.data or []):
+            replies_map.setdefault(r["parent_id"], []).append(r)
+
+    # Fetch which comments this fingerprint already liked
+    liked_ids: set = set()
+    if fp:
+        lk_res = (db_client.table("blog_comment_likes")
+                    .select("comment_id")
+                    .eq("liker_fingerprint", fp)
+                    .execute())
+        liked_ids = {r["comment_id"] for r in (lk_res.data or [])}
+
+    # Count total
+    cnt = db_client.table("blog_comments").select("id", count="exact").eq("status", "approved").is_("parent_id", "null").execute()
+    total = cnt.count or 0
+
+    for c in comments:
+        c["replies"] = replies_map.get(c["id"], [])
+        c["liked_by_me"] = c["id"] in liked_ids
+        # strip private fields
+        c.pop("ip_hash", None)
+        c.pop("commenter_fingerprint", None)
+        c.pop("email", None)
+        for r in c["replies"]:
+            r.pop("ip_hash", None)
+            r.pop("commenter_fingerprint", None)
+            r.pop("email", None)
+
+    return {"comments": comments, "total": total, "page": page, "limit": limit}
+
+
+@app.post("/blog/comments")
+async def submit_blog_comment(body: BlogCommentIn, request: Request):
+    name = body.name.strip()
+    content = body.content.strip()
+    if len(name) < 2:
+        raise HTTPException(400, "Name must be at least 2 characters")
+    if len(content) < 5 or len(content) > 2000:
+        raise HTTPException(400, "Comment must be 5–2000 characters")
+    if _profanity_check(name) or _profanity_check(content):
+        raise HTTPException(400, "Your comment contains inappropriate language. Please keep it respectful.")
+
+    ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    ip_hash = _hashlib.sha256(ip.encode()).hexdigest()[:16]
+    if not _check_blog_rate(ip_hash):
+        raise HTTPException(429, "Too many comments. Please wait before submitting again.")
+
+    db_client = db.get_client()
+    row = {
+        "name": name[:80],
+        "email": (body.email or "")[:120] or None,
+        "content": content,
+        "status": "pending",
+        "commenter_fingerprint": body.fingerprint[:64] if body.fingerprint else None,
+        "ip_hash": ip_hash,
+    }
+    res = db_client.table("blog_comments").insert(row).execute()
+    return {"id": res.data[0]["id"], "status": "pending", "message": "Comment submitted for review. Thank you!"}
+
+
+@app.post("/blog/comments/{comment_id}/like")
+async def like_blog_comment(comment_id: str, body: BlogLikeIn):
+    if not body.fingerprint:
+        raise HTTPException(400, "Fingerprint required")
+    db_client = db.get_client()
+    # Get comment
+    c = db_client.table("blog_comments").select("id,likes_count,commenter_fingerprint,status").eq("id", comment_id).execute()
+    if not c.data:
+        raise HTTPException(404, "Comment not found")
+    comment = c.data[0]
+    if comment["status"] != "approved":
+        raise HTTPException(400, "Cannot like unapproved comment")
+    if comment.get("commenter_fingerprint") == body.fingerprint:
+        raise HTTPException(400, "You cannot like your own comment")
+    # Toggle like
+    existing = db_client.table("blog_comment_likes").select("id").eq("comment_id", comment_id).eq("liker_fingerprint", body.fingerprint).execute()
+    if existing.data:
+        # Unlike
+        db_client.table("blog_comment_likes").delete().eq("comment_id", comment_id).eq("liker_fingerprint", body.fingerprint).execute()
+        new_count = max(0, (comment["likes_count"] or 0) - 1)
+        db_client.table("blog_comments").update({"likes_count": new_count}).eq("id", comment_id).execute()
+        return {"liked": False, "likes_count": new_count}
+    else:
+        # Like
+        db_client.table("blog_comment_likes").insert({"comment_id": comment_id, "liker_fingerprint": body.fingerprint}).execute()
+        new_count = (comment["likes_count"] or 0) + 1
+        db_client.table("blog_comments").update({"likes_count": new_count}).eq("id", comment_id).execute()
+        return {"liked": True, "likes_count": new_count}
+
+
+# ── ADMIN BLOG ROUTES ─────────────────────────────────────────────────────────
+
+@app.get("/admin/blog/comments")
+async def admin_get_comments(status: str = "pending", page: int = 1, limit: int = 50, _u=Depends(verify_token)):
+    db_client = db.get_client()
+    offset = (page - 1) * limit
+    q = db_client.table("blog_comments").select("*").order("created_at", desc=True).range(offset, offset + limit - 1)
+    if status != "all":
+        q = q.eq("status", status)
+    res = q.execute()
+    # count
+    cq = db_client.table("blog_comments").select("id", count="exact")
+    if status != "all":
+        cq = cq.eq("status", status)
+    cnt = cq.execute()
+    # pending count always useful
+    pending_cnt = db_client.table("blog_comments").select("id", count="exact").eq("status", "pending").execute()
+    return {"comments": res.data or [], "total": cnt.count or 0, "pending_count": pending_cnt.count or 0}
+
+
+@app.post("/admin/blog/comments/{comment_id}/approve")
+async def admin_approve_comment(comment_id: str, _u=Depends(verify_token)):
+    db_client = db.get_client()
+    db_client.table("blog_comments").update({"status": "approved", "rejection_reason": None}).eq("id", comment_id).execute()
+    return {"ok": True}
+
+
+@app.post("/admin/blog/comments/{comment_id}/reject")
+async def admin_reject_comment(comment_id: str, body: BlogRejectIn, _u=Depends(verify_token)):
+    db_client = db.get_client()
+    db_client.table("blog_comments").update({"status": "rejected", "rejection_reason": body.reason}).eq("id", comment_id).execute()
+    return {"ok": True}
+
+
+@app.delete("/admin/blog/comments/{comment_id}")
+async def admin_delete_comment(comment_id: str, _u=Depends(verify_token)):
+    db_client = db.get_client()
+    db_client.table("blog_comments").delete().eq("id", comment_id).execute()
+    return {"ok": True}
+
+
+@app.post("/admin/blog/comments/{comment_id}/reply")
+async def admin_reply_comment(comment_id: str, body: BlogReplyIn, _u=Depends(verify_token)):
+    content = body.content.strip()
+    if len(content) < 2 or len(content) > 2000:
+        raise HTTPException(400, "Reply must be 2–2000 characters")
+    db_client = db.get_client()
+    # Verify parent exists
+    parent = db_client.table("blog_comments").select("id").eq("id", comment_id).execute()
+    if not parent.data:
+        raise HTTPException(404, "Comment not found")
+    row = {
+        "name": "4Life Mystery",
+        "content": content,
+        "status": "approved",
+        "is_admin_reply": True,
+        "parent_id": comment_id,
+    }
+    res = db_client.table("blog_comments").insert(row).execute()
+    return res.data[0]
 
 
 if __name__ == "__main__":

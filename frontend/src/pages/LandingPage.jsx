@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
@@ -25,6 +25,7 @@ const SECTIONS = [
   { id: "podcast",   label: "PODCAST" },
   { id: "topics",    label: "TOPICS" },
   { id: "community", label: "COMMUNITY" },
+  { id: "blog", label: "BLOG" },
 ];
 
 const CAROUSEL = [
@@ -115,6 +116,198 @@ const LIGHT = {
   togBr:     "rgba(0,0,0,0.12)",
   togText:   "#556677",
 };
+
+function BlogSection({ c, theme }) {
+  const FP_KEY = "blog_fp";
+  const getOrCreateFP = () => {
+    let fp = localStorage.getItem(FP_KEY);
+    if (!fp) { fp = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now(); localStorage.setItem(FP_KEY, fp); }
+    return fp;
+  };
+
+  const [comments, setComments] = React.useState([]);
+  const [total, setTotal] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [page, setPage] = React.useState(1);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [form, setForm] = React.useState({ name: "", email: "", content: "" });
+  const [formError, setFormError] = React.useState("");
+  const [formSuccess, setFormSuccess] = React.useState("");
+  const [likingId, setLikingId] = React.useState(null);
+  const [replyOpen, setReplyOpen] = React.useState(null); // comment id with open reply thread
+
+  const fp = getOrCreateFP();
+
+  const load = async (p = 1) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/blog/comments?page=${p}&limit=20&fp=${fp}`);
+      const data = await res.json();
+      setComments(data.comments || []);
+      setTotal(data.total || 0);
+      setPage(p);
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  React.useEffect(() => { load(1); }, []); // eslint-disable-line
+
+  const handleSubmit = async () => {
+    setFormError(""); setFormSuccess("");
+    if (!form.name.trim() || !form.content.trim()) { setFormError("Name and comment are required."); return; }
+    if (form.content.trim().length < 5) { setFormError("Comment too short."); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/blog/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, fingerprint: fp })
+      });
+      const data = await res.json();
+      if (!res.ok) { setFormError(data.detail || "Submission failed."); return; }
+      setFormSuccess("✓ Comment submitted! It will appear after review.");
+      setForm({ name: "", email: "", content: "" });
+    } catch(e) { setFormError("Network error. Please try again."); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleLike = async (commentId) => {
+    if (likingId) return;
+    setLikingId(commentId);
+    try {
+      const res = await fetch(`/api/blog/comments/${commentId}/like`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fingerprint: fp })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setComments(prev => prev.map(c => c.id === commentId ? { ...c, likes_count: data.likes_count, liked_by_me: data.liked } : c));
+      }
+    } catch(e) {}
+    finally { setLikingId(null); }
+  };
+
+  const formatDate = (iso) => {
+    const d = new Date(iso);
+    const diff = (Date.now() - d) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const isDark = theme === "dark";
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto" }}>
+      <span style={{ fontSize: 10, color: "#ff6633", letterSpacing: "0.22em", marginBottom: 14, display: "block" }}>COMMUNITY</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 48, flexWrap: "wrap", gap: 16 }}>
+        <h2 className="syne" style={{ fontWeight: 800, fontSize: "clamp(26px,4vw,40px)", color: c.text, lineHeight: 1.15 }}>
+          What's on <span className="grad-fire">your mind?</span>
+        </h2>
+        <span style={{ fontSize: 11, color: c.textM }}>{total} comment{total !== 1 ? "s" : ""}</span>
+      </div>
+
+      {/* Submit form */}
+      <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 16, padding: "28px 28px 24px", marginBottom: 48, boxShadow: c.cardSh }}>
+        <div style={{ fontSize: 11, color: c.textM, letterSpacing: "0.1em", marginBottom: 20 }}>LEAVE A COMMENT</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <input placeholder="Your name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+            style={{ padding: "11px 14px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 10, color: c.text, fontFamily: "inherit", fontSize: 13, outline: "none" }} />
+          <input placeholder="Email (optional)" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+            style={{ padding: "11px 14px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 10, color: c.text, fontFamily: "inherit", fontSize: 13, outline: "none" }} />
+        </div>
+        <textarea placeholder="Share your thoughts, questions, or feedback…" value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
+          rows={4} style={{ display: "block", width: "100%", padding: "11px 14px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 10, color: c.text, fontFamily: "inherit", fontSize: 13, outline: "none", resize: "vertical", marginBottom: 14 }} />
+        {formError && <div style={{ color: "#ff6060", fontSize: 12, marginBottom: 10 }}>⚠ {formError}</div>}
+        {formSuccess && <div style={{ color: "#1db954", fontSize: 12, marginBottom: 10 }}>{formSuccess}</div>}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: c.textD }}>Comments are reviewed before appearing.</span>
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ padding: "10px 22px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontSize: 12, fontWeight: 500, letterSpacing: "0.1em", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? "SENDING…" : "POST COMMENT →"}
+          </button>
+        </div>
+      </div>
+
+      {/* Comments list */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 40, color: c.textD, letterSpacing: "0.1em", fontSize: 11 }}>LOADING…</div>
+      ) : comments.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 60, color: c.textD, fontSize: 12, letterSpacing: "0.1em" }}>BE THE FIRST TO COMMENT</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {comments.map(comment => (
+            <div key={comment.id} style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "22px 24px", boxShadow: c.cardSh, position: "relative" }}>
+              {/* Top accent line */}
+              <div style={{ position: "absolute", top: 0, left: 24, right: 24, height: 2, background: "linear-gradient(90deg, rgba(255,80,30,0.25), transparent)", borderRadius: 2 }} />
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                {/* Avatar */}
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: `hsl(${comment.name.charCodeAt(0) * 13 % 360},50%,30%)`, border: "1px solid rgba(255,80,30,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
+                  {comment.name[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                    <span className="syne" style={{ fontWeight: 700, fontSize: 14, color: c.text }}>{comment.name}</span>
+                    <span style={{ fontSize: 10, color: c.textD }}>{formatDate(comment.created_at)}</span>
+                  </div>
+                  <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.75, margin: 0, marginBottom: 14 }}>{comment.content}</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <button onClick={() => handleLike(comment.id)} disabled={likingId === comment.id}
+                      style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: comment.liked_by_me ? "#ff5533" : c.textD, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
+                      <span style={{ fontSize: 14 }}>{comment.liked_by_me ? "♥" : "♡"}</span>
+                      <span>{comment.likes_count}</span>
+                    </button>
+                    {comment.replies?.length > 0 && (
+                      <button onClick={() => setReplyOpen(replyOpen === comment.id ? null : comment.id)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: c.textD, fontSize: 11, fontFamily: "inherit", padding: 0 }}>
+                        {replyOpen === comment.id ? "▾ HIDE REPLIES" : `▸ ${comment.replies.length} REPL${comment.replies.length === 1 ? "Y" : "IES"}`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Replies */}
+              {replyOpen === comment.id && comment.replies?.length > 0 && (
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${c.cardBr}`, display: "flex", flexDirection: "column", gap: 14 }}>
+                  {comment.replies.map(reply => (
+                    <div key={reply.id} style={{ display: "flex", gap: 12, paddingLeft: 16, borderLeft: `2px solid ${reply.is_admin_reply ? "rgba(255,80,30,0.4)" : "rgba(255,255,255,0.08)"}` }}>
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: reply.is_admin_reply ? "linear-gradient(135deg,#cc2200,#ff5533)" : `hsl(${reply.name.charCodeAt(0)*13%360},45%,28%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
+                        {reply.name[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                          <span className="syne" style={{ fontWeight: 700, fontSize: 12, color: reply.is_admin_reply ? "#ff7755" : c.text }}>{reply.name}</span>
+                          {reply.is_admin_reply && <span style={{ fontSize: 8, background: "rgba(255,80,30,0.15)", color: "#ff7755", padding: "1px 6px", borderRadius: 10, letterSpacing: "0.1em" }}>CREATOR</span>}
+                          <span style={{ fontSize: 10, color: c.textD }}>{formatDate(reply.created_at)}</span>
+                        </div>
+                        <p style={{ fontSize: 12, color: c.textM, lineHeight: 1.7, margin: 0 }}>{reply.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Pagination */}
+          {total > 20 && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 12 }}>
+              {page > 1 && (
+                <button onClick={() => load(page - 1)} style={{ padding: "8px 18px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>← PREV</button>
+              )}
+              {page * 20 < total && (
+                <button onClick={() => load(page + 1)} style={{ padding: "8px 18px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>NEXT →</button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LandingPage() {
   const [theme,         setTheme]         = useState("dark");
@@ -1279,6 +1472,11 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* ══ BLOG / COMMUNITY COMMENTS ═════════════════════════════════════════════ */}
+      <section id="blog" style={{ padding:"100px 20px 110px", background:c.bgAlt, borderTop:`1px solid ${c.secBr}` }}>
+        <BlogSection c={c} theme={theme} />
       </section>
 
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}

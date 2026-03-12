@@ -482,6 +482,13 @@ export default function Dashboard() {
   const [shortsUploading, setShortsUploading] = useState({});
   const shortsOffsetRef = useRef(0);
   const shortsListRef = useRef(null);
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
+  const [reviewsTab, setReviewsTab] = useState("pending"); // pending | approved | rejected | all
+  const [reviewComments, setReviewComments] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewTotal, setReviewTotal] = useState(0);
+  const [rejectModal, setRejectModal] = useState(null); // { id, reason }
+  const [replyModal, setReplyModal] = useState(null); // { id, content }
   const T = isDark ? THEMES.dark : THEMES.light;
 
   const toggleTheme = () => {
@@ -793,6 +800,32 @@ export default function Dashboard() {
   useEffect(() => {
     if (tab === "channel") setChannelVisible(24);
   }, [tab]);
+
+  const loadReviews = async (statusFilter = "pending") => {
+    setReviewsLoading(true);
+    try {
+      const r = await api.get(`/admin/blog/comments?status=${statusFilter}&limit=50`);
+      setReviewComments(r.data.comments || []);
+      setReviewTotal(r.data.total || 0);
+      setPendingReviewCount(r.data.pending_count || 0);
+    } catch(e) {
+      showToast("Failed to load reviews", "error");
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab !== "reviews") return;
+    loadReviews(reviewsTab);
+  }, [tab, reviewsTab]); // eslint-disable-line
+
+  // Fetch pending review count on initial load
+  useEffect(() => {
+    api.get("/admin/blog/comments?status=pending&limit=1")
+      .then(r => setPendingReviewCount(r.data.pending_count || 0))
+      .catch(() => {});
+  }, []); // eslint-disable-line
 
   // Settings tab — load auto-reply + auto-generate + auto-short
   useEffect(() => {
@@ -1517,6 +1550,7 @@ export default function Dashboard() {
               { id: "billing", icon: "◑", label: "Subscriptions" },
               { id: "analytics", icon: "◈", label: "Analytics" },
               { id: "compilations", icon: "🎬", label: "Compilations" },
+              { id: "reviews", icon: "◈", label: "Reviews", count: pendingReviewCount },
               { id: "settings", icon: "◎", label: "Settings" },
             ].map((n) => (
               <div
@@ -1716,6 +1750,8 @@ export default function Dashboard() {
                 ? "Compilations"
                 : tab === "analytics"
                 ? "Analytics"
+                : tab === "reviews"
+                ? "Reviews"
                 : "Settings"}
             </div>
             <div
@@ -7395,6 +7431,142 @@ export default function Dashboard() {
                   ))}
                 </div>{/* end RIGHT COLUMN */}
 
+              </div>
+            )}
+
+            {tab === "reviews" && (
+              <div style={{ padding: "28px 0" }}>
+                {/* Filter tabs */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
+                  {[
+                    { id: "pending", label: "PENDING", color: "#f59e0b" },
+                    { id: "approved", label: "APPROVED", color: T.accentGreen },
+                    { id: "rejected", label: "REJECTED", color: "#ef4444" },
+                    { id: "all", label: "ALL", color: T.accent },
+                  ].map(s => (
+                    <button key={s.id} onClick={() => setReviewsTab(s.id)}
+                      style={{ padding: "6px 16px", borderRadius: 8, border: `1px solid ${reviewsTab === s.id ? s.color + "55" : T.border}`, background: reviewsTab === s.id ? s.color + "18" : "transparent", color: reviewsTab === s.id ? s.color : T.textDim, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+                      {s.label}
+                    </button>
+                  ))}
+                  <span style={{ marginLeft: "auto", fontSize: 11, color: T.textDim, alignSelf: "center" }}>{reviewTotal} result{reviewTotal !== 1 ? "s" : ""}</span>
+                </div>
+
+                {reviewsLoading ? (
+                  <div style={{ textAlign: "center", padding: 60, color: T.textFaint, letterSpacing: "0.12em", fontSize: 11 }}>LOADING…</div>
+                ) : reviewComments.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: 60, color: T.textFaint, fontSize: 12, letterSpacing: "0.1em" }}>NO {reviewsTab.toUpperCase()} COMMENTS</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {reviewComments.map(c => (
+                      <div key={c.id} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "18px 20px", position: "relative" }}>
+                        {/* Status badge */}
+                        <div style={{ position: "absolute", top: 14, right: 16, display: "flex", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, letterSpacing: "0.1em", fontWeight: 700,
+                            background: c.status === "approved" ? "rgba(29,185,84,0.15)" : c.status === "rejected" ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
+                            color: c.status === "approved" ? T.accentGreen : c.status === "rejected" ? "#ef4444" : "#f59e0b" }}>
+                            {c.status.toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* Header */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                          <div style={{ width: 34, height: 34, borderRadius: "50%", background: `hsl(${c.name.charCodeAt(0)*13%360},45%,28%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                            {c.name[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: T.text, display: "flex", alignItems: "center", gap: 8 }}>
+                              {c.name}
+                              {c.is_admin_reply && <span style={{ fontSize: 8, background: "rgba(0,160,220,0.15)", color: T.accent, padding: "1px 6px", borderRadius: 10, letterSpacing: "0.1em" }}>ADMIN REPLY</span>}
+                            </div>
+                            <div style={{ fontSize: 10, color: T.textDim, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                              {c.email && <span>✉ {c.email}</span>}
+                              <span>{new Date(c.created_at).toLocaleString()}</span>
+                              {c.ip_hash && <span style={{ opacity: 0.5 }}>ip:{c.ip_hash}</span>}
+                              <span>♥ {c.likes_count}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <p style={{ fontSize: 13, color: T.textMid, lineHeight: 1.75, margin: "0 0 14px", padding: "12px 16px", background: T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                          {c.content}
+                        </p>
+
+                        {/* Rejection reason */}
+                        {c.status === "rejected" && c.rejection_reason && (
+                          <div style={{ fontSize: 11, color: "#ef4444", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                            Rejection reason: {c.rejection_reason}
+                          </div>
+                        )}
+
+                        {/* Inline reject form */}
+                        {rejectModal?.id === c.id && (
+                          <div style={{ marginBottom: 12, display: "flex", gap: 8 }}>
+                            <input autoFocus placeholder="Reason for rejection…"
+                              value={rejectModal.reason} onChange={e => setRejectModal(m => ({ ...m, reason: e.target.value }))}
+                              style={{ flex: 1, padding: "8px 12px", background: T.bg, border: `1px solid rgba(239,68,68,0.35)`, borderRadius: 8, color: T.text, fontFamily: "inherit", fontSize: 12, outline: "none" }} />
+                            <button onClick={async () => {
+                                await api.post(`/admin/blog/comments/${c.id}/reject`, { reason: rejectModal.reason });
+                                setRejectModal(null); showToast("Comment rejected"); loadReviews(reviewsTab);
+                              }} style={{ padding: "8px 14px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 8, color: "#ef4444", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                              CONFIRM
+                            </button>
+                            <button onClick={() => setRejectModal(null)} style={{ padding: "8px 14px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.textDim, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>CANCEL</button>
+                          </div>
+                        )}
+
+                        {/* Inline reply form */}
+                        {replyModal?.id === c.id && (
+                          <div style={{ marginBottom: 12, display: "flex", gap: 8 }}>
+                            <textarea autoFocus placeholder="Your reply…" rows={2}
+                              value={replyModal.content} onChange={e => setReplyModal(m => ({ ...m, content: e.target.value }))}
+                              style={{ flex: 1, padding: "8px 12px", background: T.bg, border: `1px solid ${T.accent}44`, borderRadius: 8, color: T.text, fontFamily: "inherit", fontSize: 12, outline: "none", resize: "vertical" }} />
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              <button onClick={async () => {
+                                  if (!replyModal.content.trim()) return;
+                                  await api.post(`/admin/blog/comments/${c.id}/reply`, { content: replyModal.content });
+                                  setReplyModal(null); showToast("Reply posted"); loadReviews(reviewsTab);
+                                }} style={{ padding: "8px 14px", background: `${T.accent}18`, border: `1px solid ${T.accent}44`, borderRadius: 8, color: T.accent, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                                POST
+                              </button>
+                              <button onClick={() => setReplyModal(null)} style={{ padding: "8px 14px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.textDim, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action buttons */}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {c.status !== "approved" && (
+                            <button onClick={async () => { await api.post(`/admin/blog/comments/${c.id}/approve`); showToast("Approved!"); loadReviews(reviewsTab); }}
+                              style={{ padding: "6px 14px", background: "rgba(29,185,84,0.12)", border: "1px solid rgba(29,185,84,0.3)", borderRadius: 7, color: T.accentGreen, fontSize: 10, letterSpacing: "0.08em", cursor: "pointer", fontFamily: "inherit" }}>
+                              ✓ APPROVE
+                            </button>
+                          )}
+                          {c.status !== "rejected" && !c.is_admin_reply && (
+                            <button onClick={() => setRejectModal({ id: c.id, reason: "" })}
+                              style={{ padding: "6px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 7, color: "#ef4444", fontSize: 10, letterSpacing: "0.08em", cursor: "pointer", fontFamily: "inherit" }}>
+                              ✕ REJECT
+                            </button>
+                          )}
+                          {!c.is_admin_reply && (
+                            <button onClick={() => setReplyModal({ id: c.id, content: "" })}
+                              style={{ padding: "6px 14px", background: `${T.accent}12`, border: `1px solid ${T.accent}30`, borderRadius: 7, color: T.accent, fontSize: 10, letterSpacing: "0.08em", cursor: "pointer", fontFamily: "inherit" }}>
+                              ↩ REPLY
+                            </button>
+                          )}
+                          <button onClick={async () => {
+                              if (!confirm("Delete this comment? This cannot be undone.")) return;
+                              await api.delete(`/admin/blog/comments/${c.id}`);
+                              showToast("Deleted"); loadReviews(reviewsTab);
+                            }} style={{ padding: "6px 14px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 7, color: T.textDim, fontSize: 10, letterSpacing: "0.08em", cursor: "pointer", fontFamily: "inherit" }}>
+                            ␡ DELETE
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
