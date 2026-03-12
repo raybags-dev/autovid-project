@@ -86,6 +86,13 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 BASE_URL             = os.getenv("BASE_URL", "https://4lifemystery.com")
 PODCAST_TITLE        = os.getenv("PODCAST_TITLE", "4Life Mystery Podcast")
 PODCAST_DESCRIPTION  = os.getenv("PODCAST_DESCRIPTION", "AI-generated mystery and unknown stories narrated for your ears")
+PODCAST_IMAGE_URL    = os.getenv("PODCAST_IMAGE_URL", "")          # 1400x1400 – 3000x3000 jpg/png, required by Spotify
+PODCAST_AUTHOR       = os.getenv("PODCAST_AUTHOR", "4Life Mystery")
+PODCAST_EMAIL        = os.getenv("PODCAST_EMAIL", "")              # shown as contact in Spotify for Podcasters
+PODCAST_CATEGORY     = os.getenv("PODCAST_CATEGORY", "Society &amp; Culture")   # iTunes category
+PODCAST_SUBCATEGORY  = os.getenv("PODCAST_SUBCATEGORY", "")        # optional iTunes sub-category
+PODCAST_LANGUAGE     = os.getenv("PODCAST_LANGUAGE", "en-us")
+PODCAST_EXPLICIT     = os.getenv("PODCAST_EXPLICIT", "no")         # yes / no / clean
 
 
 def validate():
