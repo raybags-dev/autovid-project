@@ -35,6 +35,10 @@ import api, {
   triggerAutoShort,
   uploadVideo,
   updateVideoMeta,
+  getPodcastSettings,
+  savePodcastSettings,
+  triggerAutoPodcast,
+  generatePodcastEpisode,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -870,6 +874,7 @@ export default function Dashboard() {
       })
       .catch(() => {});
     api.get("/auto-short/settings").then(r => setAutoShortSettings(r.data)).catch(() => {});
+    getPodcastSettings().then(r => setPodcastSettings(r)).catch(() => {});
     getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {});
     getSpotifyStatus().then(r => {
       setSpotifyConnected(r.connected);
@@ -924,6 +929,55 @@ export default function Dashboard() {
       showToast("Toggle failed", "error");
       setAutoShortSettings((s) => ({ ...s, enabled: !newVal }));
     }
+  };
+
+  const handlePodcastEnabledToggle = async () => {
+    const newVal = !podcastSettings.enabled;
+    setPodcastSettings((s) => ({ ...s, enabled: newVal }));
+    try {
+      await savePodcastSettings({ ...podcastSettings, enabled: newVal });
+      showToast(newVal ? "🎙 Auto-podcast enabled" : "⏸ Auto-podcast disabled");
+    } catch (e) {
+      showToast("Toggle failed", "error");
+      setPodcastSettings((s) => ({ ...s, enabled: !newVal }));
+    }
+  };
+
+  const _startPodcastPolling = (vid, topicLabel) => {
+    setPodcastJobId(vid);
+    setPodcastTopic(topicLabel || "");
+    setPodcastRunning(true);
+    setPodcastStep(1);
+    setPodcastLogs([]);
+    podcastLogLineRef.current = 0;
+
+    const stepMap = { generating:1, scripted:2, voiced:3, assembled:4, ready:5 };
+
+    const stepPoll = setInterval(async () => {
+      try {
+        const { data: st } = await api.get(`/videos/${vid}`);
+        if (st?.status) setPodcastStep(stepMap[st.status] ?? 1);
+        if (["ready","failed"].includes(st?.status)) {
+          clearInterval(stepPoll);
+          clearInterval(podcastLogPollRef.current);
+          setPodcastRunning(false);
+          if (st.status === "failed") showToast("Podcast episode failed", "error");
+          else { showToast("✅ Podcast episode ready!"); refresh(); }
+        }
+      } catch (e) {}
+    }, 4000);
+
+    podcastLogPollRef.current = setInterval(async () => {
+      try {
+        const { data: ld } = await api.get(`/videos/${vid}/logs?since=${podcastLogLineRef.current}`);
+        if (ld?.lines?.length > 0) {
+          podcastLogLineRef.current += ld.lines.length;
+          setPodcastLogs(prev => [...prev, ...ld.lines].slice(-300));
+          setTimeout(() => podcastLogsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+        }
+        if (ld?.done) clearInterval(podcastLogPollRef.current);
+      } catch (e) {}
+    }, 1500);
   };
 
   const handleRetry = async (id, e) => {
@@ -984,6 +1038,23 @@ export default function Dashboard() {
   const autoShortLogPollRef = useRef(null);
   const autoShortLogLineRef = useRef(0);
   const tabTimerRef = useRef(null);
+
+  // Podcast episode pipeline state
+  const [podcastSettings, setPodcastSettings] = useState(null);
+  const [podcastSaving, setPodcastSaving] = useState(false);
+  const [podcastRunning, setPodcastRunning] = useState(false);
+  const [podcastJobId, setPodcastJobId] = useState(null);
+  const [podcastTopic, setPodcastTopic] = useState("");
+  const [podcastStep, setPodcastStep] = useState(0);
+  const [podcastLogs, setPodcastLogs] = useState([]);
+  const [showPodcastLogs, setShowPodcastLogs] = useState(false);
+  const [showPodcastManual, setShowPodcastManual] = useState(false);
+  const [manualPodcastTopic, setManualPodcastTopic] = useState("");
+  const [manualPodcastEssay, setManualPodcastEssay] = useState("");
+  const [manualPodcastMusic, setManualPodcastMusic] = useState("ambient");
+  const podcastLogsEndRef = useRef(null);
+  const podcastLogPollRef = useRef(null);
+  const podcastLogLineRef = useRef(0);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 768);
@@ -7338,6 +7409,304 @@ export default function Dashboard() {
                   </div>
                 )}
 
+                {/* ── Auto-Podcast Settings ── */}
+                {podcastSettings && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>
+                      AUTO-PODCAST
+                    </div>
+                    <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px" }}>
+                      {/* Header row: icon + toggle */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 18 }}>🎙</span>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: T.text }}>Auto-Podcast</div>
+                            <div style={{ fontSize: 10, color: T.textFaint }}>LLM essay → TTS → ambient music → RSS feed</div>
+                          </div>
+                        </div>
+                        <div
+                          onClick={handlePodcastEnabledToggle}
+                          style={{
+                            width: 44, height: 24, borderRadius: 12,
+                            background: podcastSettings.enabled ? T.accentGreen : T.border,
+                            cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0,
+                          }}
+                        >
+                          <div style={{
+                            position: "absolute", top: 3,
+                            left: podcastSettings.enabled ? 23 : 3,
+                            width: 18, height: 18, borderRadius: "50%",
+                            background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                          }} />
+                        </div>
+                      </div>
+
+                      {/* Schedule: days */}
+                      <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>SCHEDULE</div>
+                      <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                        {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d,i) => (
+                          <button key={i}
+                            onClick={() => {
+                              const days = podcastSettings.days.includes(i)
+                                ? podcastSettings.days.filter(x => x !== i)
+                                : [...podcastSettings.days, i].sort();
+                              setPodcastSettings(s => ({ ...s, days }));
+                            }}
+                            style={{
+                              flex: 1, padding: "5px 0", borderRadius: 6,
+                              border: `1px solid ${podcastSettings.days.includes(i) ? T.accent + "80" : T.border}`,
+                              background: podcastSettings.days.includes(i) ? `${T.accent}15` : "transparent",
+                              color: podcastSettings.days.includes(i) ? T.accent : T.textFaint,
+                              fontSize: 9, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.06em",
+                            }}
+                          >{d}</button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 12 }}>
+                        {podcastSettings.days.length} days/week · runs at {podcastSettings.hour}:00 UTC
+                      </div>
+
+                      {/* Hour + music style */}
+                      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                        <div style={{ flex: "0 0 auto" }}>
+                          <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>HOUR (UTC)</div>
+                          <input
+                            type="number" min={0} max={23}
+                            value={podcastSettings.hour}
+                            onChange={e => setPodcastSettings(s => ({ ...s, hour: parseInt(e.target.value) || 0 }))}
+                            style={{
+                              width: 80, padding: "5px 8px", borderRadius: 6,
+                              background: T.bgDeep, border: `1px solid ${T.border}`,
+                              color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none",
+                            }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>BACKGROUND MUSIC</div>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                            {["ambient","cinematic","lofi","meditation","jazz","chill_electronic"].map(s => (
+                              <button key={s}
+                                onClick={() => setPodcastSettings(ps => ({ ...ps, music_style: s }))}
+                                style={{
+                                  padding: "5px 10px", borderRadius: 6,
+                                  border: `1px solid ${podcastSettings.music_style === s ? T.accent + "80" : T.border}`,
+                                  background: podcastSettings.music_style === s ? `${T.accent}15` : "transparent",
+                                  color: podcastSettings.music_style === s ? T.accent : T.textFaint,
+                                  fontSize: 10, fontFamily: "inherit", cursor: "pointer", textTransform: "capitalize",
+                                }}
+                              >{s.replace("_", " ")}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Save + Run Now buttons */}
+                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                        <button
+                          onClick={async () => {
+                            setPodcastSaving(true);
+                            try {
+                              await savePodcastSettings(podcastSettings);
+                              showToast("Podcast settings saved");
+                            } catch (e) {
+                              showToast("Failed to save", "error");
+                            } finally {
+                              setPodcastSaving(false);
+                            }
+                          }}
+                          style={{
+                            padding: "8px 14px", borderRadius: 7,
+                            border: `1px solid ${T.border}`, background: "transparent",
+                            color: T.textMid, fontSize: 11, fontFamily: "inherit",
+                            cursor: "pointer", letterSpacing: "0.06em",
+                          }}
+                        >
+                          {podcastSaving ? "Saving..." : "💾 Save Settings"}
+                        </button>
+                        <button
+                          disabled={podcastRunning}
+                          onClick={async () => {
+                            try {
+                              const res = await triggerAutoPodcast();
+                              const vid = res?.video_id;
+                              if (!vid) { showToast("Server did not return a video ID", "error"); return; }
+                              _startPodcastPolling(vid, res.topic || "");
+                              showToast("🎙 Auto-podcast started!");
+                            } catch (e) {
+                              showToast("Failed to start", "error");
+                            }
+                          }}
+                          style={{
+                            padding: "8px 14px", borderRadius: 7,
+                            border: `1px solid ${podcastRunning ? T.border : T.accentGreen + "60"}`,
+                            background: podcastRunning ? "transparent" : `${T.accentGreen}10`,
+                            color: podcastRunning ? T.textFaint : T.accentGreen,
+                            fontSize: 11, fontFamily: "inherit",
+                            cursor: podcastRunning ? "not-allowed" : "pointer", letterSpacing: "0.06em",
+                          }}
+                        >
+                          {podcastRunning ? "⚙ Running..." : "▶ Run Now"}
+                        </button>
+                        <button
+                          onClick={() => setShowPodcastManual(s => !s)}
+                          style={{
+                            padding: "8px 14px", borderRadius: 7,
+                            border: `1px solid ${T.border}`, background: "transparent",
+                            color: T.textMid, fontSize: 11, fontFamily: "inherit",
+                            cursor: "pointer", letterSpacing: "0.06em",
+                          }}
+                        >
+                          ✍ Custom Episode
+                        </button>
+                      </div>
+
+                      {/* Manual episode form */}
+                      {showPodcastManual && (
+                        <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12, marginBottom: 4 }}>
+                          <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 8 }}>CUSTOM EPISODE</div>
+                          <input
+                            placeholder="Topic (LLM will write the essay)…"
+                            value={manualPodcastTopic}
+                            onChange={e => setManualPodcastTopic(e.target.value)}
+                            style={{
+                              width: "100%", padding: "8px 10px", borderRadius: 7, marginBottom: 8,
+                              background: T.bgDeep, border: `1px solid ${T.border}`,
+                              color: T.text, fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+                            }}
+                          />
+                          <textarea
+                            placeholder="Or paste your own essay directly (skips LLM)…"
+                            value={manualPodcastEssay}
+                            onChange={e => setManualPodcastEssay(e.target.value)}
+                            rows={5}
+                            style={{
+                              width: "100%", padding: "8px 10px", borderRadius: 7, marginBottom: 8,
+                              background: T.bgDeep, border: `1px solid ${T.border}`,
+                              color: T.text, fontSize: 11, fontFamily: "inherit", outline: "none",
+                              resize: "vertical", boxSizing: "border-box",
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <div style={{ fontSize: 10, color: T.textFaint, flexShrink: 0 }}>Music:</div>
+                            {["ambient","cinematic","lofi","meditation","jazz","chill_electronic"].map(s => (
+                              <button key={s}
+                                onClick={() => setManualPodcastMusic(s)}
+                                style={{
+                                  padding: "4px 8px", borderRadius: 6, fontSize: 10, fontFamily: "inherit",
+                                  border: `1px solid ${manualPodcastMusic === s ? T.accent + "80" : T.border}`,
+                                  background: manualPodcastMusic === s ? `${T.accent}15` : "transparent",
+                                  color: manualPodcastMusic === s ? T.accent : T.textFaint,
+                                  cursor: "pointer", textTransform: "capitalize",
+                                }}
+                              >{s.replace("_", " ")}</button>
+                            ))}
+                            <button
+                              disabled={podcastRunning || (!manualPodcastTopic.trim() && !manualPodcastEssay.trim())}
+                              onClick={async () => {
+                                try {
+                                  const res = await generatePodcastEpisode({
+                                    topic: manualPodcastTopic || null,
+                                    essay: manualPodcastEssay || null,
+                                    music_style: manualPodcastMusic,
+                                  });
+                                  if (!res?.video_id) { showToast("No video ID returned", "error"); return; }
+                                  _startPodcastPolling(res.video_id, manualPodcastTopic);
+                                  setShowPodcastManual(false);
+                                  setManualPodcastTopic("");
+                                  setManualPodcastEssay("");
+                                  showToast("🎙 Custom podcast episode started!");
+                                } catch (e) {
+                                  showToast("Failed to start", "error");
+                                }
+                              }}
+                              style={{
+                                marginLeft: "auto", padding: "7px 16px", borderRadius: 7,
+                                border: `1px solid ${T.accent}60`,
+                                background: `${T.accent}10`, color: T.accent,
+                                fontSize: 11, fontFamily: "inherit", cursor: "pointer",
+                              }}
+                            >▶ Generate</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Progress panel */}
+                      {podcastRunning && (
+                        <div style={{ marginTop: 16, borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
+                          {podcastTopic && (
+                            <div style={{ fontSize: 11, color: T.textMid, marginBottom: 12, fontStyle: "italic" }}>
+                              "{podcastTopic}"
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: 14 }}>
+                            {["Essay","Voice","Music","Upload","Ready"].map((s, i) => {
+                              const done = i < podcastStep - 1, active = i === podcastStep - 1;
+                              return (
+                                <div key={s} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                                    <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <div style={{
+                                        width: 24, height: 24, borderRadius: "50%",
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        fontSize: 10, fontWeight: 700,
+                                        background: done ? T.accentGreen : active ? T.accent : T.bgDeep,
+                                        color: done || active ? "white" : T.textFaint,
+                                        transition: "all 0.4s",
+                                        boxShadow: active ? `0 0 14px ${T.accent}80` : "none", zIndex: 1,
+                                      }}>
+                                        {done ? "✓" : i + 1}
+                                      </div>
+                                    </div>
+                                    <div style={{
+                                      fontSize: 8, color: active ? T.accent : done ? T.accentGreen : T.textFaint,
+                                      letterSpacing: "0.06em", whiteSpace: "nowrap",
+                                    }}>
+                                      {s.toUpperCase()}
+                                    </div>
+                                  </div>
+                                  {i < 4 && (
+                                    <div style={{
+                                      flex: 1, height: 2,
+                                      background: done ? T.accentGreen : T.border,
+                                      margin: "0 3px", marginBottom: 18, transition: "background 0.4s",
+                                    }} />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              onClick={() => setShowPodcastLogs(true)}
+                              style={{
+                                flex: 1, padding: "6px 0", borderRadius: 6,
+                                border: `1px solid ${T.border}`, background: "transparent",
+                                color: T.textMid, fontSize: 10, fontFamily: "inherit",
+                                letterSpacing: "0.07em", cursor: "pointer",
+                              }}
+                            >📋 VIEW LOGS</button>
+                            <button
+                              onClick={() => {
+                                clearInterval(podcastLogPollRef.current);
+                                setPodcastRunning(false);
+                                setPodcastStep(0);
+                                showToast("Cancelled", "error");
+                              }}
+                              style={{
+                                padding: "6px 12px", borderRadius: 6,
+                                border: `1px solid ${T.accentRed}40`, background: `${T.accentRed}08`,
+                                color: T.accentRed, fontSize: 10, fontFamily: "inherit",
+                                cursor: "pointer", letterSpacing: "0.07em",
+                              }}
+                            >🛑 CANCEL</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── TikTok Connect ── */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>TIKTOK</div>
@@ -7723,6 +8092,36 @@ export default function Dashboard() {
 
               </div>
             )}
+
+                {/* Podcast log modal */}
+                {showPodcastLogs && (
+                  <div
+                    onClick={() => setShowPodcastLogs(false)}
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+                  >
+                    <div
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: "100%", maxWidth: 700, maxHeight: "70vh", background: "#0a0a0f", border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden" }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: `1px solid ${T.border}` }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: T.text, letterSpacing: "0.1em" }}>PODCAST PIPELINE LOGS</div>
+                        <button onClick={() => setShowPodcastLogs(false)} style={{ background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 18 }}>✕</button>
+                      </div>
+                      <div style={{ flex: 1, overflowY: "auto", padding: "12px 18px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
+                        {podcastLogs.length === 0 ? (
+                          <div style={{ color: T.textFaint }}>Waiting for pipeline output...</div>
+                        ) : (
+                          podcastLogs.map((line, i) => (
+                            <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : "#a0d0a0" }}>
+                              {line}
+                            </div>
+                          ))
+                        )}
+                        <div ref={podcastLogsEndRef} />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Auto-short log modal */}
                 {showAutoShortLogs && (
