@@ -7558,6 +7558,13 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
+                          {/* Parent context — shown when this is a reply */}
+                          {c.parent_snippet && (
+                            <div style={{ fontSize: 10, color: T.textDim, background: T.bg, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.accent}55`, borderRadius: "0 6px 6px 0", padding: "6px 10px", marginBottom: 8, display: "flex", gap: 6, alignItems: "flex-start" }}>
+                              <span style={{ flexShrink: 0, opacity: 0.6 }}>↩</span>
+                              <span><span style={{ fontWeight: 700, color: T.textMid }}>{c.parent_snippet.name}</span>: "{c.parent_snippet.content}{c.parent_snippet.content.length >= 120 ? "…" : ""}"</span>
+                            </div>
+                          )}
                           <p style={{ fontSize: 12, color: T.textMid, lineHeight: 1.7, margin: "0 0 12px", padding: "10px 14px", background: T.bg, borderRadius: 7, border: `1px solid ${T.border}` }}>
                             {c.content}
                           </p>

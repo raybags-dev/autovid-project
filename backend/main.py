@@ -2142,6 +2142,22 @@ async def admin_get_comments(status: str = "pending", page: int = 1, limit: int 
     if status != "all":
         q = q.eq("status", status)
     res = q.execute()
+    comments = res.data or []
+
+    # Attach parent_snippet for replies so admin knows which comment they're responding to
+    parent_ids = list({c["parent_id"] for c in comments if c.get("parent_id")})
+    parent_map: dict = {}
+    if parent_ids:
+        parents = (db_client.table("blog_comments")
+                     .select("id,name,content")
+                     .in_("id", parent_ids)
+                     .execute())
+        parent_map = {p["id"]: p for p in (parents.data or [])}
+    for c in comments:
+        if c.get("parent_id") and c["parent_id"] in parent_map:
+            p = parent_map[c["parent_id"]]
+            c["parent_snippet"] = {"name": p["name"], "content": p["content"][:120]}
+
     # count
     cq = db_client.table("blog_comments").select("id", count="exact")
     if status != "all":
@@ -2149,7 +2165,7 @@ async def admin_get_comments(status: str = "pending", page: int = 1, limit: int 
     cnt = cq.execute()
     # pending count always useful
     pending_cnt = db_client.table("blog_comments").select("id", count="exact").eq("status", "pending").execute()
-    return {"comments": res.data or [], "total": cnt.count or 0, "pending_count": pending_cnt.count or 0}
+    return {"comments": comments, "total": cnt.count or 0, "pending_count": pending_cnt.count or 0}
 
 
 @app.post("/admin/blog/comments/{comment_id}/approve")

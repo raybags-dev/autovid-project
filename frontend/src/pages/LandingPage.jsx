@@ -117,7 +117,6 @@ function BlogSection({ c, theme }) {
   const [formError, setFormError] = React.useState("");
   const [formSuccess, setFormSuccess] = React.useState("");
   const [likingId, setLikingId] = React.useState(null);
-  const [replyOpen, setReplyOpen] = React.useState(null);    // comment id whose replies are expanded
   const [replyForm, setReplyForm] = React.useState(null);    // comment id with open reply form
   const [replyData, setReplyData] = React.useState({});      // { [commentId]: { name, content, submitting, error, success } }
   const [pendingComment, setPendingComment] = React.useState(null); // optimistic placeholder
@@ -192,11 +191,10 @@ function BlogSection({ c, theme }) {
       }
       setReplyData(prev => ({ ...prev, [commentId]: { name: "", content: "", submitting: false, error: "", success: "✓ Reply submitted for review." } }));
       setReplyForm(null);
-      // append a pending reply placeholder
+      // append a pending reply placeholder so it's immediately visible
       setComments(prev => prev.map(c => c.id === commentId
         ? { ...c, replies: [...(c.replies || []), { id: `pending-${Date.now()}`, name: rd.name, content: rd.content, created_at: new Date().toISOString(), _pending: true }] }
         : c));
-      setReplyOpen(commentId);
     } catch(e) {
       setReplyData(prev => ({ ...prev, [commentId]: { ...prev[commentId], submitting: false, error: "Network error." } }));
     }
@@ -269,44 +267,40 @@ function BlogSection({ c, theme }) {
 
             {comments.map(comment => (
               <div key={comment.id}>
-                {/* Main comment */}
-                <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "20px 22px", boxShadow: c.cardSh, position: "relative" }}>
-                  <div style={{ position: "absolute", top: 0, left: 22, right: 22, height: 2, background: "linear-gradient(90deg, rgba(255,80,30,0.2), transparent)", borderRadius: 2 }} />
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: "50%", background: `hsl(${comment.name.charCodeAt(0)*13%360},50%,30%)`, border: "1px solid rgba(255,80,30,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
+                {/* Main comment — compact */}
+                <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 12, padding: "14px 16px", boxShadow: c.cardSh }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    {/* Avatar */}
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: `hsl(${comment.name.charCodeAt(0)*13%360},48%,32%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
                       {comment.name[0].toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
-                        <span className="syne" style={{ fontWeight: 700, fontSize: 13, color: c.text }}>{comment.name}</span>
-                        <span style={{ fontSize: 10, color: c.textD }}>{formatDate(comment.created_at)}</span>
+                      {/* Header row */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                        <span className="syne" style={{ fontWeight: 700, fontSize: 12, color: c.text }}>{comment.name}</span>
+                        <span style={{ fontSize: 10, color: c.textM }}>{formatDate(comment.created_at)}</span>
                       </div>
-                      <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.75, margin: 0, marginBottom: 12 }}>{comment.content}</p>
+                      {/* Body */}
+                      <p style={{ fontSize: 12, color: c.textM, lineHeight: 1.7, margin: 0, marginBottom: 10 }}>{comment.content}</p>
                       {/* Action row */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                         <button onClick={() => handleLike(comment.id)} disabled={likingId === comment.id}
-                          style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: comment.liked_by_me ? "#ff5533" : c.textD, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
-                          <span style={{ fontSize: 14 }}>{comment.liked_by_me ? "♥" : "♡"}</span>
+                          style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: comment.liked_by_me ? "#ff5533" : c.textM, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
+                          <span style={{ fontSize: 13 }}>{comment.liked_by_me ? "♥" : "♡"}</span>
                           <span>{comment.likes_count}</span>
                         </button>
                         <button onClick={() => { setReplyForm(replyForm === comment.id ? null : comment.id); setReplyData(p => ({ ...p, [comment.id]: p[comment.id] || { name: "", content: "" } })); }}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: c.textD, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
-                          ↩ REPLY
+                          style={{ background: "none", border: "none", cursor: "pointer", color: replyForm === comment.id ? "#ff6644" : c.textM, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
+                          ↩ {replyForm === comment.id ? "CANCEL" : "REPLY"}
                         </button>
-                        {(comment.replies?.length > 0) && (
-                          <button onClick={() => setReplyOpen(replyOpen === comment.id ? null : comment.id)}
-                            style={{ background: "none", border: "none", cursor: "pointer", color: c.textD, fontSize: 11, fontFamily: "inherit", padding: 0 }}>
-                            {replyOpen === comment.id ? "▾ HIDE REPLIES" : `▸ ${comment.replies.length} REPL${comment.replies.length === 1 ? "Y" : "IES"}`}
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Inline reply form */}
+                {/* Inline reply form — indented */}
                 {replyForm === comment.id && (
-                  <div style={{ marginLeft: 50, marginTop: 8, background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 11, padding: "16px 18px" }}>
+                  <div style={{ marginLeft: 42, marginTop: 6, background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 10, padding: "14px 16px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                       <input placeholder="Your name *" value={replyData[comment.id]?.name || ""}
                         onChange={e => setReplyData(p => ({ ...p, [comment.id]: { ...p[comment.id], name: e.target.value } }))}
@@ -322,31 +316,31 @@ function BlogSection({ c, theme }) {
                     {replyData[comment.id]?.error && <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 6 }}>⚠ {replyData[comment.id].error}</div>}
                     {replyData[comment.id]?.success && <div style={{ color: "#1db954", fontSize: 11, marginBottom: 6 }}>{replyData[comment.id].success}</div>}
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => setReplyForm(null)} style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 7, color: c.textD, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>CANCEL</button>
+                      <button onClick={() => setReplyForm(null)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 6, color: c.textM, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>CANCEL</button>
                       <button onClick={() => handleReplySubmit(comment.id)} disabled={replyData[comment.id]?.submitting}
-                        style={{ padding: "7px 16px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 7, color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: replyData[comment.id]?.submitting ? 0.6 : 1 }}>
+                        style={{ padding: "6px 14px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 6, color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: replyData[comment.id]?.submitting ? 0.6 : 1 }}>
                         {replyData[comment.id]?.submitting ? "SENDING…" : "POST REPLY →"}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* Replies — YouTube-style indented thread */}
-                {replyOpen === comment.id && comment.replies?.length > 0 && (
-                  <div style={{ marginLeft: 50, marginTop: 6, display: "flex", flexDirection: "column", gap: 1 }}>
+                {/* Replies — always visible, indented subtree */}
+                {comment.replies?.length > 0 && (
+                  <div style={{ marginLeft: 42, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
                     {comment.replies.map(reply => (
-                      <div key={reply.id} style={{ display: "flex", gap: 10, padding: "12px 16px", background: reply._pending ? (isDark ? "rgba(255,80,30,0.04)" : "rgba(255,80,30,0.02)") : "transparent", borderRadius: 10, position: "relative", opacity: reply._pending ? 0.7 : 1 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: reply.is_admin_reply ? "linear-gradient(135deg,#cc2200,#ff5533)" : `hsl(${reply.name.charCodeAt(0)*13%360},45%,28%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
+                      <div key={reply.id} style={{ display: "flex", gap: 9, padding: "10px 14px", borderLeft: `2px solid ${reply.is_admin_reply ? "rgba(255,80,30,0.35)" : isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"}`, opacity: reply._pending ? 0.65 : 1 }}>
+                        <div style={{ width: 26, height: 26, borderRadius: "50%", background: reply.is_admin_reply ? "linear-gradient(135deg,#cc2200,#ff5533)" : `hsl(${reply.name.charCodeAt(0)*13%360},45%,30%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
                           {reply.name[0].toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                            <span className="syne" style={{ fontWeight: 700, fontSize: 12, color: reply.is_admin_reply ? "#ff7755" : c.text }}>{reply.name}</span>
-                            {reply.is_admin_reply && <span style={{ fontSize: 8, background: "rgba(255,80,30,0.15)", color: "#ff7755", padding: "1px 6px", borderRadius: 10, letterSpacing: "0.1em" }}>CREATOR</span>}
-                            {reply._pending && <span style={{ fontSize: 8, background: "rgba(245,158,11,0.15)", color: "#f59e0b", padding: "1px 6px", borderRadius: 10, letterSpacing: "0.1em" }}>PENDING</span>}
-                            <span style={{ fontSize: 10, color: c.textD }}>{formatDate(reply.created_at)}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                            <span className="syne" style={{ fontWeight: 700, fontSize: 11, color: reply.is_admin_reply ? "#ff7755" : c.text }}>{reply.name}</span>
+                            {reply.is_admin_reply && <span style={{ fontSize: 8, background: "rgba(255,80,30,0.15)", color: "#ff7755", padding: "1px 5px", borderRadius: 8, letterSpacing: "0.08em" }}>CREATOR</span>}
+                            {reply._pending && <span style={{ fontSize: 8, background: "rgba(245,158,11,0.12)", color: "#f59e0b", padding: "1px 5px", borderRadius: 8, letterSpacing: "0.08em" }}>PENDING</span>}
+                            <span style={{ fontSize: 10, color: c.textM }}>{formatDate(reply.created_at)}</span>
                           </div>
-                          <p style={{ fontSize: 12, color: reply._pending ? c.textD : c.textM, lineHeight: 1.7, margin: 0 }}>{reply.content}</p>
+                          <p style={{ fontSize: 12, color: reply._pending ? c.textM : c.textM, lineHeight: 1.65, margin: 0 }}>{reply.content}</p>
                         </div>
                       </div>
                     ))}
