@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
 import faceImg         from "../assets/static/face.jpg";
+import jajja1         from "../assets/static/jajja1.jpg";
+import jajja2         from "../assets/static/jajja2.jpg";
 import faceVideo    from "../assets/static/face.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
 import metrixVideo  from "../assets/static/metrix.mp4";
@@ -126,9 +128,11 @@ export default function LandingPage() {
   const [modalVideo,    setModalVideo]    = useState(null);   // { id, title, url }
   const [showBackTop,   setShowBackTop]   = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const wrapperRef  = useRef(null);
-  const autoRef     = useRef(null);
-  const heroVidRef  = useRef(null);
+  const wrapperRef    = useRef(null);
+  const autoRef       = useRef(null);
+  const heroVidRef    = useRef(null);
+  const topicsBgRef   = useRef(null);
+  const communityBgRef = useRef(null);
 
   const c = theme === "dark" ? DARK : LIGHT;
 
@@ -178,6 +182,15 @@ export default function LandingPage() {
       setShowBackTop(el.scrollTop > 600);
       const maxScroll = el.scrollHeight - el.clientHeight;
       setScrollProgress(maxScroll > 0 ? Math.min(1, el.scrollTop / maxScroll) : 0);
+      // Parallax backgrounds — direct DOM, no re-render
+      if (topicsBgRef.current) {
+        const rect = document.getElementById("topics")?.getBoundingClientRect();
+        if (rect) topicsBgRef.current.style.transform = `translateY(${-rect.top * 0.28}px) scale(1.35)`;
+      }
+      if (communityBgRef.current) {
+        const rect = document.getElementById("community")?.getBoundingClientRect();
+        if (rect) communityBgRef.current.style.transform = `translateY(${-rect.top * 0.28}px) scale(1.35)`;
+      }
     };
     el.addEventListener("scroll", fn, { passive: true });
     return () => el.removeEventListener("scroll", fn);
@@ -537,33 +550,6 @@ export default function LandingPage() {
         .soc-icon   { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
         .yt-card    { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
 
-        /* ── PARALLAX BLOB ────────────────────────────── */
-        @keyframes blobMorph {
-          0%   { border-radius: 62% 38% 55% 45% / 50% 45% 55% 50%; }
-          20%  { border-radius: 40% 60% 70% 30% / 60% 35% 65% 40%; }
-          40%  { border-radius: 72% 28% 45% 55% / 38% 68% 32% 62%; }
-          60%  { border-radius: 35% 65% 30% 70% / 55% 45% 65% 35%; }
-          80%  { border-radius: 58% 42% 62% 38% / 48% 62% 38% 52%; }
-          100% { border-radius: 62% 38% 55% 45% / 50% 45% 55% 50%; }
-        }
-        .parallax-blob {
-          animation: blobMorph 9s ease-in-out infinite;
-          position: fixed;
-          pointer-events: none;
-          z-index: 0;
-          width: 860px;
-          height: 860px;
-          background: radial-gradient(ellipse at 38% 52%,
-            rgba(255,85,30,0.32) 0%,
-            rgba(255,136,44,0.22) 22%,
-            rgba(200,40,10,0.14) 44%,
-            rgba(0,80,220,0.06) 64%,
-            transparent 76%
-          );
-          filter: blur(68px);
-          will-change: transform, opacity;
-          mix-blend-mode: screen;
-        }
 
         /* ── BACK TO TOP ─────────────────────────────── */
         .back-to-top { position:fixed; bottom:28px; right:28px; z-index:800;
@@ -624,30 +610,6 @@ export default function LandingPage() {
         }
       `}</style>
 
-      {/* ══ PARALLAX BLOB ══════════════════════════════════════════════════════ */}
-      {(() => {
-        const p = scrollProgress;
-        // Fade in 0→8%, full 8→85%, fade out 85→100%
-        const opacity = p < 0.08 ? p / 0.08 * 1.0
-          : p > 0.85 ? (1 - p) / 0.15 * 1.0
-          : 1.0;
-        // Move from bottom-left (off screen) toward top-right
-        const x = `calc(-18vw + ${p * 130}vw)`;
-        const y = `calc(92vh - ${p * 170}vh)`;
-        // Grow slightly then shrink as it rises
-        const scale = 1 + Math.sin(p * Math.PI) * 0.35;
-        return (
-          <div
-            className="parallax-blob"
-            style={{
-              left: x,
-              top: y,
-              opacity,
-              transform: `scale(${scale}) rotate(${p * 38}deg)`,
-            }}
-          />
-        );
-      })()}
 
       {/* ══ SIDE SECTION INDICATOR ════════════════════════════════════════════ */}
       <div className="side-nav" style={{ position: "fixed", left: 18, top: "50%", transform: "translateY(-50%)" }}>
@@ -1107,8 +1069,21 @@ export default function LandingPage() {
       </section>
 
       {/* ══ TOPICS ════════════════════════════════════════════════════════════ */}
-      <section id="topics" style={{ padding:"100px 20px",background:c.bgAlt,borderTop:`1px solid ${c.secBr}`,borderBottom:`1px solid ${c.secBr}` }}>
-        <div style={{ maxWidth:1180,margin:"0 auto" }}>
+      <section id="topics" style={{ padding:"100px 20px", position:"relative", overflow:"hidden", borderTop:`1px solid ${c.secBr}`, borderBottom:`1px solid ${c.secBr}` }}>
+        {/* Parallax photo background — jajja2 */}
+        <div ref={topicsBgRef} style={{
+          position:"absolute", inset:"-35% 0",
+          backgroundImage:`url(${jajja2})`,
+          backgroundSize:"cover", backgroundPosition:"center 30%",
+          opacity: theme === "dark" ? 0.13 : 0.07,
+          willChange:"transform", transform:"scale(1.35)",
+          pointerEvents:"none",
+        }} />
+        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
+          background: theme === "dark"
+            ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(3,6,15,0.78) 50%,rgba(3,6,15,0.94) 100%)"
+            : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)" }} />
+        <div style={{ maxWidth:1180, margin:"0 auto", position:"relative", zIndex:1 }}>
           <span className="section-tag">EXPLORE TOPICS</span>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16,flexWrap:"wrap",gap:16 }}>
             <h2 className="syne" style={{ fontWeight:800,fontSize:"clamp(26px,4vw,38px)",color:c.text }}>
@@ -1154,9 +1129,20 @@ export default function LandingPage() {
       </div>
 
       {/* ══ COMMUNITY ═════════════════════════════════════════════════════════ */}
-      <section id="community" style={{ padding:"100px 20px 120px",position:"relative",overflow:"clip" }}>
-        <div className="grid-bg" />
-        <div style={{ position:"absolute",width:"60vw",height:"60vw",maxWidth:700,maxHeight:700,borderRadius:"50%",background:"radial-gradient(circle,rgba(150,40,0,0.05),transparent 70%)",top:"50%",left:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none" }} />
+      <section id="community" style={{ padding:"100px 20px 120px",position:"relative",overflow:"hidden" }}>
+        {/* Parallax photo background — jajja1 */}
+        <div ref={communityBgRef} style={{
+          position:"absolute", inset:"-35% 0",
+          backgroundImage:`url(${jajja1})`,
+          backgroundSize:"cover", backgroundPosition:"center 20%",
+          opacity: theme === "dark" ? 0.14 : 0.08,
+          willChange:"transform", transform:"scale(1.35)",
+          pointerEvents:"none",
+        }} />
+        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
+          background: theme === "dark"
+            ? "linear-gradient(160deg,rgba(3,6,15,0.92) 0%,rgba(5,2,10,0.80) 50%,rgba(3,6,15,0.92) 100%)"
+            : "linear-gradient(160deg,rgba(245,242,235,0.95) 0%,rgba(245,242,235,0.87) 50%,rgba(245,242,235,0.95) 100%)" }} />
 
         <div style={{ maxWidth:1180,margin:"0 auto",position:"relative",zIndex:1 }}>
           <span className="section-tag">COMMUNITY</span>
