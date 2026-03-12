@@ -228,7 +228,7 @@ function BlogSection({ c, theme }) {
       {/* Submit form */}
       <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "22px 22px 18px", marginBottom: 32, boxShadow: c.cardSh }}>
         <div style={{ fontSize: 10, color: c.textM, letterSpacing: "0.1em", marginBottom: 16 }}>LEAVE A COMMENT</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <div className="comment-name-row">
           <input placeholder="Your name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={inputSt} />
           <input placeholder="Email (optional)" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inputSt} />
         </div>
@@ -236,9 +236,9 @@ function BlogSection({ c, theme }) {
           rows={3} style={{ display: "block", width: "100%", ...inputSt, resize: "vertical", marginBottom: 10 }} />
         {formError && <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 8 }}>⚠ {formError}</div>}
         {formSuccess && <div style={{ color: "#1db954", fontSize: 11, marginBottom: 8 }}>{formSuccess}</div>}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="comment-submit-row">
           <span style={{ fontSize: 10, color: c.textD }}>Comments are reviewed before appearing.</span>
-          <button onClick={handleSubmit} disabled={submitting}
+          <button onClick={handleSubmit} disabled={submitting} className="comment-submit-btn"
             style={{ padding: "9px 20px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 9, color: "#fff", fontFamily: "inherit", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1 }}>
             {submitting ? "SENDING…" : "POST COMMENT →"}
           </button>
@@ -395,6 +395,7 @@ export default function LandingPage() {
   const [showBackTop,   setShowBackTop]   = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [ytCols,        setYtCols]        = useState(3);
+  const [heroStats,     setHeroStats]     = useState(null);
   const wrapperRef    = useRef(null);
   const autoRef       = useRef(null);
   const heroVidRef    = useRef(null);
@@ -523,6 +524,14 @@ export default function LandingPage() {
   // Slow down hero video
   useEffect(() => {
     if (heroVidRef.current) heroVidRef.current.playbackRate = 0.55;
+  }, []);
+
+  // Fetch aggregated hero stats
+  useEffect(() => {
+    fetch("/api/public/stats")
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => setHeroStats(d))
+      .catch(() => {});
   }, []);
 
   // Carousel auto-advance
@@ -777,6 +786,15 @@ export default function LandingPage() {
         /* ── COMMENT FORM ─────────────────────────────── */
         .comment-input { width:100%; padding:12px 16px; border-radius:10px; font-family:inherit; font-size:13px; outline:none; resize:vertical; min-height:90px; }
         .coming-soon-overlay { position:absolute; inset:0; backdrop-filter:blur(6px) saturate(140%); -webkit-backdrop-filter:blur(6px) saturate(140%); border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; z-index:10; }
+        .comment-name-row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+        .comment-name-row input { flex:1 1 180px; min-width:0; }
+        .comment-submit-row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+        @media (max-width:540px) {
+          .comment-name-row input { flex:1 1 100%; }
+          .comment-submit-row { flex-direction:column; align-items:stretch; }
+          .comment-submit-row span { order:2; text-align:center; }
+          .comment-submit-btn { width:100%!important; justify-content:center; order:1; }
+        }
 
         /* ── HAMBURGER ────────────────────────────────── */
         .hamburger { display:none; background:none; border-radius:8px; width:38px; height:38px; cursor:pointer; font-size:18px; align-items:center; justify-content:center; transition:all 0.2s; }
@@ -821,7 +839,8 @@ export default function LandingPage() {
         @media (max-width:900px) { .yt-stage-wrap { padding:0 60px; } }
         @media (max-width:600px) { .yt-stage-wrap { padding:0 50px; } }
         .yt-stage { position:relative; }
-        .yt-carousel-win { overflow:hidden; border-radius:20px; }
+        /* overflow-x:clip allows overflow-y:visible for hover card lift */
+        .yt-carousel-win { overflow-x:clip; overflow-y:visible; border-radius:20px; padding-top:16px; margin-top:-16px; }
         .yt-carousel-track { display:flex; gap:22px; transition:transform 0.55s cubic-bezier(0.4,0,0.2,1); }
         .yt-card { flex-shrink:0; border-radius:18px; overflow:hidden; cursor:pointer;
           background:rgba(8,8,18,0.9); border:1px solid rgba(255,255,255,0.1);
@@ -856,23 +875,20 @@ export default function LandingPage() {
         .yt-meta-row { display:flex; gap:16px; align-items:center; padding:14px 18px 16px; font-size:11px; letter-spacing:0.06em; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); }
         .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%);
           background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:10px; }
-        /* Arrows — outside the track, centered on card height */
-        .yt-arr { position:absolute; top:50%; transform:translateY(-50%);
-          width:50px; height:50px; border-radius:50%;
-          background:rgba(8,8,20,0.82); border:1px solid rgba(255,255,255,0.18);
-          backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-          color:#fff; font-size:26px; line-height:1;
+        /* Arrows — full height, transparent, outside track */
+        .yt-arr { position:absolute; top:0; height:100%; width:54px;
+          border-radius:0; border:none; background:transparent;
+          color:rgba(255,255,255,0.45); font-size:4rem; line-height:1;
           display:flex; align-items:center; justify-content:center;
-          cursor:pointer; z-index:10; transition:all 0.22s; padding:0; }
-        .yt-arr:hover:not(:disabled) { background:rgba(190,35,35,0.85); border-color:rgba(255,80,50,0.6); transform:translateY(-50%) scale(1.12); box-shadow:0 4px 20px rgba(180,30,30,0.45); }
-        .yt-arr:disabled { opacity:0.18; cursor:default; }
+          cursor:pointer; z-index:10; transition:color 0.2s; padding:0; }
+        .yt-arr:hover:not(:disabled) { color:rgba(255,255,255,0.95); }
+        .yt-arr:disabled { opacity:0.15; cursor:default; }
         .yt-arr.prev { right:calc(100% + 16px); }
         .yt-arr.next { left:calc(100% + 16px); }
         .yt-dots { display:flex; gap:8px; justify-content:center; margin-top:28px; align-items:center; }
         .yt-dot { width:7px; height:7px; border-radius:50%; border:none; cursor:pointer; transition:all 0.32s; padding:0; }
-        @media (max-width:1100px) { .yt-arr.prev { right:calc(100% + 10px); } .yt-arr.next { left:calc(100% + 10px); } }
-        @media (max-width:900px) { .yt-arr { width:42px; height:42px; font-size:22px; } .yt-arr.prev { right:calc(100% + 8px); } .yt-arr.next { left:calc(100% + 8px); } }
-        @media (max-width:600px) { .yt-arr { width:36px; height:36px; font-size:18px; } .yt-arr.prev { right:calc(100% + 6px); } .yt-arr.next { left:calc(100% + 6px); } }
+        @media (max-width:900px) { .yt-arr { width:42px; font-size:3rem; } }
+        @media (max-width:600px) { .yt-arr { width:34px; font-size:2.4rem; } }
         /* ── VIDEO MODAL ─────────────────────────────── */
         .yt-modal-backdrop { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center;
           background:rgba(0,0,0,0.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
@@ -1067,9 +1083,13 @@ export default function LandingPage() {
 
           {/* Stats */}
           <div className="hero-stats anim-3" style={{ display: "flex", gap: 32, flexWrap: "wrap", justifyContent: "center", marginBottom: 28 }}>
-            {[["10K+","FOLLOWERS"],["50+","EPISODES"],["∞","QUESTIONS"]].map(([n,l]) => (
+            {[
+              [heroStats ? (heroStats.followers >= 1000 ? (heroStats.followers >= 1000000 ? (heroStats.followers/1000000).toFixed(1)+"M" : Math.round(heroStats.followers/1000)+"K") : heroStats.followers) : "10K+", "FOLLOWERS"],
+              [heroStats ? (heroStats.episodes || "50+") : "50+", "EPISODES"],
+              [heroStats ? (heroStats.comments >= 1000 ? Math.round(heroStats.comments/1000)+"K+" : heroStats.comments || "∞") : "∞", "COMMENTS"],
+            ].map(([n, l]) => (
               <div key={l} style={{ textAlign: "center" }}>
-                <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(20px,3vw,30px)" }}>{n}</div>
+                <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(20px,3vw,30px)", filter: heroStats ? "none" : "blur(6px)", transition: "filter 0.5s" }}>{n}</div>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "0.2em", marginTop: 4 }}>{l}</div>
               </div>
             ))}
@@ -1271,7 +1291,7 @@ export default function LandingPage() {
       </section>
 
       {/* ══ YOUTUBE VIDEOS ════════════════════════════════════════════════════ */}
-      <section id="videos" style={{ padding:"100px 20px 110px", borderTop:`1px solid ${c.secBr}`, position:"relative", overflow:"hidden" }}>
+      <section id="videos" style={{ padding:"50px 20px 110px", borderTop:`1px solid ${c.secBr}`, position:"relative", overflow:"hidden" }}>
         {/* Parallax background — freedom.jpg */}
         <div ref={videoBgRef} style={{
           position:"absolute", inset:"-35% 0",

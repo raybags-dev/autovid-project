@@ -1192,6 +1192,53 @@ def get_billing(user: str = Depends(verify_token)):
 _channel_videos_cache: dict = {"data": None, "fetched_at": 0}
 CHANNEL_CACHE_TTL = 3600  # 1 hour
 
+# ── Public stats cache ────────────────────────────────────────────────────────
+_stats_cache: dict = {"data": None, "fetched_at": 0}
+STATS_CACHE_TTL = 3600  # 1 hour
+
+
+@app.get("/public/stats")
+def get_public_stats():
+    """Aggregated landing-page stats: total followers, episodes, comment count."""
+    import time
+    global _stats_cache
+    age = time.time() - _stats_cache["fetched_at"]
+    if _stats_cache["data"] is not None and age < STATS_CACHE_TTL:
+        return _stats_cache["data"]
+
+    result = {"followers": None, "episodes": None, "comments": None}
+
+    # ── YouTube subscriber count ──────────────────────────────────────────────
+    try:
+        from pipeline.youtube_uploader import get_authenticated_service
+        svc = get_authenticated_service()
+        ch = svc.channels().list(
+            part="statistics", id=config.YOUTUBE_CHANNEL_ID
+        ).execute()
+        subs = int(ch["items"][0]["statistics"].get("subscriberCount", 0))
+        result["followers"] = subs
+    except Exception as e:
+        print(f"⚠️  Stats: YouTube subscriber fetch failed: {e}")
+
+    # ── Episode count (videos with narration_url) ─────────────────────────────
+    try:
+        all_videos = db.list_videos(limit=500)
+        result["episodes"] = len([v for v in all_videos if v.get("narration_url") and v.get("title")])
+    except Exception as e:
+        print(f"⚠️  Stats: episode count failed: {e}")
+
+    # ── Approved comment count ────────────────────────────────────────────────
+    try:
+        db_client = db.get_client()
+        r = db_client.table("blog_comments").select("id", count="exact").eq("status", "approved").execute()
+        result["comments"] = r.count or 0
+    except Exception as e:
+        print(f"⚠️  Stats: comment count failed: {e}")
+
+    _stats_cache["data"] = result
+    _stats_cache["fetched_at"] = time.time()
+    return result
+
 
 @app.get("/public/channel-videos")
 def get_public_channel_videos():
