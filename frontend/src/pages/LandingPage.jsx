@@ -1297,7 +1297,7 @@ export default function LandingPage() {
           position:"absolute", inset:"-35% 0",
           backgroundImage:`url(${freedomImg})`,
           backgroundSize:"cover", backgroundPosition:"center 45%",
-          opacity: theme === "dark" ? 0.38 : 0.13,
+          opacity: 1,
           willChange:"transform", transform:"scale(1.35)",
           pointerEvents:"none",
         }} />
@@ -1500,7 +1500,7 @@ export default function LandingPage() {
           position:"absolute", inset:"-35% 0",
           backgroundImage:`url(${jajja2})`,
           backgroundSize:"cover", backgroundPosition:"center 30%",
-          opacity: theme === "dark" ? 0.30 : 0.10,
+          opacity: 1,
           willChange:"transform", transform:"scale(1.35)",
           pointerEvents:"none",
         }} />
