@@ -119,11 +119,12 @@ def podcast_feed():
     from datetime import datetime, timezone
 
     all_videos = db.list_videos(limit=500)
-    # Only episodes with an MP3 and a title; exclude future-scheduled ones
+    # Only episodes with an MP3 and a title; exclude future-scheduled ones and shorts
     now_iso = datetime.now(timezone.utc).isoformat()
     episodes = [
         v for v in all_videos
         if v.get("narration_url") and v.get("title")
+        and v.get("resolution") != "1080x1920"          # exclude shorts (vertical format)
         and (v.get("scheduled_for") or "0") <= now_iso  # skip future-scheduled
     ]
 
@@ -1057,6 +1058,109 @@ def trigger_auto_short(user: str = Depends(verify_token)):
     return {"message": "Auto-short started", "video_id": video_id, "topic": topic}
 
 
+# ── Podcast Episode Pipeline ──────────────────────────────────────────────────
+
+class PodcastSettings(BaseModel):
+    enabled:      bool
+    days:         list
+    topics:       list
+    hour:         int
+    music_style:  str = "ambient"
+
+
+class PodcastGenerateRequest(BaseModel):
+    topic:        Optional[str] = None
+    title:        Optional[str] = None
+    essay:        Optional[str] = None
+    music_style:  str = "ambient"
+
+
+@app.get("/podcast-episode/settings")
+def get_podcast_settings_endpoint(user: str = Depends(verify_token)):
+    from pipeline.podcast_pipeline import get_podcast_settings
+    return get_podcast_settings()
+
+
+@app.post("/podcast-episode/settings")
+def save_podcast_settings_endpoint(req: PodcastSettings, user: str = Depends(verify_token)):
+    from pipeline.podcast_pipeline import save_podcast_settings
+    settings = {
+        "enabled":      req.enabled,
+        "days":         req.days,
+        "topics":       req.topics,
+        "hour":         req.hour,
+        "music_style":  req.music_style,
+    }
+    save_podcast_settings(settings)
+    return {"message": "Podcast settings saved", "settings": settings}
+
+
+@app.post("/podcast-episode/trigger")
+def trigger_auto_podcast(user: str = Depends(verify_token)):
+    """Manually trigger one auto-generated podcast episode (picks next topic)."""
+    import threading
+    from pipeline.podcast_pipeline import (
+        get_podcast_settings, _pick_next_podcast_topic, run_podcast_episode,
+    )
+
+    settings = get_podcast_settings()
+    topics   = settings.get("topics", [])
+    if not topics:
+        raise HTTPException(status_code=400, detail="No topics configured in podcast settings")
+
+    topic = _pick_next_podcast_topic(topics)
+    music = settings.get("music_style", "ambient")
+
+    record   = db.create_video(f"[Podcast] {topic}")
+    video_id = record["id"]
+    _register_pipeline(video_id)
+
+    def _run():
+        run_podcast_episode(
+            topic=topic,
+            music_style=music,
+            video_id=video_id,
+            push_log_fn=_push_log,
+            unregister_fn=_unregister_pipeline,
+        )
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"message": "Podcast episode started", "video_id": video_id, "topic": topic}
+
+
+@app.post("/podcast-episode/generate")
+def generate_podcast_episode(req: PodcastGenerateRequest, user: str = Depends(verify_token)):
+    """
+    Manually generate a podcast episode with a custom essay or topic.
+    - Provide essay + title for direct TTS (skips LLM)
+    - Provide topic for LLM essay generation
+    """
+    import threading
+    from pipeline.podcast_pipeline import run_podcast_episode
+
+    if not req.essay and not req.topic and not req.title:
+        raise HTTPException(status_code=400, detail="Provide at least a topic or essay")
+
+    prompt = req.topic or req.title or "Podcast Episode"
+    record   = db.create_video(f"[Podcast] {prompt}")
+    video_id = record["id"]
+    _register_pipeline(video_id)
+
+    def _run():
+        run_podcast_episode(
+            topic=req.topic,
+            title=req.title,
+            essay=req.essay,
+            music_style=req.music_style,
+            video_id=video_id,
+            push_log_fn=_push_log,
+            unregister_fn=_unregister_pipeline,
+        )
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"message": "Podcast generation started", "video_id": video_id}
+
+
 @app.get("/billing")
 def get_billing(user: str = Depends(verify_token)):
     """Aggregate billing/subscription info from all integrated services."""
@@ -1800,6 +1904,13 @@ def startup():
         start_auto_short_scheduler()
     except Exception as e:
         print(f"⚠️  Auto-short scheduler failed to start: {e}")
+
+    # Auto-podcast scheduler
+    try:
+        from pipeline.podcast_pipeline import start_podcast_scheduler
+        start_podcast_scheduler()
+    except Exception as e:
+        print(f"⚠️  Auto-podcast scheduler failed to start: {e}")
 
     # Output sweeper — deletes stale files older than 1 hour
     try:

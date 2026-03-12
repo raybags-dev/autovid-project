@@ -218,6 +218,24 @@ export const triggerAutoShort = async () => {
   return data;
 };
 
+// ── Podcast Episode Pipeline ─────────────────────────────────────────────────
+export const getPodcastSettings = async () => {
+  const { data } = await api.get("/podcast-episode/settings");
+  return data;
+};
+export const savePodcastSettings = async (settings) => {
+  const { data } = await api.post("/podcast-episode/settings", settings);
+  return data;
+};
+export const triggerAutoPodcast = async () => {
+  const { data } = await api.post("/podcast-episode/trigger");
+  return data;
+};
+export const generatePodcastEpisode = async (payload) => {
+  const { data } = await api.post("/podcast-episode/generate", payload);
+  return data;
+};
+
 // ── TikTok ────────────────────────────────────────────────────────────────────
 export const getTikTokStatus = async () => {
   const { data } = await api.get("/tiktok/status");
