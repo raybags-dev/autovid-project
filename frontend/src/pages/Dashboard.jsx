@@ -436,6 +436,9 @@ export default function Dashboard() {
   const [newComment, setNewComment] = useState("");
   const [postingComment, setPostingComment] = useState(false);
   const [deleteYtConfirm, setDeleteYtConfirm] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null); // {message, onConfirm, confirmLabel}
+  const askConfirm = (message, onConfirm, confirmLabel = "DELETE") =>
+    setConfirmModal({ message, onConfirm, confirmLabel });
   // Inline comments panel per video card
   const [openComments, setOpenComments] = useState(null); // video_id with panel open
   const [cardComments, setCardComments] = useState({}); // { video_id: [...comments] }
@@ -1104,15 +1107,17 @@ export default function Dashboard() {
       setGlobalLoading(null);
     }
   };
-  const handlePurge = async (id, e) => {
+  const handlePurge = (id, e) => {
     e?.stopPropagation();
-    try {
-      await deleteVideo(id);
-      setVideos((vs) => vs.filter((v) => v.id !== id));
-      showToast("Job purged");
-    } catch {
-      showToast("Purge failed", "error");
-    }
+    askConfirm("Permanently delete this failed job?", async () => {
+      try {
+        await deleteVideo(id);
+        setVideos((vs) => vs.filter((v) => v.id !== id));
+        showToast("Job purged");
+      } catch {
+        showToast("Purge failed", "error");
+      }
+    });
   };
 
   const handleLogout = () => {
@@ -1199,14 +1204,16 @@ export default function Dashboard() {
     }
   };
 
-  const handleDeleteComment = async (commentId) => {
-    try {
-      await deleteComment(ytModal.id, commentId);
-      setYtComments((prev) => prev.filter((c) => c.id !== commentId));
-      showToast("Comment deleted");
-    } catch (e) {
-      showToast("Failed to delete comment", "error");
-    }
+  const handleDeleteComment = (commentId) => {
+    askConfirm("Delete this YouTube comment?", async () => {
+      try {
+        await deleteComment(ytModal.id, commentId);
+        setYtComments((prev) => prev.filter((c) => c.id !== commentId));
+        showToast("Comment deleted");
+      } catch (e) {
+        showToast("Failed to delete comment", "error");
+      }
+    });
   };
 
   const handleTriggerAutoComment = async () => {
@@ -1266,17 +1273,19 @@ export default function Dashboard() {
     }
   };
 
-  const handleDeleteCardComment = async (videoId, commentId) => {
-    try {
-      await deleteComment(videoId, commentId);
-      setCardComments((prev) => ({
-        ...prev,
-        [videoId]: prev[videoId].filter((c) => c.id !== commentId),
-      }));
-      showToast("Comment deleted");
-    } catch (e) {
-      showToast("Failed to delete", "error");
-    }
+  const handleDeleteCardComment = (videoId, commentId) => {
+    askConfirm("Delete this comment?", async () => {
+      try {
+        await deleteComment(videoId, commentId);
+        setCardComments((prev) => ({
+          ...prev,
+          [videoId]: prev[videoId].filter((c) => c.id !== commentId),
+        }));
+        showToast("Comment deleted");
+      } catch (e) {
+        showToast("Failed to delete", "error");
+      }
+    });
   };
 
   const handleModerate = async (videoId, commentId, status) => {
@@ -7983,7 +7992,7 @@ export default function Dashboard() {
                                 ↩ REPLY
                               </button>
                             )}
-                            <button onClick={async () => { if (!confirm("Delete this comment?")) return; await api.delete(`/admin/blog/comments/${c.id}`); showToast("Deleted"); loadReviews(reviewsTab); loadLiveComments(); }}
+                            <button onClick={() => askConfirm("Delete this comment?", async () => { await api.delete(`/admin/blog/comments/${c.id}`); showToast("Deleted"); loadReviews(reviewsTab); loadLiveComments(); })}
                               style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, color: T.textDim, fontSize: 9, letterSpacing: "0.08em", cursor: "pointer", fontFamily: "inherit" }}>
                               ␡ DELETE
                             </button>
@@ -8032,7 +8041,7 @@ export default function Dashboard() {
                                     style={{ padding: "4px 10px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 5, color: "#f59e0b", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>
                                     ⊘ RETRACT
                                   </button>
-                                  <button onClick={async () => { if (!confirm("Delete this comment?")) return; await api.delete(`/admin/blog/comments/${lc.id}`); showToast("Deleted"); loadLiveComments(); loadReviews(reviewsTab); }}
+                                  <button onClick={() => askConfirm("Delete this comment?", async () => { await api.delete(`/admin/blog/comments/${lc.id}`); showToast("Deleted"); loadLiveComments(); loadReviews(reviewsTab); })}
                                     style={{ padding: "4px 10px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 5, color: T.textDim, fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>
                                     ␡
                                   </button>
@@ -8073,7 +8082,7 @@ export default function Dashboard() {
                                           <span style={{ fontSize: 9, color: T.textDim }}>{new Date(rep.created_at).toLocaleDateString()}</span>
                                         </div>
                                         <p style={{ fontSize: 10, color: T.textMid, margin: 0, lineHeight: 1.6 }}>{rep.content}</p>
-                                        <button onClick={async () => { if (!confirm("Delete this reply?")) return; await api.delete(`/admin/blog/comments/${rep.id}`); showToast("Deleted"); loadLiveComments(); }}
+                                        <button onClick={() => askConfirm("Delete this reply?", async () => { await api.delete(`/admin/blog/comments/${rep.id}`); showToast("Deleted"); loadLiveComments(); })}
                                           style={{ marginTop: 4, padding: "2px 8px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 4, color: T.textDim, fontSize: 8, cursor: "pointer", fontFamily: "inherit" }}>
                                           ␡
                                         </button>
@@ -8705,6 +8714,47 @@ export default function Dashboard() {
                   }}
                 >
                   ✕ DELETE
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Generic Confirm Modal ────────────────────────────────────────────────── */}
+        {confirmModal && (
+          <div className="modal-bg" onClick={() => setConfirmModal(null)}>
+            <div className="modal" onClick={e => e.stopPropagation()}
+              style={{ maxWidth: 360, padding: 28, textAlign: "center" }}>
+              <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+              <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 8 }}>
+                Are you sure?
+              </div>
+              <div style={{ fontSize: 12, color: T.textMid, marginBottom: 24, lineHeight: 1.6 }}>
+                {confirmModal.message}
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  style={{
+                    flex: 1, padding: "10px 0", borderRadius: 8,
+                    border: `1px solid ${T.border}`, background: "transparent",
+                    color: T.textMid, fontSize: 12, fontFamily: "inherit",
+                    cursor: "pointer", letterSpacing: "0.06em",
+                  }}
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={() => { setConfirmModal(null); confirmModal.onConfirm(); }}
+                  style={{
+                    flex: 1, padding: "10px 0", borderRadius: 8,
+                    border: "1px solid rgba(200,40,60,0.4)",
+                    background: "rgba(200,40,60,0.12)",
+                    color: "#e05060", fontSize: 12, fontFamily: "inherit",
+                    cursor: "pointer", letterSpacing: "0.06em", fontWeight: 600,
+                  }}
+                >
+                  {confirmModal.confirmLabel || "DELETE"}
                 </button>
               </div>
             </div>
