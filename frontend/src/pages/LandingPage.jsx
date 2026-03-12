@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
 import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
 import faceImg         from "../assets/static/face.jpg";
-import brokenThumb     from "../assets/static/broken-video-placeholder.png";
 import faceVideo    from "../assets/static/face.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
 import metrixVideo  from "../assets/static/metrix.mp4";
@@ -485,7 +484,7 @@ export default function LandingPage() {
           background:var(--card-bg); border:1px solid var(--card-br); box-shadow:var(--card-sh,none);
           transition:transform 0.28s, box-shadow 0.28s, border-color 0.28s; position:relative; }
         .yt-card:hover { transform:translateY(-5px); border-color:rgba(200,40,40,0.4); box-shadow:0 14px 44px rgba(180,30,30,0.18); }
-        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#080808; }
+        .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:linear-gradient(135deg,#0a0a16 0%,#0d0812 50%,#0a0a18 100%); }
         .yt-thumb img { width:100%; height:100%; object-fit:cover; transition:transform 0.4s; display:block; }
         .yt-card:hover .yt-thumb img { transform:scale(1.04); }
         /* glassmorphic play overlay — always visible, intensifies on hover */
@@ -501,7 +500,7 @@ export default function LandingPage() {
           transform:scale(0.9); transition:transform 0.25s, background 0.25s, box-shadow 0.25s; }
         .yt-card:hover .yt-play-btn { transform:scale(1.05); background:rgba(195,38,38,0.32);
           box-shadow:0 6px 32px rgba(180,20,20,0.55), inset 0 1px 0 rgba(255,255,255,0.12); }
-        .yt-play-btn svg { width:36%; height:36%; fill:#fff; margin-left:7%;
+        .yt-play-btn svg { width:62%; height:62%; fill:#fff; margin-left:8%;
           filter:drop-shadow(0 1px 4px rgba(0,0,0,0.6)); }
         .yt-play-btn.disabled { opacity:0.28; border-color:rgba(150,150,150,0.3);
           background:rgba(80,80,80,0.15); box-shadow:none; cursor:default; }
@@ -552,15 +551,16 @@ export default function LandingPage() {
           position: fixed;
           pointer-events: none;
           z-index: 0;
-          width: 520px;
-          height: 520px;
+          width: 860px;
+          height: 860px;
           background: radial-gradient(ellipse at 38% 52%,
-            rgba(255,55,15,0.09) 0%,
-            rgba(180,30,10,0.06) 30%,
-            rgba(0,70,190,0.04) 60%,
-            transparent 74%
+            rgba(255,85,30,0.32) 0%,
+            rgba(255,136,44,0.22) 22%,
+            rgba(200,40,10,0.14) 44%,
+            rgba(0,80,220,0.06) 64%,
+            transparent 76%
           );
-          filter: blur(52px);
+          filter: blur(68px);
           will-change: transform, opacity;
           mix-blend-mode: screen;
         }
@@ -628,9 +628,9 @@ export default function LandingPage() {
       {(() => {
         const p = scrollProgress;
         // Fade in 0→8%, full 8→85%, fade out 85→100%
-        const opacity = p < 0.08 ? p / 0.08 * 0.7
-          : p > 0.85 ? (1 - p) / 0.15 * 0.7
-          : 0.7;
+        const opacity = p < 0.08 ? p / 0.08 * 1.0
+          : p > 0.85 ? (1 - p) / 0.15 * 1.0
+          : 1.0;
         // Move from bottom-left (off screen) toward top-right
         const x = `calc(-18vw + ${p * 130}vw)`;
         const y = `calc(92vh - ${p * 170}vh)`;
@@ -989,11 +989,13 @@ export default function LandingPage() {
                     onClick={() => !isBroken && setModalVideo(v)}
                   >
                     <div className="yt-thumb">
-                      <img
-                        src={v.thumbnail || brokenThumb}
-                        alt={v.title}
-                        onError={e => { e.currentTarget.src = brokenThumb; }}
-                      />
+                      {v.thumbnail && (
+                        <img
+                          src={v.thumbnail}
+                          alt={v.title}
+                          onError={e => { e.currentTarget.style.display = "none"; }}
+                        />
+                      )}
                       <div className="yt-play">
                         <div className={`yt-play-btn${isBroken ? " disabled" : ""}`}>
                           <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -1026,7 +1028,9 @@ export default function LandingPage() {
               {[...Array(6)].map((_,i) => (
                 <div key={i} className="yt-card" style={{ "--card-bg":c.cardBg, "--card-br":c.cardBr, cursor:"default" }}>
                   <div className="yt-thumb">
-                    <img src={brokenThumb} alt="Video unavailable" style={{ opacity:0.45 }} />
+                    <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.1)", letterSpacing:"0.18em" }}>NO VIDEO</span>
+                    </div>
                     <div className="yt-play" style={{ opacity:1 }}>
                       <div className="yt-play-btn disabled">
                         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
