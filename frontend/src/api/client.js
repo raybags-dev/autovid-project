@@ -248,3 +248,29 @@ export const renameCompilation = async (id, title) => {
   const { data } = await api.patch(`/compilations/${id}/rename`, { title });
   return data;
 };
+
+// ── Blog (public) ────────────────────────────────────────────────────────────
+export const getBlogComments = async (page = 1, fp = "") =>
+  (await axios.get(`/api/blog/comments?page=${page}&limit=20&fp=${fp}`)).data;
+
+export const submitBlogComment = async (data) =>
+  (await axios.post("/api/blog/comments", data)).data;
+
+export const toggleBlogLike = async (commentId, fingerprint) =>
+  (await axios.post(`/api/blog/comments/${commentId}/like`, { fingerprint })).data;
+
+// ── Blog (admin) ─────────────────────────────────────────────────────────────
+export const adminGetBlogComments = async (status = "pending", page = 1) =>
+  (await api.get(`/admin/blog/comments?status=${status}&page=${page}&limit=50`)).data;
+
+export const adminApproveComment = async (id) =>
+  (await api.post(`/admin/blog/comments/${id}/approve`)).data;
+
+export const adminRejectComment = async (id, reason) =>
+  (await api.post(`/admin/blog/comments/${id}/reject`, { reason })).data;
+
+export const adminDeleteComment = async (id) =>
+  (await api.delete(`/admin/blog/comments/${id}`)).data;
+
+export const adminReplyComment = async (id, content) =>
+  (await api.post(`/admin/blog/comments/${id}/reply`, { content })).data;
