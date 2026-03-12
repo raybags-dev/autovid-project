@@ -26,7 +26,7 @@ from pipeline.music_mixer import generate_music, mix_audio
 try:
     import pipeline.caption as captioner
 except ModuleNotFoundError:
-    import pipeline.captioner as captioner
+    import pipeline.caption as captioner
 
 
 # Moods that use generated animations instead of Pexels stock footage
