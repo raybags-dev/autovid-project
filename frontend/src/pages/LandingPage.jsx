@@ -1555,12 +1555,12 @@ export default function LandingPage() {
 
       {/* ══ COMMUNITY ═════════════════════════════════════════════════════════ */}
       <section id="community" style={{ padding:"100px 20px 120px",position:"relative",overflow:"hidden" }}>
-        {/* Parallax photo background — face */}
+        {/* Parallax photo background — jajja2 */}
         <div ref={communityBgRef} style={{
           position:"absolute", inset:"-35% 0",
-          backgroundImage:`url(${faceImg})`,
+          backgroundImage:`url(${jajja2})`,
           backgroundSize:"cover", backgroundPosition:"center 20%",
-          opacity: theme === "dark" ? 0.32 : 0.11,
+          opacity: 1,
           willChange:"transform", transform:"scale(1.35)",
           pointerEvents:"none",
         }} />
