@@ -2062,6 +2062,46 @@ async def submit_blog_comment(body: BlogCommentIn, request: Request):
     return {"id": res.data[0]["id"], "status": "pending", "message": "Comment submitted for review. Thank you!"}
 
 
+@app.post("/blog/comments/{comment_id}/reply")
+async def reply_blog_comment(comment_id: str, body: BlogCommentIn, request: Request):
+    """Public reply to an approved top-level comment (goes through moderation)."""
+    name = body.name.strip()
+    content = body.content.strip()
+    if len(name) < 2:
+        raise HTTPException(400, "Name must be at least 2 characters")
+    if len(content) < 5 or len(content) > 2000:
+        raise HTTPException(400, "Reply must be 5–2000 characters")
+    if _profanity_check(name) or _profanity_check(content):
+        raise HTTPException(400, "Your reply contains inappropriate language. Please keep it respectful.")
+
+    ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    ip_hash = _hashlib.sha256(ip.encode()).hexdigest()[:16]
+    if not _check_blog_rate(ip_hash):
+        raise HTTPException(429, "Too many comments. Please wait before submitting again.")
+
+    db_client = db.get_client()
+    parent = (db_client.table("blog_comments")
+                .select("id,status")
+                .eq("id", comment_id)
+                .eq("status", "approved")
+                .is_("parent_id", "null")
+                .execute())
+    if not parent.data:
+        raise HTTPException(404, "Comment not found or not available for replies")
+
+    row = {
+        "name": name[:80],
+        "email": (body.email or "")[:120] or None,
+        "content": content,
+        "status": "pending",
+        "commenter_fingerprint": body.fingerprint[:64] if body.fingerprint else None,
+        "ip_hash": ip_hash,
+        "parent_id": comment_id,
+    }
+    res = db_client.table("blog_comments").insert(row).execute()
+    return {"id": res.data[0]["id"], "status": "pending", "message": "Reply submitted for review. Thank you!"}
+
+
 @app.post("/blog/comments/{comment_id}/like")
 async def like_blog_comment(comment_id: str, body: BlogLikeIn):
     if not body.fingerprint:
@@ -2130,6 +2170,14 @@ async def admin_reject_comment(comment_id: str, body: BlogRejectIn, _u=Depends(v
 async def admin_delete_comment(comment_id: str, _u=Depends(verify_token)):
     db_client = db.get_client()
     db_client.table("blog_comments").delete().eq("id", comment_id).execute()
+    return {"ok": True}
+
+
+@app.post("/admin/blog/comments/{comment_id}/retract")
+async def admin_retract_comment(comment_id: str, _u=Depends(verify_token)):
+    """Retract an approved comment — pulls it from public view (sets back to pending)."""
+    db_client = db.get_client()
+    db_client.table("blog_comments").update({"status": "pending"}).eq("id", comment_id).execute()
     return {"ok": True}
 
 
