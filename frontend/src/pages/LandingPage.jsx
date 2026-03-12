@@ -610,8 +610,8 @@ export default function LandingPage() {
           .podcast-btns { flex-direction:column!important; width:100%!important; align-items:stretch!important; }
           .podcast-btns .lp-btn { width:100%!important; justify-content:center!important; }
           /* Hero: reduce padding so content fits */
-          #hero { min-height:100svh!important; height:auto!important; }
-          .hero-content-pad { padding-top:80px!important; }
+          #hero { height:100svh!important; min-height:560px!important; }
+          .hero-content-pad { padding-top:70px!important; padding-bottom:16px!important; }
           .hero-stats { gap:20px!important; }
           .hero-bottom-bar { flex-direction:column!important; align-items:center!important; gap:8px!important; }
           /* Single buttons span full width */
@@ -721,7 +721,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ══ HERO — full-screen nebula video banner ════════════════════════════ */}
-      <section id="hero" style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <section id="hero" style={{ position: "relative", height: "100vh", minHeight: 560, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
         {/* Video background */}
         <video
@@ -740,30 +740,23 @@ export default function LandingPage() {
         {/* Main content — centred over video */}
         <div className="hero-content-pad" style={{ position: "relative", zIndex: 2, flex: 1, display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center", textAlign: "center",
-          padding: "110px 24px 32px", gap: 0 }}>
-
-          {/* Badge */}
-          <div className="anim-1" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 18px",
-            borderRadius: 100, background: "rgba(255,80,30,0.1)", border: "1px solid rgba(255,80,30,0.25)", marginBottom: 22 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff5533", display: "inline-block", animation: "glow 2s ease-in-out infinite" }} />
-            <span style={{ fontSize: 10, color: "#ff8866", letterSpacing: "0.18em" }}>LIFE · MYSTERY · CONNECTION</span>
-          </div>
+          padding: "90px 24px 24px", gap: 0 }}>
 
           {/* Headline */}
-          <h1 className="syne anim-2" style={{ fontWeight: 800, fontSize: "clamp(34px,7vw,80px)", lineHeight: 1.06,
-            letterSpacing: "-0.03em", marginBottom: 20, color: "#fff", textShadow: "0 2px 40px rgba(0,0,0,0.6)", maxWidth: 900 }}>
+          <h1 className="syne anim-1" style={{ fontWeight: 800, fontSize: "clamp(24px,4vw,50px)", lineHeight: 1.1,
+            letterSpacing: "-0.03em", marginBottom: 18, color: "#fff", textShadow: "0 2px 40px rgba(0,0,0,0.6)", maxWidth: 820 }}>
             The questions{" "}<span className="grad-fire">worth asking</span>{" "}live here.
           </h1>
 
           {/* Description */}
-          <p className="anim-3" style={{ fontSize: "clamp(13px,1.5vw,15px)", color: "rgba(220,230,245,0.75)",
-            lineHeight: 1.85, maxWidth: 580, marginBottom: 28, textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>
+          <p className="anim-2" style={{ fontSize: "clamp(12px,1.4vw,14px)", color: "rgba(220,230,245,0.75)",
+            lineHeight: 1.85, maxWidth: 560, marginBottom: 24, textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>
             4Life Mystery is a space for real conversations about life — its meaning, its mysteries, and everything between.
             No algorithm. No noise. Just honest human thought.
           </p>
 
           {/* Stats */}
-          <div className="hero-stats anim-3" style={{ display: "flex", gap: 40, flexWrap: "wrap", justifyContent: "center", marginBottom: 32 }}>
+          <div className="hero-stats anim-3" style={{ display: "flex", gap: 32, flexWrap: "wrap", justifyContent: "center", marginBottom: 28 }}>
             {[["10K+","FOLLOWERS"],["50+","EPISODES"],["∞","QUESTIONS"]].map(([n,l]) => (
               <div key={l} style={{ textAlign: "center" }}>
                 <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(20px,3vw,30px)" }}>{n}</div>
@@ -773,7 +766,7 @@ export default function LandingPage() {
           </div>
 
           {/* CTA buttons */}
-          <div className="anim-4 btn-group" style={{ justifyContent: "center", width: "100%", maxWidth: 500 }}>
+          <div className="anim-4 btn-group" style={{ justifyContent: "center", width: "100%", maxWidth: 500, marginBottom: 8 }}>
             <button onClick={() => scrollTo("content")} className="lp-btn lp-btn-fire" style={{ flex: 1 }}>EXPLORE CONTENT</button>
             <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost"
               style={{ flex: 1, color: "#fff", borderColor: "rgba(255,255,255,0.22)", justifyContent: "center" }}>▶ WATCH ON YOUTUBE</a>
