@@ -107,24 +107,67 @@ def _escape_xml(text: str) -> str:
 @app.get("/podcast/feed.xml")
 def podcast_feed():
     """
-    RSS 2.0 + iTunes podcast feed.
+    RSS 2.0 + iTunes/Spotify podcast feed.
     Submit this URL once at podcasters.spotify.com — new episodes appear automatically.
     Public endpoint (no auth) so Spotify can fetch it.
+
+    Fields populated automatically per episode:
+      title, description, pubDate, enclosure (mp3 url), guid, duration,
+      itunes:image (YouTube thumbnail), itunes:explicit, itunes:episodeType
     """
     from fastapi.responses import Response
     from datetime import datetime, timezone
 
     all_videos = db.list_videos(limit=500)
-    episodes   = [v for v in all_videos if v.get("narration_url") and v.get("title")]
+    # Only episodes with an MP3 and a title; exclude future-scheduled ones
+    now_iso = datetime.now(timezone.utc).isoformat()
+    episodes = [
+        v for v in all_videos
+        if v.get("narration_url") and v.get("title")
+        and (v.get("scheduled_for") or "0") <= now_iso  # skip future-scheduled
+    ]
 
     base_url      = config.BASE_URL.rstrip("/")
     feed_url      = f"{base_url}/api/podcast/feed.xml"
-    channel_title = _escape_xml(config.PODCAST_TITLE)
-    channel_desc  = _escape_xml(config.PODCAST_DESCRIPTION)
+    ch_title      = _escape_xml(config.PODCAST_TITLE)
+    ch_desc       = _escape_xml(config.PODCAST_DESCRIPTION)
+    ch_author     = _escape_xml(config.PODCAST_AUTHOR)
+    ch_email      = _escape_xml(config.PODCAST_EMAIL)
+    ch_category   = config.PODCAST_CATEGORY          # already XML-safe in config
+    ch_subcategory= _escape_xml(config.PODCAST_SUBCATEGORY)
+    ch_language   = config.PODCAST_LANGUAGE
+    ch_explicit   = config.PODCAST_EXPLICIT
+    ch_image      = config.PODCAST_IMAGE_URL
 
+    # Channel-level image block
+    image_xml = ""
+    if ch_image:
+        image_xml = f"""
+    <image>
+      <url>{ch_image}</url>
+      <title>{ch_title}</title>
+      <link>{base_url}</link>
+    </image>
+    <itunes:image href="{ch_image}"/>"""
+
+    # Owner block (required by Spotify)
+    owner_xml = ""
+    if ch_email:
+        owner_xml = f"""
+    <itunes:owner>
+      <itunes:name>{ch_author}</itunes:name>
+      <itunes:email>{ch_email}</itunes:email>
+    </itunes:owner>"""
+
+    # Sub-category block
+    subcat_xml = ""
+    if ch_subcategory:
+        subcat_xml = f'<itunes:category text="{ch_subcategory}"/>'
+
+    # Build episode items
     items_xml = ""
-    for v in episodes:
-        pub_raw = v.get("posted_at") or v.get("created_at", "")
+    for ep_num, v in enumerate(episodes, start=1):
+        pub_raw = v.get("scheduled_for") or v.get("posted_at") or v.get("created_at", "")
         try:
             dt = datetime.fromisoformat(pub_raw.replace("Z", "+00:00"))
             rfc_date = dt.strftime("%a, %d %b %Y %H:%M:%S +0000")
@@ -132,29 +175,49 @@ def podcast_feed():
             rfc_date = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
 
         dur = v.get("duration_seconds") or 0
+        # Use YouTube thumbnail as per-episode artwork (1280x720 is acceptable)
+        ep_thumb = v.get("thumbnail_url") or ch_image
+        ep_image_xml = f'<itunes:image href="{ep_thumb}"/>' if ep_thumb else ""
+        ep_link = v.get("youtube_url") or base_url
+        ep_desc = _escape_xml((v.get("description") or v.get("title") or ""))
+
         items_xml += f"""
   <item>
     <title>{_escape_xml(v['title'])}</title>
-    <description>{_escape_xml((v.get('description') or '')[:500])}</description>
+    <description>{ep_desc}</description>
     <pubDate>{rfc_date}</pubDate>
     <enclosure url="{v['narration_url']}" type="audio/mpeg" length="0"/>
     <guid isPermaLink="false">{v['id']}</guid>
-    <itunes:duration>{dur // 60}:{dur % 60:02d}</itunes:duration>
-    <link>{v.get('youtube_url', base_url)}</link>
+    <link>{ep_link}</link>
+    <itunes:duration>{dur}</itunes:duration>
+    <itunes:explicit>{ch_explicit}</itunes:explicit>
+    <itunes:episodeType>full</itunes:episodeType>
+    <itunes:episode>{ep_num}</itunes:episode>
+    {ep_image_xml}
   </item>"""
+
+    build_date = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
 
     rss = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
   xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
-  xmlns:atom="http://www.w3.org/2005/Atom">
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
-    <title>{channel_title}</title>
+    <title>{ch_title}</title>
     <link>{base_url}</link>
-    <description>{channel_desc}</description>
-    <language>en-us</language>
-    <itunes:author>{channel_title}</itunes:author>
-    <itunes:explicit>no</itunes:explicit>
+    <description>{ch_desc}</description>
+    <language>{ch_language}</language>
+    <lastBuildDate>{build_date}</lastBuildDate>
+    <itunes:author>{ch_author}</itunes:author>
+    <itunes:explicit>{ch_explicit}</itunes:explicit>
+    <itunes:type>episodic</itunes:type>
+    <itunes:category text="{ch_category}">
+      {subcat_xml}
+    </itunes:category>
     <atom:link href="{feed_url}" rel="self" type="application/rss+xml"/>
+    {image_xml}
+    {owner_xml}
     {items_xml}
   </channel>
 </rss>"""
@@ -193,6 +256,7 @@ class VideoResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: str
     posted_at: Optional[str] = None
+    scheduled_for: Optional[str] = None   # ISO date — episode hidden from feed until this date
 
 
 # ── Video routes — IMPORTANT: specific paths BEFORE /{video_id} ──────────────
