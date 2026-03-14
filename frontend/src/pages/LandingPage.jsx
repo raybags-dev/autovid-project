@@ -7,7 +7,6 @@ import freedomImg from "../assets/static/freedom.jpg";
 import jajja2 from "../assets/static/jajja2.jpg";
 import metrixVideo from "../assets/static/metrix.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
-import roundFace from "../assets/static/relaxedface.png";
 import faceImg from "../assets/static/smileface.png";
 
 const SOCIAL = {
@@ -105,27 +104,6 @@ const DARK = {
   togBg: "rgba(255,255,255,0.06)",
   togBr: "rgba(255,255,255,0.1)",
   togText: "#4a6a8a",
-};
-const LIGHT = {
-  bg: "#f5f2eb",
-  bgAlt: "rgba(0,0,0,0.025)",
-  text: "#18181e",
-  textM: "#55697a",
-  textD: "#8899aa",
-  textD2: "#c0ccd8",
-  cardBg: "rgba(255,255,255,0.88)",
-  cardBr: "rgba(0,0,0,0.09)",
-  cardSh: "0 4px 28px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
-  navBg: "rgba(245,242,235,0.85)",
-  secBr: "rgba(0,0,0,0.08)",
-  footBg: "rgba(0,0,0,0.035)",
-  ftLink: "#8899aa",
-  inputBg: "rgba(0,0,0,0.03)",
-  inputBr: "rgba(0,0,0,0.1)",
-  socBr: "rgba(0,0,0,0.1)",
-  togBg: "rgba(0,0,0,0.04)",
-  togBr: "rgba(0,0,0,0.12)",
-  togText: "#556677",
 };
 
 function BlogSection({ c, theme }) {
@@ -349,7 +327,7 @@ function BlogSection({ c, theme }) {
   };
 
   return (
-    <div style={{ maxWidth: 860, margin: "0 auto" }}>
+    <div style={{ margin: "0 auto" }}>
       <div
         style={{
           display: "flex",
@@ -363,91 +341,6 @@ function BlogSection({ c, theme }) {
         <span style={{ fontSize: 10, color: c.textD, letterSpacing: "0.16em" }}>
           DISCUSSION · {total} COMMENT{total !== 1 ? "S" : ""}
         </span>
-      </div>
-
-      {/* Submit form */}
-      <div
-        style={{
-          background: c.cardBg,
-          border: `1px solid ${c.cardBr}`,
-          borderRadius: 14,
-          padding: "22px 22px 18px",
-          marginBottom: 32,
-          boxShadow: c.cardSh,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 10,
-            color: c.textM,
-            letterSpacing: "0.1em",
-            marginBottom: 16,
-          }}
-        >
-          LEAVE A COMMENT
-        </div>
-        <div className="comment-name-row">
-          <input
-            placeholder="Your name *"
-            value={form.name}
-            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            style={inputSt}
-          />
-          <input
-            placeholder="Email (optional)"
-            value={form.email}
-            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-            style={inputSt}
-          />
-        </div>
-        <textarea
-          placeholder="Share your thoughts, questions, or feedback…"
-          value={form.content}
-          onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))}
-          rows={3}
-          style={{
-            display: "block",
-            width: "100%",
-            ...inputSt,
-            resize: "vertical",
-            marginBottom: 10,
-          }}
-        />
-        {formError && (
-          <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 8 }}>
-            ⚠ {formError}
-          </div>
-        )}
-        {formSuccess && (
-          <div style={{ color: "#1db954", fontSize: 11, marginBottom: 8 }}>
-            {formSuccess}
-          </div>
-        )}
-        <div className="comment-submit-row">
-          <span style={{ fontSize: 10, color: c.textD }}>
-            Comments are reviewed before appearing.
-          </span>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="comment-submit-btn"
-            style={{
-              padding: "9px 20px",
-              background: "linear-gradient(135deg,#cc2200,#ff5533)",
-              border: "none",
-              borderRadius: 9,
-              color: "#fff",
-              fontFamily: "inherit",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.1em",
-              cursor: submitting ? "not-allowed" : "pointer",
-              opacity: submitting ? 0.6 : 1,
-            }}
-          >
-            {submitting ? "SENDING…" : "POST COMMENT →"}
-          </button>
-        </div>
       </div>
 
       {/* Comments list — scrollable */}
@@ -1020,12 +913,169 @@ function BlogSection({ c, theme }) {
           </div>
         )}
       </div>
+
+      {/* Submit form */}
+      <div
+        style={{
+          background: c.cardBg,
+          border: `1px solid ${c.cardBr}`,
+          borderRadius: 14,
+          padding: "22px 22px 18px",
+          marginTop: 32,
+          boxShadow: c.cardSh,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            color: c.textM,
+            letterSpacing: "0.1em",
+            marginBottom: 16,
+          }}
+        >
+          LEAVE A COMMENT
+        </div>
+        <div className="comment-name-row">
+          <input
+            placeholder="Your name *"
+            value={form.name}
+            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            style={inputSt}
+          />
+          <input
+            placeholder="Email (optional)"
+            value={form.email}
+            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+            style={inputSt}
+          />
+        </div>
+        <textarea
+          placeholder="Share your thoughts, questions, or feedback…"
+          value={form.content}
+          onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))}
+          rows={3}
+          style={{
+            display: "block",
+            width: "100%",
+            ...inputSt,
+            resize: "vertical",
+            marginBottom: 10,
+          }}
+        />
+        {formError && (
+          <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 8 }}>
+            ⚠ {formError}
+          </div>
+        )}
+        {formSuccess && (
+          <div style={{ color: "#1db954", fontSize: 11, marginBottom: 8 }}>
+            {formSuccess}
+          </div>
+        )}
+        <div className="comment-submit-row">
+          <span style={{ fontSize: 10, color: c.textD }}>
+            Comments are reviewed before appearing.
+          </span>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="comment-submit-btn"
+            style={{
+              padding: "9px 20px",
+              background: "linear-gradient(135deg,#cc2200,#ff5533)",
+              border: "none",
+              borderRadius: 9,
+              color: "#fff",
+              fontFamily: "inherit",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              cursor: submitting ? "not-allowed" : "pointer",
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
+            {submitting ? "SENDING…" : "POST COMMENT →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SPOTIFY_EPISODES = [
+  "50JTbPBRUMIyJIUROLBcV9",
+  "0fqEGJtyCgS9jnfslTv13Q",
+  "2aYzYLAmKO3ya8ajCc4d9W",
+  "4qmjabSq9gjdMbouJXmBBI",
+  "5CLu5g3ydeX8Tel1flsUaT",
+];
+
+function SpotifyCarousel() {
+  const [idx, setIdx] = useState(0);
+  const timerRef = useRef(null);
+
+  const goTo = (next) => {
+    setIdx((next + SPOTIFY_EPISODES.length) % SPOTIFY_EPISODES.length);
+  };
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setIdx((i) => (i + 1) % SPOTIFY_EPISODES.length);
+    }, 12000);
+    return () => clearInterval(timerRef.current);
+  }, []);
+
+  const episodeId = SPOTIFY_EPISODES[idx];
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div
+        style={{
+          borderRadius: 16,
+          overflow: "hidden",
+          border: "1px solid rgba(29,185,84,0.25)",
+          boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
+          background: "rgba(3,6,15,0.85)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+        }}
+      >
+        <iframe
+          key={episodeId}
+          src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
+          width="100%"
+          height="352"
+          style={{ border: "none", display: "block" }}
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy"
+          title="4Life Mystery Podcast Episode"
+        />
+      </div>
+      {/* Nav dots */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 14 }}>
+        {SPOTIFY_EPISODES.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => { clearInterval(timerRef.current); goTo(i); }}
+            style={{
+              width: i === idx ? 20 : 8,
+              height: 8,
+              borderRadius: 4,
+              border: "none",
+              background: i === idx ? "#1db954" : "rgba(255,255,255,0.18)",
+              cursor: "pointer",
+              padding: 0,
+              transition: "width 0.3s, background 0.3s",
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 export default function LandingPage() {
-  const [theme, setTheme] = useState("dark");
+  const theme = "dark";
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("hero");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1047,7 +1097,7 @@ export default function LandingPage() {
   const videoBgRef = useRef(null);
   const ytAutoRef = useRef(null);
 
-  const c = theme === "dark" ? DARK : LIGHT;
+  const c = DARK;
 
   // Scroll detection on the wrapper (not window)
   useEffect(() => {
@@ -1190,7 +1240,6 @@ export default function LandingPage() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMenuOpen(false);
   };
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
   const ytPause = () => clearInterval(ytAutoRef.current);
   const ytResume = () => {
     const total = Math.min(ytVideos.length, 3);
@@ -1307,7 +1356,6 @@ export default function LandingPage() {
         .lp-btn-fire { background: linear-gradient(135deg,#cc2200,#ff5533,#ff8844); color:#fff; box-shadow: 0 4px 20px rgba(255,80,30,0.25); }
         .lp-btn-fire:hover { opacity:0.92; transform:translateY(-3px) scale(1.03); box-shadow:0 12px 36px rgba(255,80,30,0.5); }
         .lp-btn-ghost { background:transparent; color: var(--text-light,#c0d4e8); border:1px solid rgba(255,255,255,0.18); }
-        [data-theme="light"] .lp-btn-ghost { color:#444; border-color:rgba(0,0,0,0.18); }
         .lp-btn-ghost:hover { border-color:rgba(255,80,30,0.5); color:#ff6633; background:rgba(255,80,30,0.07); transform:translateY(-2px); }
         .lp-btn-green { background:linear-gradient(135deg,#1db954,#1ed760); color:#fff; box-shadow: 0 4px 20px rgba(29,185,84,0.25); }
         .lp-btn-green:hover { opacity:0.92; transform:translateY(-3px) scale(1.03); box-shadow:0 12px 36px rgba(29,185,84,0.45); }
@@ -1331,9 +1379,6 @@ export default function LandingPage() {
           transform: scale(0.8);
           transition: opacity 0.45s, transform 0.45s;
           pointer-events: none;
-        }
-        [data-theme="light"] .lp-card::before {
-          background: radial-gradient(ellipse at 35% 35%, rgba(255,140,80,0.07) 0%, transparent 60%);
         }
         .lp-card:hover { border-color:rgba(255,80,30,0.28); transform:translateY(-4px); box-shadow:0 12px 40px rgba(255,80,30,0.12); }
         .lp-card:hover::before { opacity:1; transform:scale(1); }
@@ -1695,7 +1740,7 @@ export default function LandingPage() {
                 background:
                   activeSection === s.id
                     ? "linear-gradient(90deg,#ff5533,#ff8844)"
-                    : `rgba(${theme === "dark" ? "255,255,255" : "0,0,0"},0.15)`,
+                    : `rgba(255,255,255,0.15)`,
               }}
             />
             <span className="side-label">{s.label}</span>
@@ -1708,8 +1753,7 @@ export default function LandingPage() {
         <div
           className="mob-menu"
           style={{
-            background:
-              theme === "dark" ? "rgba(3,6,15,0.97)" : "rgba(245,242,235,0.97)",
+            background: "rgba(3,6,15,0.97)",
           }}
         >
           <button
@@ -1769,10 +1813,9 @@ export default function LandingPage() {
       )}
 
       {/* ══ NAV ═══════════════════════════════════════════════════════════════ */}
-      {/* Nav is always dark-tinted over the hero section regardless of theme */}
       <nav
         className={`lp-nav${scrolled ? " scrolled" : ""}`}
-        style={{ "--nav-bg": activeSection === "hero" ? "rgba(3,6,15,0.88)" : c.navBg }}
+        style={{ "--nav-bg": c.navBg }}
       >
         <div
           style={{
@@ -1788,31 +1831,19 @@ export default function LandingPage() {
         >
           <a
             href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              scrollTo("hero");
-            }}
-            style={{
-              textDecoration: "none",
-              flexShrink: 0,
-              borderRadius: "50%",
-              padding: 4,
-              display: "flex",
-              alignItems: "center",
-              padding: "4px",
-              border: `5px solid ${c.togBr}`,
-            }}
+            onClick={(e) => { e.preventDefault(); scrollTo("hero"); }}
+            style={{ textDecoration: "none", flexShrink: 0, display: "flex", alignItems: "center" }}
           >
-            <img
-              src={roundFace}
-              alt="4Life Mystery"
-              style={{
-                height: 40,
-                width: 40,
-                borderRadius: "50%",
-                objectFit: "contain",
-              }}
-            />
+            <span style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 800,
+              fontSize: "clamp(13px,1.4vw,16px)",
+              letterSpacing: "0.18em",
+              background: "linear-gradient(135deg,#ff8844,#ff3300,#0088ff)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}>4LIFE MYSTERY</span>
           </a>
 
           <div
@@ -1869,19 +1900,6 @@ export default function LandingPage() {
             >
               ◎
             </a>
-
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              className="theme-toggle hide-mobile"
-              style={{
-                background: c.togBg,
-                borderColor: c.togBr,
-                color: c.togText,
-              }}
-            >
-              {theme === "dark" ? "☀ LIGHT" : "☾ DARK"}
-            </button>
 
             <button
               className="hamburger"
@@ -1971,7 +1989,8 @@ export default function LandingPage() {
               maxWidth: 820,
             }}
           >
-            <span className="grad-fire">4Life Mystery</span>
+            The questions <span className="grad-fire">worth asking</span> live
+            here.
           </h1>
 
           {/* Description */}
@@ -2214,7 +2233,7 @@ export default function LandingPage() {
               alignItems: "stretch",
             }}
           >
-            {/* Face image — fills the container completely */}
+            {/* Face image — default; click to play video */}
             <div
               style={{
                 position: "relative",
@@ -2224,10 +2243,19 @@ export default function LandingPage() {
                 boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
                 border: "1px solid rgba(255,80,30,0.15)",
                 height: "100%",
+                cursor: "pointer",
               }}
               className="face-feature"
+              onClick={(e) => {
+                const vid = e.currentTarget.querySelector("video");
+                const img = e.currentTarget.querySelector("img.face-poster");
+                if (!vid) return;
+                vid.style.opacity = "1";
+                if (img) img.style.opacity = "0";
+                vid.play().catch(() => {});
+              }}
             >
-              {/* Poster image — always rendered, hidden once video plays */}
+              {/* Poster image — shown by default, hidden once video plays */}
               <img
                 src={faceImg}
                 alt="4Life Mystery"
@@ -2243,9 +2271,8 @@ export default function LandingPage() {
                   transition: "opacity 0.8s ease",
                 }}
               />
-              {/* Video — invisible until canplay, then fades in over the image */}
+              {/* Video — hidden until user clicks */}
               <video
-                autoPlay
                 muted
                 loop
                 playsInline
@@ -2259,11 +2286,6 @@ export default function LandingPage() {
                   zIndex: 2,
                   opacity: 0,
                   transition: "opacity 0.8s ease",
-                }}
-                onCanPlay={(e) => {
-                  e.currentTarget.style.opacity = "1";
-                  const poster = e.currentTarget.previousElementSibling;
-                  if (poster) poster.style.opacity = "0";
                 }}
               >
                 <source src={faceVideo} type="video/mp4" />
@@ -2465,7 +2487,7 @@ export default function LandingPage() {
             backgroundImage: `url(${faceImg})`,
             backgroundSize: "cover",
             backgroundPosition: "center 35%",
-            opacity: theme === "dark" ? 0.1 : 0.05,
+            opacity: 0.1,
             willChange: "transform",
             transform: "scale(1.3)",
             pointerEvents: "none",
@@ -2477,9 +2499,7 @@ export default function LandingPage() {
             inset: 0,
             pointerEvents: "none",
             background:
-              theme === "dark"
-                ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(5,2,10,0.88) 50%,rgba(3,6,15,0.94) 100%)"
-                : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.92) 50%,rgba(245,242,235,0.96) 100%)",
+              "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(5,2,10,0.88) 50%,rgba(3,6,15,0.94) 100%)",
           }}
         />
         <div
@@ -2645,7 +2665,7 @@ export default function LandingPage() {
                 slideDir === "right" ? "carousel-slide-icon" : "carousel-slide"
               }
               style={{
-                background: `linear-gradient(145deg,${theme === "dark" ? "rgba(0,0,0,0.5)" : c.cardBg},${item.color}0c)`,
+                background: `linear-gradient(145deg,rgba(0,0,0,0.5),${item.color}0c)`,
                 border: `1px solid ${item.color}1a`,
                 borderRadius: 18,
                 display: "flex",
@@ -2872,9 +2892,7 @@ export default function LandingPage() {
             inset: 0,
             pointerEvents: "none",
             background:
-              theme === "dark"
-                ? "linear-gradient(160deg,rgba(3,6,15,0.93) 0%,rgba(3,6,15,0.76) 50%,rgba(3,6,15,0.93) 100%)"
-                : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)",
+              "linear-gradient(160deg,rgba(3,6,15,0.93) 0%,rgba(3,6,15,0.76) 50%,rgba(3,6,15,0.93) 100%)",
           }}
         />
 
@@ -3180,28 +3198,7 @@ export default function LandingPage() {
                 </a>
               </div>
             </div>
-            <div
-              style={{
-                borderRadius: 16,
-                overflow: "hidden",
-                border: "1px solid rgba(29,185,84,0.25)",
-                boxShadow:
-                  "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
-                background: "rgba(3,6,15,0.85)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-              }}
-            >
-              <iframe
-                src={`https://open.spotify.com/embed/show/${SPOTIFY_SHOW_ID}?utm_source=generator&theme=0`}
-                width="100%"
-                height="352"
-                style={{ border: "none", display: "block" }}
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-                title="4Life Mystery Podcast"
-              />
-            </div>
+            <SpotifyCarousel />
           </div>
         </div>
       </section>
@@ -3238,9 +3235,7 @@ export default function LandingPage() {
             inset: 0,
             pointerEvents: "none",
             background:
-              theme === "dark"
-                ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(3,6,15,0.78) 50%,rgba(3,6,15,0.94) 100%)"
-                : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)",
+              "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(3,6,15,0.78) 50%,rgba(3,6,15,0.94) 100%)",
           }}
         />
         <div
@@ -3417,9 +3412,7 @@ export default function LandingPage() {
             inset: 0,
             pointerEvents: "none",
             background:
-              theme === "dark"
-                ? "linear-gradient(160deg,rgba(3,6,15,0.92) 0%,rgba(5,2,10,0.80) 50%,rgba(3,6,15,0.92) 100%)"
-                : "linear-gradient(160deg,rgba(245,242,235,0.95) 0%,rgba(245,242,235,0.87) 50%,rgba(245,242,235,0.95) 100%)",
+              "linear-gradient(160deg,rgba(3,6,15,0.92) 0%,rgba(5,2,10,0.80) 50%,rgba(3,6,15,0.92) 100%)",
           }}
         />
 
@@ -3681,6 +3674,13 @@ export default function LandingPage() {
                 Terms of Service
               </Link>
               <Link
+                to="/cookie-policy"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                Cookie Policy
+              </Link>
+              <Link
                 to="/login"
                 className="ft-link"
                 style={{ color: c.textD2, marginTop: 16, display: "block" }}
@@ -3718,17 +3718,12 @@ export default function LandingPage() {
               >
                 Terms
               </Link>
-              <button
-                onClick={toggleTheme}
-                className="theme-toggle"
-                style={{
-                  background: c.togBg,
-                  borderColor: c.togBr,
-                  color: c.togText,
-                }}
+              <Link
+                to="/cookie-policy"
+                style={{ fontSize: 10, color: c.textD, textDecoration: "none" }}
               >
-                {theme === "dark" ? "☀ LIGHT" : "☾ DARK"}
-              </button>
+                Cookies
+              </Link>
             </div>
           </div>
         </div>

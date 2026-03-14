@@ -25,8 +25,8 @@ import database as db
 
 DEFAULT_PODCAST_DAYS   = [2, 5]       # Wed, Sat
 DEFAULT_PODCAST_HOUR   = 4            # 4 AM UTC
-DEFAULT_MUSIC_STYLE    = "ambient"    # calm & atmospheric, consistent with brand
-PODCAST_MUSIC_VOLUME   = 0.20         # louder than video (0.10) but not distorting
+DEFAULT_MUSIC_STYLE    = "Birds_Atmosphere_Piano"    # calm & atmospheric, consistent with brand
+PODCAST_MUSIC_VOLUME   = 0.10         # louder than video (0.10) but not distorting
 
 DEFAULT_PODCAST_TOPICS = [
     "Why the universe remains silent when we ask it for meaning",
