@@ -1012,70 +1012,74 @@ const SPOTIFY_EPISODES = [
 
 function SpotifyCarousel() {
   const [idx, setIdx] = useState(0);
-  const [dir, setDir] = useState("next");
   const timerRef = useRef(null);
+  const total = SPOTIFY_EPISODES.length;
 
-  const goTo = (next, direction = "next") => {
-    setDir(direction);
-    setIdx((next + SPOTIFY_EPISODES.length) % SPOTIFY_EPISODES.length);
+  const goTo = (n) => {
+    clearInterval(timerRef.current);
+    setIdx(((n % total) + total) % total);
   };
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      setDir("next");
-      setIdx((i) => (i + 1) % SPOTIFY_EPISODES.length);
+      setIdx((i) => (i + 1) % total);
     }, 12000);
     return () => clearInterval(timerRef.current);
-  }, []);
-
-  const episodeId = SPOTIFY_EPISODES[idx];
+  }, [total]);
 
   return (
     <div style={{ position: "relative" }}>
       <style>{`
-        @keyframes spSlideInNext { from { opacity:0; transform:translateX(70px); } to { opacity:1; transform:translateX(0); } }
-        @keyframes spSlideInPrev { from { opacity:0; transform:translateX(-70px); } to { opacity:1; transform:translateX(0); } }
-        .sp-slide-next { animation: spSlideInNext 0.48s cubic-bezier(0.22,1,0.36,1) both; }
-        .sp-slide-prev { animation: spSlideInPrev 0.48s cubic-bezier(0.22,1,0.36,1) both; }
+        .sp-track {
+          display: flex;
+          transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+          will-change: transform;
+        }
+        .sp-slide { flex: 0 0 100%; min-width: 0; }
       `}</style>
+
+      {/* Clipping wrapper — clips the sliding track, never shows scrollbar */}
       <div style={{ overflow: "hidden", borderRadius: 16 }}>
         <div
-          key={episodeId}
-          className={dir === "next" ? "sp-slide-next" : "sp-slide-prev"}
-          style={{
-            borderRadius: 16,
-            overflow: "hidden",
-            border: "1px solid rgba(29,185,84,0.25)",
-            boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
-            background: "rgba(3,6,15,0.85)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-          }}
+          className="sp-track"
+          style={{ transform: `translateX(-${idx * 100}%)` }}
         >
-          <iframe
-            src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
-            width="100%"
-            height="352"
-            style={{ border: "none", display: "block" }}
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy"
-            title="4Life Mystery Podcast Episode"
-          />
+          {SPOTIFY_EPISODES.map((episodeId) => (
+            <div key={episodeId} className="sp-slide">
+              <div style={{
+                borderRadius: 16,
+                overflow: "hidden",
+                border: "1px solid rgba(29,185,84,0.25)",
+                boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
+                background: "rgba(3,6,15,0.85)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+              }}>
+                <iframe
+                  src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
+                  width="100%"
+                  height="352"
+                  style={{ border: "none", display: "block" }}
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  loading="lazy"
+                  title="4Life Mystery Podcast Episode"
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+
       {/* Nav dots + prev/next arrows */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 14 }}>
         <button
-          onClick={() => { clearInterval(timerRef.current); goTo(idx - 1, "prev"); }}
+          onClick={() => goTo(idx - 1)}
           style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
         >‹</button>
         {SPOTIFY_EPISODES.map((_, i) => (
           <button
             key={i}
-            onClick={() => {
-              clearInterval(timerRef.current);
-              goTo(i, i > idx ? "next" : "prev");
-            }}
+            onClick={() => goTo(i)}
             style={{
               width: i === idx ? 20 : 8,
               height: 8,
@@ -1089,7 +1093,7 @@ function SpotifyCarousel() {
           />
         ))}
         <button
-          onClick={() => { clearInterval(timerRef.current); goTo(idx + 1, "next"); }}
+          onClick={() => goTo(idx + 1)}
           style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
         >›</button>
       </div>
