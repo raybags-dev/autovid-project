@@ -1321,10 +1321,14 @@ export default function Dashboard() {
 
   const handleDownload = async (url, filename) => {
     if (!url) return;
+    const isAudio = filename?.match(/\.(mp3|m4a|ogg|wav|aac)$/i);
+    const mimeOverride = isAudio ? "audio/mpeg" : null;
     try {
       const resp = await fetch(url);
       if (!resp.ok) throw new Error("fetch failed");
-      const blob = await resp.blob();
+      const rawBlob = await resp.blob();
+      // Force correct MIME type so browser treats audio as audio, not video
+      const blob = mimeOverride ? new Blob([rawBlob], { type: mimeOverride }) : rawBlob;
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
@@ -1334,7 +1338,6 @@ export default function Dashboard() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
     } catch (_) {
-      // fallback: open in new tab
       window.open(url, "_blank");
     }
   };
@@ -1357,9 +1360,10 @@ export default function Dashboard() {
   };
 
   const filtered = videos.filter((v) => {
-    if (filter === "all") return v.status !== "failed";
-    if (filter === "mp4") return !!v.file_path && v.status !== "failed";
-    if (filter === "mp3") return !!v.narration_url && v.status !== "failed";
+    if (filter === "all") return v.status !== "failed" && v.resolution !== "1080x1920";
+    if (filter === "mp4") return !!v.file_path && v.resolution !== "1080x1920" && v.status !== "failed";
+    if (filter === "mp3") return !!v.narration_url && v.resolution !== "1080x1920" && v.status !== "failed";
+    if (filter === "shorts") return v.resolution === "1080x1920";
     return v.status === filter;
   });
   const sc = (s) => STATUS[s] || STATUS.failed;
@@ -2259,42 +2263,12 @@ export default function Dashboard() {
                     </div>
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                       {[
-                        {
-                          id: "ambient",
-                          label: "🌫 Ambient",
-                          desc: "Calm & atmospheric",
-                        },
-                        {
-                          id: "cinematic",
-                          label: "🎬 Cinematic",
-                          desc: "Epic & dramatic",
-                        },
-                        {
-                          id: "lo-fi",
-                          label: "☕ Lo-Fi",
-                          desc: "Relaxed & warm",
-                        },
-                        {
-                          id: "meditation",
-                          label: "🧘 Meditation",
-                          desc: "Peaceful & mindful",
-                        },
-                        {
-                          id: "jazz",
-                          label: "🎷 Jazz",
-                          desc: "Smooth & soulful",
-                        },
-                        {
-                          id: "epic_trailer",
-                          label: "🎯 Epic Trailer",
-                          desc: "Intense & powerful",
-                        },
-                        {
-                          id: "chill_electronic",
-                          label: "🎧 Chill Electronic",
-                          desc: "Smooth beats",
-                        },
-                        { id: "none", label: "🔇 None", desc: "No music" },
+                        { id: "ambient",    label: "🌙 Ambient",    desc: "Calm & atmospheric" },
+                        { id: "wilderness", label: "🍃 Wilderness",  desc: "Soothing & atmospheric" },
+                        { id: "studio",     label: "🎹 Studio",      desc: "Smooth Jazz" },
+                        { id: "meditation", label: "🎧 Meditation",  desc: "Deep Smooth Pads" },
+                        { id: "lofi",       label: "🎵 Lo-Fi",       desc: "Chill Heavy Pads" },
+                        { id: "none",       label: "🔇 None",        desc: "Voice only" },
                       ].map((m) => (
                         <button
                           key={m.id}
@@ -2667,7 +2641,17 @@ export default function Dashboard() {
                   >
                     ♪ MP3
                     <span style={{ marginLeft: 5, opacity: 0.5 }}>
-                      {videos.filter((v) => !!v.narration_url).length}
+                      {videos.filter((v) => !!v.narration_url && v.resolution !== "1080x1920").length}
+                    </span>
+                  </button>
+                  <button
+                    className={`filter-btn ${filter === "shorts" ? "active" : ""}`}
+                    onClick={() => setFilter("shorts")}
+                    style={filter === "shorts" ? { background: "rgba(150,80,255,0.12)", borderColor: "rgba(150,80,255,0.4)", color: "#a855f7" } : { color: "#a855f7", borderColor: "rgba(150,80,255,0.2)" }}
+                  >
+                    📱 SHORTS
+                    <span style={{ marginLeft: 5, opacity: 0.6 }}>
+                      {videos.filter((v) => v.resolution === "1080x1920").length}
                     </span>
                   </button>
                 </div>
@@ -2699,7 +2683,9 @@ export default function Dashboard() {
                       : filter === "mp4"
                       ? "NO MP4 FILES READY YET"
                       : filter === "mp3"
-                      ? "NO MP3 FILES YET — MP3 IS GENERATED ALONGSIDE EACH VIDEO"
+                      ? "NO MP3 FILES YET — GENERATED VIA PODCAST PIPELINE"
+                      : filter === "shorts"
+                      ? "NO SHORTS YET — CREATE SHORTS FROM EXISTING VIDEOS"
                       : `NO ${filter.toUpperCase()} VIDEOS`}
                   </div>
                 ) : (
@@ -7531,7 +7517,7 @@ export default function Dashboard() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>BACKGROUND MUSIC</div>
                           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                            {["ambient","cinematic","lofi","meditation","jazz","chill_electronic"].map(s => (
+                            {["ambient","wilderness","studio","meditation","lofi","none"].map(s => (
                               <button key={s}
                                 onClick={() => setPodcastSettings(ps => ({ ...ps, music_style: s }))}
                                 style={{
@@ -7635,7 +7621,7 @@ export default function Dashboard() {
                           />
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             <div style={{ fontSize: 10, color: T.textFaint, flexShrink: 0 }}>Music:</div>
-                            {["ambient","cinematic","lofi","meditation","jazz","chill_electronic"].map(s => (
+                            {["ambient","wilderness","studio","meditation","lofi","none"].map(s => (
                               <button key={s}
                                 onClick={() => setManualPodcastMusic(s)}
                                 style={{
