@@ -1011,18 +1011,35 @@ const SPOTIFY_EPISODES = [
 ];
 
 function SpotifyCarousel() {
-  const [idx, setIdx] = useState(0);
-  const timerRef = useRef(null);
   const total = SPOTIFY_EPISODES.length;
+  const [idx, setIdx] = useState(0);
+  // Track which slides have had their iframe initialised — once added, never removed (no remount)
+  const [loaded, setLoaded] = useState(() => new Set([0, 1, total - 1]));
+  const timerRef = useRef(null);
+
+  const _activate = (next) => {
+    setLoaded((prev) => {
+      const s = new Set(prev);
+      s.add(next);
+      s.add((next + 1) % total);
+      s.add((next - 1 + total) % total);
+      return s;
+    });
+    setIdx(next);
+  };
 
   const goTo = (n) => {
     clearInterval(timerRef.current);
-    setIdx(((n % total) + total) % total);
+    _activate(((n % total) + total) % total);
   };
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      setIdx((i) => (i + 1) % total);
+      setIdx((i) => {
+        const next = (i + 1) % total;
+        _activate(next);
+        return next;
+      });
     }, 12000);
     return () => clearInterval(timerRef.current);
   }, [total]);
@@ -1030,72 +1047,51 @@ function SpotifyCarousel() {
   return (
     <div style={{ position: "relative" }}>
       <style>{`
-        .sp-track {
-          display: flex;
-          transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-          will-change: transform;
-        }
-        .sp-slide { flex: 0 0 100%; min-width: 0; }
+        .sp-track { display:flex; transition:transform 0.6s cubic-bezier(0.4,0,0.2,1); will-change:transform; }
+        .sp-slide  { flex:0 0 100%; min-width:0; }
+        .sp-placeholder { height:352px; background:rgba(3,6,15,0.85); }
       `}</style>
 
-      {/* Clipping wrapper — clips the sliding track, never shows scrollbar */}
       <div style={{ overflow: "hidden", borderRadius: 16 }}>
-        <div
-          className="sp-track"
-          style={{ transform: `translateX(-${idx * 100}%)` }}
-        >
-          {SPOTIFY_EPISODES.map((episodeId) => (
+        <div className="sp-track" style={{ transform: `translateX(-${idx * 100}%)` }}>
+          {SPOTIFY_EPISODES.map((episodeId, i) => (
             <div key={episodeId} className="sp-slide">
               <div style={{
-                borderRadius: 16,
-                overflow: "hidden",
+                borderRadius: 16, overflow: "hidden",
                 border: "1px solid rgba(29,185,84,0.25)",
                 boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
                 background: "rgba(3,6,15,0.85)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
+                backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
               }}>
-                <iframe
-                  src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
-                  width="100%"
-                  height="352"
-                  style={{ border: "none", display: "block" }}
-                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                  loading="lazy"
-                  title="4Life Mystery Podcast Episode"
-                />
+                {loaded.has(i) ? (
+                  <iframe
+                    src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
+                    width="100%" height="352"
+                    style={{ border: "none", display: "block" }}
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    title="4Life Mystery Podcast Episode"
+                  />
+                ) : (
+                  <div className="sp-placeholder" />
+                )}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Nav dots + prev/next arrows */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 14 }}>
-        <button
-          onClick={() => goTo(idx - 1)}
-          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
-        >‹</button>
+        <button onClick={() => goTo(idx - 1)}
+          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>‹</button>
         {SPOTIFY_EPISODES.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => goTo(i)}
-            style={{
-              width: i === idx ? 20 : 8,
-              height: 8,
-              borderRadius: 4,
-              border: "none",
-              background: i === idx ? "#1db954" : "rgba(255,255,255,0.18)",
-              cursor: "pointer",
-              padding: 0,
-              transition: "width 0.3s, background 0.3s",
-            }}
-          />
+          <button key={i} onClick={() => goTo(i)} style={{
+            width: i === idx ? 20 : 8, height: 8, borderRadius: 4, border: "none",
+            background: i === idx ? "#1db954" : "rgba(255,255,255,0.18)",
+            cursor: "pointer", padding: 0, transition: "width 0.3s, background 0.3s",
+          }} />
         ))}
-        <button
-          onClick={() => goTo(idx + 1)}
-          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
-        >›</button>
+        <button onClick={() => goTo(idx + 1)}
+          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>›</button>
       </div>
     </div>
   );
