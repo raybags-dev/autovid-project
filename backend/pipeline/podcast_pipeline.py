@@ -309,6 +309,7 @@ def run_podcast_episode(
     title: str = None,
     essay: str = None,
     music_style: str = None,
+    music_volume: float = None,
     video_id: str = None,
     push_log_fn=None,
     unregister_fn=None,
@@ -369,9 +370,10 @@ def run_podcast_episode(
         _log(f"[3/5] Generating {chosen_style} background music...")
         music_path = generate_music(chosen_style, _get_duration(raw_mp3_path) + 10, video_id)
 
+        vol = music_volume if music_volume is not None else PODCAST_MUSIC_VOLUME
         mixed_mp3 = config.AUDIO_OUTPUT_DIR / f"{video_id}_podcast.mp3"
-        mix_audio(raw_mp3_path, music_path, str(mixed_mp3), music_volume=PODCAST_MUSIC_VOLUME)
-        _log(f"[3/5] Music mixed at {int(PODCAST_MUSIC_VOLUME*100)}% — {mixed_mp3.name}")
+        mix_audio(raw_mp3_path, music_path, str(mixed_mp3), music_volume=vol)
+        _log(f"[3/5] Music mixed at {int(vol*100)}% — {mixed_mp3.name}")
         db.update_video(video_id, status="assembled")
 
         # ── Step 4: Upload to Supabase ─────────────────────────────────────────

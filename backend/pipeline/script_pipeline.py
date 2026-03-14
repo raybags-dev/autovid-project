@@ -84,12 +84,13 @@ def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public
 
 
 def run_script_pipeline(
-    video_id:    str,
-    title:       str,
-    script:      str,
-    profile:     str = "educational",
-    visual_mood: str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
-    music_style: str = "ambient",
+    video_id:     str,
+    title:        str,
+    script:       str,
+    profile:      str = "educational",
+    visual_mood:  str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
+    music_style:  str = "ambient",
+    music_volume: float = 0.06,
     cb=None,
 ):
     """
@@ -181,7 +182,7 @@ def run_script_pipeline(
         # ── Step 4: Mix audio ─────────────────────────────────────────────────
         _log("MIXING", "Mixing voice + music...", cb)
         mixed_path_str = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_mixed.mp3")
-        mixed_path = mix_audio(voice_path, music_path, mixed_path_str, music_volume=0.07)
+        mixed_path = mix_audio(voice_path, music_path, mixed_path_str, music_volume=music_volume)
 
         # ── Step 5: Combine visual + audio ───────────────────────────────────
         _log("ASSEMBLE", "Combining visual video with mixed audio...", cb)

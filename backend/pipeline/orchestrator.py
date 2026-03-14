@@ -350,6 +350,7 @@ def run_pipeline(
     auto_upload: bool = True,
     visual_mood: str = None,
     music_style: str = 'ambient',
+    music_volume: float = 0.06,
     progress_callback: Optional[Callable] = None,
     video_id: str = None,   # pre-created DB record ID (optional)
 ) -> dict:
@@ -421,8 +422,8 @@ def run_pipeline(
         if music_style and music_style != 'none':
             try:
                 from pipeline.music_mixer import mix_background_music
-                _log("MUSIC", f"Mixing background music ({music_style})...", cb)
-                mixed = mix_background_music(final_path, music_style, video_id)
+                _log("MUSIC", f"Mixing background music ({music_style}) @ {int(music_volume*100)}%...", cb)
+                mixed = mix_background_music(final_path, music_style, video_id, music_volume=music_volume)
                 if mixed and mixed != final_path:
                     final_path = mixed
                     _log("MUSIC", "✅ Background music mixed", cb)
@@ -513,7 +514,7 @@ def retry_failed(video_id: str, cb=None) -> dict:
 SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
 
 
-def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "ambient", angle: str = None) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "ambient", music_volume: float = 0.06, angle: str = None) -> dict:
     """
     YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
@@ -586,8 +587,8 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
         if music_style and music_style != 'none':
             try:
                 from pipeline.music_mixer import mix_background_music
-                _log("MUSIC", f"Mixing background music ({music_style})...", cb)
-                mixed = mix_background_music(final_path, music_style, video_id)
+                _log("MUSIC", f"Mixing background music ({music_style}) @ {int(music_volume*100)}%...", cb)
+                mixed = mix_background_music(final_path, music_style, video_id, music_volume=music_volume)
                 if mixed and mixed != final_path:
                     final_path = mixed
                     _log("MUSIC", "✅ Background music mixed", cb)

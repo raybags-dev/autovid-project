@@ -53,6 +53,7 @@ export const generateVideo = async (
   profile = "educational",
   visualMood = "inspirational",
   musicStyle = "ambient",
+  musicVolume = 0.06,
 ) => {
   const { data } = await api.post("/videos/generate", {
     prompt,
@@ -60,6 +61,7 @@ export const generateVideo = async (
     profile,
     visual_mood: visualMood,
     music_style: musicStyle,
+    music_volume: musicVolume,
   });
   return data;
 };

@@ -238,6 +238,7 @@ class GenerateRequest(BaseModel):
     profile: str = "educational"
     visual_mood: Optional[str] = None
     music_style: str = "ambient"
+    music_volume: float = 0.06
 
 
 class VideoResponse(BaseModel):
@@ -320,6 +321,7 @@ def generate_video(
                 profile=req.profile,
                 visual_mood=req.visual_mood,
                 music_style=req.music_style,
+                music_volume=req.music_volume,
                 video_id=video_id,
             ),
             queue="autovid",
@@ -338,6 +340,7 @@ def generate_video(
                     profile=req.profile,
                     visual_mood=req.visual_mood,
                     music_style=req.music_style,
+                    music_volume=req.music_volume,
                     progress_callback=_cb,
                     video_id=video_id,
                 )
@@ -820,6 +823,7 @@ class ScriptStudioRequest(BaseModel):
     profile:      str = "educational"
     visual_mood:  Optional[str] = None   # ocean|candle|forest|stars|hands|mountains|None=auto
     music_style:  str = "ambient"
+    music_volume: float = 0.06
 
 
 @app.post("/script-studio/generate")
@@ -858,6 +862,7 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
                 profile=req.profile,
                 visual_mood=req.visual_mood,
                 music_style=req.music_style,
+                music_volume=req.music_volume,
                 cb=_cb,
             )
         except Exception as e:
@@ -1073,6 +1078,7 @@ class PodcastGenerateRequest(BaseModel):
     title:        Optional[str] = None
     essay:        Optional[str] = None
     music_style:  str = "ambient"
+    music_volume: float = 0.06
 
 
 @app.get("/podcast-episode/settings")
@@ -1152,6 +1158,7 @@ def generate_podcast_episode(req: PodcastGenerateRequest, user: str = Depends(ve
             title=req.title,
             essay=req.essay,
             music_style=req.music_style,
+            music_volume=req.music_volume,
             video_id=video_id,
             push_log_fn=_push_log,
             unregister_fn=_unregister_pipeline,
