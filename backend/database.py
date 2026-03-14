@@ -30,6 +30,14 @@ CREATE TABLE videos (
     created_at        TIMESTAMPTZ DEFAULT NOW(),
     posted_at         TIMESTAMPTZ
 );
+
+-- Subscriber list (run once in Supabase SQL Editor)
+─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS subscribers (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email      TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 ─────────────────────────────────────────────────
 """
 import uuid

@@ -1412,6 +1412,36 @@ def get_public_stats():
     return result
 
 
+class SubscribeRequest(BaseModel):
+    email: str
+
+
+@app.post("/public/subscribe")
+def public_subscribe(req: SubscribeRequest):
+    """Store an email subscription for new-content notifications."""
+    import re
+    em = req.email.strip().lower()
+    if not em or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", em):
+        raise HTTPException(status_code=422, detail="invalid_email")
+    try:
+        client = db.get_client()
+        existing = (
+            client.table("subscribers")
+            .select("id")
+            .eq("email", em)
+            .execute()
+        )
+        if existing.data:
+            raise HTTPException(status_code=409, detail="already_subscribed")
+        client.table("subscribers").insert({"email": em}).execute()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️  Subscribe: {e}")
+        raise HTTPException(status_code=500, detail="server_error")
+
+
 @app.get("/public/channel-videos")
 def get_public_channel_videos():
     """Public endpoint — returns cached public channel videos for the landing page.
