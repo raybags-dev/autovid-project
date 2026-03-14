@@ -1,111 +1,143 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
-import uncoverLogo  from "../assets/logo/uncover-unknown-logo.png";
-import faceImg         from "../assets/static/face.jpg";
-import jajja2         from "../assets/static/jajja2.jpg";
-import freedomImg     from "../assets/static/freedom.jpg";
-import faceVideo    from "../assets/static/face.mp4";
+import faceVideo from "../assets/static/face.mp4";
+import freedomImg from "../assets/static/freedom.jpg";
+import jajja2 from "../assets/static/jajja2.jpg";
+import metrixVideo from "../assets/static/metrix.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
-import metrixVideo  from "../assets/static/metrix.mp4";
+import roundFace from "../assets/static/relaxedface.png";
+import faceImg from "../assets/static/smileface.png";
 
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4life_mystery",
-  tiktok:  "https://www.tiktok.com/@lifemystery183284",
+  tiktok: "https://www.tiktok.com/@lifemystery183284",
   spotify: "https://open.spotify.com/show/2ZIZRXomO55COqXyJXgy5s",
 };
 const SPOTIFY_SHOW_ID = "2ZIZRXomO55COqXyJXgy5s";
 
 const SECTIONS = [
-  { id: "hero",      label: "HOME" },
-  { id: "about",     label: "ABOUT" },
-  { id: "content",   label: "CONTENT" },
-  { id: "videos",    label: "VIDEOS" },
-  { id: "podcast",   label: "PODCAST" },
-  { id: "topics",    label: "TOPICS" },
+  { id: "hero", label: "HOME" },
+  { id: "about", label: "ABOUT" },
+  { id: "content", label: "CONTENT" },
+  { id: "videos", label: "VIDEOS" },
+  { id: "podcast", label: "PODCAST" },
+  { id: "topics", label: "TOPICS" },
   { id: "community", label: "COMMUNITY" },
 ];
 
 const CAROUSEL = [
-  { id: 1, platform: "YOUTUBE", icon: "▶", color: "#ff5533",
+  {
+    id: 1,
+    platform: "YOUTUBE",
+    icon: "▶",
+    color: "#ff5533",
     title: "Why Does Life Feel Meaningless?",
-    excerpt: "An honest exploration of existential emptiness and what it's actually trying to tell you.",
-    tag: "Existence", link: SOCIAL.youtube },
-  { id: 2, platform: "TIKTOK", icon: "♪", color: "#00f2ea",
+    excerpt:
+      "An honest exploration of existential emptiness and what it's actually trying to tell you.",
+    tag: "Existence",
+    link: SOCIAL.youtube,
+  },
+  {
+    id: 2,
+    platform: "TIKTOK",
+    icon: "♪",
+    color: "#00f2ea",
     title: "The 60-Second Truth About Fear",
-    excerpt: "Fear isn't your enemy. It's a signal. Here's how to read it before it controls you.",
-    tag: "Mental Health", link: SOCIAL.tiktok },
-  { id: 3, platform: "PODCAST", icon: "◎", color: "#1db954",
+    excerpt:
+      "Fear isn't your enemy. It's a signal. Here's how to read it before it controls you.",
+    tag: "Mental Health",
+    link: SOCIAL.tiktok,
+  },
+  {
+    id: 3,
+    platform: "PODCAST",
+    icon: "◎",
+    color: "#1db954",
     title: "Connection in a Disconnected World",
     excerpt: "Why modern life made us more reachable but less truly reached.",
-    tag: "Relationships", link: SOCIAL.spotify },
-  { id: 4, platform: "YOUTUBE", icon: "▶", color: "#ff5533",
+    tag: "Relationships",
+    link: SOCIAL.spotify,
+  },
+  {
+    id: 4,
+    platform: "YOUTUBE",
+    icon: "▶",
+    color: "#ff5533",
     title: "The Mystery of Consciousness",
-    excerpt: "What is it that makes you *you*? This question has haunted philosophers for centuries.",
-    tag: "Philosophy", link: SOCIAL.youtube },
+    excerpt:
+      "What is it that makes you *you*? This question has haunted philosophers for centuries.",
+    tag: "Philosophy",
+    link: SOCIAL.youtube,
+  },
 ];
 
 const TOPICS = [
-  { name: "Identity & Purpose",  icon: "◈", count: 24 },
-  { name: "Mental Health",       icon: "◎", count: 18 },
-  { name: "Relationships",       icon: "◇", count: 31 },
+  { name: "Identity & Purpose", icon: "◈", count: 24 },
+  { name: "Mental Health", icon: "◎", count: 18 },
+  { name: "Relationships", icon: "◇", count: 31 },
   { name: "Mortality & Meaning", icon: "◉", count: 15 },
-  { name: "Consciousness",       icon: "◐", count: 12 },
-  { name: "Spirituality",        icon: "◑", count: 20 },
-  { name: "Philosophy",          icon: "◒", count: 27 },
-  { name: "Society & Culture",   icon: "◓", count: 22 },
+  { name: "Consciousness", icon: "◐", count: 12 },
+  { name: "Spirituality", icon: "◑", count: 20 },
+  { name: "Philosophy", icon: "◒", count: 27 },
+  { name: "Society & Culture", icon: "◓", count: 22 },
 ];
 
 // ── Theme tokens ──────────────────────────────────────────────────────────────
 const DARK = {
-  bg:        "#03060f",
-  bgAlt:     "rgba(255,255,255,0.012)",
-  text:      "#e0eaf5",
-  textM:     "#4a6a8a",
-  textD:     "#1a3a5a",
-  textD2:    "#0a1a2a",
-  cardBg:    "rgba(255,255,255,0.025)",
-  cardBr:    "rgba(255,255,255,0.07)",
-  cardSh:    "none",
-  navBg:     "rgba(3,6,15,0.82)",
-  secBr:     "rgba(255,255,255,0.045)",
-  footBg:    "rgba(0,0,0,0.4)",
-  ftLink:    "#1a3a5a",
-  inputBg:   "rgba(255,255,255,0.03)",
-  inputBr:   "rgba(255,255,255,0.07)",
-  socBr:     "rgba(255,255,255,0.08)",
-  togBg:     "rgba(255,255,255,0.06)",
-  togBr:     "rgba(255,255,255,0.1)",
-  togText:   "#4a6a8a",
+  bg: "#03060f",
+  bgAlt: "rgba(255,255,255,0.012)",
+  text: "#e0eaf5",
+  textM: "#4a6a8a",
+  textD: "#1a3a5a",
+  textD2: "#0a1a2a",
+  cardBg: "rgba(255,255,255,0.025)",
+  cardBr: "rgba(255,255,255,0.07)",
+  cardSh: "none",
+  navBg: "rgba(3,6,15,0.82)",
+  secBr: "rgba(255,255,255,0.045)",
+  footBg: "rgba(0,0,0,0.4)",
+  ftLink: "#1a3a5a",
+  inputBg: "rgba(255,255,255,0.03)",
+  inputBr: "rgba(255,255,255,0.07)",
+  socBr: "rgba(255,255,255,0.08)",
+  togBg: "rgba(255,255,255,0.06)",
+  togBr: "rgba(255,255,255,0.1)",
+  togText: "#4a6a8a",
 };
 const LIGHT = {
-  bg:        "#f5f2eb",
-  bgAlt:     "rgba(0,0,0,0.025)",
-  text:      "#18181e",
-  textM:     "#55697a",
-  textD:     "#8899aa",
-  textD2:    "#c0ccd8",
-  cardBg:    "rgba(255,255,255,0.88)",
-  cardBr:    "rgba(0,0,0,0.09)",
-  cardSh:    "0 4px 28px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
-  navBg:     "rgba(245,242,235,0.85)",
-  secBr:     "rgba(0,0,0,0.08)",
-  footBg:    "rgba(0,0,0,0.035)",
-  ftLink:    "#8899aa",
-  inputBg:   "rgba(0,0,0,0.03)",
-  inputBr:   "rgba(0,0,0,0.1)",
-  socBr:     "rgba(0,0,0,0.1)",
-  togBg:     "rgba(0,0,0,0.04)",
-  togBr:     "rgba(0,0,0,0.12)",
-  togText:   "#556677",
+  bg: "#f5f2eb",
+  bgAlt: "rgba(0,0,0,0.025)",
+  text: "#18181e",
+  textM: "#55697a",
+  textD: "#8899aa",
+  textD2: "#c0ccd8",
+  cardBg: "rgba(255,255,255,0.88)",
+  cardBr: "rgba(0,0,0,0.09)",
+  cardSh: "0 4px 28px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
+  navBg: "rgba(245,242,235,0.85)",
+  secBr: "rgba(0,0,0,0.08)",
+  footBg: "rgba(0,0,0,0.035)",
+  ftLink: "#8899aa",
+  inputBg: "rgba(0,0,0,0.03)",
+  inputBr: "rgba(0,0,0,0.1)",
+  socBr: "rgba(0,0,0,0.1)",
+  togBg: "rgba(0,0,0,0.04)",
+  togBr: "rgba(0,0,0,0.12)",
+  togText: "#556677",
 };
 
 function BlogSection({ c, theme }) {
   const FP_KEY = "blog_fp";
   const getOrCreateFP = () => {
     let fp = localStorage.getItem(FP_KEY);
-    if (!fp) { fp = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now(); localStorage.setItem(FP_KEY, fp); }
+    if (!fp) {
+      fp = crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now();
+      localStorage.setItem(FP_KEY, fp);
+    }
     return fp;
   };
 
@@ -118,8 +150,8 @@ function BlogSection({ c, theme }) {
   const [formError, setFormError] = React.useState("");
   const [formSuccess, setFormSuccess] = React.useState("");
   const [likingId, setLikingId] = React.useState(null);
-  const [replyForm, setReplyForm] = React.useState(null);    // comment id with open reply form
-  const [replyData, setReplyData] = React.useState({});      // { [commentId]: { name, content, submitting, error, success } }
+  const [replyForm, setReplyForm] = React.useState(null); // comment id with open reply form
+  const [replyData, setReplyData] = React.useState({}); // { [commentId]: { name, content, submitting, error, success } }
   const [pendingComment, setPendingComment] = React.useState(null); // optimistic placeholder
 
   const fp = getOrCreateFP();
@@ -132,30 +164,52 @@ function BlogSection({ c, theme }) {
       setComments(data.comments || []);
       setTotal(data.total || 0);
       setPage(p);
-    } catch(e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  React.useEffect(() => { load(1); }, []); // eslint-disable-line
+  React.useEffect(() => {
+    load(1);
+  }, []); // eslint-disable-line
 
   const handleSubmit = async () => {
-    setFormError(""); setFormSuccess("");
-    if (!form.name.trim() || !form.content.trim()) { setFormError("Name and comment are required."); return; }
-    if (form.content.trim().length < 5) { setFormError("Comment too short."); return; }
+    setFormError("");
+    setFormSuccess("");
+    if (!form.name.trim() || !form.content.trim()) {
+      setFormError("Name and comment are required.");
+      return;
+    }
+    if (form.content.trim().length < 5) {
+      setFormError("Comment too short.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/blog/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, fingerprint: fp })
+        body: JSON.stringify({ ...form, fingerprint: fp }),
       });
       const data = await res.json();
-      if (!res.ok) { setFormError(data.detail || "Submission failed."); return; }
+      if (!res.ok) {
+        setFormError(data.detail || "Submission failed.");
+        return;
+      }
       setFormSuccess("✓ Submitted! Your comment will appear after review.");
-      setPendingComment({ name: form.name, content: form.content, _pending: true });
+      setPendingComment({
+        name: form.name,
+        content: form.content,
+        _pending: true,
+      });
       setForm({ name: "", email: "", content: "" });
-    } catch(e) { setFormError("Network error. Please try again."); }
-    finally { setSubmitting(false); }
+    } catch (e) {
+      setFormError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleLike = async (commentId) => {
@@ -165,45 +219,111 @@ function BlogSection({ c, theme }) {
       const res = await fetch(`/api/blog/comments/${commentId}/like`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fingerprint: fp })
+        body: JSON.stringify({ fingerprint: fp }),
       });
       const data = await res.json();
       if (res.ok) {
-        setComments(prev => prev.map(c => {
-          if (c.id === commentId) return { ...c, likes_count: data.likes_count, liked_by_me: data.liked };
-          if (c.replies?.some(r => r.id === commentId)) {
-            return { ...c, replies: c.replies.map(r => r.id === commentId ? { ...r, likes_count: data.likes_count, liked_by_me: data.liked } : r) };
-          }
-          return c;
-        }));
+        setComments((prev) =>
+          prev.map((c) => {
+            if (c.id === commentId)
+              return {
+                ...c,
+                likes_count: data.likes_count,
+                liked_by_me: data.liked,
+              };
+            if (c.replies?.some((r) => r.id === commentId)) {
+              return {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === commentId
+                    ? {
+                        ...r,
+                        likes_count: data.likes_count,
+                        liked_by_me: data.liked,
+                      }
+                    : r,
+                ),
+              };
+            }
+            return c;
+          }),
+        );
       }
-    } catch(e) {}
-    finally { setLikingId(null); }
+    } catch (e) {
+    } finally {
+      setLikingId(null);
+    }
   };
 
   const handleReplySubmit = async (commentId) => {
     const rd = replyData[commentId] || {};
     if (!rd.name?.trim() || !rd.content?.trim()) return;
-    setReplyData(prev => ({ ...prev, [commentId]: { ...prev[commentId], submitting: true, error: "" } }));
+    setReplyData((prev) => ({
+      ...prev,
+      [commentId]: { ...prev[commentId], submitting: true, error: "" },
+    }));
     try {
       const res = await fetch(`/api/blog/comments/${commentId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: rd.name, content: rd.content, fingerprint: fp })
+        body: JSON.stringify({
+          name: rd.name,
+          content: rd.content,
+          fingerprint: fp,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setReplyData(prev => ({ ...prev, [commentId]: { ...prev[commentId], submitting: false, error: data.detail || "Submission failed." } }));
+        setReplyData((prev) => ({
+          ...prev,
+          [commentId]: {
+            ...prev[commentId],
+            submitting: false,
+            error: data.detail || "Submission failed.",
+          },
+        }));
         return;
       }
-      setReplyData(prev => ({ ...prev, [commentId]: { name: "", content: "", submitting: false, error: "", success: "✓ Reply submitted for review." } }));
+      setReplyData((prev) => ({
+        ...prev,
+        [commentId]: {
+          name: "",
+          content: "",
+          submitting: false,
+          error: "",
+          success: "✓ Reply submitted for review.",
+        },
+      }));
       setReplyForm(null);
       // append a pending reply placeholder so it's immediately visible
-      setComments(prev => prev.map(c => c.id === commentId
-        ? { ...c, replies: [...(c.replies || []), { id: `pending-${Date.now()}`, name: rd.name, content: rd.content, created_at: new Date().toISOString(), _pending: true }] }
-        : c));
-    } catch(e) {
-      setReplyData(prev => ({ ...prev, [commentId]: { ...prev[commentId], submitting: false, error: "Network error." } }));
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? {
+                ...c,
+                replies: [
+                  ...(c.replies || []),
+                  {
+                    id: `pending-${Date.now()}`,
+                    name: rd.name,
+                    content: rd.content,
+                    created_at: new Date().toISOString(),
+                    _pending: true,
+                  },
+                ],
+              }
+            : c,
+        ),
+      );
+    } catch (e) {
+      setReplyData((prev) => ({
+        ...prev,
+        [commentId]: {
+          ...prev[commentId],
+          submitting: false,
+          error: "Network error.",
+        },
+      }));
     }
   };
 
@@ -211,35 +331,120 @@ function BlogSection({ c, theme }) {
     const d = new Date(iso);
     const diff = (Date.now() - d) / 1000;
     if (diff < 60) return "just now";
-    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const isDark = theme === "dark";
-  const inputSt = { padding: "10px 13px", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", border: `1px solid ${c.cardBr}`, borderRadius: 9, color: c.text, fontFamily: "inherit", fontSize: 12, outline: "none" };
+  const inputSt = {
+    padding: "10px 13px",
+    background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+    border: `1px solid ${c.cardBr}`,
+    borderRadius: 9,
+    color: c.text,
+    fontFamily: "inherit",
+    fontSize: 12,
+    outline: "none",
+  };
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
-        <span style={{ fontSize: 10, color: c.textD, letterSpacing: "0.16em" }}>DISCUSSION · {total} COMMENT{total !== 1 ? "S" : ""}</span>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 28,
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
+        <span style={{ fontSize: 10, color: c.textD, letterSpacing: "0.16em" }}>
+          DISCUSSION · {total} COMMENT{total !== 1 ? "S" : ""}
+        </span>
       </div>
 
       {/* Submit form */}
-      <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "22px 22px 18px", marginBottom: 32, boxShadow: c.cardSh }}>
-        <div style={{ fontSize: 10, color: c.textM, letterSpacing: "0.1em", marginBottom: 16 }}>LEAVE A COMMENT</div>
-        <div className="comment-name-row">
-          <input placeholder="Your name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={inputSt} />
-          <input placeholder="Email (optional)" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inputSt} />
+      <div
+        style={{
+          background: c.cardBg,
+          border: `1px solid ${c.cardBr}`,
+          borderRadius: 14,
+          padding: "22px 22px 18px",
+          marginBottom: 32,
+          boxShadow: c.cardSh,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            color: c.textM,
+            letterSpacing: "0.1em",
+            marginBottom: 16,
+          }}
+        >
+          LEAVE A COMMENT
         </div>
-        <textarea placeholder="Share your thoughts, questions, or feedback…" value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
-          rows={3} style={{ display: "block", width: "100%", ...inputSt, resize: "vertical", marginBottom: 10 }} />
-        {formError && <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 8 }}>⚠ {formError}</div>}
-        {formSuccess && <div style={{ color: "#1db954", fontSize: 11, marginBottom: 8 }}>{formSuccess}</div>}
+        <div className="comment-name-row">
+          <input
+            placeholder="Your name *"
+            value={form.name}
+            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            style={inputSt}
+          />
+          <input
+            placeholder="Email (optional)"
+            value={form.email}
+            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+            style={inputSt}
+          />
+        </div>
+        <textarea
+          placeholder="Share your thoughts, questions, or feedback…"
+          value={form.content}
+          onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))}
+          rows={3}
+          style={{
+            display: "block",
+            width: "100%",
+            ...inputSt,
+            resize: "vertical",
+            marginBottom: 10,
+          }}
+        />
+        {formError && (
+          <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 8 }}>
+            ⚠ {formError}
+          </div>
+        )}
+        {formSuccess && (
+          <div style={{ color: "#1db954", fontSize: 11, marginBottom: 8 }}>
+            {formSuccess}
+          </div>
+        )}
         <div className="comment-submit-row">
-          <span style={{ fontSize: 10, color: c.textD }}>Comments are reviewed before appearing.</span>
-          <button onClick={handleSubmit} disabled={submitting} className="comment-submit-btn"
-            style={{ padding: "9px 20px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 9, color: "#fff", fontFamily: "inherit", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1 }}>
+          <span style={{ fontSize: 10, color: c.textD }}>
+            Comments are reviewed before appearing.
+          </span>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="comment-submit-btn"
+            style={{
+              padding: "9px 20px",
+              background: "linear-gradient(135deg,#cc2200,#ff5533)",
+              border: "none",
+              borderRadius: 9,
+              color: "#fff",
+              fontFamily: "inherit",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              cursor: submitting ? "not-allowed" : "pointer",
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
             {submitting ? "SENDING…" : "POST COMMENT →"}
           </button>
         </div>
@@ -248,56 +453,258 @@ function BlogSection({ c, theme }) {
       {/* Comments list — scrollable */}
       <div style={{ maxHeight: "80vh", overflowY: "auto", paddingRight: 4 }}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: c.textD, letterSpacing: "0.1em", fontSize: 11 }}>LOADING…</div>
-        ) : (comments.length === 0 && !pendingComment) ? (
-          <div style={{ textAlign: "center", padding: 60, color: c.textD, fontSize: 12, letterSpacing: "0.1em" }}>BE THE FIRST TO COMMENT</div>
+          <div
+            style={{
+              textAlign: "center",
+              padding: 40,
+              color: c.textD,
+              letterSpacing: "0.1em",
+              fontSize: 11,
+            }}
+          >
+            LOADING…
+          </div>
+        ) : comments.length === 0 && !pendingComment ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: 60,
+              color: c.textD,
+              fontSize: 12,
+              letterSpacing: "0.1em",
+            }}
+          >
+            BE THE FIRST TO COMMENT
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-
             {/* Pending placeholder */}
             {pendingComment && (
-              <div style={{ position: "relative", overflow: "hidden", background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 14, padding: "22px 24px", opacity: 0.75 }}>
-                <div style={{ filter: "blur(3px)", userSelect: "none", pointerEvents: "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,80,30,0.12)", border: "1px solid rgba(255,80,30,0.2)" }} />
-                    <div style={{ width: 100, height: 13, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", borderRadius: 6 }} />
+              <div
+                style={{
+                  position: "relative",
+                  overflow: "hidden",
+                  background: c.cardBg,
+                  border: `1px solid ${c.cardBr}`,
+                  borderRadius: 14,
+                  padding: "22px 24px",
+                  opacity: 0.75,
+                }}
+              >
+                <div
+                  style={{
+                    filter: "blur(3px)",
+                    userSelect: "none",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: "50%",
+                        background: "rgba(255,80,30,0.12)",
+                        border: "1px solid rgba(255,80,30,0.2)",
+                      }}
+                    />
+                    <div
+                      style={{
+                        width: 100,
+                        height: 13,
+                        background: isDark
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(0,0,0,0.08)",
+                        borderRadius: 6,
+                      }}
+                    />
                   </div>
-                  <div style={{ height: 12, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", borderRadius: 5, marginBottom: 6, width: "88%" }} />
-                  <div style={{ height: 12, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", borderRadius: 5, width: "65%" }} />
+                  <div
+                    style={{
+                      height: 12,
+                      background: isDark
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.05)",
+                      borderRadius: 5,
+                      marginBottom: 6,
+                      width: "88%",
+                    }}
+                  />
+                  <div
+                    style={{
+                      height: 12,
+                      background: isDark
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.05)",
+                      borderRadius: 5,
+                      width: "65%",
+                    }}
+                  />
                 </div>
-                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                  <span style={{ fontSize: 11, color: "#ff7755", letterSpacing: "0.12em", fontWeight: 600 }}>PENDING REVIEW</span>
-                  <span style={{ fontSize: 10, color: c.textD }}>Your comment will appear once approved.</span>
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "#ff7755",
+                      letterSpacing: "0.12em",
+                      fontWeight: 600,
+                    }}
+                  >
+                    PENDING REVIEW
+                  </span>
+                  <span style={{ fontSize: 10, color: c.textD }}>
+                    Your comment will appear once approved.
+                  </span>
                 </div>
               </div>
             )}
 
-            {comments.map(comment => (
+            {comments.map((comment) => (
               <div key={comment.id}>
                 {/* Main comment — compact */}
-                <div style={{ background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 12, padding: "14px 16px", boxShadow: c.cardSh }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div
+                  style={{
+                    background: c.cardBg,
+                    border: `1px solid ${c.cardBr}`,
+                    borderRadius: 12,
+                    padding: "14px 16px",
+                    boxShadow: c.cardSh,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                    }}
+                  >
                     {/* Avatar */}
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: `hsl(${comment.name.charCodeAt(0)*13%360},48%,32%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        background: `hsl(${(comment.name.charCodeAt(0) * 13) % 360},48%,32%)`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "#fff",
+                        flexShrink: 0,
+                        fontFamily: "'Syne',sans-serif",
+                      }}
+                    >
                       {comment.name[0].toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Header row */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                        <span className="syne" style={{ fontWeight: 700, fontSize: 12, color: c.text }}>{comment.name}</span>
-                        <span style={{ fontSize: 10, color: c.textM }}>{formatDate(comment.created_at)}</span>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 5,
+                        }}
+                      >
+                        <span
+                          className="syne"
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 12,
+                            color: c.text,
+                          }}
+                        >
+                          {comment.name}
+                        </span>
+                        <span style={{ fontSize: 10, color: c.textM }}>
+                          {formatDate(comment.created_at)}
+                        </span>
                       </div>
                       {/* Body */}
-                      <p style={{ fontSize: 12, color: c.textM, lineHeight: 1.7, margin: 0, marginBottom: 10 }}>{comment.content}</p>
+                      <p
+                        style={{
+                          fontSize: 12,
+                          color: c.textM,
+                          lineHeight: 1.7,
+                          margin: 0,
+                          marginBottom: 10,
+                        }}
+                      >
+                        {comment.content}
+                      </p>
                       {/* Action row */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                        <button onClick={() => handleLike(comment.id)} disabled={likingId === comment.id}
-                          style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: comment.liked_by_me ? "#ff5533" : c.textM, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
-                          <span style={{ fontSize: 13 }}>{comment.liked_by_me ? "♥" : "♡"}</span>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 14,
+                        }}
+                      >
+                        <button
+                          onClick={() => handleLike(comment.id)}
+                          disabled={likingId === comment.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: comment.liked_by_me ? "#ff5533" : c.textM,
+                            fontSize: 11,
+                            fontFamily: "inherit",
+                            padding: 0,
+                            transition: "color 0.2s",
+                          }}
+                        >
+                          <span style={{ fontSize: 13 }}>
+                            {comment.liked_by_me ? "♥" : "♡"}
+                          </span>
                           <span>{comment.likes_count}</span>
                         </button>
-                        <button onClick={() => { setReplyForm(replyForm === comment.id ? null : comment.id); setReplyData(p => ({ ...p, [comment.id]: p[comment.id] || { name: "", content: "" } })); }}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: replyForm === comment.id ? "#ff6644" : c.textM, fontSize: 11, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
+                        <button
+                          onClick={() => {
+                            setReplyForm(
+                              replyForm === comment.id ? null : comment.id,
+                            );
+                            setReplyData((p) => ({
+                              ...p,
+                              [comment.id]: p[comment.id] || {
+                                name: "",
+                                content: "",
+                              },
+                            }));
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color:
+                              replyForm === comment.id ? "#ff6644" : c.textM,
+                            fontSize: 11,
+                            fontFamily: "inherit",
+                            padding: 0,
+                            transition: "color 0.2s",
+                          }}
+                        >
                           ↩ {replyForm === comment.id ? "CANCEL" : "REPLY"}
                         </button>
                       </div>
@@ -307,26 +714,138 @@ function BlogSection({ c, theme }) {
 
                 {/* Inline reply form — indented */}
                 {replyForm === comment.id && (
-                  <div style={{ marginLeft: 42, marginTop: 6, background: c.cardBg, border: `1px solid ${c.cardBr}`, borderRadius: 10, padding: "14px 16px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                      <input placeholder="Your name *" value={replyData[comment.id]?.name || ""}
-                        onChange={e => setReplyData(p => ({ ...p, [comment.id]: { ...p[comment.id], name: e.target.value } }))}
-                        style={{ ...inputSt, fontSize: 11 }} />
-                      <input placeholder="Email (optional)" value={replyData[comment.id]?.email || ""}
-                        onChange={e => setReplyData(p => ({ ...p, [comment.id]: { ...p[comment.id], email: e.target.value } }))}
-                        style={{ ...inputSt, fontSize: 11 }} />
+                  <div
+                    style={{
+                      marginLeft: 42,
+                      marginTop: 6,
+                      background: c.cardBg,
+                      border: `1px solid ${c.cardBr}`,
+                      borderRadius: 10,
+                      padding: "14px 16px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 8,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <input
+                        placeholder="Your name *"
+                        value={replyData[comment.id]?.name || ""}
+                        onChange={(e) =>
+                          setReplyData((p) => ({
+                            ...p,
+                            [comment.id]: {
+                              ...p[comment.id],
+                              name: e.target.value,
+                            },
+                          }))
+                        }
+                        style={{ ...inputSt, fontSize: 11 }}
+                      />
+                      <input
+                        placeholder="Email (optional)"
+                        value={replyData[comment.id]?.email || ""}
+                        onChange={(e) =>
+                          setReplyData((p) => ({
+                            ...p,
+                            [comment.id]: {
+                              ...p[comment.id],
+                              email: e.target.value,
+                            },
+                          }))
+                        }
+                        style={{ ...inputSt, fontSize: 11 }}
+                      />
                     </div>
-                    <textarea placeholder="Write a reply…" rows={2}
+                    <textarea
+                      placeholder="Write a reply…"
+                      rows={2}
                       value={replyData[comment.id]?.content || ""}
-                      onChange={e => setReplyData(p => ({ ...p, [comment.id]: { ...p[comment.id], content: e.target.value } }))}
-                      style={{ display: "block", width: "100%", ...inputSt, fontSize: 11, resize: "vertical", marginBottom: 8 }} />
-                    {replyData[comment.id]?.error && <div style={{ color: "#ff6060", fontSize: 11, marginBottom: 6 }}>⚠ {replyData[comment.id].error}</div>}
-                    {replyData[comment.id]?.success && <div style={{ color: "#1db954", fontSize: 11, marginBottom: 6 }}>{replyData[comment.id].success}</div>}
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => setReplyForm(null)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 6, color: c.textM, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>CANCEL</button>
-                      <button onClick={() => handleReplySubmit(comment.id)} disabled={replyData[comment.id]?.submitting}
-                        style={{ padding: "6px 14px", background: "linear-gradient(135deg,#cc2200,#ff5533)", border: "none", borderRadius: 6, color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: replyData[comment.id]?.submitting ? 0.6 : 1 }}>
-                        {replyData[comment.id]?.submitting ? "SENDING…" : "POST REPLY →"}
+                      onChange={(e) =>
+                        setReplyData((p) => ({
+                          ...p,
+                          [comment.id]: {
+                            ...p[comment.id],
+                            content: e.target.value,
+                          },
+                        }))
+                      }
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        ...inputSt,
+                        fontSize: 11,
+                        resize: "vertical",
+                        marginBottom: 8,
+                      }}
+                    />
+                    {replyData[comment.id]?.error && (
+                      <div
+                        style={{
+                          color: "#ff6060",
+                          fontSize: 11,
+                          marginBottom: 6,
+                        }}
+                      >
+                        ⚠ {replyData[comment.id].error}
+                      </div>
+                    )}
+                    {replyData[comment.id]?.success && (
+                      <div
+                        style={{
+                          color: "#1db954",
+                          fontSize: 11,
+                          marginBottom: 6,
+                        }}
+                      >
+                        {replyData[comment.id].success}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <button
+                        onClick={() => setReplyForm(null)}
+                        style={{
+                          padding: "6px 12px",
+                          background: "transparent",
+                          border: `1px solid ${c.cardBr}`,
+                          borderRadius: 6,
+                          color: c.textM,
+                          fontSize: 10,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        CANCEL
+                      </button>
+                      <button
+                        onClick={() => handleReplySubmit(comment.id)}
+                        disabled={replyData[comment.id]?.submitting}
+                        style={{
+                          padding: "6px 14px",
+                          background: "linear-gradient(135deg,#cc2200,#ff5533)",
+                          border: "none",
+                          borderRadius: 6,
+                          color: "#fff",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          opacity: replyData[comment.id]?.submitting ? 0.6 : 1,
+                        }}
+                      >
+                        {replyData[comment.id]?.submitting
+                          ? "SENDING…"
+                          : "POST REPLY →"}
                       </button>
                     </div>
                   </div>
@@ -334,24 +853,112 @@ function BlogSection({ c, theme }) {
 
                 {/* Replies — always visible, indented subtree */}
                 {comment.replies?.length > 0 && (
-                  <div style={{ marginLeft: 42, marginTop: 12, display: "flex", flexDirection: "column", gap: 2 }}>
-                    {comment.replies.map(reply => (
-                      <div key={reply.id} style={{ display: "flex", gap: 9, padding: "10px 14px", borderLeft: `2px solid ${reply.is_admin_reply ? "rgba(255,80,30,0.35)" : isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"}`, opacity: reply._pending ? 0.65 : 1 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: "50%", background: reply.is_admin_reply ? "linear-gradient(135deg,#cc2200,#ff5533)" : `hsl(${reply.name.charCodeAt(0)*13%360},45%,30%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>
-                          {reply.name[0].toUpperCase()}
-                        </div>
+                  <div
+                    style={{
+                      marginLeft: 42,
+                      marginTop: 12,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                    }}
+                  >
+                    {comment.replies.map((reply) => (
+                      <div
+                        key={reply.id}
+                        style={{
+                          display: "flex",
+                          borderRadius: "1rem",
+                          gap: 9,
+                          padding: "10px 14px",
+                          borderLeft: `2px solid ${reply.is_admin_reply ? "rgba(255,80,30,0.35)" : isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"}`,
+                          opacity: reply._pending ? 0.65 : 1,
+                        }}
+                      >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-                            <span className="syne" style={{ fontWeight: 700, fontSize: 11, color: reply.is_admin_reply ? "#ff7755" : c.text }}>{reply.name}</span>
-                            {reply.is_admin_reply && <span style={{ fontSize: 8, background: "rgba(255,80,30,0.15)", color: "#ff7755", padding: "1px 5px", borderRadius: 8, letterSpacing: "0.08em" }}>CREATOR</span>}
-                            {reply._pending && <span style={{ fontSize: 8, background: "rgba(245,158,11,0.12)", color: "#f59e0b", padding: "1px 5px", borderRadius: 8, letterSpacing: "0.08em" }}>PENDING</span>}
-                            <span style={{ fontSize: 10, color: c.textM }}>{formatDate(reply.created_at)}</span>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 7,
+                              marginBottom: 3,
+                            }}
+                          >
+                            <span
+                              className="syne"
+                              style={{
+                                fontWeight: 700,
+                                fontSize: 11,
+                                color: reply.is_admin_reply
+                                  ? "#ff7755"
+                                  : c.text,
+                              }}
+                            >
+                              {reply.name}
+                            </span>
+                            {reply.is_admin_reply && (
+                              <span
+                                style={{
+                                  fontSize: 8,
+                                  background: "rgba(255,80,30,0.15)",
+                                  color: "#ff7755",
+                                  padding: "1px 5px",
+                                  borderRadius: 8,
+                                  letterSpacing: "0.08em",
+                                }}
+                              >
+                                CREATOR
+                              </span>
+                            )}
+                            {reply._pending && (
+                              <span
+                                style={{
+                                  fontSize: 8,
+                                  background: "rgba(245,158,11,0.12)",
+                                  color: "#f59e0b",
+                                  padding: "1px 5px",
+                                  borderRadius: 8,
+                                  letterSpacing: "0.08em",
+                                }}
+                              >
+                                PENDING
+                              </span>
+                            )}
+                            <span style={{ fontSize: 10, color: c.textM }}>
+                              {formatDate(reply.created_at)}
+                            </span>
                           </div>
-                          <p style={{ fontSize: 12, color: c.textM, lineHeight: 1.65, margin: 0, marginBottom: reply._pending ? 0 : 6 }}>{reply.content}</p>
+                          <p
+                            style={{
+                              fontSize: 12,
+                              color: c.textM,
+                              lineHeight: 1.65,
+                              margin: 0,
+                              marginBottom: reply._pending ? 0 : 6,
+                            }}
+                          >
+                            {reply.content}
+                          </p>
                           {!reply._pending && (
-                            <button onClick={() => handleLike(reply.id)} disabled={likingId === reply.id}
-                              style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: reply.liked_by_me ? "#ff5533" : c.textM, fontSize: 10, fontFamily: "inherit", padding: 0, transition: "color 0.2s" }}>
-                              <span style={{ fontSize: 11 }}>{reply.liked_by_me ? "♥" : "♡"}</span>
+                            <button
+                              onClick={() => handleLike(reply.id)}
+                              disabled={likingId === reply.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                color: reply.liked_by_me ? "#ff5533" : c.textM,
+                                fontSize: 10,
+                                fontFamily: "inherit",
+                                padding: 0,
+                                transition: "color 0.2s",
+                              }}
+                            >
+                              <span style={{ fontSize: 11 }}>
+                                {reply.liked_by_me ? "♥" : "♡"}
+                              </span>
                               <span>{reply.likes_count || 0}</span>
                             </button>
                           )}
@@ -365,12 +972,48 @@ function BlogSection({ c, theme }) {
 
             {/* Pagination */}
             {total > 20 && (
-              <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 8, paddingBottom: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: 10,
+                  marginTop: 8,
+                  paddingBottom: 8,
+                }}
+              >
                 {page > 1 && (
-                  <button onClick={() => load(page - 1)} style={{ padding: "7px 16px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>← PREV</button>
+                  <button
+                    onClick={() => load(page - 1)}
+                    style={{
+                      padding: "7px 16px",
+                      background: "transparent",
+                      border: `1px solid ${c.cardBr}`,
+                      borderRadius: 8,
+                      color: c.textM,
+                      fontSize: 11,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    ← PREV
+                  </button>
                 )}
                 {page * 20 < total && (
-                  <button onClick={() => load(page + 1)} style={{ padding: "7px 16px", background: "transparent", border: `1px solid ${c.cardBr}`, borderRadius: 8, color: c.textM, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>NEXT →</button>
+                  <button
+                    onClick={() => load(page + 1)}
+                    style={{
+                      padding: "7px 16px",
+                      background: "transparent",
+                      border: `1px solid ${c.cardBr}`,
+                      borderRadius: 8,
+                      color: c.textM,
+                      fontSize: 11,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    NEXT →
+                  </button>
                 )}
               </div>
             )}
@@ -382,30 +1025,27 @@ function BlogSection({ c, theme }) {
 }
 
 export default function LandingPage() {
-  const [theme,         setTheme]         = useState("dark");
-  const [scrolled,      setScrolled]      = useState(false);
+  const [theme, setTheme] = useState("dark");
+  const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("hero");
-  const [menuOpen,      setMenuOpen]      = useState(false);
-  const [carouselIdx,   setCarouselIdx]   = useState(0);
-  const [slideDir,      setSlideDir]      = useState("right");
-  const [ytVideos,      setYtVideos]      = useState([]);
-  const [ytLoading,     setYtLoading]     = useState(true);
-  const [ytIdx,         setYtIdx]         = useState(0);
-  const [modalVideo,    setModalVideo]    = useState(null);   // { id, title, url }
-  const [showBackTop,   setShowBackTop]   = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [carouselIdx, setCarouselIdx] = useState(0);
+  const [slideDir, setSlideDir] = useState("right");
+  const [ytVideos, setYtVideos] = useState([]);
+  const [ytLoading, setYtLoading] = useState(true);
+  const [ytIdx, setYtIdx] = useState(0);
+  const [modalVideo, setModalVideo] = useState(null); // { id, title, url }
+  const [showBackTop, setShowBackTop] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [ytCols,        setYtCols]        = useState(3);
-  const [heroStats,     setHeroStats]     = useState(null);
-  const wrapperRef    = useRef(null);
-  const autoRef       = useRef(null);
-  const heroVidRef    = useRef(null);
-  const topicsBgRef    = useRef(null);
+  const [heroStats, setHeroStats] = useState(null);
+  const wrapperRef = useRef(null);
+  const autoRef = useRef(null);
+  const heroVidRef = useRef(null);
+  const topicsBgRef = useRef(null);
   const communityBgRef = useRef(null);
-  const contentBgRef   = useRef(null);
-  const videoBgRef     = useRef(null);
-  const ytAutoRef      = useRef(null);
-  const ytWinRef       = useRef(null);
-  const [ytStepPx,    setYtStepPx]    = useState(0);
+  const contentBgRef = useRef(null);
+  const videoBgRef = useRef(null);
+  const ytAutoRef = useRef(null);
 
   const c = theme === "dark" ? DARK : LIGHT;
 
@@ -429,20 +1069,22 @@ export default function LandingPage() {
       const el = document.getElementById(id);
       if (!el) return;
       const obs = new IntersectionObserver(
-        ([e]) => { if (e.isIntersecting) setActiveSection(id); },
-        { root: wrapper, rootMargin: "-35% 0px -35% 0px" }
+        ([e]) => {
+          if (e.isIntersecting) setActiveSection(id);
+        },
+        { root: wrapper, rootMargin: "-35% 0px -35% 0px" },
       );
       obs.observe(el);
       observers.push(obs);
     });
-    return () => observers.forEach(o => o.disconnect());
+    return () => observers.forEach((o) => o.disconnect());
   }, []);
 
   // Fetch public YouTube videos
   useEffect(() => {
     fetch("/api/public/channel-videos")
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => setYtVideos(d.videos || []))
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setYtVideos(d.videos || []))
       .catch(() => setYtVideos([]))
       .finally(() => setYtLoading(false));
   }, []);
@@ -454,62 +1096,45 @@ export default function LandingPage() {
     const fn = () => {
       setShowBackTop(el.scrollTop > 600);
       const maxScroll = el.scrollHeight - el.clientHeight;
-      setScrollProgress(maxScroll > 0 ? Math.min(1, el.scrollTop / maxScroll) : 0);
+      setScrollProgress(
+        maxScroll > 0 ? Math.min(1, el.scrollTop / maxScroll) : 0,
+      );
       // Parallax backgrounds — direct DOM, no re-render
       if (topicsBgRef.current) {
         const rect = document.getElementById("topics")?.getBoundingClientRect();
-        if (rect) topicsBgRef.current.style.transform = `translateY(${-rect.top * 0.28}px) scale(1.35)`;
+        if (rect)
+          topicsBgRef.current.style.transform = `translateY(${-rect.top * 0.28}px) scale(1.35)`;
       }
       if (communityBgRef.current) {
-        const rect = document.getElementById("community")?.getBoundingClientRect();
-        if (rect) communityBgRef.current.style.transform = `translateY(${-rect.top * 0.28}px) scale(1.35)`;
+        const rect = document
+          .getElementById("community")
+          ?.getBoundingClientRect();
+        if (rect)
+          communityBgRef.current.style.transform = `translateY(${-rect.top * 0.28}px) scale(1.35)`;
       }
       if (contentBgRef.current) {
-        const rect = document.getElementById("content")?.getBoundingClientRect();
-        if (rect) contentBgRef.current.style.transform = `translateY(${-rect.top * 0.22}px) scale(1.3)`;
+        const rect = document
+          .getElementById("content")
+          ?.getBoundingClientRect();
+        if (rect)
+          contentBgRef.current.style.transform = `translateY(${-rect.top * 0.22}px) scale(1.3)`;
       }
       if (videoBgRef.current) {
         const rect = document.getElementById("videos")?.getBoundingClientRect();
-        if (rect) videoBgRef.current.style.transform = `translateY(${-rect.top * 0.25}px) scale(1.35)`;
+        if (rect)
+          videoBgRef.current.style.transform = `translateY(${-rect.top * 0.25}px) scale(1.35)`;
       }
     };
     el.addEventListener("scroll", fn, { passive: true });
     return () => el.removeEventListener("scroll", fn);
   }, []);
 
-  // Responsive ytCols + pixel step measurement
-  useEffect(() => {
-    const upd = () => {
-      const cols = window.innerWidth < 540 ? 1 : window.innerWidth < 900 ? 2 : 3;
-      setYtCols(cols);
-    };
-    upd();
-    window.addEventListener("resize", upd);
-    return () => window.removeEventListener("resize", upd);
-  }, []);
-
-  // Measure carousel step in pixels whenever ytCols changes
-  useEffect(() => {
-    const measure = () => {
-      if (ytWinRef.current) {
-        const w = ytWinRef.current.offsetWidth;
-        if (w > 0) setYtStepPx((w - (ytCols - 1) * 22) / ytCols + 22);
-      }
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [ytCols]);
-
-  // Reset carousel position when column count changes
-  useEffect(() => { setYtIdx(0); }, [ytCols]);
-
   // YouTube hero auto-advance (3 videos max, loop)
   useEffect(() => {
     const total = Math.min(ytVideos.length, 3);
     if (total > 1) {
       ytAutoRef.current = setInterval(() => {
-        setYtIdx(i => (i + 1) % total);
+        setYtIdx((i) => (i + 1) % total);
       }, 5500);
     }
     return () => clearInterval(ytAutoRef.current);
@@ -517,7 +1142,9 @@ export default function LandingPage() {
 
   // Close modal on Escape
   useEffect(() => {
-    const fn = e => { if (e.key === "Escape") setModalVideo(null); };
+    const fn = (e) => {
+      if (e.key === "Escape") setModalVideo(null);
+    };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
   }, []);
@@ -530,37 +1157,60 @@ export default function LandingPage() {
   // Fetch aggregated hero stats
   useEffect(() => {
     fetch("/api/public/stats")
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => setHeroStats(d))
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setHeroStats(d))
       .catch(() => {});
   }, []);
 
   // Carousel auto-advance
   useEffect(() => {
     autoRef.current = setInterval(
-      () => setCarouselIdx(i => (i + 1) % CAROUSEL.length), 5500
+      () => setCarouselIdx((i) => (i + 1) % CAROUSEL.length),
+      5500,
     );
     return () => clearInterval(autoRef.current);
   }, []);
 
-
-  const goPrev   = () => { clearInterval(autoRef.current); setSlideDir("left");  setCarouselIdx(i => (i - 1 + CAROUSEL.length) % CAROUSEL.length); };
-  const goNext   = () => { clearInterval(autoRef.current); setSlideDir("right"); setCarouselIdx(i => (i + 1) % CAROUSEL.length); };
-  const goTo     = (i) => { clearInterval(autoRef.current); setSlideDir(i > carouselIdx ? "right" : "left"); setCarouselIdx(i); };
+  const goPrev = () => {
+    clearInterval(autoRef.current);
+    setSlideDir("left");
+    setCarouselIdx((i) => (i - 1 + CAROUSEL.length) % CAROUSEL.length);
+  };
+  const goNext = () => {
+    clearInterval(autoRef.current);
+    setSlideDir("right");
+    setCarouselIdx((i) => (i + 1) % CAROUSEL.length);
+  };
+  const goTo = (i) => {
+    clearInterval(autoRef.current);
+    setSlideDir(i > carouselIdx ? "right" : "left");
+    setCarouselIdx(i);
+  };
   const scrollTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMenuOpen(false);
   };
-  const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
-  const ytPause  = () => clearInterval(ytAutoRef.current);
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const ytPause = () => clearInterval(ytAutoRef.current);
   const ytResume = () => {
     const total = Math.min(ytVideos.length, 3);
     if (total > 1) {
-      ytAutoRef.current = setInterval(() => setYtIdx(i => (i + 1) % total), 5500);
+      ytAutoRef.current = setInterval(
+        () => setYtIdx((i) => (i + 1) % total),
+        5500,
+      );
     }
   };
-  const ytPrev = () => { ytPause(); const t = Math.min(ytVideos.length, 3); setYtIdx(i => (i - 1 + t) % t); };
-  const ytNext = () => { ytPause(); const t = Math.min(ytVideos.length, 3); setYtIdx(i => (i + 1) % t); };
+  const ytPrev = () => {
+    ytPause();
+    const t = Math.min(ytVideos.length, 3);
+    setYtIdx((i) => (i - 1 + t) % t);
+  };
+  const ytNext = () => {
+    ytPause();
+    const t = Math.min(ytVideos.length, 3);
+    setYtIdx((i) => (i + 1) % t);
+  };
 
   const item = CAROUSEL[carouselIdx];
 
@@ -957,6 +1607,13 @@ export default function LandingPage() {
         }
 
 
+        /* ── SCROLLBAR — always dark so it doesn't clash with hero ── */
+        [data-theme] { scrollbar-width: thin; scrollbar-color: rgba(255,80,30,0.35) rgba(3,6,15,0.4); }
+        [data-theme]::-webkit-scrollbar { width: 6px; }
+        [data-theme]::-webkit-scrollbar-track { background: rgba(3,6,15,0.4); }
+        [data-theme]::-webkit-scrollbar-thumb { background: rgba(255,80,30,0.35); border-radius: 3px; }
+        [data-theme]::-webkit-scrollbar-thumb:hover { background: rgba(255,80,30,0.6); }
+
         /* ── BACK TO TOP ─────────────────────────────── */
         .back-to-top { position:fixed; bottom:28px; right:28px; z-index:800;
           width:46px; height:46px; border-radius:50%; border:none;
@@ -1014,17 +1671,33 @@ export default function LandingPage() {
         }
       `}</style>
 
-
       {/* ══ SIDE SECTION INDICATOR ════════════════════════════════════════════ */}
-      <div className="side-nav" style={{ position: "fixed", left: 18, top: "50%", transform: "translateY(-50%)" }}>
-        {SECTIONS.map(s => (
-          <button key={s.id} className="side-dot" onClick={() => scrollTo(s.id)} title={s.label}>
-            <div className="side-bar" style={{
-              width: activeSection === s.id ? 22 : 7,
-              background: activeSection === s.id
-                ? "linear-gradient(90deg,#ff5533,#ff8844)"
-                : `rgba(${theme==="dark"?"255,255,255":"0,0,0"},0.15)`,
-            }} />
+      <div
+        className="side-nav"
+        style={{
+          position: "fixed",
+          left: 18,
+          top: "50%",
+          transform: "translateY(-50%)",
+        }}
+      >
+        {SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            className="side-dot"
+            onClick={() => scrollTo(s.id)}
+            title={s.label}
+          >
+            <div
+              className="side-bar"
+              style={{
+                width: activeSection === s.id ? 22 : 7,
+                background:
+                  activeSection === s.id
+                    ? "linear-gradient(90deg,#ff5533,#ff8844)"
+                    : `rgba(${theme === "dark" ? "255,255,255" : "0,0,0"},0.15)`,
+              }}
+            />
             <span className="side-label">{s.label}</span>
           </button>
         ))}
@@ -1032,158 +1705,562 @@ export default function LandingPage() {
 
       {/* ══ MOBILE FULLSCREEN MENU ════════════════════════════════════════════ */}
       {menuOpen && (
-        <div className="mob-menu" style={{ background: theme === "dark" ? "rgba(3,6,15,0.97)" : "rgba(245,242,235,0.97)" }}>
-          <button className="mob-close" onClick={() => setMenuOpen(false)} style={{ color: c.textM }}>✕</button>
-          <img src={lifeLogoLong} alt="4Life Mystery" style={{ height: 44, width: "auto", objectFit: "contain", marginBottom: 12 }} />
+        <div
+          className="mob-menu"
+          style={{
+            background:
+              theme === "dark" ? "rgba(3,6,15,0.97)" : "rgba(245,242,235,0.97)",
+          }}
+        >
+          <button
+            className="mob-close"
+            onClick={() => setMenuOpen(false)}
+            style={{ color: c.textM }}
+          >
+            ✕
+          </button>
+          <img
+            src={lifeLogoLong}
+            alt="4Life Mystery"
+            style={{
+              height: 44,
+              width: "auto",
+              objectFit: "contain",
+              marginBottom: 12,
+            }}
+          />
           {SECTIONS.map(({ id, label }) => (
-            <button key={id} className={`mob-navlink${activeSection === id ? " active" : ""}`}
+            <button
+              key={id}
+              className={`mob-navlink${activeSection === id ? " active" : ""}`}
               onClick={() => scrollTo(id)}
-              style={{ color: activeSection === id ? "#ff6633" : c.textM }}>
+              style={{ color: activeSection === id ? "#ff6633" : c.textM }}
+            >
               {label}
             </button>
           ))}
           <div style={{ display: "flex", gap: 14, marginTop: 16 }}>
-            <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="soc-icon">▶</a>
-            <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="soc-icon">♪</a>
-            <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="soc-icon">◎</a>
+            <a
+              href={SOCIAL.youtube}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="soc-icon"
+            >
+              ▶
+            </a>
+            <a
+              href={SOCIAL.tiktok}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="soc-icon"
+            >
+              ♪
+            </a>
+            <a
+              href={SOCIAL.spotify}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="soc-icon"
+            >
+              ◎
+            </a>
           </div>
         </div>
       )}
 
       {/* ══ NAV ═══════════════════════════════════════════════════════════════ */}
-      <nav className={`lp-nav${scrolled ? " scrolled" : ""}`}
-        style={{ "--nav-bg": c.navBg }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-
-          <a href="/" onClick={e => { e.preventDefault(); scrollTo("hero"); }} style={{ textDecoration: "none", flexShrink: 0 }}>
-            <img src={lifeLogoLong} alt="4Life Mystery" style={{ height: 40, width: "auto", objectFit: "contain", maxWidth: 170 }} />
+      {/* Nav is always dark-tinted over the hero section regardless of theme */}
+      <nav
+        className={`lp-nav${scrolled ? " scrolled" : ""}`}
+        style={{ "--nav-bg": activeSection === "hero" ? "rgba(3,6,15,0.88)" : c.navBg }}
+      >
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: "0 auto",
+            padding: "10px 20px",
+            display: "flex",
+            alignItems: "center",
+            borderRadius: "50%",
+            justifyContent: "space-between",
+            gap: 16,
+          }}
+        >
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollTo("hero");
+            }}
+            style={{
+              textDecoration: "none",
+              flexShrink: 0,
+              borderRadius: "50%",
+              padding: 4,
+              display: "flex",
+              alignItems: "center",
+              padding: "4px",
+              border: `5px solid ${c.togBr}`,
+            }}
+          >
+            <img
+              src={roundFace}
+              alt="4Life Mystery"
+              style={{
+                height: 40,
+                width: 40,
+                borderRadius: "50%",
+                objectFit: "contain",
+              }}
+            />
           </a>
 
-          <div className="hide-mobile" style={{ display: "flex", gap: 24, alignItems: "center" }}>
-            {SECTIONS.filter(s => s.id !== "hero").map(({ id, label }) => (
-              <button key={id} onClick={() => scrollTo(id)}
+          <div
+            className="hide-mobile"
+            style={{ display: "flex", gap: 24, alignItems: "center" }}
+          >
+            {SECTIONS.filter((s) => s.id !== "hero").map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => scrollTo(id)}
                 className={`lp-navlink${activeSection === id ? " active" : ""}`}
-                style={{ "--text-m": c.textM }}>
+                style={{ "--text-m": c.textM }}
+              >
                 {label}
               </button>
             ))}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="soc-icon hide-mobile" title="YouTube" style={{ "--text-m": c.textM, "--soc-br": c.socBr }}>▶</a>
-            <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="soc-icon hide-mobile" title="TikTok"  style={{ "--text-m": c.textM, "--soc-br": c.socBr }}>♪</a>
-            <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="soc-icon hide-mobile" title="Spotify" style={{ "--text-m": c.textM, "--soc-br": c.socBr }}>◎</a>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexShrink: 0,
+            }}
+          >
+            <a
+              href={SOCIAL.youtube}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="soc-icon hide-mobile"
+              title="YouTube"
+              style={{ "--text-m": c.textM, "--soc-br": c.socBr }}
+            >
+              ▶
+            </a>
+            <a
+              href={SOCIAL.tiktok}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="soc-icon hide-mobile"
+              title="TikTok"
+              style={{ "--text-m": c.textM, "--soc-br": c.socBr }}
+            >
+              ♪
+            </a>
+            <a
+              href={SOCIAL.spotify}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="soc-icon hide-mobile"
+              title="Spotify"
+              style={{ "--text-m": c.textM, "--soc-br": c.socBr }}
+            >
+              ◎
+            </a>
 
             {/* Theme toggle */}
-            <button onClick={toggleTheme} className="theme-toggle hide-mobile"
-              style={{ background: c.togBg, borderColor: c.togBr, color: c.togText }}>
+            <button
+              onClick={toggleTheme}
+              className="theme-toggle hide-mobile"
+              style={{
+                background: c.togBg,
+                borderColor: c.togBr,
+                color: c.togText,
+              }}
+            >
               {theme === "dark" ? "☀ LIGHT" : "☾ DARK"}
             </button>
 
-            <button className="hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu"
-              style={{ border: `1px solid ${c.togBr}`, color: c.text }}>☰</button>
+            <button
+              className="hamburger"
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label="Menu"
+              style={{ border: `1px solid ${c.togBr}`, color: c.text }}
+            >
+              ☰
+            </button>
           </div>
         </div>
       </nav>
 
       {/* ══ HERO — full-screen nebula video banner ════════════════════════════ */}
-      <section id="hero" style={{ position: "relative", height: "100vh", minHeight: 560, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
+      <section
+        id="hero"
+        style={{
+          position: "relative",
+          height: "100vh",
+          minHeight: 560,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          background: "#03060f", // always dark — video loads above this
+        }}
+      >
         {/* Video background */}
         <video
           ref={heroVidRef}
-          autoPlay muted loop playsInline
-          onCanPlay={() => { if (heroVidRef.current) heroVidRef.current.playbackRate = 0.55; }}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}
+          autoPlay
+          muted
+          loop
+          playsInline
+          onCanPlay={() => {
+            if (heroVidRef.current) heroVidRef.current.playbackRate = 0.55;
+          }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 0,
+          }}
         >
           <source src={nebularVideo} type="video/mp4" />
         </video>
 
         {/* Gradient overlay — dark vignette */}
-        <div style={{ position: "absolute", inset: 0, zIndex: 1,
-          background: "linear-gradient(to bottom, rgba(3,6,15,0.38) 0%, rgba(3,6,15,0.55) 50%, rgba(3,6,15,0.92) 100%)" }} />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            background:
+              "linear-gradient(to bottom, rgba(3,6,15,0.38) 0%, rgba(3,6,15,0.55) 50%, rgba(3,6,15,0.92) 100%)",
+          }}
+        />
 
         {/* Main content — centred over video */}
-        <div className="hero-content-pad" style={{ position: "relative", zIndex: 2, flex: 1, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", textAlign: "center",
-          padding: "90px 24px 24px", gap: 0 }}>
-
+        <div
+          className="hero-content-pad"
+          style={{
+            position: "relative",
+            zIndex: 2,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            padding: "90px 24px 24px",
+            gap: 0,
+          }}
+        >
           {/* Headline */}
-          <h1 className="syne anim-1" style={{ fontWeight: 800, fontSize: "clamp(24px,4vw,50px)", lineHeight: 1.1,
-            letterSpacing: "-0.03em", marginBottom: 18, color: "#fff", textShadow: "0 2px 40px rgba(0,0,0,0.6)", maxWidth: 820 }}>
-            The questions{" "}<span className="grad-fire">worth asking</span>{" "}live here.
+          <h1
+            className="syne anim-1"
+            style={{
+              fontWeight: 800,
+              fontSize: "clamp(24px,4vw,50px)",
+              lineHeight: 1.1,
+              letterSpacing: "-0.03em",
+              marginBottom: 18,
+              color: "#fff",
+              textShadow: "0 2px 40px rgba(0,0,0,0.6)",
+              maxWidth: 820,
+            }}
+          >
+            <span className="grad-fire">4Life Mystery</span>
           </h1>
 
           {/* Description */}
-          <p className="anim-2" style={{ fontSize: "clamp(12px,1.4vw,14px)", color: "rgba(220,230,245,0.75)",
-            lineHeight: 1.85, maxWidth: 560, marginBottom: 24, textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>
-            4Life Mystery is a space for real conversations about life — its meaning, its mysteries, and everything between.
-            No algorithm. No noise. Just honest human thought.
+          <p
+            className="anim-2"
+            style={{
+              fontSize: "clamp(12px,1.4vw,14px)",
+              color: "rgba(220,230,245,0.75)",
+              lineHeight: 1.85,
+              maxWidth: 560,
+              marginBottom: 24,
+              textShadow: "0 1px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            4Life Mystery is a space for real conversations about life — its
+            meaning, its mysteries, and everything between. No algorithm. No
+            noise. Just honest human thought.
           </p>
 
           {/* Stats */}
-          <div className="hero-stats anim-3" style={{ display: "flex", gap: 32, flexWrap: "wrap", justifyContent: "center", marginBottom: 28 }}>
+          <div
+            className="hero-stats anim-3"
+            style={{
+              display: "flex",
+              gap: 32,
+              flexWrap: "wrap",
+              justifyContent: "center",
+              marginBottom: 28,
+            }}
+          >
             {[
-              [heroStats ? (heroStats.followers >= 1000 ? (heroStats.followers >= 1000000 ? (heroStats.followers/1000000).toFixed(1)+"M" : Math.round(heroStats.followers/1000)+"K") : heroStats.followers) : "10K+", "FOLLOWERS"],
-              [heroStats ? (heroStats.episodes || "50+") : "50+", "EPISODES"],
-              [heroStats ? (heroStats.comments >= 1000 ? Math.round(heroStats.comments/1000)+"K+" : heroStats.comments || "∞") : "∞", "COMMENTS"],
+              [
+                heroStats
+                  ? heroStats.followers >= 1000
+                    ? heroStats.followers >= 1000000
+                      ? (heroStats.followers / 1000000).toFixed(1) + "M"
+                      : Math.round(heroStats.followers / 1000) + "K"
+                    : heroStats.followers
+                  : "10K+",
+                "FOLLOWERS",
+              ],
+              [heroStats ? heroStats.episodes || "50+" : "50+", "EPISODES"],
+              [
+                heroStats
+                  ? heroStats.comments >= 1000
+                    ? Math.round(heroStats.comments / 1000) + "K+"
+                    : heroStats.comments || "∞"
+                  : "∞",
+                "COMMENTS",
+              ],
             ].map(([n, l]) => (
               <div key={l} style={{ textAlign: "center" }}>
-                <div className="syne grad-fire" style={{ fontWeight: 800, fontSize: "clamp(20px,3vw,30px)", filter: heroStats ? "none" : "blur(6px)", transition: "filter 0.5s" }}>{n}</div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "0.2em", marginTop: 4 }}>{l}</div>
+                <div
+                  className="syne grad-fire"
+                  style={{
+                    fontWeight: 800,
+                    fontSize: "clamp(20px,3vw,30px)",
+                    filter: heroStats ? "none" : "blur(6px)",
+                    transition: "filter 0.5s",
+                  }}
+                >
+                  {n}
+                </div>
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "rgba(255,255,255,0.35)",
+                    letterSpacing: "0.2em",
+                    marginTop: 4,
+                  }}
+                >
+                  {l}
+                </div>
               </div>
             ))}
           </div>
 
           {/* CTA buttons */}
-          <div className="anim-4 btn-group" style={{ justifyContent: "center", width: "100%", maxWidth: 500, marginBottom: 8 }}>
-            <button onClick={() => scrollTo("content")} className="lp-btn lp-btn-fire" style={{ flex: 1 }}>EXPLORE CONTENT</button>
-            <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost"
-              style={{ flex: 1, color: "#fff", borderColor: "rgba(255,255,255,0.22)", justifyContent: "center" }}>▶ WATCH ON YOUTUBE</a>
+          <div
+            className="anim-4 btn-group"
+            style={{
+              justifyContent: "center",
+              width: "100%",
+              maxWidth: 500,
+              marginBottom: 8,
+            }}
+          >
+            <button
+              onClick={() => scrollTo("content")}
+              className="lp-btn lp-btn-fire"
+              style={{ flex: 1 }}
+            >
+              EXPLORE CONTENT
+            </button>
+            <a
+              href={SOCIAL.youtube}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="lp-btn lp-btn-ghost"
+              style={{
+                flex: 1,
+                color: "#fff",
+                borderColor: "rgba(255,255,255,0.22)",
+                justifyContent: "center",
+              }}
+            >
+              ▶ WATCH ON YOUTUBE
+            </a>
           </div>
         </div>
 
         {/* Bottom bar — privacy links + scroll nudge */}
-        <div className="hero-bottom-bar" style={{ position: "relative", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 28px 20px", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.22)", letterSpacing: "0.1em" }}>4LIFEMYSTERY.COM</span>
-            <Link to="/privacy-policy" style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#ff7755"}
-              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.42)"}>Privacy Policy</Link>
-            <Link to="/terms-of-service" style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", textDecoration: "none", letterSpacing: "0.08em", transition: "color 0.2s" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#ff7755"}
-              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.42)"}>Terms of Service</Link>
+        <div
+          className="hero-bottom-bar"
+          style={{
+            position: "relative",
+            zIndex: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "16px 28px 20px",
+            flexWrap: "wrap",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 18,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                color: "rgba(255,255,255,0.22)",
+                letterSpacing: "0.1em",
+              }}
+            >
+              4LIFEMYSTERY.COM
+            </span>
+            <Link
+              to="/privacy-policy"
+              style={{
+                fontSize: 10,
+                color: "rgba(255,255,255,0.42)",
+                textDecoration: "none",
+                letterSpacing: "0.08em",
+                transition: "color 0.2s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#ff7755")}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.color = "rgba(255,255,255,0.42)")
+              }
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              to="/terms-of-service"
+              style={{
+                fontSize: 10,
+                color: "rgba(255,255,255,0.42)",
+                textDecoration: "none",
+                letterSpacing: "0.08em",
+                transition: "color 0.2s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#ff7755")}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.color = "rgba(255,255,255,0.42)")
+              }
+            >
+              Terms of Service
+            </Link>
           </div>
-          <button onClick={() => scrollTo("about")} style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}>
-            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.28)", letterSpacing: "0.2em" }}>SCROLL</span>
-            <div style={{ width: 24, height: 38, border: "1px solid rgba(255,80,30,0.4)", borderRadius: 12, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 5 }}>
-              <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#ff5533", animation: "scrollPulse 1.8s ease-in-out infinite" }} />
+          <button
+            onClick={() => scrollTo("about")}
+            style={{
+              display: "inline-flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 8px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 9,
+                color: "rgba(255,255,255,0.28)",
+                letterSpacing: "0.2em",
+              }}
+            >
+              SCROLL
+            </span>
+            <div
+              style={{
+                width: 24,
+                height: 38,
+                border: "1px solid rgba(255,80,30,0.4)",
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "center",
+                paddingTop: 5,
+              }}
+            >
+              <div
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: "50%",
+                  background: "#ff5533",
+                  animation: "scrollPulse 1.8s ease-in-out infinite",
+                }}
+              />
             </div>
           </button>
         </div>
       </section>
 
       {/* ══ ABOUT ═════════════════════════════════════════════════════════════ */}
-      <section id="about" style={{ padding: "100px 20px", background: c.bgAlt, borderTop: `1px solid ${c.secBr}` }}>
+      <section
+        id="about"
+        style={{
+          padding: "100px 20px",
+          background: c.bgAlt,
+          borderTop: `1px solid ${c.secBr}`,
+        }}
+      >
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-          <div className="about-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "stretch" }}>
-
+          <div
+            className="about-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 48,
+              alignItems: "stretch",
+            }}
+          >
             {/* Face image — fills the container completely */}
-            <div style={{ position: "relative", borderRadius: 24, overflow: "hidden", minHeight: 520,
-              boxShadow: "0 24px 80px rgba(0,0,0,0.5)", border: "1px solid rgba(255,80,30,0.15)",
-              height: "100%" }}
-              className="face-feature">
+            <div
+              style={{
+                position: "relative",
+                borderRadius: 24,
+                overflow: "hidden",
+                minHeight: 520,
+                boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
+                border: "1px solid rgba(255,80,30,0.15)",
+                height: "100%",
+              }}
+              className="face-feature"
+            >
               {/* Poster image — always rendered, hidden once video plays */}
-              <img src={faceImg} alt="4Life Mystery" className="face-sway face-poster"
-                style={{ position: "absolute", inset: 0, width: "100%", height: "105%",
-                  objectFit: "cover", objectPosition: "center top", zIndex: 1, transition: "opacity 0.8s ease" }} />
+              <img
+                src={faceImg}
+                alt="4Life Mystery"
+                className="face-sway face-poster"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "105%",
+                  objectFit: "cover",
+                  objectPosition: "center top",
+                  zIndex: 1,
+                  transition: "opacity 0.8s ease",
+                }}
+              />
               {/* Video — invisible until canplay, then fades in over the image */}
               <video
-                autoPlay muted loop playsInline
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
-                  objectFit: "cover", objectPosition: "center top", zIndex: 2, opacity: 0, transition: "opacity 0.8s ease" }}
-                onCanPlay={e => {
+                autoPlay
+                muted
+                loop
+                playsInline
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition: "center top",
+                  zIndex: 2,
+                  opacity: 0,
+                  transition: "opacity 0.8s ease",
+                }}
+                onCanPlay={(e) => {
                   e.currentTarget.style.opacity = "1";
                   const poster = e.currentTarget.previousElementSibling;
                   if (poster) poster.style.opacity = "0";
@@ -1192,45 +2269,177 @@ export default function LandingPage() {
                 <source src={faceVideo} type="video/mp4" />
               </video>
               {/* Gradient overlay with name badge */}
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0,
-                background: "linear-gradient(to top, rgba(3,6,15,0.92) 0%, transparent 55%)",
-                padding: "32px 24px 24px" }}>
-                <div className="syne" style={{ fontWeight: 700, fontSize: 16, color: "#fff", marginBottom: 4 }}>4Life Mystery</div>
-                <div style={{ fontSize: 10, color: "rgba(255,160,100,0.8)", letterSpacing: "0.14em" }}>CREATOR · THINKER · STORYTELLER</div>
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  background:
+                    "linear-gradient(to top, rgba(3,6,15,0.92) 0%, transparent 55%)",
+                  padding: "32px 24px 24px",
+                }}
+              >
+                <div
+                  className="syne"
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 16,
+                    color: "#fff",
+                    marginBottom: 4,
+                  }}
+                >
+                  4Life Mystery
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255,160,100,0.8)",
+                    letterSpacing: "0.14em",
+                  }}
+                >
+                  CREATOR · THINKER · STORYTELLER
+                </div>
               </div>
               {/* Fire glow corners */}
-              <div style={{ position: "absolute", inset: 0, borderRadius: 24, boxShadow: "inset 0 0 60px rgba(255,60,20,0.08)", pointerEvents: "none" }} />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: 24,
+                  boxShadow: "inset 0 0 60px rgba(255,60,20,0.08)",
+                  pointerEvents: "none",
+                }}
+              />
             </div>
 
             <div>
-              <h2 className="syne" style={{ fontWeight: 800, fontSize: "clamp(28px,4vw,44px)", lineHeight: 1.18, marginBottom: 20, color: c.text }}>
-                A community built on{" "}<span className="grad-fire">radical honesty.</span>
+              <h2
+                className="syne"
+                style={{
+                  fontWeight: 800,
+                  fontSize: "clamp(28px,4vw,44px)",
+                  lineHeight: 1.18,
+                  marginBottom: 20,
+                  color: c.text,
+                }}
+              >
+                A community built on{" "}
+                <span className="grad-fire">radical honesty.</span>
               </h2>
-              <p style={{ color: c.textM, lineHeight: 1.92, fontSize: 13, marginBottom: 16 }}>
-                We live in a world that moves fast and talks loud, but rarely stops to ask the questions that actually matter. 4Life Mystery is the pause — the space where you sit with the uncomfortable, the unexplained, and the deeply human.
+              <p
+                style={{
+                  color: c.textM,
+                  lineHeight: 1.92,
+                  fontSize: 13,
+                  marginBottom: 16,
+                }}
+              >
+                We live in a world that moves fast and talks loud, but rarely
+                stops to ask the questions that actually matter. 4Life Mystery
+                is the pause — the space where you sit with the uncomfortable,
+                the unexplained, and the deeply human.
               </p>
-              <p style={{ color: c.textM, lineHeight: 1.92, fontSize: 13, marginBottom: 32 }}>
-                Whether you're questioning your purpose, processing grief, navigating relationships, or just curious about what it means to be alive — you belong here.
+              <p
+                style={{
+                  color: c.textM,
+                  lineHeight: 1.92,
+                  fontSize: 13,
+                  marginBottom: 32,
+                }}
+              >
+                Whether you're questioning your purpose, processing grief,
+                navigating relationships, or just curious about what it means to
+                be alive — you belong here.
               </p>
 
-              <div className="about-pillars" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 32 }}>
+              <div
+                className="about-pillars"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 14,
+                  marginBottom: 32,
+                }}
+              >
                 {[
-                  { icon:"◈", title:"Depth",     desc:"No surface-level takes. Every piece goes deep." },
-                  { icon:"◇", title:"Honesty",   desc:"Real experiences, real feelings — no performance." },
-                  { icon:"◉", title:"Community", desc:"A growing space of thinkers and honest questioners." },
-                  { icon:"◐", title:"Mystery",   desc:"Questions without easy answers — that's the point." },
-                ].map(p => (
-                  <div key={p.title} className="lp-card" style={{ padding: 18, "--card-bg": c.cardBg, "--card-br": c.cardBr, "--card-sh": c.cardSh }}>
-                    <div style={{ fontSize: 20, color: "#ff5533", marginBottom: 10 }}>{p.icon}</div>
-                    <div className="syne" style={{ fontWeight: 700, fontSize: 13, marginBottom: 7, color: c.text }}>{p.title}</div>
-                    <div style={{ fontSize: 11, color: c.textM, lineHeight: 1.7 }}>{p.desc}</div>
+                  {
+                    icon: "◈",
+                    title: "Depth",
+                    desc: "No surface-level takes. Every piece goes deep.",
+                  },
+                  {
+                    icon: "◇",
+                    title: "Honesty",
+                    desc: "Real experiences, real feelings — no performance.",
+                  },
+                  {
+                    icon: "◉",
+                    title: "Community",
+                    desc: "A growing space of thinkers and honest questioners.",
+                  },
+                  {
+                    icon: "◐",
+                    title: "Mystery",
+                    desc: "Questions without easy answers — that's the point.",
+                  },
+                ].map((p) => (
+                  <div
+                    key={p.title}
+                    className="lp-card"
+                    style={{
+                      padding: 18,
+                      "--card-bg": c.cardBg,
+                      "--card-br": c.cardBr,
+                      "--card-sh": c.cardSh,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 20,
+                        color: "#ff5533",
+                        marginBottom: 10,
+                      }}
+                    >
+                      {p.icon}
+                    </div>
+                    <div
+                      className="syne"
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 13,
+                        marginBottom: 7,
+                        color: c.text,
+                      }}
+                    >
+                      {p.title}
+                    </div>
+                    <div
+                      style={{ fontSize: 11, color: c.textM, lineHeight: 1.7 }}
+                    >
+                      {p.desc}
+                    </div>
                   </div>
                 ))}
               </div>
 
               <div className="btn-group">
-                <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire" style={{ flex: 1, justifyContent: "center" }}>JOIN THE CONVERSATION</a>
-                <button onClick={() => scrollTo("community")} className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center" }}>COMMUNITY →</button>
+                <a
+                  href={SOCIAL.youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lp-btn lp-btn-fire"
+                  style={{ flex: 1, justifyContent: "center" }}
+                >
+                  JOIN THE CONVERSATION
+                </a>
+                <button
+                  onClick={() => scrollTo("community")}
+                  className="lp-btn lp-btn-ghost"
+                  style={{ flex: 1, justifyContent: "center" }}
+                >
+                  COMMUNITY →
+                </button>
               </div>
             </div>
           </div>
@@ -1238,75 +2447,320 @@ export default function LandingPage() {
       </section>
 
       {/* ══ CAROUSEL ══════════════════════════════════════════════════════════ */}
-      <section id="content" style={{ padding: "100px 20px", borderTop: `1px solid ${c.secBr}`, position: "relative", overflow: "hidden" }}>
+      <section
+        id="content"
+        style={{
+          padding: "100px 20px",
+          borderTop: `1px solid ${c.secBr}`,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         {/* Parallax photo background — face */}
-        <div ref={contentBgRef} style={{
-          position: "absolute", inset: "-30% 0",
-          backgroundImage: `url(${faceImg})`,
-          backgroundSize: "cover", backgroundPosition: "center 35%",
-          opacity: theme === "dark" ? 0.10 : 0.05,
-          willChange: "transform", transform: "scale(1.3)",
-          pointerEvents: "none",
-        }} />
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-          background: theme === "dark"
-            ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(5,2,10,0.88) 50%,rgba(3,6,15,0.94) 100%)"
-            : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.92) 50%,rgba(245,242,235,0.96) 100%)" }} />
-        <div style={{ maxWidth: 1180, margin: "0 auto", position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
+        <div
+          ref={contentBgRef}
+          style={{
+            position: "absolute",
+            inset: "-30% 0",
+            backgroundImage: `url(${faceImg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center 35%",
+            opacity: theme === "dark" ? 0.1 : 0.05,
+            willChange: "transform",
+            transform: "scale(1.3)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background:
+              theme === "dark"
+                ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(5,2,10,0.88) 50%,rgba(3,6,15,0.94) 100%)"
+                : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.92) 50%,rgba(245,242,235,0.96) 100%)",
+          }}
+        />
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: "0 auto",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              marginBottom: 40,
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
             <div>
               <span className="section-tag">FEATURED CONTENT</span>
-              <h2 className="syne" style={{ fontWeight: 800, fontSize: "clamp(26px,4vw,38px)", color: c.text }}>
+              <h2
+                className="syne"
+                style={{
+                  fontWeight: 800,
+                  fontSize: "clamp(26px,4vw,38px)",
+                  color: c.text,
+                }}
+              >
                 Latest from <span className="grad-fire">4Life Mystery</span>
               </h2>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              {[["←",goPrev],["→",goNext]].map(([lbl,fn]) => (
-                <button key={lbl} onClick={fn} style={{ width:42,height:42,borderRadius:10,border:`1px solid ${c.cardBr}`,background:c.cardBg,color:c.textM,cursor:"pointer",fontSize:18,transition:"all 0.2s",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:c.cardSh }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor="rgba(255,80,30,0.45)"; e.currentTarget.style.color="#ff6633"; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor=c.cardBr; e.currentTarget.style.color=c.textM; }}
-                >{lbl}</button>
+              {[
+                ["←", goPrev],
+                ["→", goNext],
+              ].map(([lbl, fn]) => (
+                <button
+                  key={lbl}
+                  onClick={fn}
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 10,
+                    border: `1px solid ${c.cardBr}`,
+                    background: c.cardBg,
+                    color: c.textM,
+                    cursor: "pointer",
+                    fontSize: 18,
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: c.cardSh,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255,80,30,0.45)";
+                    e.currentTarget.style.color = "#ff6633";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = c.cardBr;
+                    e.currentTarget.style.color = c.textM;
+                  }}
+                >
+                  {lbl}
+                </button>
               ))}
             </div>
           </div>
 
-          <div className="carousel-main" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24 }}>
-            <div key={`slide-${carouselIdx}`} className={slideDir === "right" ? "carousel-slide" : "carousel-slide-icon"}
-              style={{ background:c.cardBg,border:`1px solid ${item.color}28`,borderRadius:18,padding:"30px 28px",display:"flex",flexDirection:"column",boxShadow:c.cardSh }}>
-              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:20 }}>
-                <span style={{ fontSize:9,padding:"5px 12px",borderRadius:100,background:`${item.color}14`,color:item.color,border:`1px solid ${item.color}28`,letterSpacing:"0.12em" }}>{item.platform}</span>
-                <span style={{ fontSize:9,color:c.textD,letterSpacing:"0.1em" }}>{item.tag}</span>
+          <div
+            className="carousel-main"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 20,
+              marginBottom: 24,
+            }}
+          >
+            <div
+              key={`slide-${carouselIdx}`}
+              className={
+                slideDir === "right" ? "carousel-slide" : "carousel-slide-icon"
+              }
+              style={{
+                background: c.cardBg,
+                border: `1px solid ${item.color}28`,
+                borderRadius: 18,
+                padding: "30px 28px",
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: c.cardSh,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 20,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 9,
+                    padding: "5px 12px",
+                    borderRadius: 100,
+                    background: `${item.color}14`,
+                    color: item.color,
+                    border: `1px solid ${item.color}28`,
+                    letterSpacing: "0.12em",
+                  }}
+                >
+                  {item.platform}
+                </span>
+                <span
+                  style={{
+                    fontSize: 9,
+                    color: c.textD,
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  {item.tag}
+                </span>
               </div>
-              <h3 className="syne" style={{ fontWeight:800,fontSize:"clamp(20px,2.5vw,27px)",lineHeight:1.28,marginBottom:16,color:c.text }}>{item.title}</h3>
-              <p style={{ color:c.textM,lineHeight:1.84,fontSize:13,flex:1,marginBottom:28 }}>{item.excerpt}</p>
-              <a href={item.link} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire feat-cta-btn" style={{ alignSelf:"flex-start" }}>
+              <h3
+                className="syne"
+                style={{
+                  fontWeight: 800,
+                  fontSize: "clamp(20px,2.5vw,27px)",
+                  lineHeight: 1.28,
+                  marginBottom: 16,
+                  color: c.text,
+                }}
+              >
+                {item.title}
+              </h3>
+              <p
+                style={{
+                  color: c.textM,
+                  lineHeight: 1.84,
+                  fontSize: 13,
+                  flex: 1,
+                  marginBottom: 28,
+                }}
+              >
+                {item.excerpt}
+              </p>
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="lp-btn lp-btn-fire feat-cta-btn"
+                style={{ alignSelf: "flex-start" }}
+              >
                 {item.icon} WATCH / LISTEN NOW
               </a>
             </div>
-            <div key={`icon-${carouselIdx}`} className={slideDir === "right" ? "carousel-slide-icon" : "carousel-slide"}
-              style={{ background:`linear-gradient(145deg,${theme==="dark"?"rgba(0,0,0,0.5)":c.cardBg},${item.color}0c)`,border:`1px solid ${item.color}1a`,borderRadius:18,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,minHeight:240,padding:24,boxShadow:c.cardSh }}>
-              <div style={{ fontSize:60,color:item.color,opacity:0.6,transition:"transform 0.3s,opacity 0.3s" }}
-                onMouseEnter={e => { e.currentTarget.style.transform="scale(1.18)"; e.currentTarget.style.opacity="0.9"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.opacity="0.6"; }}
-              >{item.icon}</div>
-              <div style={{ fontSize:10,color:c.textD,letterSpacing:"0.18em" }}>AVAILABLE ON {item.platform}</div>
-              <a href={item.link} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ fontSize:10,padding:"10px 20px" }}>OPEN →</a>
+            <div
+              key={`icon-${carouselIdx}`}
+              className={
+                slideDir === "right" ? "carousel-slide-icon" : "carousel-slide"
+              }
+              style={{
+                background: `linear-gradient(145deg,${theme === "dark" ? "rgba(0,0,0,0.5)" : c.cardBg},${item.color}0c)`,
+                border: `1px solid ${item.color}1a`,
+                borderRadius: 18,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 16,
+                minHeight: 240,
+                padding: 24,
+                boxShadow: c.cardSh,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 60,
+                  color: item.color,
+                  opacity: 0.6,
+                  transition: "transform 0.3s,opacity 0.3s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.18)";
+                  e.currentTarget.style.opacity = "0.9";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.opacity = "0.6";
+                }}
+              >
+                {item.icon}
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: c.textD,
+                  letterSpacing: "0.18em",
+                }}
+              >
+                AVAILABLE ON {item.platform}
+              </div>
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="lp-btn lp-btn-ghost"
+                style={{ fontSize: 10, padding: "10px 20px" }}
+              >
+                OPEN →
+              </a>
             </div>
           </div>
 
-          <div style={{ display:"flex",justifyContent:"center",gap:7,marginBottom:24 }}>
-            {CAROUSEL.map((_,i) => (
-              <button key={i} className="c-dot" onClick={() => goTo(i)}
-                style={{ width:i===carouselIdx?26:8,background:i===carouselIdx?"#ff5533":c.cardBr }} />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 7,
+              marginBottom: 24,
+            }}
+          >
+            {CAROUSEL.map((_, i) => (
+              <button
+                key={i}
+                className="c-dot"
+                onClick={() => goTo(i)}
+                style={{
+                  width: i === carouselIdx ? 26 : 8,
+                  background: i === carouselIdx ? "#ff5533" : c.cardBr,
+                }}
+              />
             ))}
           </div>
 
-          <div className="mini-grid" style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12 }}>
-            {CAROUSEL.map((cc,i) => (
-              <div key={cc.id} onClick={() => goTo(i)} className="lp-card"
-                style={{ padding:"14px 16px",cursor:"pointer","--card-bg":i===carouselIdx?`rgba(255,80,30,0.06)`:c.cardBg,"--card-br":i===carouselIdx?"#ff553440":c.cardBr,"--card-sh":c.cardSh }}>
-                <div style={{ fontSize:9,color:cc.color,letterSpacing:"0.12em",marginBottom:7 }}>{cc.platform}</div>
-                <div className="syne" style={{ fontSize:12,fontWeight:700,lineHeight:1.45,color:c.text }}>{cc.title}</div>
+          <div
+            className="mini-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4,1fr)",
+              gap: 12,
+            }}
+          >
+            {CAROUSEL.map((cc, i) => (
+              <div
+                key={cc.id}
+                onClick={() => goTo(i)}
+                className="lp-card"
+                style={{
+                  padding: "14px 16px",
+                  cursor: "pointer",
+                  "--card-bg":
+                    i === carouselIdx ? `rgba(255,80,30,0.06)` : c.cardBg,
+                  "--card-br": i === carouselIdx ? "#ff553440" : c.cardBr,
+                  "--card-sh": c.cardSh,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: cc.color,
+                    letterSpacing: "0.12em",
+                    marginBottom: 7,
+                  }}
+                >
+                  {cc.platform}
+                </div>
+                <div
+                  className="syne"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1.45,
+                    color: c.text,
+                  }}
+                >
+                  {cc.title}
+                </div>
               </div>
             ))}
           </div>
@@ -1314,119 +2768,309 @@ export default function LandingPage() {
       </section>
 
       {/* ══ TIKTOK STRIP ══════════════════════════════════════════════════════ */}
-      <section style={{ padding:"56px 20px",background:"rgba(0,242,234,0.013)",borderTop:"1px solid rgba(0,242,234,0.06)",borderBottom:"1px solid rgba(0,242,234,0.06)" }}>
-        <div style={{ maxWidth:1180,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:24 }}>
-          <div style={{ display:"flex",alignItems:"center",gap:18 }}>
-            <div style={{ width:52,height:52,borderRadius:14,background:"rgba(0,242,234,0.08)",border:"1px solid rgba(0,242,234,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:"#00f2ea",flexShrink:0,transition:"transform 0.3s" }}
-              onMouseEnter={e => e.currentTarget.style.transform="scale(1.1) rotate(5deg)"}
-              onMouseLeave={e => e.currentTarget.style.transform="scale(1) rotate(0deg)"}
-            >♪</div>
+      <section
+        style={{
+          padding: "56px 20px",
+          background: "rgba(0,242,234,0.013)",
+          borderTop: "1px solid rgba(0,242,234,0.06)",
+          borderBottom: "1px solid rgba(0,242,234,0.06)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 24,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                background: "rgba(0,242,234,0.08)",
+                border: "1px solid rgba(0,242,234,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 22,
+                color: "#00f2ea",
+                flexShrink: 0,
+                transition: "transform 0.3s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.transform = "scale(1.1) rotate(5deg)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.transform = "scale(1) rotate(0deg)")
+              }
+            >
+              ♪
+            </div>
             <div>
-              <div className="syne" style={{ fontWeight:700,fontSize:"clamp(15px,2.5vw,18px)",marginBottom:4,color:c.text }}>@lifemystery183284 on TikTok</div>
-              <div style={{ fontSize:12,color:c.textM }}>60-second truths. Bite-sized thoughts that hit hard.</div>
+              <div
+                className="syne"
+                style={{
+                  fontWeight: 700,
+                  fontSize: "clamp(15px,2.5vw,18px)",
+                  marginBottom: 4,
+                  color: c.text,
+                }}
+              >
+                @lifemystery183284 on TikTok
+              </div>
+              <div style={{ fontSize: 12, color: c.textM }}>
+                60-second truths. Bite-sized thoughts that hit hard.
+              </div>
             </div>
           </div>
-          <a href={SOCIAL.tiktok} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost tiktok-btn" style={{ borderColor:"rgba(0,242,234,0.3)",color:"#00f2ea" }}>♪ FOLLOW ON TIKTOK</a>
+          <a
+            href={SOCIAL.tiktok}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="lp-btn lp-btn-ghost tiktok-btn"
+            style={{ borderColor: "rgba(0,242,234,0.3)", color: "#00f2ea" }}
+          >
+            ♪ FOLLOW ON TIKTOK
+          </a>
         </div>
       </section>
 
       {/* ══ YOUTUBE VIDEOS ════════════════════════════════════════════════════ */}
-      <section id="videos" style={{ padding:"50px 20px 110px", borderTop:`1px solid ${c.secBr}`, position:"relative", overflow:"hidden" }}>
+      <section
+        id="videos"
+        style={{
+          padding: "50px 20px 110px",
+          borderTop: `1px solid ${c.secBr}`,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         {/* Parallax background — freedom.jpg */}
-        <div ref={videoBgRef} style={{
-          position:"absolute", inset:"-35% 0",
-          backgroundImage:`url(${freedomImg})`,
-          backgroundSize:"cover", backgroundPosition:"center 45%",
-          opacity: 1,
-          willChange:"transform", transform:"scale(1.35)",
-          pointerEvents:"none",
-        }} />
-        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
-          background: theme === "dark"
-            ? "linear-gradient(160deg,rgba(3,6,15,0.93) 0%,rgba(3,6,15,0.76) 50%,rgba(3,6,15,0.93) 100%)"
-            : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)" }} />
+        <div
+          ref={videoBgRef}
+          style={{
+            position: "absolute",
+            inset: "-35% 0",
+            backgroundImage: `url(${freedomImg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center 45%",
+            opacity: 1,
+            willChange: "transform",
+            transform: "scale(1.35)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background:
+              theme === "dark"
+                ? "linear-gradient(160deg,rgba(3,6,15,0.93) 0%,rgba(3,6,15,0.76) 50%,rgba(3,6,15,0.93) 100%)"
+                : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)",
+          }}
+        />
 
-        <div style={{ maxWidth:1220, margin:"0 auto", position:"relative", zIndex:1 }}>
+        <div
+          style={{
+            maxWidth: 1220,
+            margin: "0 auto",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
           {/* Header — centered */}
-          <div style={{ textAlign:"center", marginBottom:52 }}>
-            <span className="section-tag" style={{ color:"#ff0000" }}>YOUTUBE</span>
-            <h2 className="syne" style={{ fontWeight:800, fontSize:"clamp(26px,4vw,42px)", color:c.text, marginBottom:10 }}>
+          <div style={{ textAlign: "center", marginBottom: 52 }}>
+            <span className="section-tag" style={{ color: "#ff0000" }}>
+              YOUTUBE
+            </span>
+            <h2
+              className="syne"
+              style={{
+                fontWeight: 800,
+                fontSize: "clamp(26px,4vw,42px)",
+                color: c.text,
+                marginBottom: 10,
+              }}
+            >
               Latest <span className="grad-fire">videos</span>
             </h2>
-            <p style={{ fontSize:13, color:c.textM, letterSpacing:"0.04em", marginBottom:22 }}>Watch on YouTube · New content weekly</p>
-            <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer"
-              className="lp-btn lp-btn-ghost" style={{ fontSize:11, borderColor:"rgba(200,30,30,0.35)", color:"#ff5533", display:"inline-flex" }}>
+            <p
+              style={{
+                fontSize: 13,
+                color: c.textM,
+                letterSpacing: "0.04em",
+                marginBottom: 22,
+              }}
+            >
+              Watch on YouTube · New content weekly
+            </p>
+            <a
+              href={SOCIAL.youtube}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="lp-btn lp-btn-ghost"
+              style={{
+                fontSize: 11,
+                borderColor: "rgba(200,30,30,0.35)",
+                color: "#ff5533",
+                display: "inline-flex",
+              }}
+            >
               ▶ VIEW CHANNEL →
             </a>
           </div>
 
           {/* Netflix Hero */}
           {ytLoading ? (
-            <div className="yt-skeleton" style={{ width:"100%", height:"clamp(280px,42vw,560px)", borderRadius:20 }} />
-          ) : (() => {
-            const heroVideos = ytVideos.slice(0, 3);
-            if (heroVideos.length === 0) return null;
-            const v = heroVideos[ytIdx % heroVideos.length];
-            const total = heroVideos.length;
-            return (
-              <div onMouseEnter={ytPause} onMouseLeave={ytResume}>
-                <div className="yt-hero" onClick={() => setModalVideo(v)}>
-                  {/* Background */}
-                  <div className="yt-hero-bg" style={{ backgroundImage: v.thumbnail ? `url(${v.thumbnail})` : "none" }} />
-                  {/* Left-heavy dark overlay */}
-                  <div className="yt-hero-overlay" />
-                  {/* Text content */}
-                  <div className="yt-hero-content">
-                    <div className="yt-hero-text">
-                      <div className="yt-hero-badge">▶ YOUTUBE</div>
-                      <div className="yt-hero-title">{v.title}</div>
-                      <div className="yt-hero-meta">
-                        <span>▶ {Number(v.views||0).toLocaleString()} views</span>
-                        <span>♥ {Number(v.likes||0).toLocaleString()}</span>
-                        {v.duration && <span>⏱ {v.duration}</span>}
+            <div
+              className="yt-skeleton"
+              style={{
+                width: "100%",
+                height: "clamp(280px,42vw,560px)",
+                borderRadius: 20,
+              }}
+            />
+          ) : (
+            (() => {
+              const heroVideos = ytVideos.slice(0, 3);
+              if (heroVideos.length === 0) return null;
+              const v = heroVideos[ytIdx % heroVideos.length];
+              const total = heroVideos.length;
+              return (
+                <div onMouseEnter={ytPause} onMouseLeave={ytResume}>
+                  <div className="yt-hero" onClick={() => setModalVideo(v)}>
+                    {/* Background */}
+                    <div
+                      className="yt-hero-bg"
+                      style={{
+                        backgroundImage: v.thumbnail
+                          ? `url(${v.thumbnail})`
+                          : "none",
+                      }}
+                    />
+                    {/* Left-heavy dark overlay */}
+                    <div className="yt-hero-overlay" />
+                    {/* Text content */}
+                    <div className="yt-hero-content">
+                      <div className="yt-hero-text">
+                        <div className="yt-hero-badge">▶ YOUTUBE</div>
+                        <div className="yt-hero-title">{v.title}</div>
+                        <div className="yt-hero-meta">
+                          <span>
+                            ▶ {Number(v.views || 0).toLocaleString()} views
+                          </span>
+                          <span>♥ {Number(v.likes || 0).toLocaleString()}</span>
+                          {v.duration && <span>⏱ {v.duration}</span>}
+                        </div>
+                        <button
+                          className="yt-hero-cta"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalVideo(v);
+                          }}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="13"
+                            height="13"
+                            fill="white"
+                            style={{ marginRight: 2 }}
+                          >
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                          WATCH NOW
+                        </button>
                       </div>
-                      <button className="yt-hero-cta" onClick={e => { e.stopPropagation(); setModalVideo(v); }}>
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="white" style={{ marginRight:2 }}><path d="M8 5v14l11-7z"/></svg>
-                        WATCH NOW
-                      </button>
                     </div>
-                  </div>
-                  {/* Centered play on hover */}
-                  <div className="yt-hero-play">
-                    <div className="yt-hero-play-btn" onClick={e => { e.stopPropagation(); setModalVideo(v); }}>
-                      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </div>
-                  </div>
-                  {/* Side arrows */}
-                  {total > 1 && <>
-                    <button className="yt-hero-side-arr left" onClick={e => { e.stopPropagation(); ytPrev(); }}>‹</button>
-                    <button className="yt-hero-side-arr right" onClick={e => { e.stopPropagation(); ytNext(); }}>›</button>
-                  </>}
-                  {/* Duration badge */}
-                  {v.duration && <div className="yt-badge-dur" style={{ position:"absolute", top:14, right:14 }}>{v.duration}</div>}
-                </div>
-                {/* Dots */}
-                {total > 1 && (
-                  <div className="yt-hero-dots">
-                    {heroVideos.map((_,i) => (
-                      <button key={i} className="yt-hero-dot"
-                        onClick={() => { ytPause(); setYtIdx(i); }}
-                        style={{
-                          background: i === ytIdx ? "#ff5533" : "rgba(255,255,255,0.2)",
-                          width: i === ytIdx ? 24 : 8,
-                          borderRadius: i === ytIdx ? 4 : "50%",
+                    {/* Centered play on hover */}
+                    <div className="yt-hero-play">
+                      <div
+                        className="yt-hero-play-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalVideo(v);
                         }}
-                      />
-                    ))}
+                      >
+                        <svg viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                    {/* Side arrows */}
+                    {total > 1 && (
+                      <>
+                        <button
+                          className="yt-hero-side-arr left"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            ytPrev();
+                          }}
+                        >
+                          ‹
+                        </button>
+                        <button
+                          className="yt-hero-side-arr right"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            ytNext();
+                          }}
+                        >
+                          ›
+                        </button>
+                      </>
+                    )}
+                    {/* Duration badge */}
+                    {v.duration && (
+                      <div
+                        className="yt-badge-dur"
+                        style={{ position: "absolute", top: 14, right: 14 }}
+                      >
+                        {v.duration}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })()}
+                  {/* Dots */}
+                  {total > 1 && (
+                    <div className="yt-hero-dots">
+                      {heroVideos.map((_, i) => (
+                        <button
+                          key={i}
+                          className="yt-hero-dot"
+                          onClick={() => {
+                            ytPause();
+                            setYtIdx(i);
+                          }}
+                          style={{
+                            background:
+                              i === ytIdx ? "#ff5533" : "rgba(255,255,255,0.2)",
+                            width: i === ytIdx ? 24 : 8,
+                            borderRadius: i === ytIdx ? 4 : "50%",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          )}
 
           {/* Video modal */}
           {modalVideo && (
-            <div className="yt-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setModalVideo(null); }}>
+            <div
+              className="yt-modal-backdrop"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setModalVideo(null);
+              }}
+            >
               <div className="yt-modal-box">
                 <div className="yt-modal-frame">
                   <iframe
@@ -1439,11 +3083,21 @@ export default function LandingPage() {
                 <div className="yt-modal-bar">
                   <div className="yt-modal-title">{modalVideo.title}</div>
                   <div className="yt-modal-actions">
-                    <a href={`https://www.youtube.com/watch?v=${modalVideo.id}`} target="_blank" rel="noopener noreferrer"
-                      className="yt-modal-btn yt" style={{ textDecoration:"none" }}>
+                    <a
+                      href={`https://www.youtube.com/watch?v=${modalVideo.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="yt-modal-btn yt"
+                      style={{ textDecoration: "none" }}
+                    >
                       ↗ YouTube
                     </a>
-                    <button className="yt-modal-btn close" onClick={() => setModalVideo(null)}>✕ Close</button>
+                    <button
+                      className="yt-modal-btn close"
+                      onClick={() => setModalVideo(null)}
+                    >
+                      ✕ Close
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1453,32 +3107,99 @@ export default function LandingPage() {
       </section>
 
       {/* ══ PODCAST ═══════════════════════════════════════════════════════════ */}
-      <section id="podcast" style={{ padding:"100px 20px",borderTop:`1px solid ${c.secBr}` }}>
-        <div style={{ maxWidth:1180,margin:"0 auto" }}>
-          <span className="section-tag" style={{ color:"#1db954" }}>PODCAST</span>
-          <div className="podcast-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:48,alignItems:"center" }}>
+      <section
+        id="podcast"
+        style={{ padding: "100px 20px", borderTop: `1px solid ${c.secBr}` }}
+      >
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          <span className="section-tag" style={{ color: "#1db954" }}>
+            PODCAST
+          </span>
+          <div
+            className="podcast-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 48,
+              alignItems: "center",
+            }}
+          >
             <div>
-              <h2 className="syne" style={{ fontWeight:800,fontSize:"clamp(28px,4vw,44px)",lineHeight:1.18,marginBottom:20,color:c.text }}>
-                Listen on <span style={{ color:"#1db954" }}>Spotify.</span>
+              <h2
+                className="syne"
+                style={{
+                  fontWeight: 800,
+                  fontSize: "clamp(28px,4vw,44px)",
+                  lineHeight: 1.18,
+                  marginBottom: 20,
+                  color: c.text,
+                }}
+              >
+                Listen on <span style={{ color: "#1db954" }}>Spotify.</span>
               </h2>
-              <p style={{ color:c.textM,lineHeight:1.92,fontSize:13,marginBottom:16 }}>
-                The 4Life Mystery podcast goes even deeper. Long-form conversations — no time limits, no edits, no filter.
+              <p
+                style={{
+                  color: c.textM,
+                  lineHeight: 1.92,
+                  fontSize: 13,
+                  marginBottom: 16,
+                }}
+              >
+                The 4Life Mystery podcast goes even deeper. Long-form
+                conversations — no time limits, no edits, no filter.
               </p>
-              <p style={{ color:c.textM,lineHeight:1.92,fontSize:13,marginBottom:32 }}>
-                From the mystery of consciousness to navigating grief, love, and the strangeness of being human. New episodes every week.
+              <p
+                style={{
+                  color: c.textM,
+                  lineHeight: 1.92,
+                  fontSize: 13,
+                  marginBottom: 32,
+                }}
+              >
+                From the mystery of consciousness to navigating grief, love, and
+                the strangeness of being human. New episodes every week.
               </p>
               <div className="btn-group podcast-btns">
-                <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-green" style={{ flex: 1, justifyContent: "center" }}>◎ LISTEN NOW</a>
-                <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center" }}>ALL EPISODES →</a>
+                <a
+                  href={SOCIAL.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lp-btn lp-btn-green"
+                  style={{ flex: 1, justifyContent: "center" }}
+                >
+                  ◎ LISTEN NOW
+                </a>
+                <a
+                  href={SOCIAL.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lp-btn lp-btn-ghost"
+                  style={{ flex: 1, justifyContent: "center" }}
+                >
+                  ALL EPISODES →
+                </a>
               </div>
             </div>
-            <div style={{ borderRadius:16,overflow:"hidden",border:"1px solid rgba(29,185,84,0.25)",boxShadow:"0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",background:"rgba(3,6,15,0.85)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)" }}>
+            <div
+              style={{
+                borderRadius: 16,
+                overflow: "hidden",
+                border: "1px solid rgba(29,185,84,0.25)",
+                boxShadow:
+                  "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
+                background: "rgba(3,6,15,0.85)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+              }}
+            >
               <iframe
                 src={`https://open.spotify.com/embed/show/${SPOTIFY_SHOW_ID}?utm_source=generator&theme=0`}
-                width="100%" height="352"
-                style={{ border:"none",display:"block" }}
+                width="100%"
+                height="352"
+                style={{ border: "none", display: "block" }}
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy" title="4Life Mystery Podcast"
+                loading="lazy"
+                title="4Life Mystery Podcast"
               />
             </div>
           </div>
@@ -1486,35 +3207,102 @@ export default function LandingPage() {
       </section>
 
       {/* ══ TOPICS ════════════════════════════════════════════════════════════ */}
-      <section id="topics" style={{ padding:"100px 20px", position:"relative", overflow:"hidden", borderTop:`1px solid ${c.secBr}`, borderBottom:`1px solid ${c.secBr}` }}>
+      <section
+        id="topics"
+        style={{
+          padding: "100px 20px",
+          position: "relative",
+          overflow: "hidden",
+          borderTop: `1px solid ${c.secBr}`,
+          borderBottom: `1px solid ${c.secBr}`,
+        }}
+      >
         {/* Parallax photo background — jajja2 */}
-        <div ref={topicsBgRef} style={{
-          position:"absolute", inset:"-35% 0",
-          backgroundImage:`url(${jajja2})`,
-          backgroundSize:"cover", backgroundPosition:"center 30%",
-          opacity: 1,
-          willChange:"transform", transform:"scale(1.35)",
-          pointerEvents:"none",
-        }} />
-        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
-          background: theme === "dark"
-            ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(3,6,15,0.78) 50%,rgba(3,6,15,0.94) 100%)"
-            : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)" }} />
-        <div style={{ maxWidth:1180, margin:"0 auto", position:"relative", zIndex:1 }}>
+        <div
+          ref={topicsBgRef}
+          style={{
+            position: "absolute",
+            inset: "-35% 0",
+            backgroundImage: `url(${jajja2})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center 30%",
+            opacity: 1,
+            willChange: "transform",
+            transform: "scale(1.35)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background:
+              theme === "dark"
+                ? "linear-gradient(160deg,rgba(3,6,15,0.94) 0%,rgba(3,6,15,0.78) 50%,rgba(3,6,15,0.94) 100%)"
+                : "linear-gradient(160deg,rgba(245,242,235,0.96) 0%,rgba(245,242,235,0.88) 50%,rgba(245,242,235,0.96) 100%)",
+          }}
+        />
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: "0 auto",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
           <span className="section-tag">EXPLORE TOPICS</span>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16,flexWrap:"wrap",gap:16 }}>
-            <h2 className="syne" style={{ fontWeight:800,fontSize:"clamp(26px,4vw,38px)",color:c.text }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              marginBottom: 16,
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <h2
+              className="syne"
+              style={{
+                fontWeight: 800,
+                fontSize: "clamp(26px,4vw,38px)",
+                color: c.text,
+              }}
+            >
               What moves <span className="grad-fire">you?</span>
             </h2>
-            <p style={{ color:c.textM,fontSize:12,lineHeight:1.7,maxWidth:340 }}>Every topic is a doorway. Pick one that resonates.</p>
+            <p
+              style={{
+                color: c.textM,
+                fontSize: 12,
+                lineHeight: 1.7,
+                maxWidth: 340,
+              }}
+            >
+              Every topic is a doorway. Pick one that resonates.
+            </p>
           </div>
           <div className="topics-grid">
-            {TOPICS.map(t2 => (
-              <a key={t2.name} href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="topic-pill"
-                style={{ background:c.cardBg,border:`1px solid ${c.cardBr}`,color:c.textM,boxShadow:c.cardSh }}>
-                <span style={{ color:"#ff5533" }}>{t2.icon}</span>
+            {TOPICS.map((t2) => (
+              <a
+                key={t2.name}
+                href={SOCIAL.youtube}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="topic-pill"
+                style={{
+                  background: c.cardBg,
+                  border: `1px solid ${c.cardBr}`,
+                  color: c.textM,
+                  boxShadow: c.cardSh,
+                }}
+              >
+                <span style={{ color: "#ff5533" }}>{t2.icon}</span>
                 <span style={{ flex: 1 }}>{t2.name}</span>
-                <span style={{ fontSize:9,color:c.textD,flexShrink:0 }}>{t2.count}</span>
+                <span style={{ fontSize: 9, color: c.textD, flexShrink: 0 }}>
+                  {t2.count}
+                </span>
               </a>
             ))}
           </div>
@@ -1522,60 +3310,202 @@ export default function LandingPage() {
       </section>
 
       {/* ══ MATRIX VIDEO BREAK ════════════════════════════════════════════════ */}
-      <div style={{ position: "relative", width: "100%", height: "min(420px,55vw)", overflow: "hidden" }}>
-        <video autoPlay muted loop playsInline
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}>
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "min(420px,55vw)",
+          overflow: "hidden",
+        }}
+      >
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        >
           <source src={metrixVideo} type="video/mp4" />
         </video>
         {/* vignette + tinted overlay */}
-        <div style={{ position: "absolute", inset: 0,
-          background: "linear-gradient(to bottom, rgba(3,6,15,0.65) 0%, rgba(3,6,15,0.35) 50%, rgba(3,6,15,0.72) 100%)" }} />
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", gap: 16, textAlign: "center", padding: "0 24px" }}>
-          <div className="syne" style={{ fontWeight: 800, fontSize: "clamp(20px,4vw,42px)", color: "#fff",
-            letterSpacing: "-0.02em", textShadow: "0 2px 30px rgba(0,0,0,0.7)" }}>
-            The answers are{" "}<span className="grad-fire">out there.</span>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(to bottom, rgba(3,6,15,0.65) 0%, rgba(3,6,15,0.35) 50%, rgba(3,6,15,0.72) 100%)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+            textAlign: "center",
+            padding: "0 24px",
+          }}
+        >
+          <div
+            className="syne"
+            style={{
+              fontWeight: 800,
+              fontSize: "clamp(20px,4vw,42px)",
+              color: "#fff",
+              letterSpacing: "-0.02em",
+              textShadow: "0 2px 30px rgba(0,0,0,0.7)",
+            }}
+          >
+            The answers are <span className="grad-fire">out there.</span>
           </div>
-          <p style={{ fontSize: "clamp(12px,1.4vw,15px)", color: "rgba(200,215,235,0.7)", maxWidth: 560, lineHeight: 1.75 }}>
+          <p
+            style={{
+              fontSize: "clamp(12px,1.4vw,15px)",
+              color: "rgba(200,215,235,0.7)",
+              maxWidth: 560,
+              lineHeight: 1.75,
+            }}
+          >
             Every mystery starts with a question. Join the community.
           </p>
-          <button onClick={() => scrollTo("community")} className="lp-btn lp-btn-fire" style={{ marginTop: 8 }}>
+          <button
+            onClick={() => scrollTo("community")}
+            className="lp-btn lp-btn-fire"
+            style={{ marginTop: 8 }}
+          >
             JOIN THE COMMUNITY
           </button>
         </div>
       </div>
 
       {/* ══ COMMUNITY ═════════════════════════════════════════════════════════ */}
-      <section id="community" style={{ padding:"100px 20px 120px",position:"relative",overflow:"hidden" }}>
+      <section
+        id="community"
+        style={{
+          padding: "100px 20px 120px",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         {/* Parallax photo background — jajja2 */}
-        <div ref={communityBgRef} style={{
-          position:"absolute", inset:"-35% 0",
-          backgroundImage:`url(${jajja2})`,
-          backgroundSize:"cover", backgroundPosition:"center 20%",
-          opacity: 1,
-          willChange:"transform", transform:"scale(1.35)",
-          pointerEvents:"none",
-        }} />
-        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
-          background: theme === "dark"
-            ? "linear-gradient(160deg,rgba(3,6,15,0.92) 0%,rgba(5,2,10,0.80) 50%,rgba(3,6,15,0.92) 100%)"
-            : "linear-gradient(160deg,rgba(245,242,235,0.95) 0%,rgba(245,242,235,0.87) 50%,rgba(245,242,235,0.95) 100%)" }} />
+        <div
+          ref={communityBgRef}
+          style={{
+            position: "absolute",
+            inset: "-35% 0",
+            backgroundImage: `url(${jajja2})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center 20%",
+            opacity: 1,
+            willChange: "transform",
+            transform: "scale(1.35)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background:
+              theme === "dark"
+                ? "linear-gradient(160deg,rgba(3,6,15,0.92) 0%,rgba(5,2,10,0.80) 50%,rgba(3,6,15,0.92) 100%)"
+                : "linear-gradient(160deg,rgba(245,242,235,0.95) 0%,rgba(245,242,235,0.87) 50%,rgba(245,242,235,0.95) 100%)",
+          }}
+        />
 
-        <div style={{ maxWidth:1180,margin:"0 auto",position:"relative",zIndex:1 }}>
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: "0 auto",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
           <span className="section-tag">COMMUNITY</span>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:40,flexWrap:"wrap",gap:16 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              marginBottom: 40,
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
             <div>
-              <h2 className="syne" style={{ fontWeight:800,fontSize:"clamp(26px,4vw,42px)",lineHeight:1.15,color:c.text }}>
-                The conversation is just{" "}<span className="grad-fire">getting started.</span>
+              <h2
+                className="syne"
+                style={{
+                  fontWeight: 800,
+                  fontSize: "clamp(26px,4vw,42px)",
+                  lineHeight: 1.15,
+                  color: c.text,
+                }}
+              >
+                The conversation is just{" "}
+                <span className="grad-fire">getting started.</span>
               </h2>
-              <p style={{ color:c.textM,fontSize:13,lineHeight:1.84,maxWidth:560,marginTop:14 }}>
-                Share your thoughts, ask questions, or tell us what you want explored next.
+              <p
+                style={{
+                  color: c.textM,
+                  fontSize: 13,
+                  lineHeight: 1.84,
+                  maxWidth: 560,
+                  marginTop: 14,
+                }}
+              >
+                Share your thoughts, ask questions, or tell us what you want
+                explored next.
               </p>
             </div>
             <div className="btn-group" style={{ marginTop: 4 }}>
-              <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-fire" style={{ flex: 1, justifyContent: "center" }}>▶ YOUTUBE</a>
-              <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center", borderColor:"rgba(0,242,234,0.3)",color:"#00f2ea" }}>♪ TIKTOK</a>
-              <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-ghost" style={{ flex: 1, justifyContent: "center", borderColor:"rgba(29,185,84,0.3)",color:"#1db954" }}>◎ SPOTIFY</a>
+              <a
+                href={SOCIAL.youtube}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="lp-btn lp-btn-fire"
+                style={{ flex: 1, justifyContent: "center" }}
+              >
+                ▶ YOUTUBE
+              </a>
+              <a
+                href={SOCIAL.tiktok}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="lp-btn lp-btn-ghost"
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  borderColor: "rgba(0,242,234,0.3)",
+                  color: "#00f2ea",
+                }}
+              >
+                ♪ TIKTOK
+              </a>
+              <a
+                href={SOCIAL.spotify}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="lp-btn lp-btn-ghost"
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  borderColor: "rgba(29,185,84,0.3)",
+                  color: "#1db954",
+                }}
+              >
+                ◎ SPOTIFY
+              </a>
             </div>
           </div>
           <BlogSection c={c} theme={theme} />
@@ -1583,54 +3513,220 @@ export default function LandingPage() {
       </section>
 
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
-      <footer style={{ borderTop:`1px solid ${c.secBr}`,padding:"60px 20px 40px",background:c.footBg }}>
-        <div style={{ maxWidth:1180,margin:"0 auto" }}>
-          <div className="footer-grid" style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:36,marginBottom:48 }}>
-
+      <footer
+        style={{
+          borderTop: `1px solid ${c.secBr}`,
+          padding: "60px 20px 40px",
+          background: c.footBg,
+        }}
+      >
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          <div
+            className="footer-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr 1fr 1fr",
+              gap: 36,
+              marginBottom: 48,
+            }}
+          >
             <div>
-              <img src={lifeLogoLong} alt="4Life Mystery" style={{ height:40,width:"auto",objectFit:"contain",marginBottom:16 }} />
-              <p style={{ fontSize:12,color:c.ftLink,lineHeight:1.84,maxWidth:250,marginBottom:20 }}>
-                A space for real conversations about life — its meaning, its mysteries, and everything in between.
+              <img
+                src={lifeLogoLong}
+                alt="4Life Mystery"
+                style={{
+                  height: 40,
+                  width: "auto",
+                  objectFit: "contain",
+                  marginBottom: 16,
+                }}
+              />
+              <p
+                style={{
+                  fontSize: 12,
+                  color: c.ftLink,
+                  lineHeight: 1.84,
+                  maxWidth: 250,
+                  marginBottom: 20,
+                }}
+              >
+                A space for real conversations about life — its meaning, its
+                mysteries, and everything in between.
               </p>
-              <div className="soc-icon-row" style={{ display:"flex",gap:10 }}>
-                <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="soc-icon" title="YouTube" style={{ "--text-m":c.ftLink,"--soc-br":c.socBr }}>▶</a>
-                <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="soc-icon" title="TikTok"  style={{ "--text-m":c.ftLink,"--soc-br":c.socBr }}>♪</a>
-                <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="soc-icon" title="Spotify" style={{ "--text-m":c.ftLink,"--soc-br":c.socBr }}>◎</a>
+              <div
+                className="soc-icon-row"
+                style={{ display: "flex", gap: 10 }}
+              >
+                <a
+                  href={SOCIAL.youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="soc-icon"
+                  title="YouTube"
+                  style={{ "--text-m": c.ftLink, "--soc-br": c.socBr }}
+                >
+                  ▶
+                </a>
+                <a
+                  href={SOCIAL.tiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="soc-icon"
+                  title="TikTok"
+                  style={{ "--text-m": c.ftLink, "--soc-br": c.socBr }}
+                >
+                  ♪
+                </a>
+                <a
+                  href={SOCIAL.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="soc-icon"
+                  title="Spotify"
+                  style={{ "--text-m": c.ftLink, "--soc-br": c.socBr }}
+                >
+                  ◎
+                </a>
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize:10,letterSpacing:"0.18em",color:c.textD,marginBottom:18 }}>EXPLORE</div>
+              <div
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.18em",
+                  color: c.textD,
+                  marginBottom: 18,
+                }}
+              >
+                EXPLORE
+              </div>
               {SECTIONS.map(({ id, label }) => (
-                <button key={id} onClick={() => scrollTo(id)} className="ft-link"
-                  style={{ color:c.ftLink }}>
-                  {label === "HOME" ? "Home" : label.charAt(0)+label.slice(1).toLowerCase()}
+                <button
+                  key={id}
+                  onClick={() => scrollTo(id)}
+                  className="ft-link"
+                  style={{ color: c.ftLink }}
+                >
+                  {label === "HOME"
+                    ? "Home"
+                    : label.charAt(0) + label.slice(1).toLowerCase()}
                 </button>
               ))}
             </div>
 
             <div>
-              <div style={{ fontSize:10,letterSpacing:"0.18em",color:c.textD,marginBottom:18 }}>WATCH & LISTEN</div>
-              <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className="ft-link" style={{ color:c.ftLink }}>▶ YouTube</a>
-              <a href={SOCIAL.tiktok}  target="_blank" rel="noopener noreferrer" className="ft-link" style={{ color:c.ftLink }}>♪ TikTok</a>
-              <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer" className="ft-link" style={{ color:c.ftLink }}>◎ Spotify Podcast</a>
+              <div
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.18em",
+                  color: c.textD,
+                  marginBottom: 18,
+                }}
+              >
+                WATCH & LISTEN
+              </div>
+              <a
+                href={SOCIAL.youtube}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                ▶ YouTube
+              </a>
+              <a
+                href={SOCIAL.tiktok}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                ♪ TikTok
+              </a>
+              <a
+                href={SOCIAL.spotify}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                ◎ Spotify Podcast
+              </a>
             </div>
 
             <div>
-              <div style={{ fontSize:10,letterSpacing:"0.18em",color:c.textD,marginBottom:18 }}>LEGAL</div>
-              <Link to="/privacy-policy"   className="ft-link" style={{ color:c.ftLink }}>Privacy Policy</Link>
-              <Link to="/terms-of-service" className="ft-link" style={{ color:c.ftLink }}>Terms of Service</Link>
-              <Link to="/login"            className="ft-link" style={{ color:c.textD2,marginTop:16,display:"block" }}>Studio</Link>
+              <div
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.18em",
+                  color: c.textD,
+                  marginBottom: 18,
+                }}
+              >
+                LEGAL
+              </div>
+              <Link
+                to="/privacy-policy"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                to="/terms-of-service"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                Terms of Service
+              </Link>
+              <Link
+                to="/login"
+                className="ft-link"
+                style={{ color: c.textD2, marginTop: 16, display: "block" }}
+              >
+                Studio
+              </Link>
             </div>
           </div>
 
-          <div className="footer-bottom-bar" style={{ borderTop:`1px solid ${c.secBr}`,paddingTop:22,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10 }}>
-            <div style={{ fontSize:11,color:c.textD }}>© 2026 4Life Mystery · 4lifemystery.com · All rights reserved.</div>
-            <div style={{ display:"flex",gap:20,alignItems:"center" }}>
-              <Link to="/privacy-policy"   style={{ fontSize:10,color:c.textD,textDecoration:"none" }}>Privacy</Link>
-              <Link to="/terms-of-service" style={{ fontSize:10,color:c.textD,textDecoration:"none" }}>Terms</Link>
-              <button onClick={toggleTheme} className="theme-toggle"
-                style={{ background:c.togBg,borderColor:c.togBr,color:c.togText }}>
+          <div
+            className="footer-bottom-bar"
+            style={{
+              borderTop: `1px solid ${c.secBr}`,
+              paddingTop: 22,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 10,
+            }}
+          >
+            <div style={{ fontSize: 11, color: c.textD }}>
+              © 2026 4Life Mystery · 4lifemystery.com · All rights reserved.
+            </div>
+            <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+              <Link
+                to="/privacy-policy"
+                style={{ fontSize: 10, color: c.textD, textDecoration: "none" }}
+              >
+                Privacy
+              </Link>
+              <Link
+                to="/terms-of-service"
+                style={{ fontSize: 10, color: c.textD, textDecoration: "none" }}
+              >
+                Terms
+              </Link>
+              <button
+                onClick={toggleTheme}
+                className="theme-toggle"
+                style={{
+                  background: c.togBg,
+                  borderColor: c.togBr,
+                  color: c.togText,
+                }}
+              >
                 {theme === "dark" ? "☀ LIGHT" : "☾ DARK"}
               </button>
             </div>
@@ -1641,11 +3737,15 @@ export default function LandingPage() {
       {/* Back to top */}
       <button
         className={`back-to-top${showBackTop ? "" : " hidden"}`}
-        onClick={() => wrapperRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+        onClick={() =>
+          wrapperRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+        }
         title="Back to top"
         aria-label="Back to top"
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 4l-8 8h5v8h6v-8h5z"/></svg>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
+          <path d="M12 4l-8 8h5v8h6v-8h5z" />
+        </svg>
       </button>
     </div>
   );
