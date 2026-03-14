@@ -418,6 +418,7 @@ export default function Dashboard() {
   const [profile, setProfile] = useState("educational");
   const [visualMood, setVisualMood] = useState("inspirational");
   const [musicStyle, setMusicStyle] = useState("Birds_Atmosphere_Piano");
+  const [musicVolume, setMusicVolume] = useState(0.06); // 0.0–0.3; default 6%
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
@@ -630,6 +631,7 @@ export default function Dashboard() {
         profile,
         visualMood,
         musicStyle,
+        musicVolume,
       );
       const vid = data.video_id;
       setGenJobId(vid);
@@ -1048,6 +1050,7 @@ export default function Dashboard() {
   const [manualPodcastTopic, setManualPodcastTopic] = useState("");
   const [manualPodcastEssay, setManualPodcastEssay] = useState("");
   const [manualPodcastMusic, setManualPodcastMusic] = useState("Birds_Atmosphere_Piano");
+  const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.06);
   const podcastLogsEndRef = useRef(null);
   const podcastLogPollRef = useRef(null);
   const podcastLogLineRef = useRef(0);
@@ -2287,6 +2290,20 @@ export default function Dashboard() {
                           {m.label}
                         </button>
                       ))}
+                    </div>
+                    {/* Music volume */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                      <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>VOL</div>
+                      <input
+                        type="range" min={0} max={0.3} step={0.01}
+                        value={musicVolume}
+                        onChange={e => setMusicVolume(parseFloat(e.target.value))}
+                        disabled={generating}
+                        style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+                      />
+                      <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>
+                        {Math.round(musicVolume * 100)}%
+                      </div>
                     </div>
                   </div>
 
@@ -4820,9 +4837,8 @@ export default function Dashboard() {
                 ) : (
                   <div
                     style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fill,minmax(320px,1fr))",
+                      display: "flex",
+                      flexWrap: "wrap",
                       gap: 16,
                     }}
                   >
@@ -4834,6 +4850,10 @@ export default function Dashboard() {
                           border: `1px solid ${T.border}`,
                           borderRadius: 14,
                           padding: 20,
+                          width: 300,
+                          height: 320,
+                          overflowY: "auto",
+                          flexShrink: 0,
                         }}
                       >
                         <div
@@ -5033,6 +5053,10 @@ export default function Dashboard() {
                           border: `1px solid ${T.border}`,
                           borderRadius: 14,
                           padding: 20,
+                          width: 300,
+                          height: 320,
+                          overflowY: "auto",
+                          flexShrink: 0,
                         }}
                       >
                         <div
@@ -5226,6 +5250,10 @@ export default function Dashboard() {
                           border: `1px solid ${T.border}`,
                           borderRadius: 14,
                           padding: 20,
+                          width: 300,
+                          height: 320,
+                          overflowY: "auto",
+                          flexShrink: 0,
                         }}
                       >
                         <div
@@ -7577,6 +7605,19 @@ export default function Dashboard() {
                               >{s.replace(/_/g, " ")}</button>
                             ))}
                           </div>
+                          {/* Music volume */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                            <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>VOL</div>
+                            <input
+                              type="range" min={0} max={0.3} step={0.01}
+                              value={podcastMusicVolume}
+                              onChange={e => setPodcastMusicVolume(parseFloat(e.target.value))}
+                              style={{ flex: 1, accentColor: T.accent, cursor: "pointer" }}
+                            />
+                            <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>
+                              {Math.round(podcastMusicVolume * 100)}%
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -7666,7 +7707,7 @@ export default function Dashboard() {
                               resize: "vertical", boxSizing: "border-box",
                             }}
                           />
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
                             <div style={{ fontSize: 10, color: T.textFaint, flexShrink: 0 }}>Music:</div>
                             {[
                               { id: "Birds_Atmosphere_Piano", label: "🌙 Birds & Piano" },
@@ -7687,6 +7728,21 @@ export default function Dashboard() {
                                 }}
                               >{m.label}</button>
                             ))}
+                          </div>
+                          {/* Music volume */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>VOL</div>
+                            <input
+                              type="range" min={0} max={0.3} step={0.01}
+                              value={podcastMusicVolume}
+                              onChange={e => setPodcastMusicVolume(parseFloat(e.target.value))}
+                              style={{ flex: 1, accentColor: T.accent, cursor: "pointer" }}
+                            />
+                            <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>
+                              {Math.round(podcastMusicVolume * 100)}%
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "flex-end" }}>
                             <button
                               disabled={podcastRunning || (!manualPodcastTopic.trim() && !manualPodcastEssay.trim())}
                               onClick={async () => {
@@ -7695,6 +7751,7 @@ export default function Dashboard() {
                                     topic: manualPodcastTopic || null,
                                     essay: manualPodcastEssay || null,
                                     music_style: manualPodcastMusic,
+                                    music_volume: podcastMusicVolume,
                                   });
                                   if (!res?.video_id) { showToast("No video ID returned", "error"); return; }
                                   _startPodcastPolling(res.video_id, manualPodcastTopic);
@@ -7707,7 +7764,7 @@ export default function Dashboard() {
                                 }
                               }}
                               style={{
-                                marginLeft: "auto", padding: "7px 16px", borderRadius: 7,
+                                padding: "7px 16px", borderRadius: 7,
                                 border: `1px solid ${T.accent}60`,
                                 background: `${T.accent}10`, color: T.accent,
                                 fontSize: 11, fontFamily: "inherit", cursor: "pointer",

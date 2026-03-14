@@ -68,6 +68,7 @@ def run_video_pipeline(
     profile: str = "educational",
     visual_mood: str = None,
     music_style: str = "ambient",
+    music_volume: float = 0.06,
     video_id: str = None,
 ):
     """
@@ -85,6 +86,7 @@ def run_video_pipeline(
             profile=profile,
             visual_mood=visual_mood,
             music_style=music_style,
+            music_volume=music_volume,
             video_id=video_id,
         )
         return {"status": "success", "video_id": result["id"], "title": result.get("title")}
