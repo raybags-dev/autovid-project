@@ -3725,6 +3725,33 @@ export default function LandingPage() {
                   marginBottom: 18,
                 }}
               >
+                CONTACT
+              </div>
+              <a
+                href="mailto:contact@4lifemystery.com"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                contact@4lifemystery.com
+              </a>
+              <a
+                href="mailto:support@4lifemystery.com"
+                className="ft-link"
+                style={{ color: c.ftLink }}
+              >
+                support@4lifemystery.com
+              </a>
+            </div>
+
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: "0.16em",
+                  color: c.textD,
+                  marginBottom: 18,
+                }}
+              >
                 LEGAL
               </div>
               <Link

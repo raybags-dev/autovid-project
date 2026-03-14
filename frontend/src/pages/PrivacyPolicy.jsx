@@ -5,6 +5,7 @@ const LAST_UPDATED = "14 March 2026";
 const APP_NAME = "4Life Mystery";
 const APP_URL = "https://4lifemystery.com";
 const CONTACT_EMAIL = "support@4lifemystery.com";
+const CONTACT_GENERAL = "contact@4lifemystery.com";
 
 const SECTIONS = [
   { id: "introduction", num: "01", title: "Introduction" },
@@ -21,7 +22,9 @@ const SECTIONS = [
 ];
 
 const CONTENT = {
-  introduction: `${APP_NAME} ("we", "us", or "our") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website at ${APP_URL} or interact with our content across connected platforms including YouTube, TikTok, and Spotify.
+  introduction: `${APP_NAME} (also referred to as the "4Life Mystery App", "4Life Mystery TikTok Integration", and "4Life Mystery YouTube Integration") ("we", "us", or "our") is committed to protecting your privacy. This Privacy Policy applies to the ${APP_NAME} application and website at ${APP_URL}, as well as all associated integrations including our TikTok developer application, YouTube API integration, Spotify embedded content, and any other connected platforms.
+
+This policy is intended to meet the requirements of the TikTok Developer Platform, Google API Services, and other third-party platform review processes.
 
 Please read this policy carefully. If you disagree with its terms, please discontinue use of our site.`,
 
@@ -55,14 +58,25 @@ Platform Analytics (aggregated, non-personal)
 
 We do not sell, rent, or trade your personal information to any third party for marketing purposes.`,
 
-  "third-party": `Our service integrates with and links to third-party platforms. When you interact with these platforms, their own privacy policies govern your data:
+  "third-party": `The ${APP_NAME} application ("4Life Mystery") integrates with the following third-party platforms via their official developer APIs. When you interact with these platforms, their own privacy policies govern your data:
 
-• Google / YouTube — https://policies.google.com/privacy
-• TikTok — https://www.tiktok.com/legal/page/row/privacy-policy/en
-• Spotify — https://www.spotify.com/legal/privacy-policy/
-• ElevenLabs (AI voice synthesis) — https://elevenlabs.io/privacy
+TikTok (via 4Life Mystery TikTok Integration)
+The ${APP_NAME} application uses the TikTok API to upload AI-generated video content directly to the connected TikTok creator account. We do not collect, store, or share any TikTok user data from visitors to our website. The TikTok integration is used solely for automated content publishing from our own account.
+• TikTok Privacy Policy — https://www.tiktok.com/legal/page/row/privacy-policy/en
 
-We are not responsible for the privacy practices of these third parties. We encourage you to review their policies before interacting with their services through our platform.`,
+Google / YouTube (via 4Life Mystery YouTube Integration)
+The ${APP_NAME} application uses the YouTube Data API v3 (Google API Services) to upload, manage, and retrieve analytics for AI-generated video content on our own YouTube channel. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
+• Google Privacy Policy — https://policies.google.com/privacy
+
+Spotify
+Spotify podcast episodes are embedded on our website for public listening. We do not access Spotify user account data.
+• Spotify Privacy Policy — https://www.spotify.com/legal/privacy-policy/
+
+ElevenLabs (AI voice synthesis)
+Used internally to generate narration audio. No visitor data is shared with ElevenLabs.
+• ElevenLabs Privacy Policy — https://elevenlabs.io/privacy
+
+We are not responsible for the privacy practices of these third parties. We encourage you to review their policies before interacting with their services.`,
 
   cookies: `We use cookies and similar tracking technologies to enhance your experience on our website.
 
@@ -117,8 +131,9 @@ When we make material changes, we will update the "Last Updated" date at the top
 
   contact: `If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:
 
-Email: ${CONTACT_EMAIL}
-Website: ${APP_URL}
+General enquiries:  ${CONTACT_GENERAL}
+Support & data requests:  ${CONTACT_EMAIL}
+Website:  ${APP_URL}
 
 We aim to respond to all enquiries within 5 business days.`,
 };
@@ -229,7 +244,8 @@ export default function PrivacyPolicy() {
           <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <Link to="/terms-of-service" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>Terms of Service</Link>
             <Link to="/cookie-policy" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>Cookie Policy</Link>
-            <a href="mailto:support@4lifemystery.com" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>Contact</a>
+            <a href="mailto:contact@4lifemystery.com" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>contact@4lifemystery.com</a>
+            <a href="mailto:support@4lifemystery.com" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>support@4lifemystery.com</a>
           </div>
         </div>
       </footer>
