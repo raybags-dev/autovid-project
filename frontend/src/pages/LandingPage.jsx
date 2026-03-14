@@ -88,16 +88,16 @@ const DARK = {
   bg: "#03060f",
   bgAlt: "rgba(255,255,255,0.012)",
   text: "#e0eaf5",
-  textM: "#4a6a8a",
-  textD: "#1a3a5a",
-  textD2: "#0a1a2a",
+  textM: "#6a90ae",
+  textD: "#3d6882",
+  textD2: "#1e3a55",
   cardBg: "rgba(255,255,255,0.025)",
   cardBr: "rgba(255,255,255,0.07)",
   cardSh: "none",
   navBg: "rgba(3,6,15,0.82)",
   secBr: "rgba(255,255,255,0.045)",
-  footBg: "rgba(0,0,0,0.4)",
-  ftLink: "#1a3a5a",
+  footBg: "rgba(0,0,0,0.55)",
+  ftLink: "#6a9fc0",
   inputBg: "rgba(255,255,255,0.03)",
   inputBr: "rgba(255,255,255,0.07)",
   socBr: "rgba(255,255,255,0.08)",
@@ -1012,14 +1012,17 @@ const SPOTIFY_EPISODES = [
 
 function SpotifyCarousel() {
   const [idx, setIdx] = useState(0);
+  const [dir, setDir] = useState("next");
   const timerRef = useRef(null);
 
-  const goTo = (next) => {
+  const goTo = (next, direction = "next") => {
+    setDir(direction);
     setIdx((next + SPOTIFY_EPISODES.length) % SPOTIFY_EPISODES.length);
   };
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
+      setDir("next");
       setIdx((i) => (i + 1) % SPOTIFY_EPISODES.length);
     }, 12000);
     return () => clearInterval(timerRef.current);
@@ -1029,44 +1032,49 @@ function SpotifyCarousel() {
 
   return (
     <div style={{ position: "relative" }}>
-      <div
-        style={{
-          borderRadius: 16,
-          overflow: "hidden",
-          border: "1px solid rgba(29,185,84,0.25)",
-          boxShadow:
-            "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
-          background: "rgba(3,6,15,0.85)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-        }}
-      >
-        <iframe
+      <style>{`
+        @keyframes spSlideInNext { from { opacity:0; transform:translateX(70px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes spSlideInPrev { from { opacity:0; transform:translateX(-70px); } to { opacity:1; transform:translateX(0); } }
+        .sp-slide-next { animation: spSlideInNext 0.48s cubic-bezier(0.22,1,0.36,1) both; }
+        .sp-slide-prev { animation: spSlideInPrev 0.48s cubic-bezier(0.22,1,0.36,1) both; }
+      `}</style>
+      <div style={{ overflow: "hidden", borderRadius: 16 }}>
+        <div
           key={episodeId}
-          src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
-          width="100%"
-          height="352"
-          style={{ border: "none", display: "block" }}
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          loading="lazy"
-          title="4Life Mystery Podcast Episode"
-        />
+          className={dir === "next" ? "sp-slide-next" : "sp-slide-prev"}
+          style={{
+            borderRadius: 16,
+            overflow: "hidden",
+            border: "1px solid rgba(29,185,84,0.25)",
+            boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
+            background: "rgba(3,6,15,0.85)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+          }}
+        >
+          <iframe
+            src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
+            width="100%"
+            height="352"
+            style={{ border: "none", display: "block" }}
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            title="4Life Mystery Podcast Episode"
+          />
+        </div>
       </div>
-      {/* Nav dots */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: 8,
-          marginTop: 14,
-        }}
-      >
+      {/* Nav dots + prev/next arrows */}
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 14 }}>
+        <button
+          onClick={() => { clearInterval(timerRef.current); goTo(idx - 1, "prev"); }}
+          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
+        >‹</button>
         {SPOTIFY_EPISODES.map((_, i) => (
           <button
             key={i}
             onClick={() => {
               clearInterval(timerRef.current);
-              goTo(i);
+              goTo(i, i > idx ? "next" : "prev");
             }}
             style={{
               width: i === idx ? 20 : 8,
@@ -1080,6 +1088,10 @@ function SpotifyCarousel() {
             }}
           />
         ))}
+        <button
+          onClick={() => { clearInterval(timerRef.current); goTo(idx + 1, "next"); }}
+          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
+        >›</button>
       </div>
     </div>
   );
@@ -1506,7 +1518,7 @@ export default function LandingPage() {
         .soc-icon:hover::before { opacity:1; }
 
         /* ── FOOTER LINKS ─────────────────────────────── */
-        .ft-link { display:block; font-size:12px; text-decoration:none; margin-bottom:10px; transition:color 0.2s, padding-left 0.2s; letter-spacing:0.04em; }
+        .ft-link { display:block; font-size:13.5px; text-decoration:none; margin-bottom:11px; transition:color 0.2s, padding-left 0.2s; letter-spacing:0.03em; }
         .ft-link:hover { color:#ff6633 !important; padding-left:4px; }
         button.ft-link { background:none; border:none; cursor:pointer; font-family:inherit; text-align:left; padding:0; padding-bottom:10px; }
         button.ft-link:hover { color:#ff6633 !important; padding-left:4px; }
@@ -3592,10 +3604,10 @@ export default function LandingPage() {
               />
               <p
                 style={{
-                  fontSize: 12,
+                  fontSize: 13.5,
                   color: c.ftLink,
                   lineHeight: 1.84,
-                  maxWidth: 250,
+                  maxWidth: 270,
                   marginBottom: 20,
                 }}
               >
@@ -3642,8 +3654,8 @@ export default function LandingPage() {
             <div>
               <div
                 style={{
-                  fontSize: 10,
-                  letterSpacing: "0.18em",
+                  fontSize: 11,
+                  letterSpacing: "0.16em",
                   color: c.textD,
                   marginBottom: 18,
                 }}
@@ -3667,8 +3679,8 @@ export default function LandingPage() {
             <div>
               <div
                 style={{
-                  fontSize: 10,
-                  letterSpacing: "0.18em",
+                  fontSize: 11,
+                  letterSpacing: "0.16em",
                   color: c.textD,
                   marginBottom: 18,
                 }}
@@ -3707,8 +3719,8 @@ export default function LandingPage() {
             <div>
               <div
                 style={{
-                  fontSize: 10,
-                  letterSpacing: "0.18em",
+                  fontSize: 11,
+                  letterSpacing: "0.16em",
                   color: c.textD,
                   marginBottom: 18,
                 }}
@@ -3758,25 +3770,25 @@ export default function LandingPage() {
               gap: 10,
             }}
           >
-            <div style={{ fontSize: 11, color: c.textD }}>
+            <div style={{ fontSize: 13, color: c.ftLink }}>
               © 2026 4Life Mystery · 4lifemystery.com · All rights reserved.
             </div>
             <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
               <Link
                 to="/privacy-policy"
-                style={{ fontSize: 10, color: c.textD, textDecoration: "none" }}
+                style={{ fontSize: 12, color: c.ftLink, textDecoration: "none" }}
               >
                 Privacy
               </Link>
               <Link
                 to="/terms-of-service"
-                style={{ fontSize: 10, color: c.textD, textDecoration: "none" }}
+                style={{ fontSize: 12, color: c.ftLink, textDecoration: "none" }}
               >
                 Terms
               </Link>
               <Link
                 to="/cookie-policy"
-                style={{ fontSize: 10, color: c.textD, textDecoration: "none" }}
+                style={{ fontSize: 12, color: c.ftLink, textDecoration: "none" }}
               >
                 Cookies
               </Link>
@@ -3850,13 +3862,17 @@ export default function LandingPage() {
               color: rgba(255,130,80,0.85); text-decoration: underline; cursor: pointer;
             }
             .cookie-actions {
-              display: flex; flex-direction: column; gap: 8px; align-items: stretch;
-              padding-top: 4px; width: 100%; min-width: 180px;
+              display: flex; flex-direction: row; gap: 8px; align-items: center;
+              padding-top: 4px; flex-shrink: 0;
+            }
+            @media (max-width: 600px) {
+              .cookie-actions { flex-direction: column; align-items: stretch; width: 100%; }
+              .cookie-btn { width: 100% !important; }
             }
             .cookie-btn {
-              display: block; width: 100%; padding: 10px 18px; border-radius: 9px; font-size: 11px;
+              padding: 10px 18px; border-radius: 9px; font-size: 11px;
               font-family: 'DM Mono', monospace; letter-spacing: 0.09em; text-align: center;
-              cursor: pointer; border: none; outline: none; transition: all 0.2s;
+              cursor: pointer; border: none; outline: none; transition: all 0.2s; white-space: nowrap;
             }
             .cookie-btn-accept {
               background: linear-gradient(135deg, #ff5533, #ff8040);
