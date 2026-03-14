@@ -7,7 +7,7 @@ import freedomImg from "../assets/static/freedom.jpg";
 import jajja2 from "../assets/static/jajja2.jpg";
 import metrixVideo from "../assets/static/metrix.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
-import faceImg from "../assets/static/smileface.png";
+import faceImg from "../assets/static/relaxedface.png";
 
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4life_mystery",
@@ -1034,7 +1034,8 @@ function SpotifyCarousel() {
           borderRadius: 16,
           overflow: "hidden",
           border: "1px solid rgba(29,185,84,0.25)",
-          boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
+          boxShadow:
+            "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
           background: "rgba(3,6,15,0.85)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
@@ -1052,11 +1053,21 @@ function SpotifyCarousel() {
         />
       </div>
       {/* Nav dots */}
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 14 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 8,
+          marginTop: 14,
+        }}
+      >
         {SPOTIFY_EPISODES.map((_, i) => (
           <button
             key={i}
-            onClick={() => { clearInterval(timerRef.current); goTo(i); }}
+            onClick={() => {
+              clearInterval(timerRef.current);
+              goTo(i);
+            }}
             style={{
               width: i === idx ? 20 : 8,
               height: 8,
@@ -1088,6 +1099,16 @@ export default function LandingPage() {
   const [showBackTop, setShowBackTop] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [heroStats, setHeroStats] = useState(null);
+  const [counterVals, setCounterVals] = useState({
+    followers: 0,
+    episodes: 0,
+    comments: 0,
+  });
+  const [cookieConsent, setCookieConsent] = useState(null); // null=unknown, 'accepted', 'declined'
+  const [cookieManage, setCookieManage] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [subEmail, setSubEmail] = useState("");
+  const [subStatus, setSubStatus] = useState(""); // '' | 'loading' | 'success' | 'error'
   const wrapperRef = useRef(null);
   const autoRef = useRef(null);
   const heroVidRef = useRef(null);
@@ -1204,6 +1225,14 @@ export default function LandingPage() {
     if (heroVidRef.current) heroVidRef.current.playbackRate = 0.55;
   }, []);
 
+  // Cookie consent — read from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("cookie_consent");
+    if (saved === "accepted" || saved === "declined") {
+      setCookieConsent(saved);
+    }
+  }, []);
+
   // Fetch aggregated hero stats
   useEffect(() => {
     fetch("/api/public/stats")
@@ -1211,6 +1240,35 @@ export default function LandingPage() {
       .then((d) => setHeroStats(d))
       .catch(() => {});
   }, []);
+
+  // Counter animation — runs when heroStats arrives
+  useEffect(() => {
+    if (!heroStats) return;
+    const targets = {
+      followers:
+        typeof heroStats.followers === "number" ? heroStats.followers : 10000,
+      episodes:
+        typeof heroStats.episodes === "number" ? heroStats.episodes : 50,
+      comments: typeof heroStats.comments === "number" ? heroStats.comments : 0,
+    };
+    const duration = 2000; // ms
+    const startTime = performance.now();
+    let raf;
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      // Ease-out cubic: slows down as it approaches target
+      const ease = 1 - Math.pow(1 - t, 3);
+      setCounterVals({
+        followers: Math.round(targets.followers * ease),
+        episodes: Math.round(targets.episodes * ease),
+        comments: Math.round(targets.comments * ease),
+      });
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [heroStats]);
 
   // Carousel auto-advance
   useEffect(() => {
@@ -1474,7 +1532,7 @@ export default function LandingPage() {
         .c-dot { height:7px; border-radius:4px; border:none; cursor:pointer; transition:all 0.32s; padding:0; }
 
         /* ── MOBILE MENU ──────────────────────────────── */
-        .mob-menu { position:fixed; inset:0; z-index:280; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; backdrop-filter:blur(28px) saturate(160%); -webkit-backdrop-filter:blur(28px) saturate(160%); }
+        .mob-menu { position:fixed; inset:0; z-index:9900; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; backdrop-filter:blur(28px) saturate(160%); -webkit-backdrop-filter:blur(28px) saturate(160%); background:rgba(3,6,15,0.97)!important; }
         .mob-navlink { font-size:20px; letter-spacing:0.16em; background:none; border:none; cursor:pointer; font-family:'Syne',sans-serif; font-weight:700; transition:color 0.2s, transform 0.2s; padding:8px 0; }
         .mob-navlink:hover { transform:translateX(6px); }
         .mob-close { position:absolute; top:20px; right:24px; background:none; border:none; font-size:28px; cursor:pointer; transition:all 0.2s; }
@@ -1511,24 +1569,10 @@ export default function LandingPage() {
         #hero { margin-top: -62px; }
 
         /* ── FACE FEATURE IMAGE ───────────────────────── */
-        @keyframes hairSway {
-          0%   { transform: rotate(-0.6deg) translateX(-3px) scale(1.018); filter: brightness(1) saturate(1); }
-          30%  { transform: rotate(0.3deg)  translateX(1px)  scale(1.022); filter: brightness(1.03) saturate(1.04); }
-          60%  { transform: rotate(0.7deg)  translateX(4px)  scale(1.02);  filter: brightness(1.01) saturate(1.02); }
-          100% { transform: rotate(-0.6deg) translateX(-3px) scale(1.018); filter: brightness(1) saturate(1); }
-        }
-        @keyframes hairOverlay {
-          0%,100% { opacity: 0.18; transform: translateX(-8px); }
-          50%      { opacity: 0.08; transform: translateX(8px); }
-        }
         .face-feature { pointer-events: auto; overflow: hidden; }
-        .face-sway { animation: hairSway 6s ease-in-out infinite; transform-origin: bottom center; will-change: transform; }
+        .face-sway { animation: none; }
         .face-feature img { pointer-events: none; }
-        .face-wind-overlay {
-          position: absolute; inset: 0; z-index: 2; pointer-events: none;
-          background: linear-gradient(105deg, transparent 40%, rgba(255,220,180,0.08) 55%, transparent 65%);
-          animation: hairOverlay 6s ease-in-out infinite;
-        }
+        .face-wind-overlay { display: none; }
         @media (max-width:900px) { .face-feature { min-height: 360px!important; } }
 
         /* ── YT CAROUSEL ─────────────────────────────── */
@@ -1831,19 +1875,31 @@ export default function LandingPage() {
         >
           <a
             href="/"
-            onClick={(e) => { e.preventDefault(); scrollTo("hero"); }}
-            style={{ textDecoration: "none", flexShrink: 0, display: "flex", alignItems: "center" }}
+            onClick={(e) => {
+              e.preventDefault();
+              scrollTo("hero");
+            }}
+            style={{
+              textDecoration: "none",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+            }}
           >
-            <span style={{
-              fontFamily: "'Syne', sans-serif",
-              fontWeight: 800,
-              fontSize: "clamp(13px,1.4vw,16px)",
-              letterSpacing: "0.18em",
-              background: "linear-gradient(135deg,#ff8844,#ff3300,#0088ff)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}>4LIFE MYSTERY</span>
+            <span
+              style={{
+                fontFamily: "'Syne', sans-serif",
+                fontWeight: 800,
+                fontSize: "clamp(13px,1.4vw,16px)",
+                letterSpacing: "0.18em",
+                background: "linear-gradient(135deg,#ff8844,#ff3300,#0088ff)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              4LIFE MYSTERY
+            </span>
           </a>
 
           <div
@@ -2024,20 +2080,20 @@ export default function LandingPage() {
             {[
               [
                 heroStats
-                  ? heroStats.followers >= 1000
-                    ? heroStats.followers >= 1000000
-                      ? (heroStats.followers / 1000000).toFixed(1) + "M"
-                      : Math.round(heroStats.followers / 1000) + "K"
-                    : heroStats.followers
+                  ? counterVals.followers >= 1000000
+                    ? (counterVals.followers / 1000000).toFixed(1) + "M"
+                    : counterVals.followers >= 1000
+                      ? Math.round(counterVals.followers / 1000) + "K"
+                      : counterVals.followers
                   : "10K+",
                 "FOLLOWERS",
               ],
-              [heroStats ? heroStats.episodes || "50+" : "50+", "EPISODES"],
+              [heroStats ? counterVals.episodes || "50+" : "50+", "EPISODES"],
               [
                 heroStats
-                  ? heroStats.comments >= 1000
-                    ? Math.round(heroStats.comments / 1000) + "K+"
-                    : heroStats.comments || "∞"
+                  ? counterVals.comments >= 1000
+                    ? Math.round(counterVals.comments / 1000) + "K+"
+                    : counterVals.comments || "0"
                   : "∞",
                 "COMMENTS",
               ],
@@ -2081,7 +2137,7 @@ export default function LandingPage() {
             <button
               onClick={() => scrollTo("content")}
               className="lp-btn lp-btn-fire"
-              style={{ flex: 1 }}
+              style={{ flex: 1, display: "flex", justifyContent: "center" }}
             >
               EXPLORE CONTENT
             </button>
@@ -3742,6 +3798,532 @@ export default function LandingPage() {
           <path d="M12 4l-8 8h5v8h6v-8h5z" />
         </svg>
       </button>
+
+      {/* ── Cookie Consent Banner ───────────────────────────────────────── */}
+      {cookieConsent === null && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9000,
+            transform: "translateY(0)",
+            animation: "slideUpBanner 0.45s cubic-bezier(0.22,1,0.36,1) both",
+          }}
+        >
+          <style>{`
+            @keyframes slideUpBanner {
+              from { transform: translateY(100%); opacity: 0; }
+              to   { transform: translateY(0);    opacity: 1; }
+            }
+            .cookie-banner-inner {
+              background: linear-gradient(135deg, rgba(8,14,28,0.98) 0%, rgba(15,22,42,0.98) 100%);
+              border-top: 1px solid rgba(255,255,255,0.09);
+              backdrop-filter: blur(20px);
+              padding: 22px 28px 20px;
+              display: flex;
+              align-items: flex-start;
+              gap: 24px;
+              flex-wrap: wrap;
+            }
+            .cookie-icon-wrap {
+              width: 40px; height: 40px; flex-shrink: 0;
+              background: rgba(255,80,30,0.12);
+              border: 1px solid rgba(255,80,30,0.22);
+              border-radius: 50%;
+              display: flex; align-items: center; justify-content: center;
+              font-size: 18px; margin-top: 2px;
+            }
+            .cookie-text-block { flex: 1; min-width: 200px; }
+            .cookie-text-block h4 {
+              margin: 0 0 4px;
+              font-family: 'Syne', sans-serif;
+              font-size: 13px; font-weight: 700;
+              color: #e0eaf5; letter-spacing: 0.05em;
+            }
+            .cookie-text-block p {
+              margin: 0; font-size: 11px; line-height: 1.7;
+              color: rgba(160,180,210,0.75);
+            }
+            .cookie-text-block a {
+              color: rgba(255,130,80,0.85); text-decoration: underline; cursor: pointer;
+            }
+            .cookie-actions {
+              display: flex; flex-direction: column; gap: 8px; align-items: stretch;
+              padding-top: 4px; width: 100%; min-width: 180px;
+            }
+            .cookie-btn {
+              display: block; width: 100%; padding: 10px 18px; border-radius: 9px; font-size: 11px;
+              font-family: 'DM Mono', monospace; letter-spacing: 0.09em; text-align: center;
+              cursor: pointer; border: none; outline: none; transition: all 0.2s;
+            }
+            .cookie-btn-accept {
+              background: linear-gradient(135deg, #ff5533, #ff8040);
+              color: #fff; font-weight: 600;
+            }
+            .cookie-btn-accept:hover { opacity: 0.88; transform: translateY(-1px); }
+            .cookie-btn-decline {
+              background: rgba(255,255,255,0.06);
+              border: 1px solid rgba(255,255,255,0.1);
+              color: rgba(160,180,210,0.8);
+            }
+            .cookie-btn-decline:hover { background: rgba(255,255,255,0.1); }
+            .cookie-btn-manage {
+              background: transparent; border: 1px solid rgba(255,130,80,0.2);
+              color: rgba(255,130,80,0.8); font-size: 10px;
+              padding: 8px 18px; cursor: pointer;
+              font-family: 'DM Mono', monospace; letter-spacing: 0.08em;
+              border-radius: 9px; width: 100%;
+            }
+            .cookie-btn-manage:hover { background: rgba(255,130,80,0.07); }
+
+            /* ── Cookie Manage Modal ── */
+            .cookie-modal-overlay {
+              position: fixed; inset: 0; z-index: 9100;
+              background: rgba(0,0,0,0.72); backdrop-filter: blur(6px);
+              display: flex; align-items: flex-end; justify-content: center;
+            }
+            .cookie-modal {
+              background: linear-gradient(160deg, rgba(8,14,28,0.99) 0%, rgba(12,20,40,0.99) 100%);
+              border: 1px solid rgba(255,255,255,0.1);
+              border-radius: 20px 20px 0 0;
+              padding: 32px 28px 28px;
+              width: 100%; max-width: 560px;
+              animation: slideUpBanner 0.35s cubic-bezier(0.22,1,0.36,1) both;
+            }
+            .cookie-modal h3 {
+              font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+              color: #e0eaf5; margin: 0 0 6px; letter-spacing: 0.05em;
+            }
+            .cookie-modal p { font-size: 11px; color: rgba(160,180,210,0.7); line-height: 1.75; margin: 0 0 20px; }
+            .cookie-type-row {
+              display: flex; align-items: flex-start; gap: 14px;
+              padding: 14px 0; border-top: 1px solid rgba(255,255,255,0.06);
+            }
+            .cookie-type-row:last-of-type { border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 20px; }
+            .cookie-type-info h5 {
+              font-size: 12px; font-weight: 600; color: #e0eaf5;
+              margin: 0 0 3px; font-family: 'Syne', sans-serif;
+            }
+            .cookie-type-info p { font-size: 10px; color: rgba(160,180,210,0.6); margin: 0; line-height: 1.6; }
+            .cookie-toggle {
+              flex-shrink: 0; margin-top: 2px;
+              width: 36px; height: 20px; border-radius: 10px;
+              background: rgba(255,255,255,0.08);
+              border: 1px solid rgba(255,255,255,0.14); position: relative;
+              cursor: default;
+            }
+            .cookie-toggle.on { background: rgba(255,85,51,0.55); border-color: rgba(255,85,51,0.4); }
+            .cookie-toggle::after {
+              content: ''; position: absolute; top: 2px; left: 2px;
+              width: 14px; height: 14px; border-radius: 50%;
+              background: rgba(255,255,255,0.4); transition: left 0.2s;
+            }
+            .cookie-toggle.on::after { left: 18px; background: #fff; }
+          `}</style>
+
+          {/* Manage modal */}
+          {cookieManage && (
+            <div
+              className="cookie-modal-overlay"
+              onClick={() => setCookieManage(false)}
+            >
+              <div
+                className="cookie-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3>Cookie Preferences</h3>
+                <p>
+                  We use cookies to enhance your experience. Below you can
+                  review what each category does. Strictly necessary cookies
+                  cannot be disabled.
+                </p>
+                <div className="cookie-type-row">
+                  <div className="cookie-toggle on" title="Always active" />
+                  <div className="cookie-type-info">
+                    <h5>Strictly Necessary</h5>
+                    <p>
+                      Essential for the site to function — session handling,
+                      security, and core navigation. Cannot be disabled.
+                    </p>
+                  </div>
+                </div>
+                <div className="cookie-type-row">
+                  <div className="cookie-toggle on" />
+                  <div className="cookie-type-info">
+                    <h5>Analytics & Performance</h5>
+                    <p>
+                      Help us understand how visitors interact with the site so
+                      we can improve content and experience. No personal data is
+                      sold.
+                    </p>
+                  </div>
+                </div>
+                <div className="cookie-type-row">
+                  <div className="cookie-toggle on" />
+                  <div className="cookie-type-info">
+                    <h5>Preferences & Personalisation</h5>
+                    <p>
+                      Remember your settings (e.g., theme, playback preferences)
+                      across visits.
+                    </p>
+                  </div>
+                </div>
+                <div className="cookie-actions">
+                  <button
+                    className="cookie-btn cookie-btn-accept"
+                    onClick={() => {
+                      localStorage.setItem("cookie_consent", "accepted");
+                      setCookieConsent("accepted");
+                      setCookieManage(false);
+                      setTimeout(() => setShowWelcome(true), 400);
+                    }}
+                  >
+                    ACCEPT ALL
+                  </button>
+                  <button
+                    className="cookie-btn cookie-btn-decline"
+                    onClick={() => {
+                      localStorage.setItem("cookie_consent", "declined");
+                      setCookieConsent("declined");
+                      setCookieManage(false);
+                    }}
+                  >
+                    DECLINE
+                  </button>
+                  <button
+                    className="cookie-btn cookie-btn-manage"
+                    onClick={() => setCookieManage(false)}
+                  >
+                    CLOSE
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="cookie-banner-inner">
+            <div className="cookie-icon-wrap">🍪</div>
+            <div className="cookie-text-block">
+              <h4>We use cookies</h4>
+              <p>
+                4Life Mystery uses cookies to improve your experience,
+                understand site traffic, and remember your preferences. By
+                clicking <strong style={{ color: "#e0eaf5" }}>Accept</strong>{" "}
+                you agree to our{" "}
+                <a onClick={() => setCookieManage(true)} role="button">
+                  Cookie Policy
+                </a>
+                . You can also{" "}
+                <a onClick={() => setCookieManage(true)} role="button">
+                  manage your preferences
+                </a>
+                .
+              </p>
+            </div>
+            <div className="cookie-actions">
+              <button
+                className="cookie-btn cookie-btn-accept"
+                onClick={() => {
+                  localStorage.setItem("cookie_consent", "accepted");
+                  setCookieConsent("accepted");
+                  setTimeout(() => setShowWelcome(true), 500);
+                }}
+              >
+                ACCEPT ALL
+              </button>
+              <button
+                className="cookie-btn cookie-btn-decline"
+                onClick={() => {
+                  localStorage.setItem("cookie_consent", "declined");
+                  setCookieConsent("declined");
+                }}
+              >
+                DECLINE
+              </button>
+              <button
+                className="cookie-btn cookie-btn-manage"
+                onClick={() => setCookieManage(true)}
+              >
+                MANAGE COOKIES
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Welcome Popup ───────────────────────────────────────────────── */}
+      {showWelcome && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(8px)",
+            padding: 20,
+          }}
+          onClick={() => setShowWelcome(false)}
+        >
+          <style>{`
+            @keyframes welcomeIn {
+              from { opacity: 0; transform: scale(0.92) translateY(16px); }
+              to   { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            .welcome-modal {
+              animation: welcomeIn 0.4s cubic-bezier(0.22,1,0.36,1) both;
+            }
+            .sub-input-row { display: flex; gap: 8px; width: 100%; }
+            .sub-input {
+              flex: 1; padding: 10px 14px;
+              background: rgba(255,255,255,0.06);
+              border: 1px solid rgba(255,255,255,0.12);
+              border-radius: 9px; color: #e0eaf5;
+              font-family: 'DM Mono', monospace; font-size: 12px; outline: none;
+            }
+            .sub-input::placeholder { color: rgba(160,180,210,0.4); }
+            .sub-submit-btn {
+              padding: 10px 18px; border-radius: 9px;
+              background: linear-gradient(135deg, #ff5533, #ff8040);
+              border: none; color: #fff; font-size: 11px;
+              font-family: 'DM Mono', monospace; letter-spacing: 0.08em;
+              font-weight: 600; cursor: pointer; white-space: nowrap; transition: opacity 0.2s;
+            }
+            .sub-submit-btn:hover { opacity: 0.85; }
+            .sub-submit-btn:disabled { opacity: 0.4; cursor: default; }
+          `}</style>
+          <div
+            className="welcome-modal"
+            style={{
+              maxWidth: 500,
+              width: "100%",
+              background:
+                "linear-gradient(145deg, rgba(8,14,28,0.98) 0%, rgba(14,22,44,0.98) 100%)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 20,
+              padding: "36px 32px 30px",
+              position: "relative",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close */}
+            <button
+              onClick={() => setShowWelcome(false)}
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 18,
+                background: "none",
+                border: "none",
+                color: "rgba(160,180,210,0.5)",
+                fontSize: 20,
+                cursor: "pointer",
+                lineHeight: 1,
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+
+            {/* Badge */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "rgba(255,80,30,0.12)",
+                border: "1px solid rgba(255,80,30,0.2)",
+                borderRadius: 20,
+                padding: "4px 12px",
+                marginBottom: 16,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "rgba(255,130,80,0.9)",
+                  letterSpacing: "0.14em",
+                  fontFamily: "'DM Mono',monospace",
+                }}
+              >
+                ◈ WELCOME
+              </span>
+            </div>
+
+            <h2
+              style={{
+                fontFamily: "'Syne', sans-serif",
+                fontWeight: 800,
+                fontSize: "clamp(18px,4vw,22px)",
+                color: "#e0eaf5",
+                margin: "0 0 14px",
+                lineHeight: 1.3,
+              }}
+            >
+              Glad you're here.
+            </h2>
+
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: 1.8,
+                color: "rgba(180,200,230,0.75)",
+                margin: "0 0 10px",
+              }}
+            >
+              <strong style={{ color: "#e0eaf5" }}>4Life Mystery</strong> is a
+              new content media entity — here to explore the different
+              dimensions of life: its mysteries, its meaning, and the things we
+              rarely say out loud. Every episode, video, and conversation is
+              made with intention.
+            </p>
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: 1.8,
+                color: "rgba(180,200,230,0.75)",
+                margin: "0 0 22px",
+              }}
+            >
+              We genuinely appreciate you being here. Feel free to subscribe to
+              our{" "}
+              <a
+                href={SOCIAL.youtube}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "rgba(255,130,80,0.85)",
+                  textDecoration: "underline",
+                }}
+              >
+                YouTube
+              </a>{" "}
+              and{" "}
+              <a
+                href={SOCIAL.spotify}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "rgba(255,130,80,0.85)",
+                  textDecoration: "underline",
+                }}
+              >
+                Podcast
+              </a>{" "}
+              channels — more is on the way.
+            </p>
+
+            {/* Subscribe form */}
+            <p
+              style={{
+                fontSize: 10,
+                letterSpacing: "0.14em",
+                color: "rgba(160,180,210,0.5)",
+                margin: "0 0 10px",
+                fontFamily: "'DM Mono',monospace",
+              }}
+            >
+              GET NOTIFIED WHEN NEW CONTENT DROPS
+            </p>
+            {subStatus === "success" ? (
+              <div
+                style={{
+                  padding: "12px 16px",
+                  background: "rgba(30,180,90,0.1)",
+                  border: "1px solid rgba(30,180,90,0.2)",
+                  borderRadius: 10,
+                  fontSize: 12,
+                  color: "rgba(80,220,130,0.9)",
+                  textAlign: "center",
+                }}
+              >
+                ✓ You're subscribed! We'll let you know when new content drops.
+              </div>
+            ) : (
+              <div className="sub-input-row">
+                <input
+                  className="sub-input"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={subEmail}
+                  onChange={(e) => setSubEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter")
+                      document.getElementById("welcome-sub-btn")?.click();
+                  }}
+                />
+                <button
+                  id="welcome-sub-btn"
+                  className="sub-submit-btn"
+                  disabled={subStatus === "loading"}
+                  onClick={async () => {
+                    const em = subEmail.trim();
+                    if (!em || !em.includes("@")) return;
+                    setSubStatus("loading");
+                    try {
+                      const res = await fetch("/api/public/subscribe", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: em }),
+                      });
+                      if (res.ok) {
+                        setSubStatus("success");
+                        localStorage.setItem("subscribed", "1");
+                      } else {
+                        const d = await res.json().catch(() => ({}));
+                        setSubStatus(
+                          d.detail === "already_subscribed"
+                            ? "success"
+                            : "error",
+                        );
+                      }
+                    } catch {
+                      setSubStatus("error");
+                    }
+                  }}
+                >
+                  {subStatus === "loading" ? "…" : "SUBSCRIBE"}
+                </button>
+              </div>
+            )}
+            {subStatus === "error" && (
+              <p
+                style={{
+                  fontSize: 10,
+                  color: "rgba(255,100,80,0.8)",
+                  margin: "8px 0 0",
+                }}
+              >
+                Something went wrong — please try again.
+              </p>
+            )}
+
+            <button
+              onClick={() => setShowWelcome(false)}
+              style={{
+                marginTop: 20,
+                display: "block",
+                width: "100%",
+                padding: "9px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 9,
+                color: "rgba(160,180,210,0.5)",
+                fontSize: 10,
+                fontFamily: "'DM Mono',monospace",
+                letterSpacing: "0.1em",
+                cursor: "pointer",
+              }}
+            >
+              MAYBE LATER
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
