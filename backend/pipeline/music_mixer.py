@@ -18,16 +18,22 @@ import config
 _MUSIC_DIR = Path(__file__).parent.parent / "custom_bg_music"
 
 MUSIC_STYLES = {
-    "none":       None,
-    "ambient":    "Birds_Atmosphere_Piano.mp3",   # Calm & atmospheric (Birds-Pads)
-    "wilderness": "Birds_Atmosphere_Wing.mp3",    # Soothing & atmospheric (Birds-Wind)
-    "studio":     "Laidback_Fevorite.mp3",        # Smooth Jazz (EPiano-Pads)
-    "meditation": "Pads_EPiano.mp3",              # Deep Smooth Pads (Cinematic-Pads)
-    "lofi":       "Pads.mp3",                     # Chill Heavy Pads
+    "none":                    None,
+    "Birds_Atmosphere_Piano":  "Birds_Atmosphere_Piano.mp3",
+    "Birds_Atmosphere_Wing":   "Birds_Atmosphere_Wing.mp3",
+    "Laidback_Fevorite":       "Laidback_Fevorite.mp3",
+    "Pads_EPiano":             "Pads_EPiano.mp3",
+    "Pads":                    "Pads.mp3",
+    # legacy keys kept for backwards-compatibility
+    "ambient":    "Birds_Atmosphere_Piano.mp3",
+    "wilderness": "Birds_Atmosphere_Wing.mp3",
+    "studio":     "Laidback_Fevorite.mp3",
+    "meditation": "Pads_EPiano.mp3",
+    "lofi":       "Pads.mp3",
 }
 
 # Default fallback when an unknown style is requested
-_DEFAULT_STYLE = "ambient"
+_DEFAULT_STYLE = "Birds_Atmosphere_Piano"
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

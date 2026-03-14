@@ -455,9 +455,7 @@ export default function Dashboard() {
   const [channelVisible, setChannelVisible] = useState(24); // how many to render
   const channelBottomRef = useRef(null);
   const [channelDeleteConfirm, setChannelDeleteConfirm] = useState(null); // {id, title}
-  const [isDark, setIsDark] = useState(
-    () => localStorage.getItem("autovid_theme") !== "light",
-  );
+  const isDark = true;
   const pollRef = useRef();
   const videoRef = useRef();
   const logPollRef = useRef(null);
@@ -500,13 +498,7 @@ export default function Dashboard() {
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveReplyOpen, setLiveReplyOpen] = useState(null);
   const [liveReplyContent, setLiveReplyContent] = useState("");
-  const T = isDark ? THEMES.dark : THEMES.light;
-
-  const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    localStorage.setItem("autovid_theme", next ? "dark" : "light");
-  };
+  const T = THEMES.dark;
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -1067,11 +1059,21 @@ export default function Dashboard() {
 
   const switchTab = (id) => {
     if (id === tab) return;
-    if (tabTimerRef.current) clearTimeout(tabTimerRef.current);
     setTab(id);
     setTabLoading(true);
-    tabTimerRef.current = setTimeout(() => setTabLoading(false), 800);
   };
+
+  // Remove tab spinner 100ms after the new tab's content has rendered in the DOM
+  useEffect(() => {
+    if (!tabLoading) return;
+    const raf = requestAnimationFrame(() => {
+      tabTimerRef.current = setTimeout(() => setTabLoading(false), 100);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      if (tabTimerRef.current) clearTimeout(tabTimerRef.current);
+    };
+  }, [tab]); // eslint-disable-line
 
   const handleUpload = async (id, e) => {
     e.stopPropagation();
@@ -1898,15 +1900,6 @@ export default function Dashboard() {
               >
                 ONLINE
               </span>
-
-              {/* Theme toggle */}
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <span style={{ fontSize: 10, color: T.textFaint }}>☀</span>
-                <div className="theme-toggle" onClick={toggleTheme}>
-                  <div className="theme-knob" />
-                </div>
-                <span style={{ fontSize: 10, color: T.textFaint }}>☾</span>
-              </div>
 
               <button
                 onClick={() => window.location.reload()}
@@ -7517,7 +7510,7 @@ export default function Dashboard() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>BACKGROUND MUSIC</div>
                           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                            {["ambient","wilderness","studio","meditation","lofi","none"].map(s => (
+                            {["Birds_Atmosphere_Piano","Birds_Atmosphere_Wing","Laidback_Fevorite","Pads_EPiano","Pads","none"].map(s => (
                               <button key={s}
                                 onClick={() => setPodcastSettings(ps => ({ ...ps, music_style: s }))}
                                 style={{
@@ -7525,9 +7518,9 @@ export default function Dashboard() {
                                   border: `1px solid ${podcastSettings.music_style === s ? T.accent + "80" : T.border}`,
                                   background: podcastSettings.music_style === s ? `${T.accent}15` : "transparent",
                                   color: podcastSettings.music_style === s ? T.accent : T.textFaint,
-                                  fontSize: 10, fontFamily: "inherit", cursor: "pointer", textTransform: "capitalize",
+                                  fontSize: 10, fontFamily: "inherit", cursor: "pointer",
                                 }}
-                              >{s.replace("_", " ")}</button>
+                              >{s.replace(/_/g, " ")}</button>
                             ))}
                           </div>
                         </div>
