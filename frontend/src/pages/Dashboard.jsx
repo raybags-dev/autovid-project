@@ -417,7 +417,7 @@ export default function Dashboard() {
   const [generating, setGenerating] = useState(false);
   const [profile, setProfile] = useState("educational");
   const [visualMood, setVisualMood] = useState("inspirational");
-  const [musicStyle, setMusicStyle] = useState("ambient");
+  const [musicStyle, setMusicStyle] = useState("Birds_Atmosphere_Piano");
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
@@ -452,6 +452,7 @@ export default function Dashboard() {
   const [channelVideos, setChannelVideos] = useState([]);
   const [channelLoading, setChannelLoading] = useState(false);
   const [channelError, setChannelError] = useState("");
+  const [channelPlatform, setChannelPlatform] = useState("youtube");
   const [channelVisible, setChannelVisible] = useState(24); // how many to render
   const channelBottomRef = useRef(null);
   const [channelDeleteConfirm, setChannelDeleteConfirm] = useState(null); // {id, title}
@@ -1046,7 +1047,7 @@ export default function Dashboard() {
   const [showPodcastManual, setShowPodcastManual] = useState(false);
   const [manualPodcastTopic, setManualPodcastTopic] = useState("");
   const [manualPodcastEssay, setManualPodcastEssay] = useState("");
-  const [manualPodcastMusic, setManualPodcastMusic] = useState("ambient");
+  const [manualPodcastMusic, setManualPodcastMusic] = useState("Birds_Atmosphere_Piano");
   const podcastLogsEndRef = useRef(null);
   const podcastLogPollRef = useRef(null);
   const podcastLogLineRef = useRef(0);
@@ -2256,12 +2257,12 @@ export default function Dashboard() {
                     </div>
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                       {[
-                        { id: "ambient",    label: "🌙 Ambient",    desc: "Calm & atmospheric" },
-                        { id: "wilderness", label: "🍃 Wilderness",  desc: "Soothing & atmospheric" },
-                        { id: "studio",     label: "🎹 Studio",      desc: "Smooth Jazz" },
-                        { id: "meditation", label: "🎧 Meditation",  desc: "Deep Smooth Pads" },
-                        { id: "lofi",       label: "🎵 Lo-Fi",       desc: "Chill Heavy Pads" },
-                        { id: "none",       label: "🔇 None",        desc: "Voice only" },
+                        { id: "Birds_Atmosphere_Piano", label: "🌙 Birds & Piano",  desc: "Birds atmosphere + piano" },
+                        { id: "Birds_Atmosphere_Wing",  label: "🍃 Birds & Wing",   desc: "Birds atmosphere + wing pads" },
+                        { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav",   desc: "Smooth laidback favourite" },
+                        { id: "Pads_EPiano",            label: "🎧 Pads & EPiano",  desc: "Deep smooth pads + e-piano" },
+                        { id: "Pads",                   label: "🎵 Pads",           desc: "Chill heavy pads" },
+                        { id: "none",                   label: "🔇 None",           desc: "Voice only" },
                       ].map((m) => (
                         <button
                           key={m.id}
@@ -3817,11 +3818,11 @@ export default function Dashboard() {
       <div
         ref={shortsListRef}
         onScroll={handleShortsScroll}
-        style={{ flex: 1, overflowY: "auto", padding: "6px 0" }}
+        style={{ flex: 1, overflowY: "auto", padding: "8px 10px", display: "flex", flexDirection: "column", gap: 8 }}
       >
         {shortsLoading && shortsList.length === 0 ? (
           [0,1,2].map(i => (
-            <div key={i} style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center" }}>
+            <div key={i} style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center", border: `1px solid ${T.border}`, borderRadius: 10, background: T.bgCard }}>
               <div className="skeleton-loader" style={{ width: 40, height: 72, borderRadius: 6, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div className="skeleton-loader" style={{ width: "70%", height: 11, borderRadius: 3, marginBottom: 6 }} />
@@ -3854,13 +3855,15 @@ export default function Dashboard() {
                 key={s.id}
                 onClick={() => canPlay && setPreview(s)}
                 style={{
-                  padding: "10px 14px",
-                  borderBottom: `1px solid ${T.border}20`,
-                  transition: "background 0.15s",
+                  padding: "10px 12px",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  background: T.bgCard,
+                  transition: "border-color 0.15s, background 0.15s",
                   cursor: canPlay ? "pointer" : "default",
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = T.bgCardHover}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                onMouseEnter={e => { e.currentTarget.style.background = T.bgCardHover; e.currentTarget.style.borderColor = T.accent + "50"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.bgCard; e.currentTarget.style.borderColor = T.border; }}
               >
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                   {/* Portrait thumbnail */}
@@ -3884,10 +3887,15 @@ export default function Dashboard() {
                     }}>
                       {s.title || s.prompt?.slice(0, 38) || "Untitled Short"}
                     </div>
-                    <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>
                       {s.status === "ready" ? "✅ Ready" : s.status === "failed" ? "❌ Failed" : "⚙ " + s.status}
                       {s.duration_seconds ? ` · ${s.duration_seconds}s` : ""}
                     </div>
+                    {(s.prompt || s.description) && (
+                      <div style={{ fontSize: 9.5, color: T.textDim, marginBottom: 5, lineHeight: 1.45, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                        {s.description || s.prompt}
+                      </div>
+                    )}
                     {/* Platform badges */}
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: isUnposted ? 8 : 0 }}>
                       {isOnYt && (
@@ -4183,6 +4191,46 @@ export default function Dashboard() {
             {/* ── MY CHANNEL TAB ─────────────────────────────────────────────── */}
             {tab === "channel" && (
               <div style={{ padding: "0 2px" }}>
+                {/* ── Platform selector ── */}
+                <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+                  {[
+                    { id: "youtube",   label: "▶ YouTube",   color: "#ff4444" },
+                    { id: "instagram", label: "📷 Instagram", color: "#e1306c" },
+                    { id: "spotify",   label: "◎ Spotify",   color: "#1db954" },
+                    { id: "tiktok",    label: "🎵 TikTok",    color: "#00f2ea" },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setChannelPlatform(p.id)}
+                      style={{
+                        padding: "6px 14px", borderRadius: 8, fontSize: 11,
+                        fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.04em",
+                        border: `1px solid ${channelPlatform === p.id ? p.color + "80" : T.border}`,
+                        background: channelPlatform === p.id ? p.color + "18" : "transparent",
+                        color: channelPlatform === p.id ? p.color : T.textFaint,
+                        fontWeight: channelPlatform === p.id ? 700 : 400,
+                        transition: "all 0.18s",
+                      }}
+                    >{p.label}</button>
+                  ))}
+                </div>
+
+                {/* Coming-soon placeholder for non-YouTube platforms */}
+                {channelPlatform !== "youtube" && (
+                  <div style={{ textAlign: "center", padding: "60px 20px", background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14 }}>
+                    <div style={{ fontSize: 28, marginBottom: 12 }}>
+                      {channelPlatform === "instagram" ? "📷" : channelPlatform === "spotify" ? "◎" : "🎵"}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 6 }}>
+                      {channelPlatform === "instagram" ? "Instagram" : channelPlatform === "spotify" ? "Spotify" : "TikTok"} integration coming soon
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textFaint }}>
+                      Connect your account in Settings to unlock channel analytics here.
+                    </div>
+                  </div>
+                )}
+
+                {channelPlatform === "youtube" && <>
                 <div
                   style={{
                     display: "flex",
@@ -4752,21 +4800,22 @@ export default function Dashboard() {
                     )}
                   </div>
                 )}
+                </>}
               </div>
             )}
 
             {tab === "billing" && (
               <div style={{ padding: "0 2px" }}>
                 {!billing ? (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: 60,
-                      color: T.textMid,
-                      fontSize: 12,
-                    }}
-                  >
-                    Loading billing data...
+                  <div style={{ textAlign: "center", padding: 60 }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: "50%",
+                      border: `3px solid ${T.border}`,
+                      borderTopColor: T.accent,
+                      animation: "spin 0.75s linear infinite",
+                      margin: "0 auto 14px",
+                    }} />
+                    <div style={{ fontSize: 11, color: T.textFaint, letterSpacing: "0.08em" }}>LOADING SUBSCRIPTIONS…</div>
                   </div>
                 ) : (
                   <div
@@ -6051,13 +6100,18 @@ export default function Dashboard() {
                 minWidth: 0,
               };
               const colHead = {
-                fontSize: 9,
-                color: T.textFaint,
-                letterSpacing: "0.16em",
+                fontSize: 12,
+                fontWeight: 700,
+                color: T.textMid,
+                letterSpacing: "0.1em",
                 marginBottom: 14,
+                textAlign: "center",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
+                justifyContent: "center",
+                gap: 8,
+                paddingBottom: 10,
+                borderBottom: `1px solid ${T.border}`,
               };
               const libRow = (item, ext, onDl) => (
                 <div
@@ -7614,17 +7668,24 @@ export default function Dashboard() {
                           />
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             <div style={{ fontSize: 10, color: T.textFaint, flexShrink: 0 }}>Music:</div>
-                            {["ambient","wilderness","studio","meditation","lofi","none"].map(s => (
-                              <button key={s}
-                                onClick={() => setManualPodcastMusic(s)}
+                            {[
+                              { id: "Birds_Atmosphere_Piano", label: "🌙 Birds & Piano" },
+                              { id: "Birds_Atmosphere_Wing",  label: "🍃 Birds & Wing" },
+                              { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav" },
+                              { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
+                              { id: "Pads",                   label: "🎵 Pads" },
+                              { id: "none",                   label: "🔇 None" },
+                            ].map(m => (
+                              <button key={m.id}
+                                onClick={() => setManualPodcastMusic(m.id)}
                                 style={{
                                   padding: "4px 8px", borderRadius: 6, fontSize: 10, fontFamily: "inherit",
-                                  border: `1px solid ${manualPodcastMusic === s ? T.accent + "80" : T.border}`,
-                                  background: manualPodcastMusic === s ? `${T.accent}15` : "transparent",
-                                  color: manualPodcastMusic === s ? T.accent : T.textFaint,
-                                  cursor: "pointer", textTransform: "capitalize",
+                                  border: `1px solid ${manualPodcastMusic === m.id ? T.accent + "80" : T.border}`,
+                                  background: manualPodcastMusic === m.id ? `${T.accent}15` : "transparent",
+                                  color: manualPodcastMusic === m.id ? T.accent : T.textFaint,
+                                  cursor: "pointer",
                                 }}
-                              >{s.replace("_", " ")}</button>
+                              >{m.label}</button>
                             ))}
                             <button
                               disabled={podcastRunning || (!manualPodcastTopic.trim() && !manualPodcastEssay.trim())}
@@ -7765,6 +7826,20 @@ export default function Dashboard() {
                         CONNECT
                       </a>
                     )}
+                  </div>
+                </div>
+
+                {/* ── Instagram (coming soon) ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>INSTAGRAM</div>
+                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>📷 Connect Instagram</div>
+                      <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>Auto-post Reels and Stories — coming soon</div>
+                    </div>
+                    <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(225,48,108,0.1)", border: "1px solid rgba(225,48,108,0.2)", color: "#e1306c", fontSize: 10, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+                      SOON
+                    </span>
                   </div>
                 </div>
 

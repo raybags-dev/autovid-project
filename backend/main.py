@@ -2128,15 +2128,27 @@ def spotify_disconnect(user: str = Depends(verify_token)):
 
 @app.get("/spotify/top-tracks")
 def spotify_top_tracks(limit: int = 10, time_range: str = "long_term", user: str = Depends(verify_token)):
-    from pipeline.spotify_client import get_top_tracks
-    tracks = get_top_tracks(limit=limit, time_range=time_range)
-    return [{"name": t["name"], "artists": [a["name"] for a in t["artists"]], "popularity": t.get("popularity"), "preview_url": t.get("preview_url")} for t in tracks]
+    from pipeline.spotify_client import get_top_tracks, is_connected
+    if not is_connected():
+        return []
+    try:
+        tracks = get_top_tracks(limit=limit, time_range=time_range)
+        return [{"name": t["name"], "artists": [a["name"] for a in t["artists"]], "popularity": t.get("popularity"), "preview_url": t.get("preview_url")} for t in tracks]
+    except Exception as e:
+        print(f"⚠️  Spotify top-tracks: {e}")
+        return []
 
 @app.get("/spotify/top-artists")
 def spotify_top_artists(limit: int = 10, time_range: str = "long_term", user: str = Depends(verify_token)):
-    from pipeline.spotify_client import get_top_artists
-    artists = get_top_artists(limit=limit, time_range=time_range)
-    return [{"name": a["name"], "genres": a.get("genres", []), "followers": a.get("followers", {}).get("total"), "popularity": a.get("popularity")} for a in artists]
+    from pipeline.spotify_client import get_top_artists, is_connected
+    if not is_connected():
+        return []
+    try:
+        artists = get_top_artists(limit=limit, time_range=time_range)
+        return [{"name": a["name"], "genres": a.get("genres", []), "followers": a.get("followers", {}).get("total"), "popularity": a.get("popularity")} for a in artists]
+    except Exception as e:
+        print(f"⚠️  Spotify top-artists: {e}")
+        return []
 
 @app.post("/videos/{video_id}/upload-tiktok")
 def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: BackgroundTasks = None, user: str = Depends(verify_token)):
