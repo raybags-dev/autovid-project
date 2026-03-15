@@ -149,23 +149,35 @@ Categories: Education, Entertainment, Science, Technology, Lifestyle, Philosophy
 Mood options: inspirational, educational, dramatic, reflective, serious
 """
 
-_PROMO_FOOTER = """
+_PROMO_FOOTER_BASE = """
 
-─────────────────────────────
-🔗 Links
-📺 YouTube:  https://www.youtube.com/@4life_mystery
-🎵 TikTok:   https://www.tiktok.com/@lifemystery183284
-🎧 Podcast (Spotify): https://open.spotify.com/show/2ZIZRXomO55COqXyJXgy5s
-🎙 Podcast (Buzzsprout): https://www.buzzsprout.com/2603264
-🌐 Website:  https://4lifemystery.com
-─────────────────────────────"""
+Feel free to subscribe. And post your thoughts on www.4lifemystery.com in the community section. I'd love to hear thoughts on this topic
+
+🌐 Website: https://4lifemystery.com
+🎧 Spotify: https://open.spotify.com/show/31b1tuqETLGjz0Oq6oqE8d
+📺 YouTube: https://www.youtube.com/@4life_mystery/videos
+
+Hashtags:
+#Existential #LifeMystery #LifeReflection #Mortality #Philosophy #DeepThoughts #Mindfulness #HumanExperience #Regret"""
+
+_PROMO_FOOTER_SENTINEL = "Feel free to subscribe."
 
 
-def _append_promo_footer(description: str) -> str:
-    """Append the standard 4Life Mystery promotion footer to a description."""
-    if _PROMO_FOOTER.strip() in (description or ""):
+def _title_to_hashtag(title: str) -> str:
+    """Convert a video title to a CamelCase hashtag, e.g. 'Why Does Life Feel Meaningless?' → '#WhyDoesLifeFeelMeaningless'"""
+    import re
+    words = re.sub(r"[^a-zA-Z0-9 ]", "", title).split()
+    return "#" + "".join(w.capitalize() for w in words if w)
+
+
+def _append_promo_footer(description: str, title: str = None) -> str:
+    """Append the standard 4Life Mystery promotion footer to a description.
+    If title is provided, it is appended as the last hashtag."""
+    if _PROMO_FOOTER_SENTINEL in (description or ""):
         return description  # already present
-    return (description or "").rstrip() + _PROMO_FOOTER
+    title_tag = (" " + _title_to_hashtag(title)) if title else ""
+    footer = _PROMO_FOOTER_BASE + title_tag
+    return (description or "").rstrip() + footer
 
 
 def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
@@ -220,7 +232,7 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
     script_data["estimated_duration"] = int((word_count / 150) * 60)  # ~150 wpm natural speech
 
     # Append standard promotion footer to every description
-    script_data["description"] = _append_promo_footer(script_data.get("description", ""))
+    script_data["description"] = _append_promo_footer(script_data.get("description", ""), title=script_data.get("title"))
 
     print(f"✅ Script generated: '{script_data['title']}'")
     print(f"   Segments: {len(script_data['segments'])}, ~{script_data['estimated_duration']}s")
@@ -341,7 +353,7 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
     word_count = len(script_data["full_narration"].split())
     script_data["estimated_duration"] = int((word_count / 150) * 60)
     script_data["is_short"] = True
-    script_data["description"] = _append_promo_footer(script_data.get("description", ""))
+    script_data["description"] = _append_promo_footer(script_data.get("description", ""), title=script_data.get("title"))
 
     print(f"✅ Short script generated: '{script_data['title']}'")
     print(f"   Words: {word_count} (hard-capped), estimated {script_data['estimated_duration']}s")

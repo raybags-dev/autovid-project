@@ -347,7 +347,7 @@ def run_podcast_episode(
             ep_essay = data.get("essay", "")
             # Append promotion footer
             from pipeline.script_gen import _append_promo_footer
-            ep_desc  = _append_promo_footer(data.get("description", ""))
+            ep_desc  = _append_promo_footer(data.get("description", ""), title=ep_title)
 
         if not ep_essay.strip():
             raise RuntimeError("Essay generation returned empty content")
