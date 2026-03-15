@@ -490,11 +490,75 @@ export default function Dashboard() {
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveReplyOpen, setLiveReplyOpen] = useState(null);
   const [liveReplyContent, setLiveReplyContent] = useState("");
+  const [videoSearch, setVideoSearch] = useState("");
+  // ── Notifications ──────────────────────────────────────────────────────────
+  const [notifications, setNotifications] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("autovid_notifs") || "[]"); } catch { return []; }
+  });
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const unreadCount = notifications.filter(n => !n.read).length;
   const T = THEMES.dark;
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3200);
+  };
+
+  const addNotification = (title, body, type = "success") => {
+    const notif = { id: Date.now(), title, body, type, timestamp: new Date().toISOString(), read: false };
+    setNotifications(prev => {
+      const updated = [notif, ...prev].slice(0, 20);
+      try { localStorage.setItem("autovid_notifs", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    if (Notification.permission === "granted") {
+      try { new Notification(title, { body, icon: "/favicon.ico" }); } catch {}
+    } else if (Notification.permission === "default") {
+      Notification.requestPermission().then(p => {
+        if (p === "granted") {
+          try { new Notification(title, { body, icon: "/favicon.ico" }); } catch {}
+        }
+      });
+    }
+  };
+
+  const markAllRead = () => {
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, read: true }));
+      try { localStorage.setItem("autovid_notifs", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+    try { localStorage.removeItem("autovid_notifs"); } catch {}
+  };
+
+  // Calculate next scheduled run from days (0=Mon..6=Sun) and hour (UTC)
+  const calcNextRun = (days, hour) => {
+    if (!days?.length) return "Not scheduled";
+    const now = new Date();
+    const nowDayJS = now.getUTCDay(); // 0=Sun,1=Mon...
+    const nowHour = now.getUTCHours();
+    const nowMin = now.getUTCMinutes();
+    for (let offset = 0; offset <= 7; offset++) {
+      const checkDayJS = (nowDayJS + offset) % 7;
+      const checkAppDay = (checkDayJS + 6) % 7; // Mon=0..Sun=6
+      if (!days.includes(checkAppDay)) continue;
+      if (offset === 0 && (nowHour > hour || (nowHour === hour && nowMin > 0))) continue;
+      const runDate = new Date(now);
+      runDate.setUTCDate(runDate.getUTCDate() + offset);
+      runDate.setUTCHours(hour, 0, 0, 0);
+      const diffMs = runDate - now;
+      const diffH = Math.floor(diffMs / 3600000);
+      const diffM = Math.floor((diffMs % 3600000) / 60000);
+      if (diffH >= 48) return `in ${Math.floor(diffH / 24)}d`;
+      if (diffH >= 24) return `in ${Math.floor(diffH / 24)}d ${diffH % 24}h`;
+      if (diffH > 0) return `in ${diffH}h ${diffM}m`;
+      return `in ${diffM}m`;
+    }
+    return "Not scheduled";
   };
 
   const fetchBilling = useCallback(async () => {
@@ -602,6 +666,7 @@ export default function Dashboard() {
       setGenerating(false);
       setPipeStep(0);
       showToast("Video pipeline complete!");
+      addNotification("Video Ready", "Your video pipeline has completed successfully.");
     }
   }, [videos]);
 
@@ -721,9 +786,12 @@ export default function Dashboard() {
               try {
                 const { data: done } = await api.get(`/videos/${vid}`);
                 const t = done?.title || "Short";
-                showToast(`⚡ "${t.length > 45 ? t.slice(0, 45) + "…" : t}" is ready!`);
+                const label = t.length > 45 ? t.slice(0, 45) + "…" : t;
+                showToast(`⚡ "${label}" is ready!`);
+                addNotification("Short Ready", `"${label}" has been generated.`);
               } catch (_) {
                 showToast("⚡ Short generation complete!");
+                addNotification("Short Ready", "Your short has been generated.");
               }
               // Auto-dismiss the progress panel after 2s
               setTimeout(() => {
@@ -949,8 +1017,8 @@ export default function Dashboard() {
           clearInterval(stepPoll);
           clearInterval(podcastLogPollRef.current);
           setPodcastRunning(false);
-          if (st.status === "failed") showToast("Podcast episode failed", "error");
-          else { showToast("✅ Podcast episode ready!"); refresh(); }
+          if (st.status === "failed") { showToast("Podcast episode failed", "error"); addNotification("Podcast Failed", "The podcast episode pipeline failed.", "error"); }
+          else { showToast("✅ Podcast episode ready!"); addNotification("Podcast Ready", "Your podcast episode is ready."); refresh(); }
         }
       } catch (e) {}
     }, 4000);
@@ -1356,11 +1424,19 @@ export default function Dashboard() {
   };
 
   const filtered = videos.filter((v) => {
-    if (filter === "all") return v.status !== "failed" && v.resolution !== "1080x1920";
-    if (filter === "mp4") return !!v.file_path && v.resolution !== "1080x1920" && v.status !== "failed";
-    if (filter === "mp3") return !!v.narration_url && v.resolution !== "1080x1920" && v.status !== "failed";
-    if (filter === "shorts") return v.resolution === "1080x1920";
-    return v.status === filter;
+    const matchesFilter = (() => {
+      if (filter === "all") return v.status !== "failed" && v.resolution !== "1080x1920";
+      if (filter === "mp4") return !!v.file_path && v.resolution !== "1080x1920" && v.status !== "failed";
+      if (filter === "mp3") return !!v.narration_url && v.resolution !== "1080x1920" && v.status !== "failed";
+      if (filter === "shorts") return v.resolution === "1080x1920";
+      return v.status === filter;
+    })();
+    if (!matchesFilter) return false;
+    if (videoSearch.trim()) {
+      const q = videoSearch.toLowerCase();
+      return (v.title || "").toLowerCase().includes(q) || (v.prompt || "").toLowerCase().includes(q);
+    }
+    return true;
   });
   const sc = (s) => STATUS[s] || STATUS.failed;
 
@@ -1605,6 +1681,50 @@ export default function Dashboard() {
             {toast.type === "error" ? "⚠ " : "✓ "}
             {toast.msg}
           </div>
+        )}
+
+        {/* ── Notification Panel ──────────────────────────────────────────────────── */}
+        {showNotifPanel && (
+          <>
+            <div onClick={() => setShowNotifPanel(false)} style={{ position: "fixed", inset: 0, zIndex: 299 }} />
+            <div style={{
+              position: "fixed", right: 0, top: 0, bottom: 0,
+              width: 340, zIndex: 300,
+              background: T.bgCard,
+              borderLeft: `1px solid ${T.border}`,
+              display: "flex", flexDirection: "column",
+              boxShadow: "-6px 0 32px rgba(0,0,0,0.5)",
+            }}>
+              <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, flex: 1, letterSpacing: "0.04em" }}>🔔 Notifications</div>
+                <button onClick={clearNotifications} style={{ fontSize: 9, color: T.textFaint, background: "none", cursor: "pointer", letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.border}` }}>CLEAR ALL</button>
+                <button onClick={() => setShowNotifPanel(false)} style={{ fontSize: 16, color: T.textFaint, background: "none", border: "none", cursor: "pointer", lineHeight: 1 }}>✕</button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+                {notifications.length === 0 ? (
+                  <div style={{ textAlign: "center", color: T.textFaint, fontSize: 12, marginTop: 48 }}>
+                    <div style={{ fontSize: 28, marginBottom: 10 }}>🔕</div>
+                    No notifications yet
+                  </div>
+                ) : notifications.map(n => (
+                  <div key={n.id} style={{
+                    padding: "10px 12px", borderRadius: 8, marginBottom: 6,
+                    background: n.type === "error" ? `${T.accentRed}10` : n.type === "warning" ? "rgba(224,144,0,0.08)" : "rgba(0,192,112,0.06)",
+                    border: `1px solid ${n.type === "error" ? T.accentRed + "30" : n.type === "warning" ? "rgba(224,144,0,0.2)" : "rgba(0,192,112,0.15)"}`,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: n.type === "error" ? T.accentRed : n.type === "warning" ? "#e09000" : T.accentGreen }}>{n.title}</div>
+                    {n.body && <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>{n.body}</div>}
+                    <div style={{ fontSize: 9, color: T.textFaint, marginTop: 4, letterSpacing: "0.04em" }}>
+                      {new Date(n.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "10px 12px", borderTop: `1px solid ${T.border}`, fontSize: 10, color: T.textFaint, textAlign: "center" }}>
+                Last {notifications.length} events · browser push enabled when tab is backgrounded
+              </div>
+            </div>
+          </>
         )}
 
         {/* ── Sidebar ────────────────────────────────────────────────────────────── */}
@@ -1894,6 +2014,37 @@ export default function Dashboard() {
               >
                 ONLINE
               </span>
+
+              {/* Notification bell */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => { setShowNotifPanel(p => !p); if (!showNotifPanel) markAllRead(); }}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: `1px solid ${unreadCount > 0 ? T.accent + "60" : T.border}`,
+                    background: unreadCount > 0 ? `${T.accent}10` : "transparent",
+                    color: unreadCount > 0 ? T.accent : T.textDim,
+                    fontSize: 14,
+                    cursor: "pointer",
+                  }}
+                  title="Notifications"
+                >
+                  🔔
+                </button>
+                {unreadCount > 0 && (
+                  <span style={{
+                    position: "absolute", top: -4, right: -4,
+                    background: T.accentRed, color: "#fff",
+                    fontSize: 8, fontWeight: 700,
+                    borderRadius: 10, padding: "1px 4px",
+                    minWidth: 14, textAlign: "center",
+                    pointerEvents: "none",
+                  }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
 
               <button
                 onClick={() => window.location.reload()}
@@ -2540,6 +2691,25 @@ export default function Dashboard() {
                         </div>
                       )}
                     </div>
+                  )}
+                </div>
+
+                {/* Search */}
+                <div style={{ marginBottom: 10, position: "relative" }}>
+                  <input
+                    value={videoSearch}
+                    onChange={e => setVideoSearch(e.target.value)}
+                    placeholder="Search videos by title or prompt..."
+                    style={{
+                      width: "100%", padding: "7px 10px 7px 30px",
+                      borderRadius: 8, border: `1px solid ${T.border}`,
+                      background: T.inputBg, color: T.text,
+                      fontSize: 12, fontFamily: "inherit", boxSizing: "border-box",
+                    }}
+                  />
+                  <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: T.textFaint, pointerEvents: "none" }}>🔍</span>
+                  {videoSearch && (
+                    <button onClick={() => setVideoSearch("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 13 }}>✕</button>
                   )}
                 </div>
 
@@ -6753,6 +6923,11 @@ export default function Dashboard() {
                           {autoGenSettings.days.length} days/week selected ·
                           runs at {autoGenSettings.hour}:00 UTC (={" "}
                           {autoGenSettings.hour + 1}:00 Amsterdam)
+                          {autoGenSettings.enabled && (
+                            <span style={{ color: T.accent, marginLeft: 6 }}>
+                              · next: {calcNextRun(autoGenSettings.days, autoGenSettings.hour)}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -6891,15 +7066,12 @@ export default function Dashboard() {
                                     clearInterval(stepPoll);
                                     clearInterval(autoGenLogPollRef.current);
                                     setAutoGenRunning(false);
-                                    if (st.status === "failed")
-                                      showToast(
-                                        "Auto-generate failed",
-                                        "error",
-                                      );
-                                    else {
-                                      showToast(
-                                        "✅ Auto-generated video ready!",
-                                      );
+                                    if (st.status === "failed") {
+                                      showToast("Auto-generate failed", "error");
+                                      addNotification("Auto-Generate Failed", "The auto-generate video pipeline failed.", "error");
+                                    } else {
+                                      showToast("✅ Auto-generated video ready!");
+                                      addNotification("Auto-Generated Video Ready", "Your auto-generated video is ready.");
                                       refresh();
                                     }
                                   }
@@ -7313,6 +7485,9 @@ export default function Dashboard() {
                         </div>
                         <div style={{ fontSize: 10, color: T.textFaint, marginTop: 5 }}>
                           {autoShortSettings.days.length} days/week · runs at {autoShortSettings.hour}:00 UTC
+                          {autoShortSettings.enabled && (
+                            <span style={{ color: T.accent }}> · next: {calcNextRun(autoShortSettings.days, autoShortSettings.hour)}</span>
+                          )}
                         </div>
                       </div>
 
@@ -7397,8 +7572,8 @@ export default function Dashboard() {
                                     clearInterval(stepPoll);
                                     clearInterval(autoShortLogPollRef.current);
                                     setAutoShortRunning(false);
-                                    if (st.status === "failed") showToast("Auto-short failed", "error");
-                                    else { showToast("✅ Auto-short ready!"); refresh(); }
+                                    if (st.status === "failed") { showToast("Auto-short failed", "error"); addNotification("Auto-Short Failed", "The auto-short pipeline failed.", "error"); }
+                                    else { showToast("✅ Auto-short ready!"); addNotification("Auto-Short Ready", "Your auto-short has been generated."); refresh(); }
                                   }
                                 } catch (e) {}
                               }, 4000);
@@ -7563,6 +7738,9 @@ export default function Dashboard() {
                       </div>
                       <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 12 }}>
                         {podcastSettings.days.length} days/week · runs at {podcastSettings.hour}:00 UTC
+                        {podcastSettings.enabled && (
+                          <span style={{ color: T.accent }}> · next: {calcNextRun(podcastSettings.days, podcastSettings.hour)}</span>
+                        )}
                       </div>
 
                       {/* Hour + music style */}
