@@ -2168,6 +2168,87 @@ def spotify_top_artists(limit: int = 10, time_range: str = "long_term", user: st
         print(f"⚠️  Spotify top-artists: {e}")
         return []
 
+# ── Buzzsprout ────────────────────────────────────────────────────────────────
+
+@app.get("/buzzsprout/settings")
+def get_buzzsprout_settings_endpoint(user: str = Depends(verify_token)):
+    """Return current Buzzsprout settings (token masked for display)."""
+    from pipeline.buzzsprout_client import get_buzzsprout_settings
+    s = get_buzzsprout_settings()
+    masked = ("*" * (len(s["api_token"]) - 4) + s["api_token"][-4:]) if len(s.get("api_token","")) > 4 else s.get("api_token","")
+    return {**s, "api_token": masked, "api_token_set": bool(s.get("api_token"))}
+
+
+@app.post("/buzzsprout/settings")
+def save_buzzsprout_settings_endpoint(body: dict, user: str = Depends(verify_token)):
+    """Save Buzzsprout API token, podcast ID, and auto-upload preference."""
+    from pipeline.buzzsprout_client import save_buzzsprout_settings, get_buzzsprout_settings
+    current = get_buzzsprout_settings()
+    # Only overwrite token if a real value (not masked ***) was sent
+    api_token = body.get("api_token", "")
+    if api_token.startswith("*"):
+        api_token = current.get("api_token", "")
+    save_buzzsprout_settings({
+        "api_token":   api_token,
+        "podcast_id":  body.get("podcast_id",  current.get("podcast_id",  "")),
+        "auto_upload": body.get("auto_upload",  current.get("auto_upload", False)),
+    })
+    return {"message": "Buzzsprout settings saved"}
+
+
+@app.get("/buzzsprout/status")
+def buzzsprout_status(user: str = Depends(verify_token)):
+    """Check Buzzsprout connection and return podcast info."""
+    from pipeline.buzzsprout_client import get_buzzsprout_settings, get_podcast_info, list_episodes, is_configured
+    s = get_buzzsprout_settings()
+    if not is_configured():
+        return {"connected": False}
+    try:
+        info     = get_podcast_info(s["api_token"], s["podcast_id"])
+        episodes = list_episodes(s["api_token"], s["podcast_id"], limit=5)
+        return {
+            "connected":     True,
+            "podcast_id":    s["podcast_id"],
+            "auto_upload":   s["auto_upload"],
+            "title":         info.get("title", ""),
+            "image_url":     info.get("image_url", ""),
+            "episode_count": info.get("episodes_count", len(episodes)),
+            "recent_episodes": [
+                {"id": e["id"], "title": e.get("title", ""), "published_at": e.get("published_at"),
+                 "duration": e.get("duration"), "url": f"https://www.buzzsprout.com/{s['podcast_id']}/episodes/{e['id']}"}
+                for e in episodes
+            ],
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/podcast-episode/{video_id}/upload-buzzsprout")
+def upload_episode_to_buzzsprout(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+    """Manually push a podcast episode to Buzzsprout."""
+    from pipeline.buzzsprout_client import is_configured, upload_podcast_episode
+    if not is_configured():
+        raise HTTPException(status_code=400, detail="Buzzsprout not configured — add credentials in Settings")
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.get("narration_url"):
+        raise HTTPException(status_code=400, detail="No audio file available for this episode")
+    if video.get("buzzsprout_episode_id"):
+        raise HTTPException(status_code=409, detail=f"Already on Buzzsprout (episode {video['buzzsprout_episode_id']})")
+
+    def do_upload():
+        try:
+            _push_log(video_id, "[BUZZSPROUT] Starting upload to Buzzsprout...")
+            upload_podcast_episode(video_id, log_fn=lambda m: _push_log(video_id, m))
+            _push_log(video_id, "[BUZZSPROUT] ✅ Upload complete — processing on Buzzsprout")
+        except Exception as e:
+            _push_log(video_id, f"[BUZZSPROUT] ❌ Upload failed: {e}")
+
+    background_tasks.add_task(do_upload)
+    return {"message": "Buzzsprout upload started", "video_id": video_id}
+
+
 @app.post("/videos/{video_id}/upload-tiktok")
 def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: BackgroundTasks = None, user: str = Depends(verify_token)):
     """Upload a ready video to TikTok."""

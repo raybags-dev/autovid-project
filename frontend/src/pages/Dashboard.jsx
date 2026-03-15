@@ -41,6 +41,10 @@ import api, {
   generatePodcastEpisode,
   fixStuckVideos,
   forceResetVideo,
+  getBuzzsproutStatus,
+  getBuzzsproutSettings,
+  saveBuzzsproutSettings,
+  uploadToBuzzsprout,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -1033,6 +1037,16 @@ export default function Dashboard() {
       setSpotifyConnected(r.connected);
       if (r.connected) setSpotifyProfile(r);
     }).catch(() => {});
+    // Load Buzzsprout status + settings when on settings tab
+    if (tab === "settings") {
+      getBuzzsproutStatus().then(r => setBuzzsproutStatus(r)).catch(() => setBuzzsproutStatus({ connected: false }));
+      getBuzzsproutSettings().then(r => setBuzzsproutSettings(s => ({
+        ...s,
+        api_token:   r.api_token_set ? s.api_token || "••••••••" : "",
+        podcast_id:  r.podcast_id  || "",
+        auto_upload: r.auto_upload || false,
+      }))).catch(() => {});
+    }
   }, [tab]);
 
   // Infinite scroll — load more channel videos when bottom sentinel is visible
@@ -1182,6 +1196,12 @@ export default function Dashboard() {
   const [spotifyTopTracks, setSpotifyTopTracks] = useState([]);
   const [spotifyTopArtists, setSpotifyTopArtists] = useState([]);
   const [tiktokUploading, setTiktokUploading] = useState({});
+  // Buzzsprout state
+  const [buzzsproutStatus, setBuzzsproutStatus] = useState(null); // null = not loaded
+  const [buzzsproutSettings, setBuzzsproutSettings] = useState({ api_token: "", podcast_id: "", auto_upload: false });
+  const [buzzsproutSaving, setBuzzsproutSaving] = useState(false);
+  const [buzzsproutTesting, setBuzzsproutTesting] = useState(false);
+  const [buzzsproutUploading, setBuzzsproutUploading] = useState({}); // { [videoId]: bool }
   const [autoShortJobId, setAutoShortJobId] = useState(null);
   const [autoShortPrompt, setAutoShortPrompt] = useState("");
   const [autoShortStep, setAutoShortStep] = useState(0);
@@ -3748,22 +3768,58 @@ export default function Dashboard() {
                           {(v.status === "ready" || v.status === "uploading") && (
                             /* Audio-only (podcast/MP3) → Spotify placeholder; video → YouTube upload */
                             v.narration_url && !v.file_path ? (
-                              <button
-                                className="btn-sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  showToast("Upload manually via Spotify for Podcasters to preserve monetization", "info");
-                                }}
-                                style={{
-                                  color: "#1db954",
-                                  borderColor: "rgba(29,185,84,0.3)",
-                                  background: "rgba(29,185,84,0.07)",
-                                  cursor: "pointer",
-                                }}
-                                title="Upload to Spotify for Podcasters — done manually to preserve monetization"
-                              >
-                                🎙 UPLOAD TO SPOTIFY
-                              </button>
+                              v.buzzsprout_episode_id ? (
+                                <a
+                                  href={v.buzzsprout_url || `https://www.buzzsprout.com`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="btn-sm"
+                                  style={{
+                                    color: "#1db954",
+                                    borderColor: "rgba(29,185,84,0.35)",
+                                    background: "rgba(29,185,84,0.08)",
+                                    textDecoration: "none",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                  title="View on Buzzsprout"
+                                >
+                                  ✓ BUZZSPROUT ↗
+                                </a>
+                              ) : (
+                                <button
+                                  className="btn-sm"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (!buzzsproutStatus?.connected) {
+                                      showToast("Configure Buzzsprout in Settings first", "error"); return;
+                                    }
+                                    setBuzzsproutUploading(p => ({ ...p, [v.id]: true }));
+                                    try {
+                                      await uploadToBuzzsprout(v.id);
+                                      showToast("Uploading to Buzzsprout — processing in background");
+                                      setTimeout(refresh, 4000);
+                                    } catch (err) {
+                                      showToast(err?.response?.data?.detail || "Buzzsprout upload failed", "error");
+                                    } finally {
+                                      setBuzzsproutUploading(p => ({ ...p, [v.id]: false }));
+                                    }
+                                  }}
+                                  disabled={buzzsproutUploading[v.id]}
+                                  style={{
+                                    color: "#1db954",
+                                    borderColor: "rgba(29,185,84,0.3)",
+                                    background: "rgba(29,185,84,0.07)",
+                                    opacity: buzzsproutUploading[v.id] ? 0.6 : 1,
+                                    cursor: buzzsproutUploading[v.id] ? "default" : "pointer",
+                                  }}
+                                  title={buzzsproutStatus?.connected ? "Upload to Buzzsprout → distributes to Spotify" : "Connect Buzzsprout in Settings"}
+                                >
+                                  {buzzsproutUploading[v.id] ? "⟳ Uploading..." : "🎙 BUZZSPROUT"}
+                                </button>
+                              )
                             ) : (
                               <button
                                 className="btn-sm"
@@ -8382,6 +8438,144 @@ export default function Dashboard() {
                         ))}
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* ── Buzzsprout ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>BUZZSPROUT — PODCAST HOSTING</div>
+                  <div style={{ background: T.bgCard, border: `1px solid ${buzzsproutStatus?.connected ? "rgba(29,185,84,0.35)" : T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+
+                    {/* Header row */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
+                          {buzzsproutStatus?.connected ? `✅ ${buzzsproutStatus.title || "Connected"}` : "🎙 Buzzsprout"}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                          {buzzsproutStatus?.connected
+                            ? `${buzzsproutStatus.episode_count ?? 0} episodes · auto-distributes to Spotify, Apple, Amazon`
+                            : "Upload podcast episodes → Spotify keeps monetization intact"}
+                        </div>
+                      </div>
+                      {buzzsproutStatus?.connected && (
+                        <span style={{ padding: "3px 10px", borderRadius: 20, background: "rgba(29,185,84,0.1)", border: "1px solid rgba(29,185,84,0.25)", color: "#1db954", fontSize: 10, letterSpacing: "0.07em", whiteSpace: "nowrap" }}>
+                          CONNECTED
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Recent episodes (when connected) */}
+                    {buzzsproutStatus?.connected && buzzsproutStatus.recent_episodes?.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>RECENT EPISODES</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          {buzzsproutStatus.recent_episodes.slice(0, 3).map(ep => (
+                            <a key={ep.id} href={ep.url} target="_blank" rel="noopener noreferrer"
+                              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: T.bgBase, borderRadius: 6, textDecoration: "none", gap: 8 }}>
+                              <span style={{ fontSize: 11, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.title}</span>
+                              <span style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>
+                                {ep.duration ? `${Math.floor(ep.duration / 60)}m` : "—"}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Config form */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 4 }}>API TOKEN</div>
+                        <input
+                          type="password"
+                          placeholder="Paste your Buzzsprout API token..."
+                          value={buzzsproutSettings.api_token}
+                          onChange={e => setBuzzsproutSettings(s => ({ ...s, api_token: e.target.value }))}
+                          style={{ width: "100%", padding: "8px 10px", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+                        />
+                        <div style={{ fontSize: 9, color: T.textFaint, marginTop: 3 }}>
+                          Find it at: buzzsprout.com → Account → API → Token
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 4 }}>PODCAST ID</div>
+                        <input
+                          type="text"
+                          placeholder="e.g. 2345678"
+                          value={buzzsproutSettings.podcast_id}
+                          onChange={e => setBuzzsproutSettings(s => ({ ...s, podcast_id: e.target.value }))}
+                          style={{ width: "100%", padding: "8px 10px", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+                        />
+                        <div style={{ fontSize: 9, color: T.textFaint, marginTop: 3 }}>
+                          Found in your Buzzsprout dashboard URL: buzzsprout.com/<b style={{ color: T.textDim }}>YOUR_ID</b>/episodes
+                        </div>
+                      </div>
+
+                      {/* Auto-upload toggle */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: T.bgBase, borderRadius: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>Auto-upload on generate</div>
+                          <div style={{ fontSize: 10, color: T.textFaint, marginTop: 1 }}>Push to Buzzsprout automatically when a podcast episode completes</div>
+                        </div>
+                        <div
+                          onClick={() => setBuzzsproutSettings(s => ({ ...s, auto_upload: !s.auto_upload }))}
+                          style={{
+                            width: 38, height: 20, borderRadius: 10, cursor: "pointer", flexShrink: 0,
+                            background: buzzsproutSettings.auto_upload ? "#1db954" : T.border,
+                            position: "relative", transition: "background 0.2s",
+                          }}
+                        >
+                          <div style={{
+                            width: 14, height: 14, borderRadius: "50%", background: "#fff",
+                            position: "absolute", top: 3,
+                            left: buzzsproutSettings.auto_upload ? 21 : 3,
+                            transition: "left 0.2s",
+                          }} />
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                        <button
+                          onClick={async () => {
+                            setBuzzsproutSaving(true);
+                            try {
+                              await saveBuzzsproutSettings(buzzsproutSettings);
+                              showToast("Buzzsprout settings saved");
+                              const s = await getBuzzsproutStatus();
+                              setBuzzsproutStatus(s);
+                            } catch (e) {
+                              showToast("Failed to save settings", "error");
+                            } finally {
+                              setBuzzsproutSaving(false);
+                            }
+                          }}
+                          disabled={buzzsproutSaving}
+                          style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: "1px solid rgba(29,185,84,0.4)", background: "rgba(29,185,84,0.1)", color: "#1db954", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", fontWeight: 700 }}
+                        >
+                          {buzzsproutSaving ? "SAVING..." : "SAVE"}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setBuzzsproutTesting(true);
+                            try {
+                              const s = await getBuzzsproutStatus();
+                              setBuzzsproutStatus(s);
+                              showToast(s.connected ? `✅ Connected: ${s.title}` : "Connection failed — check token and ID", s.connected ? "success" : "error");
+                            } catch {
+                              showToast("Connection test failed", "error");
+                            } finally {
+                              setBuzzsproutTesting(false);
+                            }
+                          }}
+                          disabled={buzzsproutTesting}
+                          style={{ padding: "8px 14px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}
+                        >
+                          {buzzsproutTesting ? "..." : "TEST"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
