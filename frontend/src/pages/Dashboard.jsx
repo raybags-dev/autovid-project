@@ -1844,6 +1844,27 @@ export default function Dashboard() {
               </div>
             ))}
             <LegalNavDropdown T={T} />
+            <div
+              style={{
+                marginTop: 8,
+                padding: "8px 10px",
+                borderRadius: 8,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 13,
+                color: T.textFaint,
+                transition: "background 0.15s, color 0.15s",
+              }}
+              onClick={() => window.open("/docs", "_blank")}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(0,180,255,0.06)"; e.currentTarget.style.color = T.accent; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textFaint; }}
+            >
+              <span style={{ fontSize: 13 }}>📖</span>
+              <span>Docs &amp; API</span>
+              <span style={{ marginLeft: "auto", fontSize: 9, opacity: 0.5 }}>↗</span>
+            </div>
           </nav>
 
           {quota.uploads_remaining !== undefined && (
