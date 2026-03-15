@@ -514,10 +514,11 @@ def retry_failed(video_id: str, cb=None) -> dict:
 SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
 
 
-def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "ambient", music_volume: float = 0.06, angle: str = None) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, angle: str = None, custom_script: str = None) -> dict:
     """
     YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
+    custom_script: optional pre-written narration text — skips LLM script generation.
     """
     from pipeline.shorts_generator import generate_short_visual
     from pipeline.script_gen import generate_short_script
@@ -534,16 +535,33 @@ def run_short_pipeline(prompt: str, ambience: str = "stars", video_id: str = Non
         db.update_video(video_id, labels=["short", "Shorts", "AI"], status="generating")
         _log("START", f"Short pipeline | ID: {video_id[:8]}...", cb)
 
-        # 2. Script — concise, targeting ~200 words for 90s
-        _log("SCRIPT", f"Generating short script for: '{prompt}'" + (f" [{angle[:30]}...]" if angle else ""), cb)
-        script_data = generate_short_script(prompt, angle=angle)
-        db.set_script(
-            video_id,
-            title=script_data["title"],
-            description=script_data["description"],
-            script=script_data["full_narration"],
-        )
-        _log("SCRIPT", f"✅ Script ready — {len(script_data['full_narration'].split())} words (~{script_data['estimated_duration']}s)", cb)
+        # 2. Script — either LLM-generated or custom
+        if custom_script and custom_script.strip():
+            _log("SCRIPT", "Using custom script (bypassing LLM generation)...", cb)
+            words = custom_script.strip().split()
+            estimated_duration = max(30, int((len(words) / 150) * 60))
+            narration = custom_script.strip() + "  . . ."
+            script_data = {
+                "title": f"[Short] {prompt[:80]}",
+                "description": prompt,
+                "full_narration": narration,
+                "estimated_duration": estimated_duration,
+                "is_short": True,
+                "suggested_labels": ["Shorts", "AI"],
+                "category": "Education",
+            }
+            db.set_script(video_id, title=script_data["title"], description=script_data["description"], script=narration)
+            _log("SCRIPT", f"✅ Custom script ready — {len(words)} words (~{estimated_duration}s)", cb)
+        else:
+            _log("SCRIPT", f"Generating short script for: '{prompt}'" + (f" [{angle[:30]}...]" if angle else ""), cb)
+            script_data = generate_short_script(prompt, angle=angle)
+            db.set_script(
+                video_id,
+                title=script_data["title"],
+                description=script_data["description"],
+                script=script_data["full_narration"],
+            )
+            _log("SCRIPT", f"✅ Script ready — {len(script_data['full_narration'].split())} words (~{script_data['estimated_duration']}s)", cb)
 
         # 3. Voice
         _log("VOICE", "Synthesizing audio narration...", cb)

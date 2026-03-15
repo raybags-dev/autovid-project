@@ -979,11 +979,13 @@ def trigger_auto_generate(user: str = Depends(verify_token)):
 # ── Auto-Short Settings ──────────────────────────────────────────────────────
 
 class AutoShortSettings(BaseModel):
-    enabled:  bool
-    days:     list
-    topics:   list
-    hour:     int
-    ambience: str = "aurora"
+    enabled:      bool
+    days:         list
+    topics:       list
+    hour:         int
+    ambience:     str = "rain"
+    music_style:  str = "Laidback_Fevorite"
+    music_volume: float = 0.04
 
 @app.get("/auto-short/settings")
 def get_auto_short_settings_endpoint(user: str = Depends(verify_token)):
@@ -994,11 +996,13 @@ def get_auto_short_settings_endpoint(user: str = Depends(verify_token)):
 def save_auto_short_settings_endpoint(req: AutoShortSettings, user: str = Depends(verify_token)):
     from pipeline.auto_generator import save_auto_short_settings
     settings = {
-        "enabled":  req.enabled,
-        "days":     req.days,
-        "topics":   req.topics,
-        "hour":     req.hour,
-        "ambience": req.ambience,
+        "enabled":      req.enabled,
+        "days":         req.days,
+        "topics":       req.topics,
+        "hour":         req.hour,
+        "ambience":     req.ambience,
+        "music_style":  req.music_style,
+        "music_volume": req.music_volume,
     }
     save_auto_short_settings(settings)
     return {"message": "Auto-short settings saved", "settings": settings}
@@ -1015,8 +1019,9 @@ def trigger_auto_short(user: str = Depends(verify_token)):
         raise HTTPException(status_code=400, detail="No topics configured in auto-short settings")
 
     topic, angle = _pick_next_short_topic(topics)
-    ambience     = settings.get("ambience", "aurora")
-    music_style  = settings.get("music_style", "ambient")
+    ambience     = settings.get("ambience", "rain")
+    music_style  = settings.get("music_style", "Laidback_Fevorite")
+    music_volume = float(settings.get("music_volume", 0.04))
 
     record   = db.create_video(f"[Short] {topic}")
     video_id = record["id"]
@@ -1030,7 +1035,7 @@ def trigger_auto_short(user: str = Depends(verify_token)):
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline
-            run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, angle=angle)
+            run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, angle=angle)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -1651,6 +1656,10 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
             import os
             if os.path.exists(short_path):
                 os.unlink(short_path)
+            # Mark source video so it won't be used again
+            current_labels = video.get("labels") or []
+            if "used_for_short" not in current_labels:
+                db.update_video(video_id, labels=current_labels + ["used_for_short"])
             _push_log(video_id, "[4/4] Done — short is ready.")
             _push_log(video_id, "__DONE__")
             print(f"✅ Short saved to Supabase: {storage_url}")
@@ -1669,23 +1678,26 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
 @app.post("/shorts/generate")
 def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = Depends(verify_token)):
     """Generate a brand-new YouTube Short from scratch (portrait 9:16)."""
-    prompt = body.get("prompt", "")
-    ambience = body.get("ambience", "stars")
-    music_style  = body.get("music_style", "Birds_Atmosphere_Piano")
-    music_volume = float(body.get("music_volume", 0.01))
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt required")
+    prompt        = body.get("prompt", "")
+    ambience      = body.get("ambience", "rain")
+    music_style   = body.get("music_style", "Laidback_Fevorite")
+    music_volume  = float(body.get("music_volume", 0.04))
+    custom_script = body.get("custom_script", "").strip() if body.get("custom_script") else ""
+    if not prompt and not custom_script:
+        raise HTTPException(status_code=400, detail="Prompt or custom_script required")
 
-    # Duplicate check — block identical prompt from being run again
-    existing = db.get_client().table("videos").select("id, status") \
-        .ilike("title", f"[Short] {prompt}").limit(1).execute().data
-    if existing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"A short with this prompt already exists (id: {existing[0]['id']}, status: {existing[0]['status']}). Edit the prompt to make it unique."
-        )
+    # Duplicate check — only for prompt-based generation (not custom scripts)
+    if prompt and not custom_script:
+        existing = db.get_client().table("videos").select("id, status") \
+            .ilike("title", f"[Short] {prompt}").limit(1).execute().data
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A short with this prompt already exists (id: {existing[0]['id']}, status: {existing[0]['status']}). Edit the prompt to make it unique."
+            )
 
-    record   = db.create_video(f"[Short] {prompt}")
+    label = prompt or "Custom Script"
+    record   = db.create_video(f"[Short] {label[:100]}")
     video_id = record["id"]
     _register_pipeline(video_id)
 
@@ -1697,7 +1709,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-            _short_pipeline(prompt=prompt, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume)
+            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, custom_script=custom_script or None)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")

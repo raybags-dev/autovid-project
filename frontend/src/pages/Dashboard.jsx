@@ -404,9 +404,9 @@ export default function Dashboard() {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [profile, setProfile] = useState("educational");
-  const [visualMood, setVisualMood] = useState("stars");
-  const [musicStyle, setMusicStyle] = useState("Birds_Atmosphere_Piano");
-  const [musicVolume, setMusicVolume] = useState(0.01); // 0.0–0.5; default 1%
+  const [visualMood, setVisualMood] = useState("rain");
+  const [musicStyle, setMusicStyle] = useState("Laidback_Fevorite");
+  const [musicVolume, setMusicVolume] = useState(0.04); // 0.0–0.5; default 4%
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
@@ -455,9 +455,11 @@ export default function Dashboard() {
   const [showGenLogs, setShowGenLogs] = useState(false);
   const genLogsEndRef = useRef(null);
   const [shortPrompt, setShortPrompt] = useState("");
-  const [shortAmbience, setShortAmbience] = useState("stars");
-  const [shortMusicStyle, setShortMusicStyle] = useState("Birds_Atmosphere_Piano");
-  const [shortMusicVolume, setShortMusicVolume] = useState(0.01);
+  const [shortScriptMode, setShortScriptMode] = useState("prompt"); // "prompt" | "custom"
+  const [shortCustomScript, setShortCustomScript] = useState("");
+  const [shortAmbience, setShortAmbience] = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").ambience || "rain"; } catch { return "rain"; } });
+  const [shortMusicStyle, setShortMusicStyle] = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_style || "Laidback_Fevorite"; } catch { return "Laidback_Fevorite"; } });
+  const [shortMusicVolume, setShortMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
   const [shortGenerating, setShortGenerating] = useState(false);
   const [shortGenError, setShortGenError] = useState("");
   const [shortLogs, setShortLogs] = useState([]);
@@ -742,7 +744,8 @@ export default function Dashboard() {
   const SHORT_STEP_MAP = { generating: 1, scripted: 2, voiced: 3, assembled: 4, captioned: 5, labeled: 5, ready: 6, posted: 6 };
 
   const handleGenerateShort = async () => {
-    if (!shortPrompt.trim() || shortGenerating) return;
+    const hasInput = shortScriptMode === "custom" ? shortCustomScript.trim() : shortPrompt.trim();
+    if (!hasInput || shortGenerating) return;
     setShortGenError("");
     setShortGenerating(true);
     setShortPipeStep(1);
@@ -752,8 +755,22 @@ export default function Dashboard() {
     setShortLogs([]);
     shortLogLineRef.current = 0;
     setShortLogVideoId(null);
+
+    // Save current config globally (localStorage + backend auto-short settings)
+    const cfg = { ambience: shortAmbience, music_style: shortMusicStyle, music_volume: shortMusicVolume };
+    try { localStorage.setItem("autovid_shorts_cfg", JSON.stringify(cfg)); } catch {}
+    if (autoShortSettings) {
+      const updated = { ...autoShortSettings, ambience: shortAmbience, music_style: shortMusicStyle, music_volume: shortMusicVolume };
+      saveAutoShortSettings(updated).catch(() => {});
+      setAutoShortSettings(updated);
+    }
+
     try {
-      const res = await generateShortFromScratch(shortPrompt.trim(), shortAmbience, shortMusicStyle, shortMusicVolume);
+      const res = await generateShortFromScratch(
+        shortScriptMode === "custom" ? shortCustomScript.trim().slice(0, 200) : shortPrompt.trim(),
+        shortAmbience, shortMusicStyle, shortMusicVolume,
+        shortScriptMode === "custom" ? shortCustomScript.trim() : "",
+      );
       const vid = res?.video_id;
       setShortPrompt("");
       showToast("Short generation started!");
@@ -929,7 +946,15 @@ export default function Dashboard() {
         setAutoGenSettings(r.data);
       })
       .catch(() => {});
-    api.get("/auto-short/settings").then(r => setAutoShortSettings(r.data)).catch(() => {});
+    api.get("/auto-short/settings").then(r => {
+      const cfg = (() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}"); } catch { return {}; } })();
+      setAutoShortSettings({
+        ...r.data,
+        ambience:     r.data.ambience     || cfg.ambience     || "rain",
+        music_style:  r.data.music_style  || cfg.music_style  || "Laidback_Fevorite",
+        music_volume: r.data.music_volume !== undefined ? r.data.music_volume : (cfg.music_volume ?? 0.04),
+      });
+    }).catch(() => {});
     getPodcastSettings().then(r => setPodcastSettings(r)).catch(() => {});
     getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {});
     getSpotifyStatus().then(r => {
@@ -4151,15 +4176,42 @@ export default function Dashboard() {
           </div>
           {!shortGenerating && shortPipeStep === 0 && (
             <>
+              {/* Mode toggle */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                {[{ v: "prompt", label: "✨ AI Prompt" }, { v: "custom", label: "✍ Custom Script" }].map(m => (
+                  <button key={m.v} onClick={() => setShortScriptMode(m.v)} style={{ flex: 1, padding: "6px 0", borderRadius: 7, fontSize: 10, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.06em", border: `1px solid ${shortScriptMode === m.v ? T.accent + "80" : T.border}`, background: shortScriptMode === m.v ? `${T.accent}15` : "transparent", color: shortScriptMode === m.v ? T.accent : T.textFaint, fontWeight: shortScriptMode === m.v ? 700 : 400 }}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>TOPIC / PROMPT</div>
-                <textarea
-                  value={shortPrompt}
-                  onChange={e => setShortPrompt(e.target.value)}
-                  rows={3}
-                  placeholder="e.g. 'The quiet grief nobody talks about'"
-                  style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
-                />
+                {shortScriptMode === "prompt" ? (
+                  <>
+                    <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>TOPIC / PROMPT</div>
+                    <textarea
+                      value={shortPrompt}
+                      onChange={e => setShortPrompt(e.target.value)}
+                      rows={3}
+                      placeholder="e.g. 'The quiet grief nobody talks about'"
+                      style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 4 }}>CUSTOM SCRIPT</div>
+                    <div style={{ fontSize: 10, color: T.textDim, marginBottom: 6 }}>Write your full narration text. Target ~180-210 words for a 90-second Short.</div>
+                    <textarea
+                      value={shortCustomScript}
+                      onChange={e => setShortCustomScript(e.target.value)}
+                      rows={7}
+                      placeholder="Write your script here... The AI voice will narrate this exactly as written. Use commas and ellipsis (...) for natural pauses."
+                      style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.6 }}
+                    />
+                    <div style={{ fontSize: 9, color: T.textFaint, marginTop: 4, textAlign: "right" }}>
+                      {shortCustomScript.trim().split(/\s+/).filter(Boolean).length} words
+                    </div>
+                  </>
+                )}
               </div>
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>AMBIENCE</div>
@@ -4215,9 +4267,15 @@ export default function Dashboard() {
             </>
           )}
           {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
-          <button onClick={handleGenerateShort} disabled={shortGenerating || !shortPrompt.trim()} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortGenerating || !shortPrompt.trim() ? T.border : T.accent, color: shortGenerating || !shortPrompt.trim() ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortGenerating || !shortPrompt.trim() ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
-            {shortGenerating ? "⚡ GENERATING..." : "⚡ GENERATE SHORT"}
-          </button>
+          {(() => {
+            const hasInput = shortScriptMode === "custom" ? shortCustomScript.trim() : shortPrompt.trim();
+            const disabled = shortGenerating || !hasInput;
+            return (
+              <button onClick={handleGenerateShort} disabled={disabled} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: disabled ? T.border : T.accent, color: disabled ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: disabled ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+                {shortGenerating ? "⚡ GENERATING..." : "⚡ GENERATE SHORT"}
+              </button>
+            );
+          })()}
 
           {/* ── Progress panel (same style as Video Studio) ── */}
           {(shortGenerating || shortPipeStep > 0) && shortLogVideoId && (
@@ -4329,9 +4387,16 @@ export default function Dashboard() {
               style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
             >
               <option value="">— Pick a video —</option>
-              {videos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path).map(v => (
+              {videos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path && !(v.labels || []).includes("used_for_short")).map(v => (
                 <option key={v.id} value={v.id}>{v.title || v.id.slice(0,16)}</option>
               ))}
+              {videos.filter(v => (v.labels || []).includes("used_for_short") && v.file_path).length > 0 && (
+                <optgroup label="Already used for a Short">
+                  {videos.filter(v => (v.labels || []).includes("used_for_short") && v.file_path).map(v => (
+                    <option key={v.id} value={v.id} disabled style={{ color: "#888" }}>⛔ {v.title || v.id.slice(0,16)}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
           <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16, padding: "10px 12px", background: T.bgSub, borderRadius: 8, lineHeight: 1.6 }}>
@@ -7525,6 +7590,41 @@ export default function Dashboard() {
                         </div>
                       </div>
 
+                      {/* Music selector */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>BACKGROUND MUSIC</div>
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+                          {[
+                            { id: "Birds_Atmosphere_Piano", label: "🌙 Birds & Piano" },
+                            { id: "Birds_Atmosphere_Wing",  label: "🍃 Birds & Wing" },
+                            { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav" },
+                            { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
+                            { id: "Pads",                   label: "🎵 Pads" },
+                            { id: "none",                   label: "🔇 None" },
+                          ].map(m => (
+                            <button key={m.id}
+                              onClick={() => setAutoShortSettings(s => ({ ...s, music_style: m.id }))}
+                              style={{
+                                padding: "5px 10px", borderRadius: 6, cursor: "pointer",
+                                border: `1px solid ${(autoShortSettings.music_style || "Laidback_Fevorite") === m.id ? T.accentGreen + "80" : T.border}`,
+                                background: (autoShortSettings.music_style || "Laidback_Fevorite") === m.id ? `${T.accentGreen}10` : "transparent",
+                                color: (autoShortSettings.music_style || "Laidback_Fevorite") === m.id ? T.accentGreen : T.textFaint,
+                                fontSize: 9, fontFamily: "inherit",
+                              }}
+                            >{m.label}</button>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>VOL</div>
+                          <input type="range" min={0} max={0.5} step={0.01}
+                            value={autoShortSettings.music_volume ?? 0.04}
+                            onChange={e => setAutoShortSettings(s => ({ ...s, music_volume: parseFloat(e.target.value) }))}
+                            style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+                          />
+                          <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round((autoShortSettings.music_volume ?? 0.04) * 100)}%</div>
+                        </div>
+                      </div>
+
                       {/* Save + Run Now */}
                       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                         <button
@@ -7532,6 +7632,9 @@ export default function Dashboard() {
                             setAutoShortSaving(true);
                             try {
                               await saveAutoShortSettings(autoShortSettings);
+                              // Sync to global shorts config in localStorage
+                              const cfg = { ambience: autoShortSettings.ambience, music_style: autoShortSettings.music_style, music_volume: autoShortSettings.music_volume };
+                              try { localStorage.setItem("autovid_shorts_cfg", JSON.stringify(cfg)); } catch {}
                               showToast("Auto-short settings saved");
                             } catch (e) {
                               showToast("Failed to save", "error");

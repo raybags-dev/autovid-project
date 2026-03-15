@@ -47,9 +47,9 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
   const [title, setTitle]     = useState("");
   const [script, setScript]   = useState("");
   const [profile, setProfile] = useState("educational");
-  const [mood, setMood]       = useState("stars");
-  const [music, setMusic]         = useState("Birds_Atmosphere_Piano");
-  const [musicVolume, setMusicVolume] = useState(0.01);
+  const [mood, setMood]       = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").ambience || "rain"; } catch { return "rain"; } });
+  const [music, setMusic]         = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_style || "Laidback_Fevorite"; } catch { return "Laidback_Fevorite"; } });
+  const [musicVolume, setMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep]   = useState(0);
   const [jobId, setJobId]         = useState(null);
@@ -61,6 +61,10 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
   const logPollRef = useRef(null);
   const logLineRef = useRef(0);
   const logsEndRef = useRef(null);
+
+  const saveShortsConfig = (ambience, music_style, music_volume) => {
+    try { localStorage.setItem("autovid_shorts_cfg", JSON.stringify({ ambience, music_style, music_volume })); } catch {}
+  };
 
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
   const estMins   = Math.round(wordCount / 140);
@@ -163,7 +167,7 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
     const isSelected = mood === v.id;
     return (
       <button
-        onClick={() => setMood(v.id)}
+        onClick={() => { setMood(v.id); saveShortsConfig(v.id, music, musicVolume); }}
         disabled={running}
         style={{
           padding: "8px 10px", borderRadius: 8,
@@ -184,7 +188,7 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
     const isSelected = music === m.id;
     return (
       <button
-        onClick={() => setMusic(m.id)}
+        onClick={() => { setMusic(m.id); saveShortsConfig(mood, m.id, musicVolume); }}
         disabled={running}
         style={{
           display: "flex",
@@ -750,7 +754,7 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
               <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0, letterSpacing: "0.08em" }}>VOL</div>
               <input type="range" min={0} max={0.5} step={0.01}
                 value={musicVolume}
-                onChange={e => setMusicVolume(parseFloat(e.target.value))}
+                onChange={e => { const v = parseFloat(e.target.value); setMusicVolume(v); saveShortsConfig(mood, music, v); }}
                 disabled={running}
                 style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
               />
