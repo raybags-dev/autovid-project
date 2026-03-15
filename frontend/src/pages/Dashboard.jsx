@@ -49,6 +49,8 @@ import api, {
   getPodbeanSettings,
   savePodbeanSettings,
   uploadToPodbean,
+  getSubscriptions,
+  saveSubscriptions,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -1057,6 +1059,7 @@ export default function Dashboard() {
         client_secret: r.client_secret_set ? (s.client_secret || "••••••••") : "",
         auto_upload:   r.auto_upload   || false,
       }))).catch(() => {});
+      getSubscriptions().then(r => setSubscriptions(Array.isArray(r) ? r : [])).catch(() => {});
     }
   }, [tab]);
 
@@ -1219,6 +1222,11 @@ export default function Dashboard() {
   const [podbeanSaving, setPodbeanSaving] = useState(false);
   const [podbeanTesting, setPodbeanTesting] = useState(false);
   const [podbeanUploading, setPodbeanUploading] = useState({});
+  // Subscriptions / expenditure tracker
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subsSaving, setSubsSaving] = useState(false);
+  const [showAddSub, setShowAddSub] = useState(false);
+  const [newSub, setNewSub] = useState({ name: "", cost: "", currency: "USD", cycle: "monthly", next_billing: "" });
   const [autoShortJobId, setAutoShortJobId] = useState(null);
   const [autoShortPrompt, setAutoShortPrompt] = useState("");
   const [autoShortStep, setAutoShortStep] = useState(0);
@@ -8790,6 +8798,156 @@ export default function Dashboard() {
                       <span style={{ fontSize: 11, color: T.textMid }}>{v}</span>
                     </div>
                   ))}
+                  {/* ── Subscriptions Card ── */}
+                  {(() => {
+                    const toMonthly = (cost, cycle) => {
+                      const c = parseFloat(cost) || 0;
+                      if (cycle === "yearly")  return c / 12;
+                      if (cycle === "weekly")  return c * 4.33;
+                      if (cycle === "daily")   return c * 30;
+                      return c; // monthly
+                    };
+                    const totalMonthly = subscriptions.reduce((sum, s) => sum + toMonthly(s.cost, s.cycle), 0);
+                    const fmtCost = (cost, currency) => {
+                      const sym = currency === "USD" ? "$" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency + " ";
+                      return `${sym}${parseFloat(cost || 0).toFixed(2)}`;
+                    };
+
+                    const handleAddSub = async () => {
+                      if (!newSub.name.trim() || !newSub.cost) return;
+                      const updated = [...subscriptions, { ...newSub, id: Date.now().toString(), cost: parseFloat(newSub.cost) }];
+                      setSubsSaving(true);
+                      try {
+                        await saveSubscriptions(updated);
+                        setSubscriptions(updated);
+                        setNewSub({ name: "", cost: "", currency: "USD", cycle: "monthly", next_billing: "" });
+                        setShowAddSub(false);
+                      } catch { showToast("Failed to save", "error"); }
+                      finally { setSubsSaving(false); }
+                    };
+
+                    const handleDeleteSub = async (id) => {
+                      const updated = subscriptions.filter(s => s.id !== id);
+                      try {
+                        await saveSubscriptions(updated);
+                        setSubscriptions(updated);
+                      } catch { showToast("Failed to delete", "error"); }
+                    };
+
+                    const cycleLabel = { monthly: "/mo", yearly: "/yr", weekly: "/wk", daily: "/day" };
+
+                    return (
+                      <div style={{ marginTop: 20 }}>
+                        <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SUBSCRIPTIONS & SPEND</div>
+                        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+
+                          {/* Header with total */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>💳 Monthly Spend</div>
+                              <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>Track your service subscriptions</div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: T.accentYellow, fontFamily: "'Syne',sans-serif" }}>
+                                ${totalMonthly.toFixed(2)}
+                              </div>
+                              <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em" }}>/ MONTH</div>
+                            </div>
+                          </div>
+
+                          {/* Subscription list */}
+                          {subscriptions.length > 0 && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
+                              {subscriptions.map(s => (
+                                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: T.bgBase, borderRadius: 7 }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 12, color: T.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
+                                    {s.next_billing && (
+                                      <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>
+                                        next: {s.next_billing}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                    <div style={{ fontSize: 12, color: T.accentGreen, fontWeight: 700 }}>
+                                      {fmtCost(s.cost, s.currency)}<span style={{ fontSize: 9, color: T.textFaint }}>{cycleLabel[s.cycle] || "/mo"}</span>
+                                    </div>
+                                    {s.cycle !== "monthly" && (
+                                      <div style={{ fontSize: 9, color: T.textFaint }}>
+                                        ≈ ${toMonthly(s.cost, s.cycle).toFixed(2)}/mo
+                                      </div>
+                                    )}
+                                  </div>
+                                  <button onClick={() => handleDeleteSub(s.id)}
+                                    style={{ background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 14, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}
+                                    title="Remove">×</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {subscriptions.length === 0 && !showAddSub && (
+                            <div style={{ textAlign: "center", padding: "16px 0", color: T.textFaint, fontSize: 11 }}>No subscriptions yet</div>
+                          )}
+
+                          {/* Add form */}
+                          {showAddSub && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 10, padding: "12px", background: T.bgBase, borderRadius: 8 }}>
+                              <input
+                                placeholder="Service name (e.g. ElevenLabs)"
+                                value={newSub.name}
+                                onChange={e => setNewSub(s => ({ ...s, name: e.target.value }))}
+                                style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                              />
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <input
+                                  placeholder="Cost"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={newSub.cost}
+                                  onChange={e => setNewSub(s => ({ ...s, cost: e.target.value }))}
+                                  style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                                />
+                                <select value={newSub.currency} onChange={e => setNewSub(s => ({ ...s, currency: e.target.value }))}
+                                  style={{ padding: "7px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 11, fontFamily: "inherit", cursor: "pointer" }}>
+                                  {["USD","EUR","GBP","CAD","AUD"].map(c => <option key={c}>{c}</option>)}
+                                </select>
+                                <select value={newSub.cycle} onChange={e => setNewSub(s => ({ ...s, cycle: e.target.value }))}
+                                  style={{ padding: "7px 8px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 11, fontFamily: "inherit", cursor: "pointer" }}>
+                                  {["monthly","yearly","weekly","daily"].map(c => <option key={c}>{c}</option>)}
+                                </select>
+                              </div>
+                              <input
+                                placeholder="Next billing date (e.g. 2026-04-01)"
+                                value={newSub.next_billing}
+                                onChange={e => setNewSub(s => ({ ...s, next_billing: e.target.value }))}
+                                style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                              />
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button onClick={handleAddSub} disabled={subsSaving || !newSub.name.trim() || !newSub.cost}
+                                  style={{ flex: 1, padding: "8px 0", borderRadius: 6, border: `1px solid ${T.accentYellow}55`, background: `${T.accentYellow}18`, color: T.accentYellow, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", fontWeight: 700 }}>
+                                  {subsSaving ? "SAVING..." : "ADD"}
+                                </button>
+                                <button onClick={() => setShowAddSub(false)}
+                                  style={{ padding: "8px 14px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                                  CANCEL
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {!showAddSub && (
+                            <button onClick={() => setShowAddSub(true)}
+                              style={{ width: "100%", padding: "8px 0", borderRadius: 7, border: `1px dashed ${T.border}`, background: "transparent", color: T.textDim, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}>
+                              + ADD SUBSCRIPTION
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                 </div>{/* end RIGHT COLUMN */}
 
               </div>
