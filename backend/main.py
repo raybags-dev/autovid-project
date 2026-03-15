@@ -310,47 +310,25 @@ def generate_video(
         msg  = info.get("message", "") if isinstance(info, dict) else ""
         _push_log(video_id, f"[{step}] {msg}")
 
-    # ── Try Celery queue first (FIFO, one job at a time) ─────────────────────
-    _queued = False
-    try:
-        from workers.celery_worker import run_video_pipeline as _celery_task
-        _celery_task.apply_async(
-            kwargs=dict(
+    def _run():
+        try:
+            run_pipeline(
                 prompt=req.prompt,
                 auto_upload=req.auto_upload,
                 profile=req.profile,
                 visual_mood=req.visual_mood,
                 music_style=req.music_style,
                 music_volume=req.music_volume,
+                progress_callback=_cb,
                 video_id=video_id,
-            ),
-            queue="autovid",
-            task_id=video_id,
-        )
-        _queued = True
-    except Exception as _ce:
-        print(f"⚠️  Celery unavailable ({_ce}), falling back to background thread")
+            )
+        except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+        finally:
+            _push_log(video_id, "__DONE__")
+            _unregister_pipeline(video_id)
 
-    if not _queued:
-        def _run():
-            try:
-                run_pipeline(
-                    prompt=req.prompt,
-                    auto_upload=req.auto_upload,
-                    profile=req.profile,
-                    visual_mood=req.visual_mood,
-                    music_style=req.music_style,
-                    music_volume=req.music_volume,
-                    progress_callback=_cb,
-                    video_id=video_id,
-                )
-            except Exception as e:
-                _push_log(video_id, f"[ERROR] {e}")
-            finally:
-                _push_log(video_id, "__DONE__")
-                _unregister_pipeline(video_id)
-
-        background_tasks.add_task(_run)
+    background_tasks.add_task(_run)
 
     return {"message": "Pipeline started", "prompt": req.prompt, "status": "generating", "video_id": video_id}
 
@@ -979,7 +957,7 @@ def trigger_auto_generate(user: str = Depends(verify_token)):
                 prompt=prompt,
                 profile=profile,
                 auto_upload=False,
-                music_style="ambient",
+                music_style="Birds_Atmosphere_Piano",
                 video_id=video_id,
                 progress_callback=_cb,
             )

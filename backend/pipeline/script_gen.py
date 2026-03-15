@@ -192,7 +192,8 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
     all_lines = [script_data["hook"]]
     all_lines += [seg["text"] for seg in script_data["segments"]]
     all_lines.append(script_data["outro"])
-    script_data["full_narration"] = " ".join(all_lines)
+    # Trailing silence markers prevent ElevenLabs from fading the voice at the end
+    script_data["full_narration"] = " ".join(all_lines) + "  . . ."
 
     # Estimate total duration (rough: 140 words per minute)
     word_count = len(script_data["full_narration"].split())
@@ -312,7 +313,8 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
     all_lines = [script_data["hook"]]
     all_lines += [seg["text"] for seg in script_data["segments"]]
     all_lines.append(script_data["outro"])
-    script_data["full_narration"] = " ".join(all_lines)
+    # Trailing silence markers prevent ElevenLabs from fading the voice at the end
+    script_data["full_narration"] = " ".join(all_lines) + "  . . ."
 
     word_count = len(script_data["full_narration"].split())
     script_data["estimated_duration"] = int((word_count / 150) * 60)
