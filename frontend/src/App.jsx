@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import CookiePolicy from "./pages/CookiePolicy";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import Docs from "./pages/Docs";
 
 export default function App() {
   return (
@@ -23,6 +24,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/docs"
+            element={
+              <ProtectedRoute>
+                <Docs />
               </ProtectedRoute>
             }
           />
