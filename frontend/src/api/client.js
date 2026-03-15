@@ -175,8 +175,8 @@ export const createShortFromVideo = async (id) => {
   return data;
 };
 
-export const generateShortFromScratch = async (prompt, ambience = "stars", music_style = "Birds_Atmosphere_Piano", music_volume = 0.01) => {
-  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume });
+export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, custom_script = "") => {
+  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, custom_script });
   return data;
 };
 
