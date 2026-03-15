@@ -11,6 +11,7 @@ from typing import Optional
 import jwt
 import time
 import threading as _threading
+from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
 
 import hashlib
 
@@ -346,9 +347,9 @@ def generate_video(
             _push_log(video_id, "__DONE__")
             _unregister_pipeline(video_id)
 
-    background_tasks.add_task(_run)
+    pos = _queue_pipeline(_run)
 
-    return {"message": "Pipeline started", "prompt": req.prompt, "status": "generating", "video_id": video_id}
+    return {"message": "Pipeline queued" if pos > 1 else "Pipeline started", "prompt": req.prompt, "status": "generating", "video_id": video_id, "queue_position": pos}
 
 
 @app.post("/videos/{video_id}/cancel")
@@ -887,9 +888,9 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
             _push_log(video_id, "[DONE] Pipeline finished")
             _unregister_pipeline(video_id)
 
-    background_tasks.add_task(_run)
+    pos = _queue_pipeline(_run)
 
-    return {"video_id": video_id, "message": "Script pipeline started", "word_count": word_count}
+    return {"video_id": video_id, "message": "Script pipeline queued" if pos > 1 else "Script pipeline started", "word_count": word_count, "queue_position": pos}
 
 
 # ── Stats & Quota ─────────────────────────────────────────────────────────────
@@ -916,8 +917,11 @@ def queue_status(user: str = Depends(verify_token)):
         }
     except Exception:
         pass
+    pending_in_queue = _pipeline_executor._work_queue.qsize()
     return {
         "generating": len(generating),
+        "pending":    pending_in_queue,
+        "total":      len(generating) + pending_in_queue,
         "jobs": [{"id": v["id"], "prompt": v.get("prompt", "")[:60], "created_at": v.get("created_at")} for v in generating],
         "celery": celery_info,
     }
@@ -1185,8 +1189,8 @@ def generate_podcast_episode(req: PodcastGenerateRequest, user: str = Depends(ve
             unregister_fn=_unregister_pipeline,
         )
 
-    threading.Thread(target=_run, daemon=True).start()
-    return {"message": "Podcast generation started", "video_id": video_id}
+    pos = _queue_pipeline(_run)
+    return {"message": "Podcast queued" if pos > 1 else "Podcast generation started", "video_id": video_id, "queue_position": pos}
 
 
 @app.get("/billing")
@@ -1709,8 +1713,8 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
         finally:
             _unregister_pipeline(video_id)
 
-    background_tasks.add_task(do_short)
-    return {"message": "Short creation started", "video_id": video_id}
+    pos = _queue_pipeline(do_short)
+    return {"message": "Short creation queued" if pos > 1 else "Short creation started", "video_id": video_id, "queue_position": pos}
 
 
 @app.post("/shorts/generate")
@@ -1755,8 +1759,8 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
         finally:
             _unregister_pipeline(video_id)
 
-    background_tasks.add_task(_run)
-    return {"message": "Short pipeline started", "video_id": video_id}
+    pos = _queue_pipeline(_run)
+    return {"message": "Short pipeline queued" if pos > 1 else "Short pipeline started", "video_id": video_id, "queue_position": pos}
 
 
 @app.get("/shorts")
@@ -1793,6 +1797,19 @@ def clear_cache(user: str = Depends(verify_token)):
 # ── Pipeline registry — active pipelines for cancel + log streaming ──────────
 _active_pipelines: dict = {}
 _pipeline_lock = _threading.Lock()
+
+# ── Serial pipeline queue ─────────────────────────────────────────────────────
+# max_workers=1 means only ONE pipeline runs at a time across ALL job types
+# (video, short, podcast, compilation, script-studio).  Additional submissions
+# are queued by the executor and started automatically when the current job
+# finishes.  Log streaming still works because all jobs run in-process.
+_pipeline_executor = _ThreadPoolExecutor(max_workers=1, thread_name_prefix="pipeline")
+
+def _queue_pipeline(fn) -> int:
+    """Submit fn to the serial executor.  Returns approximate queue position (1 = next/running)."""
+    pending = _pipeline_executor._work_queue.qsize()
+    _pipeline_executor.submit(fn)
+    return pending + 1   # position: 1 = will start as soon as current finishes
 
 def _register_pipeline(video_id: str, log_q=None):
     with _pipeline_lock:
@@ -2051,8 +2068,8 @@ def create_compilation(
         finally:
             _unregister_pipeline(comp_id)
 
-    background_tasks.add_task(run)
-    return {"compilation_id": comp_id, "message": "Compilation started", "clip_count": len(req.clips)}
+    pos = _queue_pipeline(run)
+    return {"compilation_id": comp_id, "message": "Compilation queued" if pos > 1 else "Compilation started", "clip_count": len(req.clips), "queue_position": pos}
 
 # ── TikTok OAuth + Upload ──────────────────────────────────────────────────────
 
