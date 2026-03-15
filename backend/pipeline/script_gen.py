@@ -149,6 +149,24 @@ Categories: Education, Entertainment, Science, Technology, Lifestyle, Philosophy
 Mood options: inspirational, educational, dramatic, reflective, serious
 """
 
+_PROMO_FOOTER = """
+
+─────────────────────────────
+🔗 Links
+📺 YouTube:  https://www.youtube.com/@4life_mystery
+🎵 TikTok:   https://www.tiktok.com/@lifemystery183284
+🎧 Podcast (Spotify): https://open.spotify.com/show/2ZIZRXomO55COqXyJXgy5s
+🎙 Podcast (Buzzsprout): https://www.buzzsprout.com/2603264
+🌐 Website:  https://4lifemystery.com
+─────────────────────────────"""
+
+
+def _append_promo_footer(description: str) -> str:
+    """Append the standard 4Life Mystery promotion footer to a description."""
+    if _PROMO_FOOTER.strip() in (description or ""):
+        return description  # already present
+    return (description or "").rstrip() + _PROMO_FOOTER
+
 
 def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
     """
@@ -198,6 +216,9 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
     # Estimate total duration (rough: 140 words per minute)
     word_count = len(script_data["full_narration"].split())
     script_data["estimated_duration"] = int((word_count / 150) * 60)  # ~150 wpm natural speech
+
+    # Append standard promotion footer to every description
+    script_data["description"] = _append_promo_footer(script_data.get("description", ""))
 
     print(f"✅ Script generated: '{script_data['title']}'")
     print(f"   Segments: {len(script_data['segments'])}, ~{script_data['estimated_duration']}s")
@@ -319,6 +340,7 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
     word_count = len(script_data["full_narration"].split())
     script_data["estimated_duration"] = int((word_count / 150) * 60)
     script_data["is_short"] = True
+    script_data["description"] = _append_promo_footer(script_data.get("description", ""))
 
     print(f"✅ Short script generated: '{script_data['title']}'")
     print(f"   Words: {word_count} (hard-capped), estimated {script_data['estimated_duration']}s")

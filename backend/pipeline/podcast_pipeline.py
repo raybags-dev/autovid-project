@@ -344,8 +344,10 @@ def run_podcast_episode(
             _log(f"[1/5] Generating essay for: {topic or title}...")
             data     = _generate_essay(topic or title)
             ep_title = title or data.get("title", "Podcast Episode")
-            ep_desc  = data.get("description", "")
             ep_essay = data.get("essay", "")
+            # Append promotion footer
+            from pipeline.script_gen import _append_promo_footer
+            ep_desc  = _append_promo_footer(data.get("description", ""))
 
         if not ep_essay.strip():
             raise RuntimeError("Essay generation returned empty content")
