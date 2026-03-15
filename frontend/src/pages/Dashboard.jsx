@@ -39,6 +39,8 @@ import api, {
   savePodcastSettings,
   triggerAutoPodcast,
   generatePodcastEpisode,
+  fixStuckVideos,
+  forceResetVideo,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -129,6 +131,15 @@ const STATUS = {
     pulse: "#9060e0",
   },
 };
+// Jaccard word-overlap similarity (0–1). Used for duplicate prompt detection.
+const jaccardSim = (a, b) => {
+  const words = s => new Set((s || "").toLowerCase().match(/\w+/g) || []);
+  const A = words(a), B = words(b);
+  if (A.size === 0 && B.size === 0) return 1;
+  const intersection = [...A].filter(w => B.has(w)).length;
+  return intersection / (new Set([...A, ...B]).size);
+};
+
 const IN_PROGRESS = [
   "generating",
   "scripted",
@@ -622,6 +633,19 @@ export default function Dashboard() {
     return () => clearInterval(pollRef.current);
   }, [refresh, videos.length]); // re-evaluate when video count changes
 
+  // Auto-fix stuck videos once on initial load (fires 3s after mount to let data load first)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fixStuckVideos().then(r => {
+        if (r?.fixed > 0) {
+          refresh();
+          // Toast will be shown after refresh updates videos state
+        }
+      }).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Track whether THIS SESSION started a generation (not stale DB status)
   const fetchChannel = useCallback(async (forceRefresh = false) => {
     setChannelLoading(true);
@@ -674,6 +698,11 @@ export default function Dashboard() {
 
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
+    const dup = isDuplicatePrompt(prompt.trim());
+    if (dup) {
+      setGenError(`Too similar to existing content: "${dup}". Refine your prompt to make it unique.`);
+      return;
+    }
     setGenError("");
     setGenerating(true);
     setPipeStep(1);
@@ -692,6 +721,7 @@ export default function Dashboard() {
       );
       const vid = data.video_id;
       setGenJobId(vid);
+      saveRecentPrompt(prompt.trim());
       setPrompt("");
       setGlobalLoading(null);
 
@@ -740,12 +770,52 @@ export default function Dashboard() {
     showToast("Pipeline cancelled", "error");
   };
 
+  // ── Duplicate prompt detection ────────────────────────────────────────────
+  const saveRecentPrompt = (text) => {
+    try {
+      const recent = JSON.parse(localStorage.getItem("autovid_recent_prompts") || "[]");
+      const updated = [text.trim(), ...recent.filter(p => p !== text.trim())].slice(0, 50);
+      localStorage.setItem("autovid_recent_prompts", JSON.stringify(updated));
+    } catch {}
+  };
+
+  const isDuplicatePrompt = (newText) => {
+    const np = (newText || "").trim().toLowerCase();
+    if (!np || np.split(/\s+/).length < 4) return null; // too short to check
+    const candidates = [
+      ...videos.map(v => v.prompt || ""),
+      ...videos.map(v => v.title || ""),
+      ...(() => { try { return JSON.parse(localStorage.getItem("autovid_recent_prompts") || "[]"); } catch { return []; } })(),
+    ].filter(Boolean);
+    for (const c of candidates) {
+      if (jaccardSim(np, c.toLowerCase()) >= 0.9) return c.slice(0, 100);
+    }
+    return null;
+  };
+
+  // ── Force-reset a stuck video ─────────────────────────────────────────────
+  const handleForceReset = async (id, e) => {
+    e?.stopPropagation();
+    try {
+      const r = await forceResetVideo(id);
+      showToast(`Reset: ${r.message}`);
+      refresh();
+    } catch (err) {
+      showToast(err?.response?.data?.detail || "Reset failed", "error");
+    }
+  };
+
   const SHORT_STEPS = ["Script", "Voice", "Visual", "Captions", "Final", "Ready"];
   const SHORT_STEP_MAP = { generating: 1, scripted: 2, voiced: 3, assembled: 4, captioned: 5, labeled: 5, ready: 6, posted: 6 };
 
   const handleGenerateShort = async () => {
     const hasInput = shortScriptMode === "custom" ? shortCustomScript.trim() : shortPrompt.trim();
     if (!hasInput || shortGenerating) return;
+    const dup = isDuplicatePrompt(hasInput);
+    if (dup) {
+      setShortGenError(`Too similar to existing content: "${dup}". Refine your prompt or script.`);
+      return;
+    }
     setShortGenError("");
     setShortGenerating(true);
     setShortPipeStep(1);
@@ -772,7 +842,9 @@ export default function Dashboard() {
         shortScriptMode === "custom" ? shortCustomScript.trim() : "",
       );
       const vid = res?.video_id;
+      saveRecentPrompt(hasInput);
       setShortPrompt("");
+      setShortCustomScript("");
       showToast("Short generation started!");
       if (vid) {
         setShortLogVideoId(vid);
@@ -3861,6 +3933,7 @@ export default function Dashboard() {
                                   >
                                     ⚙ Settings
                                   </button>
+                                  {v.resolution !== "1080x1920" && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -3878,12 +3951,13 @@ export default function Dashboard() {
                                   >
                                     📱 Make Short
                                   </button>
+                                  )}
                                 </div>
                               </span>
                             </>
                           )}
-                          {/* Make Short — available for ready videos (not posted) */}
-                          {v.status === "ready" && v.file_path && (
+                          {/* Make Short — available for ready long-form videos only */}
+                          {v.status === "ready" && v.file_path && v.resolution !== "1080x1920" && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setShortsModal(v); }}
                               style={{
@@ -3910,6 +3984,21 @@ export default function Dashboard() {
                             >
                               ⟳ Uploading to YouTube...
                             </span>
+                          )}
+                          {/* Force-reset for stuck videos not started in this session */}
+                          {IN_PROGRESS.includes(v.status) && !(generating && genJobId === v.id) && (
+                            <button
+                              className="btn-sm"
+                              onClick={(e) => handleForceReset(v.id, e)}
+                              style={{
+                                color: T.accentYellow,
+                                borderColor: `${T.accentYellow}40`,
+                                background: `${T.accentYellow}0d`,
+                              }}
+                              title="Video appears stuck — click to resolve its status based on available output"
+                            >
+                              ↺ RESET
+                            </button>
                           )}
                           <button
                             className="btn-sm"
