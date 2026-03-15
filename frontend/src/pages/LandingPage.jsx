@@ -12,9 +12,9 @@ import sea_shower from "../assets/static/sea_shower.mp4";
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4life_mystery",
   tiktok: "https://www.tiktok.com/@lifemystery183284",
-  spotify: "https://open.spotify.com/show/2ZIZRXomO55COqXyJXgy5s",
+  spotify: "https://open.spotify.com/show/31b1tuqETLGjz0Oq6oqE8d",
 };
-const SPOTIFY_SHOW_ID = "2ZIZRXomO55COqXyJXgy5s";
+const SPOTIFY_SHOW_ID = "31b1tuqETLGjz0Oq6oqE8d";
 
 const SECTIONS = [
   { id: "hero", label: "HOME" },
@@ -88,16 +88,16 @@ const DARK = {
   bg: "#03060f",
   bgAlt: "rgba(255,255,255,0.012)",
   text: "#e0eaf5",
-  textM: "#6a90ae",
-  textD: "#3d6882",
-  textD2: "#1e3a55",
+  textM: "#8ab0cc",
+  textD: "#5a8aaa",
+  textD2: "#2e5a7a",
   cardBg: "rgba(255,255,255,0.025)",
   cardBr: "rgba(255,255,255,0.07)",
   cardSh: "none",
   navBg: "rgba(3,6,15,0.82)",
   secBr: "rgba(255,255,255,0.045)",
   footBg: "rgba(0,0,0,0.55)",
-  ftLink: "#6a9fc0",
+  ftLink: "#8ab8d4",
   inputBg: "rgba(255,255,255,0.03)",
   inputBr: "rgba(255,255,255,0.07)",
   socBr: "rgba(255,255,255,0.08)",
@@ -1211,7 +1211,7 @@ export default function LandingPage() {
   const [ytLoading, setYtLoading] = useState(true);
   const [ytIdx, setYtIdx] = useState(0);
   const [modalVideo, setModalVideo] = useState(null); // { id, title, url }
-  const [podcastTab, setPodcastTab] = useState("spotify"); // "spotify" | "buzzsprout"
+  const [podcastTab, setPodcastTab] = useState("spotify"); // "spotify" | "buzzsprout" | "podbean"
   const [showBackTop, setShowBackTop] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [heroStats, setHeroStats] = useState(null);
@@ -3136,117 +3136,62 @@ export default function LandingPage() {
               const total = heroVideos.length;
               return (
                 <div onMouseEnter={ytPause} onMouseLeave={ytResume}>
-                  <div className="yt-hero" onClick={() => setModalVideo(v)}>
-                    {/* Background */}
-                    <div
-                      className="yt-hero-bg"
-                      style={{
-                        backgroundImage: v.thumbnail
-                          ? `url(${v.thumbnail})`
-                          : "none",
-                      }}
-                    />
-                    {/* Left-heavy dark overlay */}
-                    <div className="yt-hero-overlay" />
-                    {/* Text content */}
-                    <div className="yt-hero-content">
-                      <div className="yt-hero-text">
-                        <div className="yt-hero-badge">▶ YOUTUBE</div>
-                        <div className="yt-hero-title">{v.title}</div>
-                        <div className="yt-hero-meta">
-                          <span>
-                            ▶ {Number(v.views || 0).toLocaleString()} views
-                          </span>
-                          <span>♥ {Number(v.likes || 0).toLocaleString()}</span>
-                          {v.duration && <span>⏱ {v.duration}</span>}
-                        </div>
-                        <button
-                          className="yt-hero-cta"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setModalVideo(v);
-                          }}
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="13"
-                            height="13"
-                            fill="white"
-                            style={{ marginRight: 2 }}
-                          >
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                          WATCH NOW
-                        </button>
-                      </div>
-                    </div>
-                    {/* Centered play on hover */}
-                    <div className="yt-hero-play">
-                      <div
-                        className="yt-hero-play-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setModalVideo(v);
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                      </div>
-                    </div>
-                    {/* Side arrows */}
-                    {total > 1 && (
-                      <>
-                        <button
-                          className="yt-hero-side-arr left"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            ytPrev();
-                          }}
-                        >
-                          ‹
-                        </button>
-                        <button
-                          className="yt-hero-side-arr right"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            ytNext();
-                          }}
-                        >
-                          ›
-                        </button>
-                      </>
-                    )}
-                    {/* Duration badge */}
-                    {v.duration && (
-                      <div
-                        className="yt-badge-dur"
-                        style={{ position: "absolute", top: 14, right: 14 }}
-                      >
-                        {v.duration}
-                      </div>
-                    )}
-                  </div>
-                  {/* Dots */}
-                  {total > 1 && (
-                    <div className="yt-hero-dots">
-                      {heroVideos.map((_, i) => (
-                        <button
-                          key={i}
-                          className="yt-hero-dot"
-                          onClick={() => {
-                            ytPause();
-                            setYtIdx(i);
-                          }}
-                          style={{
-                            background:
-                              i === ytIdx ? "#ff5533" : "rgba(255,255,255,0.2)",
-                            width: i === ytIdx ? 24 : 8,
-                            borderRadius: i === ytIdx ? 4 : "50%",
-                          }}
-                        />
-                      ))}
-                    </div>
+  <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#0a0a14", border: "1px solid rgba(255,85,51,0.2)", boxShadow: "0 24px 80px rgba(0,0,0,0.8)" }}>
+    {/* Static branded background */}
+    <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 70% 50%, rgba(255,85,51,0.08) 0%, rgba(0,0,0,0) 70%), linear-gradient(135deg, rgba(255,85,51,0.04) 0%, rgba(0,0,0,0) 100%)", pointerEvents: "none" }} />
+
+    <div key={v.id} style={{ padding: "48px 52px", minHeight: 340, display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
+      {/* Top badge */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
+        <span style={{ fontSize: 9, letterSpacing: "0.18em", color: "#ff5533", background: "rgba(255,85,51,0.12)", border: "1px solid rgba(255,85,51,0.25)", padding: "4px 12px", borderRadius: 20 }}>▶ YOUTUBE</span>
+        {v.duration && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em" }}>⏱ {v.duration}</span>}
+      </div>
+
+      {/* Title */}
+      <div style={{ flex: 1 }}>
+        <h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(20px,3vw,32px)", color: "#fff", lineHeight: 1.2, marginBottom: 16, maxWidth: 480 }}>{v.title}</h3>
+        <div style={{ display: "flex", gap: 18, color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
+          <span>▶ {Number(v.views || 0).toLocaleString()} views</span>
+          <span>♥ {Number(v.likes || 0).toLocaleString()}</span>
+          {v.duration && <span>⏱ {v.duration}</span>}
+        </div>
+      </div>
+
+      {/* Big play button */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 32 }}>
+        <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer"
+          style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 28px", borderRadius: 50, background: "#ff0000", border: "none", color: "#fff", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", textDecoration: "none", cursor: "pointer", transition: "transform 0.2s, box-shadow 0.2s", boxShadow: "0 8px 32px rgba(255,0,0,0.4)" }}
+          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(255,0,0,0.6)"; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(255,0,0,0.4)"; }}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M8 5v14l11-7z"/></svg>
+          WATCH ON YOUTUBE
+        </a>
+        <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer"
+          style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", textDecoration: "none", letterSpacing: "0.08em" }}>
+          View all videos →
+        </a>
+      </div>
+    </div>
+
+    {/* Side arrows */}
+    {total > 1 && (
+      <>
+        <button className="yt-hero-side-arr left" onClick={(e) => { e.stopPropagation(); ytPrev(); }}>‹</button>
+        <button className="yt-hero-side-arr right" onClick={(e) => { e.stopPropagation(); ytNext(); }}>›</button>
+      </>
+    )}
+  </div>
+
+  {/* Dots */}
+  {total > 1 && (
+    <div className="yt-hero-dots">
+      {heroVideos.map((_, i) => (
+        <button key={i} className="yt-hero-dot" onClick={() => { ytPause(); setYtIdx(i); }}
+          style={{ background: i === ytIdx ? "#ff5533" : "rgba(255,255,255,0.2)", width: i === ytIdx ? 24 : 8, borderRadius: i === ytIdx ? 4 : "50%" }}
+        />
+      ))}
+    </div>
                   )}
                 </div>
               );
@@ -3327,7 +3272,7 @@ export default function LandingPage() {
               >
                 Listen on{" "}
                 <span style={{ color: podcastTab === "spotify" ? "#1db954" : "#f26522" }}>
-                  {podcastTab === "spotify" ? "Spotify." : "Buzzsprout."}
+                  {podcastTab === "spotify" ? "Spotify." : podcastTab === "buzzsprout" ? "Buzzsprout." : "Podbean."}
                 </span>
               </h2>
               <p style={{ color: c.textM, lineHeight: 1.92, fontSize: 13, marginBottom: 16 }}>
@@ -3363,11 +3308,22 @@ export default function LandingPage() {
                 >
                   🎙 BUZZSPROUT
                 </button>
+                <button
+                  onClick={() => setPodcastTab("podbean")}
+                  style={{
+                    padding: "8px 18px", borderRadius: 20, border: `1px solid ${podcastTab === "podbean" ? "#f26522" : "rgba(255,255,255,0.12)"}`,
+                    background: podcastTab === "podbean" ? "rgba(242,101,34,0.15)" : "transparent",
+                    color: podcastTab === "podbean" ? "#f26522" : c.textM,
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.07em", transition: "all 0.2s",
+                  }}
+                >
+                  🎙 PODBEAN
+                </button>
               </div>
 
               <div className="btn-group podcast-btns">
                 <a
-                  href={podcastTab === "spotify" ? SOCIAL.spotify : `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}`}
+                  href={podcastTab === "spotify" ? SOCIAL.spotify : podcastTab === "buzzsprout" ? `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}` : "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="lp-btn"
@@ -3381,7 +3337,7 @@ export default function LandingPage() {
                   ◎ LISTEN NOW
                 </a>
                 <a
-                  href={podcastTab === "spotify" ? SOCIAL.spotify : `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}`}
+                  href={podcastTab === "spotify" ? SOCIAL.spotify : podcastTab === "buzzsprout" ? `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}` : "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="lp-btn lp-btn-ghost"
@@ -3396,8 +3352,22 @@ export default function LandingPage() {
             <div>
               {podcastTab === "spotify" ? (
                 <SpotifyCarousel />
-              ) : (
+              ) : podcastTab === "buzzsprout" ? (
                 <BuzzsproutPlayer size="large" />
+              ) : (
+                <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid rgba(242,101,34,0.25)", boxShadow: "0 8px 48px rgba(0,0,0,0.65)", background: "rgba(3,6,15,0.85)", minHeight: 150 }}>
+                  <iframe
+                    title="4Life Mystery Podcast on Podbean"
+                    allowTransparency="true"
+                    height="150"
+                    width="100%"
+                    style={{ border: "none", minWidth: "min(100%, 430px)", height: "150px", display: "block" }}
+                    scrolling="no"
+                    data-name="pb-iframe-player"
+                    src="https://www.podbean.com/player-v2/?i=8qrdu-1a6efa9-pb&from=pb6admin&share=1&download=1&rtl=0&fonts=Arial&skin=1&font-color=auto&logo_link=episode_page&btn-skin=7"
+                    loading="lazy"
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -3708,263 +3678,127 @@ export default function LandingPage() {
       </section>
 
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
-      <footer
-        style={{
-          borderTop: `1px solid ${c.secBr}`,
-          padding: "60px 20px 40px",
-          background: c.footBg,
-        }}
-      >
-        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-          <div
-            className="footer-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr 1fr 1fr",
-              gap: 36,
-              marginBottom: 48,
-            }}
-          >
+      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, transparent 0%, rgba(3,6,15,0.98) 40%)", position: "relative", overflow: "hidden" }}>
+        {/* Subtle top glow */}
+        <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: "60%", height: 1, background: "linear-gradient(90deg, transparent, rgba(255,85,51,0.4), rgba(29,185,84,0.3), transparent)" }} />
+
+        {/* Top CTA band */}
+        <div style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "40px 20px" }}>
+          <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
             <div>
-              <img
-                src={lifeLogoLong}
-                alt="4Life Mystery"
-                style={{
-                  height: 40,
-                  width: "auto",
-                  objectFit: "contain",
-                  marginBottom: 16,
-                }}
-              />
-              <p
-                style={{
-                  fontSize: 13.5,
-                  color: c.ftLink,
-                  lineHeight: 1.84,
-                  maxWidth: 270,
-                  marginBottom: 20,
-                }}
-              >
-                A space for real conversations about life — its meaning, its
-                mysteries, and everything in between.
+              <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(18px,2.5vw,26px)", color: "#e8f4ff", marginBottom: 4 }}>
+                New episodes, every week.
+              </div>
+              <div style={{ fontSize: 13, color: "#8ab8d4" }}>Subscribe and never miss a deep dive.</div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <a href={SOCIAL.spotify} target="_blank" rel="noopener noreferrer"
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 50, background: "rgba(29,185,84,0.12)", border: "1px solid rgba(29,185,84,0.3)", color: "#1db954", fontSize: 12, fontWeight: 700, letterSpacing: "0.07em", textDecoration: "none", transition: "all 0.2s" }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(29,185,84,0.22)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(29,185,84,0.12)"}
+              >◎ SPOTIFY</a>
+              <a href={`https://www.buzzsprout.com/2603264`} target="_blank" rel="noopener noreferrer"
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 50, background: "rgba(242,101,34,0.10)", border: "1px solid rgba(242,101,34,0.25)", color: "#f26522", fontSize: 12, fontWeight: 700, letterSpacing: "0.07em", textDecoration: "none", transition: "all 0.2s" }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(242,101,34,0.2)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(242,101,34,0.10)"}
+              >🎙 PODBEAN / BUZZSPROUT</a>
+            </div>
+          </div>
+        </div>
+
+        {/* Main grid */}
+        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "56px 20px 40px" }}>
+          <div className="footer-grid" style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1.2fr 1fr", gap: 40, marginBottom: 52 }}>
+
+            {/* Brand column */}
+            <div>
+              <img src={lifeLogoLong} alt="4Life Mystery" style={{ height: 36, width: "auto", objectFit: "contain", marginBottom: 14 }} />
+              <p style={{ fontSize: 13, color: "#8ab8d4", lineHeight: 1.88, maxWidth: 260, marginBottom: 22 }}>
+                Real conversations about life — its meaning, its mysteries, and everything in between. No filter. No algorithm. Just truth.
               </p>
-              <div
-                className="soc-icon-row"
-                style={{ display: "flex", gap: 10 }}
-              >
-                <a
-                  href={SOCIAL.youtube}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="soc-icon"
-                  title="YouTube"
-                  style={{ "--text-m": c.ftLink, "--soc-br": c.socBr }}
-                >
-                  ▶
-                </a>
-                <a
-                  href={SOCIAL.tiktok}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="soc-icon"
-                  title="TikTok"
-                  style={{ "--text-m": c.ftLink, "--soc-br": c.socBr }}
-                >
-                  ♪
-                </a>
-                <a
-                  href={SOCIAL.spotify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="soc-icon"
-                  title="Spotify"
-                  style={{ "--text-m": c.ftLink, "--soc-br": c.socBr }}
-                >
-                  ◎
-                </a>
+              {/* Social pills */}
+              <div className="soc-icon-row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { href: SOCIAL.youtube, icon: "▶", label: "YouTube", color: "#ff5533", bg: "rgba(255,85,51,0.12)" },
+                  { href: SOCIAL.tiktok, icon: "♪", label: "TikTok", color: "#00f2ea", bg: "rgba(0,242,234,0.08)" },
+                  { href: SOCIAL.spotify, icon: "◎", label: "Spotify", color: "#1db954", bg: "rgba(29,185,84,0.10)" },
+                  { href: `https://www.buzzsprout.com/2603264`, icon: "🎚", label: "Buzzsprout", color: "#1db954", bg: "rgba(29,185,84,0.08)" },
+                  { href: "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P", icon: "🎙", label: "Podbean", color: "#f26522", bg: "rgba(242,101,34,0.10)" },
+                ].map(s => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" title={s.label}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 50, background: s.bg, border: `1px solid ${s.color}22`, color: s.color, fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textDecoration: "none", transition: "all 0.2s" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = s.color + "28"; e.currentTarget.style.borderColor = s.color + "55"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = s.bg; e.currentTarget.style.borderColor = s.color + "22"; }}
+                  >{s.icon} {s.label}</a>
+                ))}
               </div>
             </div>
 
+            {/* Navigate */}
             <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: "0.16em",
-                  color: c.textD,
-                  marginBottom: 18,
-                }}
-              >
-                EXPLORE
-              </div>
-              {SECTIONS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  onClick={() => scrollTo(id)}
-                  className="ft-link"
-                  style={{ color: c.ftLink }}
+              <div style={{ fontSize: 10, letterSpacing: "0.18em", color: "#5a8aaa", marginBottom: 20, fontWeight: 700 }}>EXPLORE</div>
+              {SECTIONS.filter(s => s.id !== "hero").map(({ id, label }) => (
+                <button key={id} onClick={() => scrollTo(id)} className="ft-link"
+                  style={{ display: "block", background: "none", border: "none", cursor: "pointer", padding: "5px 0", fontSize: 13, color: "#8ab8d4", fontFamily: "inherit", textAlign: "left", transition: "color 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"}
+                  onMouseLeave={e => e.currentTarget.style.color = "#8ab8d4"}
                 >
-                  {label === "HOME"
-                    ? "Home"
-                    : label.charAt(0) + label.slice(1).toLowerCase()}
+                  {label.charAt(0) + label.slice(1).toLowerCase()}
                 </button>
+              ))}
+              <button onClick={() => scrollTo("hero")} className="ft-link"
+                style={{ display: "block", background: "none", border: "none", cursor: "pointer", padding: "5px 0", fontSize: 13, color: "#8ab8d4", fontFamily: "inherit", textAlign: "left", transition: "color 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"}
+                onMouseLeave={e => e.currentTarget.style.color = "#8ab8d4"}
+              >Home</button>
+            </div>
+
+            {/* Platforms */}
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: "0.18em", color: "#5a8aaa", marginBottom: 20, fontWeight: 700 }}>LISTEN & WATCH</div>
+              {[
+                { href: SOCIAL.youtube, icon: "▶", label: "YouTube", color: "#ff5533" },
+                { href: SOCIAL.tiktok, icon: "♪", label: "TikTok", color: "#00f2ea" },
+                { href: SOCIAL.spotify, icon: "◎", label: "Spotify Podcast", color: "#1db954" },
+                { href: `https://www.buzzsprout.com/2603264`, icon: "🎚", label: "Buzzsprout", color: "#8ab8d4" },
+                { href: "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P", icon: "🎙", label: "Podbean", color: "#f26522" },
+              ].map(p => (
+                <a key={p.label} href={p.href} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13, color: "#8ab8d4", textDecoration: "none", transition: "color 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.color = p.color}
+                  onMouseLeave={e => e.currentTarget.style.color = "#8ab8d4"}
+                ><span style={{ fontSize: 11 }}>{p.icon}</span>{p.label}</a>
               ))}
             </div>
 
+            {/* Legal + Contact */}
             <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: "0.16em",
-                  color: c.textD,
-                  marginBottom: 18,
-                }}
-              >
-                WATCH & LISTEN
+              <div style={{ fontSize: 10, letterSpacing: "0.18em", color: "#5a8aaa", marginBottom: 20, fontWeight: 700 }}>LEGAL</div>
+              <Link to="/privacy-policy" style={{ display: "block", padding: "5px 0", fontSize: 13, color: "#8ab8d4", textDecoration: "none" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"} onMouseLeave={e => e.currentTarget.style.color = "#8ab8d4"}>Privacy Policy</Link>
+              <Link to="/terms-of-service" style={{ display: "block", padding: "5px 0", fontSize: 13, color: "#8ab8d4", textDecoration: "none" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"} onMouseLeave={e => e.currentTarget.style.color = "#8ab8d4"}>Terms of Service</Link>
+              <Link to="/cookie-policy" style={{ display: "block", padding: "5px 0", fontSize: 13, color: "#8ab8d4", textDecoration: "none" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"} onMouseLeave={e => e.currentTarget.style.color = "#8ab8d4"}>Cookie Policy</Link>
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 10, letterSpacing: "0.18em", color: "#5a8aaa", marginBottom: 12, fontWeight: 700 }}>CONTACT</div>
+                <a href="mailto:4lifemystery@gmail.com" style={{ display: "block", padding: "4px 0", fontSize: 12, color: "#8ab8d4", textDecoration: "none" }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#e8f4ff"} onMouseLeave={e => e.currentTarget.style.color = "#8ab8d4"}>4lifemystery@gmail.com</a>
+                <Link to="/login" style={{ display: "inline-block", marginTop: 14, padding: "6px 16px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", fontSize: 10, color: "#5a8aaa", textDecoration: "none", letterSpacing: "0.1em" }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#8ab8d4"} onMouseLeave={e => e.currentTarget.style.color = "#5a8aaa"}>STUDIO →</Link>
               </div>
-              <a
-                href={SOCIAL.youtube}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                ▶ YouTube
-              </a>
-              <a
-                href={SOCIAL.tiktok}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                ♪ TikTok
-              </a>
-              <a
-                href={SOCIAL.spotify}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                ◎ Spotify Podcast
-              </a>
-            </div>
-
-            <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: "0.16em",
-                  color: c.textD,
-                  marginBottom: 18,
-                }}
-              >
-                CONTACT
-              </div>
-              <a
-                href="mailto:contact@4lifemystery.com"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                contact@4lifemystery.com
-              </a>
-              <a
-                href="mailto:support@4lifemystery.com"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                support@4lifemystery.com
-              </a>
-            </div>
-
-            <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: "0.16em",
-                  color: c.textD,
-                  marginBottom: 18,
-                }}
-              >
-                LEGAL
-              </div>
-              <Link
-                to="/privacy-policy"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                to="/terms-of-service"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                Terms of Service
-              </Link>
-              <Link
-                to="/cookie-policy"
-                className="ft-link"
-                style={{ color: c.ftLink }}
-              >
-                Cookie Policy
-              </Link>
-              <Link
-                to="/login"
-                className="ft-link"
-                style={{ color: c.textD2, marginTop: 16, display: "block" }}
-              >
-                Studio
-              </Link>
             </div>
           </div>
 
-          <div
-            className="footer-bottom-bar"
-            style={{
-              borderTop: `1px solid ${c.secBr}`,
-              paddingTop: 22,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 10,
-            }}
-          >
-            <div style={{ fontSize: 13, color: c.ftLink }}>
-              © 2026 4Life Mystery · 4lifemystery.com · All rights reserved.
-            </div>
-            <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-              <Link
-                to="/privacy-policy"
-                style={{
-                  fontSize: 12,
-                  color: c.ftLink,
-                  textDecoration: "none",
-                }}
-              >
-                Privacy
-              </Link>
-              <Link
-                to="/terms-of-service"
-                style={{
-                  fontSize: 12,
-                  color: c.ftLink,
-                  textDecoration: "none",
-                }}
-              >
-                Terms
-              </Link>
-              <Link
-                to="/cookie-policy"
-                style={{
-                  fontSize: 12,
-                  color: c.ftLink,
-                  textDecoration: "none",
-                }}
-              >
-                Cookies
-              </Link>
+          {/* Bottom bar */}
+          <div className="footer-bottom-bar" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ fontSize: 12, color: "#5a8aaa" }}>© 2026 4Life Mystery · All rights reserved.</div>
+            <div style={{ fontSize: 12, color: "#3d6882" }}>Made with ♥ · 4lifemystery.com</div>
+            <div style={{ display: "flex", gap: 20 }}>
+              {[["Privacy", "/privacy-policy"], ["Terms", "/terms-of-service"], ["Cookies", "/cookie-policy"]].map(([label, to]) => (
+                <Link key={label} to={to} style={{ fontSize: 11, color: "#5a8aaa", textDecoration: "none", letterSpacing: "0.06em" }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#8ab8d4"} onMouseLeave={e => e.currentTarget.style.color = "#5a8aaa"}>{label}</Link>
+              ))}
             </div>
           </div>
         </div>
