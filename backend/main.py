@@ -13,6 +13,24 @@ import time
 import threading as _threading
 
 import hashlib
+
+# ── Simple TTL cache for slow external-API status checks ──────────────────────
+# Prevents blocking all worker threads when the Settings tab loads simultaneously.
+_STATUS_CACHE: dict = {}   # key → {"data": ..., "expires": float}
+_STATUS_CACHE_TTL = 30     # seconds
+
+def _cached_status(key: str, fn, ttl: int = _STATUS_CACHE_TTL):
+    """Return cached result if fresh, otherwise call fn() and cache it."""
+    entry = _STATUS_CACHE.get(key)
+    if entry and entry["expires"] > time.time():
+        return entry["data"]
+    result = fn()
+    _STATUS_CACHE[key] = {"data": result, "expires": time.time() + ttl}
+    return result
+
+def _invalidate_cache(key: str):
+    _STATUS_CACHE.pop(key, None)
+# ──────────────────────────────────────────────────────────────────────────────
 import config
 import database as db
 from pipeline.orchestrator import run_pipeline, retry_failed
@@ -2072,13 +2090,12 @@ def tiktok_callback(code: str = None, error: str = None, error_description: str 
 
 @app.get("/tiktok/status")
 def tiktok_status(user: str = Depends(verify_token)):
-    """Check if TikTok is connected."""
-    from pipeline.tiktok_uploader import is_connected, load_token
-    token = load_token()
-    return {
-        "connected": token is not None,
-        "open_id":   token.get("open_id") if token else None,
-    }
+    """Check if TikTok is connected (cached 30 s)."""
+    def _check():
+        from pipeline.tiktok_uploader import load_token
+        token = load_token()
+        return {"connected": token is not None, "open_id": token.get("open_id") if token else None}
+    return _cached_status("tiktok_status", _check)
 
 @app.post("/tiktok/disconnect")
 def tiktok_disconnect(user: str = Depends(verify_token)):
@@ -2121,22 +2138,25 @@ def spotify_callback(code: str = None, error: str = None):
 
 @app.get("/spotify/status")
 def spotify_status(user: str = Depends(verify_token)):
-    from pipeline.spotify_client import is_connected, load_token, get_profile
-    token = load_token()
-    if not token:
-        return {"connected": False}
-    try:
-        profile = get_profile()
-        return {
-            "connected":    True,
-            "display_name": profile.get("display_name"),
-            "email":        profile.get("email"),
-            "country":      profile.get("country"),
-            "followers":    profile.get("followers", {}).get("total"),
-            "image":        (profile.get("images") or [{}])[0].get("url"),
-        }
-    except Exception:
-        return {"connected": True, "display_name": None}
+    """Check Spotify connection (cached 30 s)."""
+    def _check():
+        from pipeline.spotify_client import load_token, get_profile
+        token = load_token()
+        if not token:
+            return {"connected": False}
+        try:
+            profile = get_profile()
+            return {
+                "connected":    True,
+                "display_name": profile.get("display_name"),
+                "email":        profile.get("email"),
+                "country":      profile.get("country"),
+                "followers":    profile.get("followers", {}).get("total"),
+                "image":        (profile.get("images") or [{}])[0].get("url"),
+            }
+        except Exception:
+            return {"connected": True, "display_name": None}
+    return _cached_status("spotify_status", _check)
 
 @app.post("/spotify/disconnect")
 def spotify_disconnect(user: str = Depends(verify_token)):
@@ -2184,7 +2204,6 @@ def save_buzzsprout_settings_endpoint(body: dict, user: str = Depends(verify_tok
     """Save Buzzsprout API token, podcast ID, and auto-upload preference."""
     from pipeline.buzzsprout_client import save_buzzsprout_settings, get_buzzsprout_settings
     current = get_buzzsprout_settings()
-    # Only overwrite token if a real value (not masked ***) was sent
     api_token = body.get("api_token", "")
     if api_token.startswith("*"):
         api_token = current.get("api_token", "")
@@ -2193,34 +2212,37 @@ def save_buzzsprout_settings_endpoint(body: dict, user: str = Depends(verify_tok
         "podcast_id":  body.get("podcast_id",  current.get("podcast_id",  "")),
         "auto_upload": body.get("auto_upload",  current.get("auto_upload", False)),
     })
+    _invalidate_cache("buzzsprout_status")
     return {"message": "Buzzsprout settings saved"}
 
 
 @app.get("/buzzsprout/status")
 def buzzsprout_status(user: str = Depends(verify_token)):
-    """Check Buzzsprout connection and return podcast info."""
-    from pipeline.buzzsprout_client import get_buzzsprout_settings, get_podcast_info, list_episodes, is_configured
-    s = get_buzzsprout_settings()
-    if not is_configured():
-        return {"connected": False}
-    try:
-        info     = get_podcast_info(s["api_token"], s["podcast_id"])
-        episodes = list_episodes(s["api_token"], s["podcast_id"], limit=5)
-        return {
-            "connected":     True,
-            "podcast_id":    s["podcast_id"],
-            "auto_upload":   s["auto_upload"],
-            "title":         info.get("title", ""),
-            "image_url":     info.get("image_url", ""),
-            "episode_count": info.get("episodes_count", len(episodes)),
-            "recent_episodes": [
-                {"id": e["id"], "title": e.get("title", ""), "published_at": e.get("published_at"),
-                 "duration": e.get("duration"), "url": f"https://www.buzzsprout.com/{s['podcast_id']}/episodes/{e['id']}"}
-                for e in episodes
-            ],
-        }
-    except Exception as e:
-        return {"connected": False, "error": str(e)}
+    """Check Buzzsprout connection (cached 30 s to avoid blocking worker threads)."""
+    def _check():
+        from pipeline.buzzsprout_client import get_buzzsprout_settings, get_podcast_info, list_episodes, is_configured
+        s = get_buzzsprout_settings()
+        if not is_configured():
+            return {"connected": False}
+        try:
+            info     = get_podcast_info(s["api_token"], s["podcast_id"])
+            episodes = list_episodes(s["api_token"], s["podcast_id"], limit=5)
+            return {
+                "connected":     True,
+                "podcast_id":    s["podcast_id"],
+                "auto_upload":   s["auto_upload"],
+                "title":         info.get("title", ""),
+                "image_url":     info.get("image_url", ""),
+                "episode_count": info.get("episodes_count", len(episodes)),
+                "recent_episodes": [
+                    {"id": e["id"], "title": e.get("title", ""), "published_at": e.get("published_at"),
+                     "duration": e.get("duration"), "url": f"https://www.buzzsprout.com/{s['podcast_id']}/episodes/{e['id']}"}
+                    for e in episodes
+                ],
+            }
+        except Exception as e:
+            return {"connected": False, "error": str(e)}
+    return _cached_status("buzzsprout_status", _check)
 
 
 @app.post("/podcast-episode/{video_id}/upload-buzzsprout")
@@ -2271,38 +2293,38 @@ def save_podbean_settings_endpoint(body: dict, user: str = Depends(verify_token)
         "client_secret": client_secret,
         "auto_upload":   body.get("auto_upload",   current.get("auto_upload",   False)),
     })
+    _invalidate_cache("podbean_status")
     return {"message": "Podbean settings saved"}
 
 
 @app.get("/podbean/status")
 def podbean_status(user: str = Depends(verify_token)):
-    from pipeline.podbean_client import get_podbean_settings, get_podcast_info, list_episodes, is_configured
-    s = get_podbean_settings()
-    if not is_configured():
-        return {"connected": False}
-    try:
-        info     = get_podcast_info(s["client_id"], s["client_secret"])
-        episodes = list_episodes(s["client_id"], s["client_secret"], limit=5)
-        return {
-            "connected":       True,
-            "auto_upload":     s["auto_upload"],
-            "title":           info.get("title", ""),
-            "image":           info.get("logo_url", ""),
-            "subscriber_count": info.get("subscriber_count", 0),
-            "episode_count":   info.get("total_count", len(episodes)),
-            "recent_episodes": [
-                {
-                    "id":           e.get("id", ""),
-                    "title":        e.get("title", ""),
-                    "published_at": e.get("publish_time", ""),
-                    "duration":     e.get("duration", 0),
-                    "player_url":   e.get("player_url", ""),
-                }
-                for e in episodes
-            ],
-        }
-    except Exception as e:
-        return {"connected": False, "error": str(e)}
+    """Check Podbean connection (cached 30 s to avoid blocking worker threads)."""
+    def _check():
+        from pipeline.podbean_client import get_podbean_settings, get_podcast_info, list_episodes, is_configured
+        s = get_podbean_settings()
+        if not is_configured():
+            return {"connected": False}
+        try:
+            info     = get_podcast_info(s["client_id"], s["client_secret"])
+            episodes = list_episodes(s["client_id"], s["client_secret"], limit=5)
+            return {
+                "connected":        True,
+                "auto_upload":      s["auto_upload"],
+                "title":            info.get("title", ""),
+                "image":            info.get("logo_url", ""),
+                "subscriber_count": info.get("subscriber_count", 0),
+                "episode_count":    info.get("total_count", len(episodes)),
+                "recent_episodes": [
+                    {"id": e.get("id",""), "title": e.get("title",""),
+                     "published_at": e.get("publish_time",""), "duration": e.get("duration",0),
+                     "player_url": e.get("player_url","")}
+                    for e in episodes
+                ],
+            }
+        except Exception as e:
+            return {"connected": False, "error": str(e)}
+    return _cached_status("podbean_status", _check)
 
 
 @app.post("/podcast-episode/{video_id}/upload-podbean")
