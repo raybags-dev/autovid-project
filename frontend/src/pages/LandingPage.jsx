@@ -1169,6 +1169,37 @@ function SpotifyCarousel() {
   );
 }
 
+const BUZZSPROUT_PODCAST_ID = "2603264";
+
+function BuzzsproutPlayer({ size = "large" }) {
+  const containerId = `buzzsprout-player-${size}-${BUZZSPROUT_PODCAST_ID}`;
+  useEffect(() => {
+    // Inject Buzzsprout script dynamically (safe re-injection)
+    const existing = document.getElementById(containerId);
+    if (existing) existing.innerHTML = "";
+    const script = document.createElement("script");
+    script.src = `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}.js?container_id=${containerId}&player=${size}`;
+    script.async = true;
+    script.charset = "utf-8";
+    document.getElementById(containerId)?.appendChild(script);
+    return () => { const el = document.getElementById(containerId); if (el) el.innerHTML = ""; };
+  }, [containerId, size]);
+
+  return (
+    <div
+      id={containerId}
+      style={{
+        borderRadius: 16,
+        overflow: "hidden",
+        border: "1px solid rgba(242,101,34,0.25)",
+        boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(242,101,34,0.08)",
+        background: "rgba(3,6,15,0.85)",
+        minHeight: size === "large" ? 352 : 70,
+      }}
+    />
+  );
+}
+
 export default function LandingPage() {
   const theme = "dark";
   const [scrolled, setScrolled] = useState(false);
@@ -1180,6 +1211,7 @@ export default function LandingPage() {
   const [ytLoading, setYtLoading] = useState(true);
   const [ytIdx, setYtIdx] = useState(0);
   const [modalVideo, setModalVideo] = useState(null); // { id, title, url }
+  const [podcastTab, setPodcastTab] = useState("spotify"); // "spotify" | "buzzsprout"
   const [showBackTop, setShowBackTop] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [heroStats, setHeroStats] = useState(null);
@@ -3279,7 +3311,7 @@ export default function LandingPage() {
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: 48,
-              alignItems: "center",
+              alignItems: "start",
             }}
           >
             <div>
@@ -3293,42 +3325,63 @@ export default function LandingPage() {
                   color: c.text,
                 }}
               >
-                Listen on <span style={{ color: "#1db954" }}>Spotify.</span>
+                Listen on{" "}
+                <span style={{ color: podcastTab === "spotify" ? "#1db954" : "#f26522" }}>
+                  {podcastTab === "spotify" ? "Spotify." : "Buzzsprout."}
+                </span>
               </h2>
-              <p
-                style={{
-                  color: c.textM,
-                  lineHeight: 1.92,
-                  fontSize: 13,
-                  marginBottom: 16,
-                }}
-              >
+              <p style={{ color: c.textM, lineHeight: 1.92, fontSize: 13, marginBottom: 16 }}>
                 The 4Life Mystery podcast goes even deeper. Long-form
                 conversations — no time limits, no edits, no filter.
               </p>
-              <p
-                style={{
-                  color: c.textM,
-                  lineHeight: 1.92,
-                  fontSize: 13,
-                  marginBottom: 32,
-                }}
-              >
+              <p style={{ color: c.textM, lineHeight: 1.92, fontSize: 13, marginBottom: 28 }}>
                 From the mystery of consciousness to navigating grief, love, and
                 the strangeness of being human. New episodes every week.
               </p>
+
+              {/* Platform tabs */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+                <button
+                  onClick={() => setPodcastTab("spotify")}
+                  style={{
+                    padding: "8px 18px", borderRadius: 20, border: `1px solid ${podcastTab === "spotify" ? "#1db954" : "rgba(255,255,255,0.12)"}`,
+                    background: podcastTab === "spotify" ? "rgba(29,185,84,0.15)" : "transparent",
+                    color: podcastTab === "spotify" ? "#1db954" : c.textM,
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.07em", transition: "all 0.2s",
+                  }}
+                >
+                  ◎ SPOTIFY
+                </button>
+                <button
+                  onClick={() => setPodcastTab("buzzsprout")}
+                  style={{
+                    padding: "8px 18px", borderRadius: 20, border: `1px solid ${podcastTab === "buzzsprout" ? "#f26522" : "rgba(255,255,255,0.12)"}`,
+                    background: podcastTab === "buzzsprout" ? "rgba(242,101,34,0.15)" : "transparent",
+                    color: podcastTab === "buzzsprout" ? "#f26522" : c.textM,
+                    fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.07em", transition: "all 0.2s",
+                  }}
+                >
+                  🎙 BUZZSPROUT
+                </button>
+              </div>
+
               <div className="btn-group podcast-btns">
                 <a
-                  href={SOCIAL.spotify}
+                  href={podcastTab === "spotify" ? SOCIAL.spotify : `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="lp-btn lp-btn-green"
-                  style={{ flex: 1, justifyContent: "center" }}
+                  className="lp-btn"
+                  style={{
+                    flex: 1, justifyContent: "center",
+                    background: podcastTab === "spotify" ? "rgba(29,185,84,0.12)" : "rgba(242,101,34,0.12)",
+                    border: `1px solid ${podcastTab === "spotify" ? "rgba(29,185,84,0.35)" : "rgba(242,101,34,0.35)"}`,
+                    color: podcastTab === "spotify" ? "#1db954" : "#f26522",
+                  }}
                 >
                   ◎ LISTEN NOW
                 </a>
                 <a
-                  href={SOCIAL.spotify}
+                  href={podcastTab === "spotify" ? SOCIAL.spotify : `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="lp-btn lp-btn-ghost"
@@ -3338,7 +3391,15 @@ export default function LandingPage() {
                 </a>
               </div>
             </div>
-            <SpotifyCarousel />
+
+            {/* Player — switches between Spotify carousel and Buzzsprout embed */}
+            <div>
+              {podcastTab === "spotify" ? (
+                <SpotifyCarousel />
+              ) : (
+                <BuzzsproutPlayer size="large" />
+              )}
+            </div>
           </div>
         </div>
       </section>

@@ -8830,6 +8830,24 @@ export default function Dashboard() {
 
                     const cycleLabel = { monthly: "/mo", yearly: "/yr", weekly: "/wk", daily: "/day" };
 
+                    // Integration-linked rows (auto-detected from connected services)
+                    const integrationRows = [
+                      podbeanStatus?.connected && {
+                        id: "__podbean__", name: "Podbean", detail: podbeanStatus.title || "Podcast Hosting",
+                        sub: `${podbeanStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`,
+                        cost: 12, currency: "USD", cycle: "yearly", color: "#f26522", icon: "🎙",
+                        note: "$144/yr billed annually = $12/mo equivalent",
+                      },
+                      buzzsproutStatus?.connected && {
+                        id: "__buzzsprout__", name: "Buzzsprout", detail: buzzsproutStatus.title || "Podcast Hosting",
+                        sub: `${buzzsproutStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`,
+                        cost: 12, currency: "USD", cycle: "monthly", color: "#1db954", icon: "🎚",
+                        note: "$12/mo hosting plan",
+                      },
+                    ].filter(Boolean);
+                    const integrationMonthly = integrationRows.reduce((s, r) => s + toMonthly(r.cost, r.cycle), 0);
+                    const grandTotal = totalMonthly + integrationMonthly;
+
                     return (
                       <div style={{ marginTop: 20 }}>
                         <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SUBSCRIPTIONS & SPEND</div>
@@ -8839,15 +8857,41 @@ export default function Dashboard() {
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                             <div>
                               <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>💳 Monthly Spend</div>
-                              <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>Track your service subscriptions</div>
+                              <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }}>All services · integrations included</div>
                             </div>
                             <div style={{ textAlign: "right" }}>
                               <div style={{ fontSize: 18, fontWeight: 800, color: T.accentYellow, fontFamily: "'Syne',sans-serif" }}>
-                                ${totalMonthly.toFixed(2)}
+                                ${grandTotal.toFixed(2)}
                               </div>
                               <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em" }}>/ MONTH</div>
                             </div>
                           </div>
+
+                          {/* Integration rows (auto-detected) */}
+                          {integrationRows.length > 0 && (
+                            <div style={{ marginBottom: 10 }}>
+                              <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 5 }}>CONNECTED INTEGRATIONS</div>
+                              {integrationRows.map(r => (
+                                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: T.bgBase, borderRadius: 7, marginBottom: 4, border: `1px solid ${r.color}22` }}>
+                                  <div style={{ width: 28, height: 28, borderRadius: 6, background: `${r.color}18`, border: `1px solid ${r.color}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{r.icon}</div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{r.name} <span style={{ fontSize: 9, color: r.color, background: `${r.color}18`, padding: "1px 6px", borderRadius: 10, marginLeft: 4 }}>CONNECTED</span></div>
+                                    <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.sub}</div>
+                                    <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>{r.note}</div>
+                                  </div>
+                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                    <div style={{ fontSize: 12, color: r.color, fontWeight: 700 }}>
+                                      ${r.cost}<span style={{ fontSize: 9, color: T.textFaint }}>{cycleLabel[r.cycle]}</span>
+                                    </div>
+                                    {r.cycle !== "monthly" && (
+                                      <div style={{ fontSize: 9, color: T.textFaint }}>≈ ${toMonthly(r.cost, r.cycle).toFixed(2)}/mo</div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                              {subscriptions.length > 0 && <div style={{ borderTop: `1px solid ${T.border}`, margin: "10px 0 8px" }} />}
+                            </div>
+                          )}
 
                           {/* Subscription list */}
                           {subscriptions.length > 0 && (
