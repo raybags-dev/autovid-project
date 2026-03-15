@@ -393,7 +393,18 @@ def run_podcast_episode(
                         resolution="podcast",   # marker: not a short, not a video
                         status="ready")
 
-        _log(f"[DONE] Podcast episode ready: {ep_title} ({dur:.0f}s)")
+        _log(f"[5/5] Podcast episode ready: {ep_title} ({dur:.0f}s)")
+
+        # ── Optional: auto-upload to Buzzsprout ───────────────────────────────
+        try:
+            from pipeline.buzzsprout_client import get_buzzsprout_settings, upload_podcast_episode, is_configured
+            if is_configured() and get_buzzsprout_settings().get("auto_upload"):
+                _log("[BUZZSPROUT] Auto-uploading to Buzzsprout...")
+                upload_podcast_episode(video_id, log_fn=_log)
+        except Exception as bz_err:
+            _log(f"[BUZZSPROUT] ⚠ Auto-upload failed (episode still saved locally): {bz_err}")
+
+        _log(f"[DONE] Podcast pipeline complete.")
         return video_id
 
     except Exception as e:

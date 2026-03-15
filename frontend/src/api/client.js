@@ -279,6 +279,12 @@ export const renameCompilation = async (id, title) => {
   return data;
 };
 
+// ── Buzzsprout ────────────────────────────────────────────────────────────────
+export const getBuzzsproutStatus   = async () => { const { data } = await api.get("/buzzsprout/status");   return data; };
+export const getBuzzsproutSettings = async () => { const { data } = await api.get("/buzzsprout/settings"); return data; };
+export const saveBuzzsproutSettings = async (s) => { const { data } = await api.post("/buzzsprout/settings", s); return data; };
+export const uploadToBuzzsprout = async (videoId) => { const { data } = await api.post(`/podcast-episode/${videoId}/upload-buzzsprout`); return data; };
+
 // ── Blog (public) ────────────────────────────────────────────────────────────
 export const getBlogComments = async (page = 1, fp = "") =>
   (await axios.get(`/api/blog/comments?page=${page}&limit=20&fp=${fp}`)).data;
