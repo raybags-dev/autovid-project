@@ -14,23 +14,12 @@ const PROFILES = [
 ];
 
 const MOODS = [
-  { id: null,            emoji: "🎯", label: "Auto",           desc: "Matches your topic" },
-  { id: "ocean",         emoji: "🌊", label: "Ocean",          desc: "Waves & calm water" },
-  { id: "candle",        emoji: "🕯️", label: "Candle",         desc: "Warm flame & firelight" },
-  { id: "forest",        emoji: "🌲", label: "Forest",         desc: "Light rays & misty trees" },
-  { id: "stars",         emoji: "🌌", label: "Night Sky",      desc: "Milky way & starfield",        aurora: "dark" },
-  { id: "hands",         emoji: "🤝", label: "Hands",          desc: "Human connection" },
-  { id: "mountains",     emoji: "⛰️", label: "Mountains",      desc: "Dramatic peaks & mist" },
-  { id: "aurora_blue",   emoji: "✨", label: "Aurora Blue",    desc: "Glowing northern lights",      aurora: "blue" },
-  { id: "aurora_dark",   emoji: "🌑", label: "Aurora Dark",    desc: "Deep obsidian waves",          aurora: "dark" },
-  { id: "fluid_red",     emoji: "🔴", label: "Liquid Red",     desc: "Crimson viscous blobs",        fluid: "red" },
-  { id: "fluid_blue",    emoji: "🔵", label: "Liquid Blue",    desc: "Deep blue morphing blobs",     fluid: "blue" },
-  { id: "fluid_black",   emoji: "⚫", label: "Liquid Black",   desc: "Dark morphing blobs",          fluid: "black" },
-  { id: "neon_purple",   emoji: "💜", label: "Neon Purple",    desc: "Vivid purple neon blobs",      fluid: "purple" },
-  { id: "cosmic_dust",   emoji: "✨", label: "Cosmic Dust",    desc: "Golden dust in deep space" },
-  { id: "ember_glow",    emoji: "🔥", label: "Ember Glow",     desc: "Floating amber embers",        fluid: "gold" },
-  { id: "gradient_wave", emoji: "🌈", label: "Gradient Wave",  desc: "Flowing color waves" },
-  { id: "geometric_pulse", emoji: "⬡", label: "Geometric",    desc: "Pulsing geometric rings" },
+  { id: "stars",  emoji: "⭐", label: "Stars",  desc: "Deep space drift" },
+  { id: "aurora", emoji: "🌌", label: "Aurora", desc: "Northern lights" },
+  { id: "ocean",  emoji: "🌊", label: "Ocean",  desc: "Underwater rays" },
+  { id: "fire",   emoji: "🔥", label: "Fire",   desc: "Floating embers" },
+  { id: "rain",   emoji: "🌧", label: "Rain",   desc: "Night city window" },
+  { id: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
 ];
 
 const MUSIC = [
@@ -56,20 +45,12 @@ const STEP_LABELS = {
   6: "Done! Check your Videos tab.",
 };
 
-// Fluid preview backgrounds for moods that have fluid variants
-const FLUID_PREVIEW_BG = {
-  red:    "#08000a",
-  blue:   "#00030e",
-  black:  "#020202",
-  purple: "#080012",
-  gold:   "#0a0500",
-};
 
 export default function ScriptStudio({ T, showToast, onVideoReady }) {
   const [title, setTitle]     = useState("");
   const [script, setScript]   = useState("");
   const [profile, setProfile] = useState("educational");
-  const [mood, setMood]       = useState(null);
+  const [mood, setMood]       = useState("stars");
   const [music, setMusic]     = useState("ambient");
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep]   = useState(0);
@@ -181,80 +162,21 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
 
   const MoodCard = ({ v }) => {
     const isSelected = mood === v.id;
-    const hasDarkBg  = v.aurora === "dark" || v.fluid === "black";
-    const fluidBg    = v.fluid ? FLUID_PREVIEW_BG[v.fluid] : null;
-    const cardBg     =
-      fluidBg          ? fluidBg :
-      v.aurora === "dark" ? "#080810" :
-      v.aurora === "blue" ? "#05071a" :
-      isSelected      ? T.accent + "12" :
-      "transparent";
-
     return (
       <button
         onClick={() => setMood(v.id)}
         disabled={running}
         style={{
-          position: "relative",
-          padding: "9px 10px",
-          borderRadius: 9,
-          overflow: "hidden",
-          border: `1px solid ${isSelected ? T.accent + "90" : T.border}`,
-          background: cardBg,
-          color: (v.aurora || v.fluid || hasDarkBg) ? "#fff" : isSelected ? T.accent : T.textMid,
+          padding: "8px 10px", borderRadius: 8,
           cursor: running ? "not-allowed" : "pointer",
-          fontFamily: "inherit",
           textAlign: "left",
-          transition: "all 0.15s",
-          opacity: running ? 0.6 : 1,
-          boxShadow: isSelected ? `0 0 0 1px ${T.accent}50, 0 4px 12px ${T.accent}20` : "none",
+          border: `2px solid ${isSelected ? T.accent : T.border}`,
+          background: isSelected ? `${T.accent}18` : T.inputBg,
+          color: T.text, fontFamily: "inherit",
         }}
       >
-        {/* Live CSS animation previews */}
-        {v.aurora && (
-          <div
-            className={`aurora-wrap aurora-${v.aurora}`}
-            style={{ opacity: isSelected ? 1 : 0.55 }}
-          >
-            <div className="aurora-band" />
-            <div className="aurora-band" />
-            <div className="aurora-band" />
-          </div>
-        )}
-        {v.fluid && (
-          <div
-            className={`fluid-wrap fluid-${v.fluid}`}
-            style={{ opacity: isSelected ? 1 : 0.7 }}
-          >
-            <div className="fluid-blob" />
-            <div className="fluid-blob" />
-            <div className="fluid-blob" />
-          </div>
-        )}
-
-        {/* Content */}
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ fontSize: 15, marginBottom: 3, lineHeight: 1 }}>{v.emoji}</div>
-          <div style={{
-            fontSize: 10, fontWeight: 700, lineHeight: 1.2, marginBottom: 2,
-            color: isSelected ? (v.aurora || v.fluid ? "#fff" : T.accent) : undefined,
-          }}>
-            {v.label}
-          </div>
-          <div style={{ fontSize: 9, opacity: 0.65, lineHeight: 1.3 }}>{v.desc}</div>
-        </div>
-
-        {/* Selected checkmark */}
-        {isSelected && (
-          <div style={{
-            position: "absolute", top: 5, right: 5, zIndex: 2,
-            width: 14, height: 14, borderRadius: "50%",
-            background: T.accent, display: "flex", alignItems: "center",
-            justifyContent: "center", fontSize: 8, color: "#fff",
-          }}>
-            ✓
-          </div>
-        )}
+        <div style={{ fontSize: 11, fontWeight: 700 }}>{v.emoji} {v.label}</div>
+        <div style={{ fontSize: 10, color: T.textDim }}>{v.desc}</div>
       </button>
     );
   };
@@ -800,27 +722,14 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
             background: T.bgCard, border: `1px solid ${T.border}`,
             borderRadius: 12, padding: "14px 14px",
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em" }}>
-                VISUAL MOOD
+                AMBIENCE
               </div>
-              {mood !== null && (
-                <button
-                  onClick={() => setMood(null)}
-                  style={{
-                    background: "none", border: "none",
-                    fontSize: 9, color: T.textFaint,
-                    cursor: "pointer", letterSpacing: "0.05em",
-                    padding: "2px 6px",
-                  }}
-                >
-                  RESET
-                </button>
-              )}
             </div>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3,1fr)",
+              gridTemplateColumns: "1fr 1fr",
               gap: 6,
             }}>
               {MOODS.map((v) => <MoodCard key={String(v.id)} v={v} />)}

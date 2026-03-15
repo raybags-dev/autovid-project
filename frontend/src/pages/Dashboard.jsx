@@ -50,26 +50,14 @@ import {
 import { useAuth } from "../context/AuthContext";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const MOODS_CSS = [
-  { id: "aurora_blue",      emoji: "🌌", label: "Aurora Blue",   aurora: "blue",   bg: "#05081a" },
-  { id: "aurora_dark",      emoji: "🖤", label: "Aurora Dark",   aurora: "dark",   bg: "#080810" },
-  { id: "fluid_red",        emoji: "🔴", label: "Liquid Red",    fluid: "red",     bg: "#08000a" },
-  { id: "fluid_blue",       emoji: "🔵", label: "Liquid Blue",   fluid: "blue",    bg: "#00030e" },
-  { id: "fluid_black",      emoji: "⚫", label: "Liquid Black",  fluid: "black",   bg: "#020202" },
-  { id: "neon_purple",      emoji: "💜", label: "Neon Purple",   fluid: "purple",  bg: "#08010e" },
-  { id: "gradient_wave",    emoji: "🌈", label: "Gradient Wave", bg: "#080a14" },
-  { id: "starfield",        emoji: "✨", label: "Starfield",     bg: "#020408" },
-  { id: "geometric_pulse",  emoji: "◆",  label: "Geometric",     bg: "#0a0a12" },
-  { id: "cosmic_dust",      emoji: "🌌", label: "Cosmic Dust",   bg: "#020408" },
-  { id: "ember_glow",       emoji: "🔥", label: "Ember Glow",    bg: "#080200" },
+const AMBIENCE_OPTIONS = [
+  { id: "stars",  emoji: "⭐", label: "Stars",  desc: "Deep space drift" },
+  { id: "aurora", emoji: "🌌", label: "Aurora", desc: "Northern lights" },
+  { id: "ocean",  emoji: "🌊", label: "Ocean",  desc: "Underwater rays" },
+  { id: "fire",   emoji: "🔥", label: "Fire",   desc: "Floating embers" },
+  { id: "rain",   emoji: "🌧", label: "Rain",   desc: "Night city window" },
+  { id: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
 ];
-const MOODS_STOCK = [
-  { id: "inspirational", emoji: "🔥", label: "Inspirational", bg: null },
-  { id: "educational",   emoji: "🧠", label: "Educational",   bg: null },
-  { id: "dramatic",      emoji: "⚡", label: "Dramatic",      bg: null },
-  { id: "reflective",    emoji: "🌊", label: "Reflective",    bg: null },
-];
-const MOODS_GRID = [...MOODS_CSS, ...MOODS_STOCK];
 const STEPS = [
   "Script",
   "Voice",
@@ -416,9 +404,9 @@ export default function Dashboard() {
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [profile, setProfile] = useState("educational");
-  const [visualMood, setVisualMood] = useState("inspirational");
+  const [visualMood, setVisualMood] = useState("stars");
   const [musicStyle, setMusicStyle] = useState("Birds_Atmosphere_Piano");
-  const [musicVolume, setMusicVolume] = useState(0.12); // 0.0–0.5; default 12%
+  const [musicVolume, setMusicVolume] = useState(0.01); // 0.0–0.5; default 1%
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
@@ -1050,7 +1038,7 @@ export default function Dashboard() {
   const [manualPodcastTopic, setManualPodcastTopic] = useState("");
   const [manualPodcastEssay, setManualPodcastEssay] = useState("");
   const [manualPodcastMusic, setManualPodcastMusic] = useState("Birds_Atmosphere_Piano");
-  const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.15);
+  const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.01);
   const podcastLogsEndRef = useRef(null);
   const podcastLogPollRef = useRef(null);
   const podcastLogLineRef = useRef(0);
@@ -2191,56 +2179,24 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                  {/* Visual mood grid */}
+                  {/* Ambience grid */}
                   <div style={{ marginTop: 14 }}>
                     <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 7 }}>
-                      VISUAL MOOD
+                      AMBIENCE
                     </div>
-                    <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 4 }}>CSS BACKGROUNDS</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5, marginBottom: 8 }}>
-                      {MOODS_CSS.map((v) => (
-                        <button key={v.id} onClick={() => setVisualMood(v.id)} disabled={generating}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      {AMBIENCE_OPTIONS.map((a) => (
+                        <button key={a.id} onClick={() => setVisualMood(a.id)} disabled={generating}
                           style={{
-                            position: "relative", padding: "7px 8px", borderRadius: 8, overflow: "hidden",
-                            border: `1px solid ${visualMood === v.id ? "#a060ff60" : T.border}`,
-                            background: v.bg || (visualMood === v.id ? "#a060ff12" : "transparent"),
-                            color: visualMood === v.id ? "#a060ff" : T.textMid,
-                            cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s",
+                            padding: "8px 10px", borderRadius: 8, cursor: generating ? "not-allowed" : "pointer",
+                            textAlign: "left",
+                            border: `2px solid ${visualMood === a.id ? T.accent : T.border}`,
+                            background: visualMood === a.id ? `${T.accent}18` : T.inputBg,
+                            color: T.text, fontFamily: "inherit",
                           }}
                         >
-                          {v.aurora && (
-                            <div className={`aurora-wrap aurora-${v.aurora}`} style={{ opacity: visualMood === v.id ? 1 : 0.55 }}>
-                              <div className="aurora-band" /><div className="aurora-band" /><div className="aurora-band" />
-                            </div>
-                          )}
-                          {v.fluid && (
-                            <div className={`fluid-wrap fluid-${v.fluid}`} style={{ opacity: visualMood === v.id ? 1 : 0.65 }}>
-                              <div className="fluid-blob" /><div className="fluid-blob" /><div className="fluid-blob" />
-                            </div>
-                          )}
-                          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 5 }}>
-                            <span style={{ fontSize: 12 }}>{v.emoji}</span>
-                            <span style={{ fontSize: 9, fontWeight: 600 }}>{v.label}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 4 }}>STOCK FOOTAGE</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5 }}>
-                      {MOODS_STOCK.map((v) => (
-                        <button key={v.id} onClick={() => setVisualMood(v.id)} disabled={generating}
-                          style={{
-                            position: "relative", padding: "7px 8px", borderRadius: 8, overflow: "hidden",
-                            border: `1px solid ${visualMood === v.id ? "#a060ff60" : T.border}`,
-                            background: visualMood === v.id ? "#a060ff12" : "transparent",
-                            color: visualMood === v.id ? "#a060ff" : T.textMid,
-                            cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s",
-                          }}
-                        >
-                          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 5 }}>
-                            <span style={{ fontSize: 12 }}>{v.emoji}</span>
-                            <span style={{ fontSize: 9, fontWeight: 600 }}>{v.label}</span>
-                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 700 }}>{a.emoji} {a.label}</div>
+                          <div style={{ fontSize: 10, color: T.textDim }}>{a.desc}</div>
                         </button>
                       ))}
                     </div>
