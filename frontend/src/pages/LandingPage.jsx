@@ -1025,6 +1025,8 @@ function BlogSection({ c, theme }) {
 }
 
 const SPOTIFY_EPISODES = [
+  "7hCDCS7wBcqgpQbZtdbD4O",
+  "5b9G6AQXt2z1ARRVc5KPCW",
   "50JTbPBRUMIyJIUROLBcV9",
   "0fqEGJtyCgS9jnfslTv13Q",
   "2aYzYLAmKO3ya8ajCc4d9W",
@@ -3131,7 +3133,20 @@ export default function LandingPage() {
           ) : (
             (() => {
               const heroVideos = ytVideos.slice(0, 3);
-              if (heroVideos.length === 0) return null;
+              if (heroVideos.length === 0) return (
+                <div style={{ borderRadius: 20, overflow: "hidden", background: "#0a0a14", border: "1px solid rgba(255,85,51,0.2)", boxShadow: "0 24px 80px rgba(0,0,0,0.8)", padding: "48px 52px", minHeight: 280, display: "flex", flexDirection: "column", justifyContent: "center", gap: 24 }}>
+                  <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 70% 50%, rgba(255,85,51,0.08) 0%, rgba(0,0,0,0) 70%)", pointerEvents: "none" }} />
+                  <span style={{ fontSize: 9, letterSpacing: "0.18em", color: "#ff5533", background: "rgba(255,85,51,0.12)", border: "1px solid rgba(255,85,51,0.25)", padding: "4px 12px", borderRadius: 20, alignSelf: "flex-start" }}>▶ YOUTUBE</span>
+                  <h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(20px,3vw,32px)", color: "#fff", lineHeight: 1.2, marginBottom: 8 }}>4Life Mystery — Uncover the Unknown</h3>
+                  <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, lineHeight: 1.7, maxWidth: 460 }}>Deep dives into existence, consciousness, and the questions mainstream media won't touch. New videos weekly.</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 8 }}>
+                    <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 28px", borderRadius: 50, background: "#ff0000", color: "#fff", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", textDecoration: "none", boxShadow: "0 8px 32px rgba(255,0,0,0.4)" }}>
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                      WATCH ON YOUTUBE
+                    </a>
+                  </div>
+                </div>
+              );
               const v = heroVideos[ytIdx % heroVideos.length];
               const total = heroVideos.length;
               return (
