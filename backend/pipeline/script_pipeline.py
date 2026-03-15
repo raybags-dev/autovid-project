@@ -36,6 +36,7 @@ GENERATED_VISUAL_MOODS = {
     "gradient_wave", "starfield", "geometric_pulse",
     "colour_wash", "particle_field",
     "neon_purple", "cosmic_dust", "ember_glow",
+    "rain",
 }
 
 
