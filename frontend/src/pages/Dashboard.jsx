@@ -514,6 +514,8 @@ export default function Dashboard() {
   const [liveReplyOpen, setLiveReplyOpen] = useState(null);
   const [liveReplyContent, setLiveReplyContent] = useState("");
   const [videoSearch, setVideoSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(20);
+  const sentinelRef = useRef(null);
   // ── Notifications ──────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState(() => {
     try { return JSON.parse(localStorage.getItem("autovid_notifs") || "[]"); } catch { return []; }
@@ -1558,6 +1560,20 @@ export default function Dashboard() {
     if (!msg) return false;
     return /missing \d+ required positional argument|TypeError:|AttributeError:|NameError:|SyntaxError:|ImportError:|KeyError:|IndexError:|UnboundLocalError:|RecursionError:|<locals>/.test(msg);
   };
+
+  // Reset pagination when filter or search changes
+  useEffect(() => { setVisibleCount(20); }, [filter, videoSearch]);
+
+  // IntersectionObserver — load 20 more items when the sentinel scrolls into view
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) setVisibleCount((c) => c + 20);
+    }, { threshold: 0.1 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   const filtered = videos.filter((v) => {
     const matchesFilter = (() => {
@@ -2851,8 +2867,11 @@ export default function Dashboard() {
                   )}
                 </div>
 
+                {/* ── Sticky filter panel + scrollable list ── */}
+                <div style={{ position: "sticky", top: 0, zIndex: 10, display: "flex", flexDirection: "column", height: "calc(100vh - 52px)", background: "inherit" }}>
+
                 {/* Search */}
-                <div style={{ marginBottom: 10, position: "relative" }}>
+                <div style={{ marginBottom: 10, position: "relative", flexShrink: 0 }}>
                   <input
                     value={videoSearch}
                     onChange={e => setVideoSearch(e.target.value)}
@@ -2876,7 +2895,7 @@ export default function Dashboard() {
                     display: "flex",
                     gap: 6,
                     alignItems: "center",
-                    marginBottom: 16,
+                    marginBottom: 8,
                     flexWrap: "wrap",
                   }}
                 >
@@ -2953,6 +2972,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Video list */}
+                <div style={{ flex: 1, overflowY: "auto", paddingRight: 2 }}>
                 {!pageReady && videos.length === 0 ? (
                   [0,1,2,3].map(i => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", marginBottom: 8, background: T.bgCard, borderRadius: 10, border: `1px solid ${T.border}` }}>
@@ -2985,7 +3005,7 @@ export default function Dashboard() {
                       : `NO ${filter.toUpperCase()} VIDEOS`}
                   </div>
                 ) : (
-                  filtered.map((v) => {
+                  filtered.slice(0, visibleCount).map((v) => {
                     const s = sc(v.status);
                     const vUrl = getVideoUrl(v.file_path);
                     return (
@@ -3150,6 +3170,18 @@ export default function Dashboard() {
                                 />
                                 {s.label}
                               </div>
+                              {v.podbean_episode_id && (
+                                <span style={{
+                                  fontSize: 8, letterSpacing: "0.07em",
+                                  color: "#f26522",
+                                  background: "rgba(242,101,34,0.1)",
+                                  border: "1px solid rgba(242,101,34,0.25)",
+                                  padding: "2px 7px",
+                                  borderRadius: 10,
+                                  flexShrink: 0,
+                                  lineHeight: 1.5,
+                                }}>🎙 PODBEAN</span>
+                              )}
                             </div>
                             <div
                               style={{
@@ -4131,6 +4163,12 @@ export default function Dashboard() {
                     );
                   })
                 )}
+                {/* Pagination sentinel */}
+                {visibleCount < filtered.length && (
+                  <div ref={sentinelRef} style={{ height: 1 }} />
+                )}
+                </div>{/* end scrollable list */}
+                </div>{/* end sticky panel */}
               </>
             )}
 
