@@ -12,6 +12,7 @@ Settings are stored in the app_settings table:
   buzzsprout_auto_upload — "true"/"false" — auto-push on podcast completion
 """
 
+import os
 import requests
 import sys
 from pathlib import Path
@@ -25,9 +26,10 @@ BUZZSPROUT_BASE = "https://www.buzzsprout.com/api"
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def get_buzzsprout_settings() -> dict:
+    # Env vars take priority over DB (useful for docker .env file)
     return {
-        "api_token":   db.get_setting("buzzsprout_api_token",   default=""),
-        "podcast_id":  db.get_setting("buzzsprout_podcast_id",  default=""),
+        "api_token":   os.environ.get("BUZZSPROUT_API_TOKEN")   or db.get_setting("buzzsprout_api_token",   default=""),
+        "podcast_id":  os.environ.get("BUZZSPROUT_PODCAST_ID")  or db.get_setting("buzzsprout_podcast_id",  default=""),
         "auto_upload": db.get_setting("buzzsprout_auto_upload", default="false") == "true",
     }
 
