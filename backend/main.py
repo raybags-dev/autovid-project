@@ -2355,18 +2355,63 @@ def upload_episode_to_podbean(video_id: str, background_tasks: BackgroundTasks, 
 
 # ── Subscriptions / Expenditure Tracker ──────────────────────────────────────
 
+def _parse_expenditures_file() -> list:
+    """Parse backend/embeds/expeditures.txt into a subscription list."""
+    import re, os
+    path = os.path.join(os.path.dirname(__file__), "embeds", "expeditures.txt")
+    if not os.path.exists(path):
+        return []
+    text = open(path, encoding="utf-8").read()
+    blocks = re.split(r'\n\s*\n', text.strip())
+    result, i = [], 1
+    for block in blocks:
+        lines = [l.strip() for l in block.strip().splitlines() if l.strip()]
+        if len(lines) < 2:
+            continue
+        name = lines[0]
+        fee_raw    = next((l.split(":", 1)[1].strip() for l in lines if l.lower().startswith("fee:")), "")
+        period_raw = next((l.split(":", 1)[1].strip() for l in lines if l.lower().startswith("period:")), "monthly")
+        next_bill  = next((l.split(":", 1)[1].strip() for l in lines if l.lower().startswith("next bill:")), "")
+        if not fee_raw or fee_raw.upper() == "FREE" or fee_raw.strip() == "__":
+            continue
+        currency = "EUR" if "EUR" in fee_raw.upper() else "USD"
+        cost_str = re.sub(r"[^\d.,]", "", fee_raw).replace(",", ".")
+        try:
+            cost = float(cost_str)
+        except Exception:
+            continue
+        cycle = period_raw.lower().strip()
+        if cycle not in ("monthly", "yearly", "weekly", "daily"):
+            cycle = "monthly"
+        result.append({
+            "id": str(i), "name": name,
+            "cost": cost, "currency": currency, "cycle": cycle,
+            "next_billing": next_bill if next_bill != "__" else "",
+        })
+        i += 1
+    return result
+
+
 @app.get("/subscriptions")
 def get_subscriptions(user: str = Depends(verify_token)):
-    """Return saved subscription list."""
+    """Return saved subscription list; seeds from expenditures file on first call."""
     import json
-    raw = db.get_setting("subscriptions", default="[]")
-    try:
-        return json.loads(raw)
-    except Exception:
-        return []
+    raw = db.get_setting("subscriptions", default="")
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
+    # First call — seed from file and persist
+    seeded = _parse_expenditures_file()
+    if seeded:
+        db.set_setting("subscriptions", json.dumps(seeded))
+    return seeded
+
+from fastapi import Body as _Body
 
 @app.post("/subscriptions")
-def save_subscriptions(body: list, user: str = Depends(verify_token)):
+def save_subscriptions(body: list = _Body(...), user: str = Depends(verify_token)):
     """Persist subscription list as JSON."""
     import json
     db.set_setting("subscriptions", json.dumps(body))

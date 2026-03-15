@@ -8816,7 +8816,12 @@ export default function Dashboard() {
                         setSubscriptions(updated);
                         setNewSub({ name: "", cost: "", currency: "USD", cycle: "monthly", next_billing: "" });
                         setShowAddSub(false);
-                      } catch { showToast("Failed to save", "error"); }
+                        showToast("Subscription added");
+                      } catch(e) {
+                        const msg = e?.response?.data?.detail || e?.message || "Failed to save subscription";
+                        showToast(msg, "error");
+                        addNotification("Subscription Save Failed", msg, "error");
+                      }
                       finally { setSubsSaving(false); }
                     };
 
@@ -8825,24 +8830,36 @@ export default function Dashboard() {
                       try {
                         await saveSubscriptions(updated);
                         setSubscriptions(updated);
-                      } catch { showToast("Failed to delete", "error"); }
+                      } catch(e) {
+                        const msg = e?.response?.data?.detail || e?.message || "Failed to delete subscription";
+                        showToast(msg, "error");
+                        addNotification("Subscription Delete Failed", msg, "error");
+                      }
                     };
 
                     const cycleLabel = { monthly: "/mo", yearly: "/yr", weekly: "/wk", daily: "/day" };
 
-                    // Integration-linked rows (auto-detected from connected services)
+                    // Integration-linked rows — show when configured (credentials set), regardless of live status
+                    const pbConfigured = podbeanSettings?.client_id?.length > 3;
+                    const bzConfigured = buzzsproutSettings?.api_token?.length > 3 || buzzsproutSettings?.api_token?.startsWith("•");
                     const integrationRows = [
-                      podbeanStatus?.connected && {
-                        id: "__podbean__", name: "Podbean", detail: podbeanStatus.title || "Podcast Hosting",
-                        sub: `${podbeanStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`,
-                        cost: 12, currency: "USD", cycle: "yearly", color: "#f26522", icon: "🎙",
-                        note: "$144/yr billed annually = $12/mo equivalent",
+                      pbConfigured && {
+                        id: "__podbean__", name: "Podbean",
+                        sub: podbeanStatus?.connected
+                          ? `${podbeanStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`
+                          : "Podcast hosting — pending connection",
+                        cost: 99.99, currency: "USD", cycle: "yearly", color: "#f26522", icon: "🎙",
+                        note: "$99.99/yr billed annually ≈ $8.33/mo",
+                        connected: podbeanStatus?.connected,
                       },
-                      buzzsproutStatus?.connected && {
-                        id: "__buzzsprout__", name: "Buzzsprout", detail: buzzsproutStatus.title || "Podcast Hosting",
-                        sub: `${buzzsproutStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`,
+                      bzConfigured && {
+                        id: "__buzzsprout__", name: "Buzzsprout",
+                        sub: buzzsproutStatus?.connected
+                          ? `${buzzsproutStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`
+                          : "Podcast hosting — pending connection",
                         cost: 12, currency: "USD", cycle: "monthly", color: "#1db954", icon: "🎚",
                         note: "$12/mo hosting plan",
+                        connected: buzzsproutStatus?.connected,
                       },
                     ].filter(Boolean);
                     const integrationMonthly = integrationRows.reduce((s, r) => s + toMonthly(r.cost, r.cycle), 0);
@@ -8875,7 +8892,12 @@ export default function Dashboard() {
                                 <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: T.bgBase, borderRadius: 7, marginBottom: 4, border: `1px solid ${r.color}22` }}>
                                   <div style={{ width: 28, height: 28, borderRadius: 6, background: `${r.color}18`, border: `1px solid ${r.color}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{r.icon}</div>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{r.name} <span style={{ fontSize: 9, color: r.color, background: `${r.color}18`, padding: "1px 6px", borderRadius: 10, marginLeft: 4 }}>CONNECTED</span></div>
+                                    <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>
+                                      {r.name}{" "}
+                                      <span style={{ fontSize: 9, color: r.connected ? r.color : T.textFaint, background: r.connected ? `${r.color}18` : `${T.textFaint}18`, padding: "1px 6px", borderRadius: 10, marginLeft: 4 }}>
+                                        {r.connected ? "CONNECTED" : "CONFIGURED"}
+                                      </span>
+                                    </div>
                                     <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.sub}</div>
                                     <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>{r.note}</div>
                                   </div>
