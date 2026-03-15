@@ -347,7 +347,7 @@ def generate_video(
             _push_log(video_id, "__DONE__")
             _unregister_pipeline(video_id)
 
-    pos = _queue_pipeline(_run)
+    pos = _queue_pipeline(_run, job_id=video_id, job_type="video", prompt=req.prompt)
 
     return {"message": "Pipeline queued" if pos > 1 else "Pipeline started", "prompt": req.prompt, "status": "generating", "video_id": video_id, "queue_position": pos}
 
@@ -888,7 +888,7 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
             _push_log(video_id, "[DONE] Pipeline finished")
             _unregister_pipeline(video_id)
 
-    pos = _queue_pipeline(_run)
+    pos = _queue_pipeline(_run, job_id=video_id, job_type="script", prompt=req.title)
 
     return {"video_id": video_id, "message": "Script pipeline queued" if pos > 1 else "Script pipeline started", "word_count": word_count, "queue_position": pos}
 
@@ -898,6 +898,29 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
 @app.get("/stats")
 def get_stats(user: str = Depends(verify_token)):
     return db.get_stats()
+
+
+@app.get("/pipeline/metrics")
+def pipeline_metrics(user: str = Depends(verify_token)):
+    """Return 24-hour job history for pipeline visualization."""
+    _ensure_history_reset()
+    with _job_history_lock:
+        hourly = dict(_job_history["hourly"])
+        jobs   = list(_job_history["jobs"])
+        date   = _job_history["date"]
+    pending = _pipeline_executor._work_queue.qsize()
+    total_done   = sum(v["done"]   for v in hourly.values())
+    total_failed = sum(v["failed"] for v in hourly.values())
+    return {
+        "date":          date,
+        "hourly":        hourly,
+        "recent_jobs":   jobs[:50],
+        "summary": {
+            "total_done":   total_done,
+            "total_failed": total_failed,
+            "pending":      pending,
+        },
+    }
 
 
 @app.get("/queue/status")
@@ -1189,7 +1212,7 @@ def generate_podcast_episode(req: PodcastGenerateRequest, user: str = Depends(ve
             unregister_fn=_unregister_pipeline,
         )
 
-    pos = _queue_pipeline(_run)
+    pos = _queue_pipeline(_run, job_id=video_id, job_type="podcast", prompt=req.topic or req.title or "")
     return {"message": "Podcast queued" if pos > 1 else "Podcast generation started", "video_id": video_id, "queue_position": pos}
 
 
@@ -1713,7 +1736,7 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
         finally:
             _unregister_pipeline(video_id)
 
-    pos = _queue_pipeline(do_short)
+    pos = _queue_pipeline(do_short, job_id=video_id, job_type="short_clip", prompt=video.get("title") or video.get("prompt") or "")
     return {"message": "Short creation queued" if pos > 1 else "Short creation started", "video_id": video_id, "queue_position": pos}
 
 
@@ -1759,7 +1782,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
         finally:
             _unregister_pipeline(video_id)
 
-    pos = _queue_pipeline(_run)
+    pos = _queue_pipeline(_run, job_id=video_id, job_type="short", prompt=label)
     return {"message": "Short pipeline queued" if pos > 1 else "Short pipeline started", "video_id": video_id, "queue_position": pos}
 
 
@@ -1805,10 +1828,64 @@ _pipeline_lock = _threading.Lock()
 # finishes.  Log streaming still works because all jobs run in-process.
 _pipeline_executor = _ThreadPoolExecutor(max_workers=1, thread_name_prefix="pipeline")
 
-def _queue_pipeline(fn) -> int:
-    """Submit fn to the serial executor.  Returns approximate queue position (1 = next/running)."""
+# ── Job history (in-memory, resets at midnight UTC) ───────────────────────────
+from datetime import datetime as _datetime, timezone as _tz
+
+_job_history: dict = {"date": None, "hourly": {}, "jobs": []}
+_job_history_lock = _threading.Lock()
+
+def _today_utc() -> str:
+    return _datetime.now(_tz.utc).strftime("%Y-%m-%d")
+
+def _ensure_history_reset():
+    today = _today_utc()
+    with _job_history_lock:
+        if _job_history["date"] != today:
+            _job_history["date"]   = today
+            _job_history["hourly"] = {str(h): {"done": 0, "failed": 0} for h in range(24)}
+            _job_history["jobs"]   = []
+
+def _record_job(job_id: str, job_type: str, prompt: str, started_at: float, status: str):
+    """Record a completed/failed job into the daily history."""
+    _ensure_history_reset()
+    now   = _datetime.now(_tz.utc)
+    hour  = str(now.hour)
+    key   = "done" if status == "done" else "failed"
+    dur   = round(time.time() - started_at)
+    with _job_history_lock:
+        _job_history["hourly"][hour][key] += 1
+        _job_history["jobs"].insert(0, {
+            "id":         job_id,
+            "type":       job_type,
+            "prompt":     (prompt or "")[:60],
+            "started_at": started_at,
+            "ended_at":   time.time(),
+            "duration_s": dur,
+            "status":     status,
+            "hour":       int(hour),
+        })
+        _job_history["jobs"] = _job_history["jobs"][:200]  # keep last 200
+
+def _queue_pipeline(fn, job_id: str = None, job_type: str = "job", prompt: str = "") -> int:
+    """Submit fn to the serial executor.  Returns approximate queue position (1 = next/running).
+    Wraps fn so job completion is automatically recorded in history."""
+    _ensure_history_reset()
+    started_at = time.time()
+
+    def _tracked():
+        status = "failed"
+        try:
+            fn()
+            status = "done"
+        except Exception:
+            status = "failed"
+            raise
+        finally:
+            if job_id:
+                _record_job(job_id, job_type, prompt, started_at, status)
+
     pending = _pipeline_executor._work_queue.qsize()
-    _pipeline_executor.submit(fn)
+    _pipeline_executor.submit(_tracked)
     return pending + 1   # position: 1 = will start as soon as current finishes
 
 def _register_pipeline(video_id: str, log_q=None):
@@ -2068,7 +2145,7 @@ def create_compilation(
         finally:
             _unregister_pipeline(comp_id)
 
-    pos = _queue_pipeline(run)
+    pos = _queue_pipeline(run, job_id=comp_id, job_type="compilation", prompt=req.title)
     return {"compilation_id": comp_id, "message": "Compilation queued" if pos > 1 else "Compilation started", "clip_count": len(req.clips), "queue_position": pos}
 
 # ── TikTok OAuth + Upload ──────────────────────────────────────────────────────

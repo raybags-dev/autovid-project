@@ -28,6 +28,7 @@ output/
 *.pyc
 backend/token.json
 backend/client_secrets.json
+backend/embeds/*
 
 # YouTube OAuth — NEVER commit
 backend/token.json
