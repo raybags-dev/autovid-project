@@ -395,12 +395,21 @@ def run_podcast_episode(
 
         _log(f"[5/5] Podcast episode ready: {ep_title} ({dur:.0f}s)")
 
+        # ── Optional: auto-upload to Podbean ──────────────────────────────────
+        try:
+            from pipeline.podbean_client import get_podbean_settings, upload_podcast_episode as pb_upload, is_configured as pb_configured
+            if pb_configured() and get_podbean_settings().get("auto_upload"):
+                _log("[PODBEAN] Auto-uploading to Podbean...")
+                pb_upload(video_id, log_fn=_log)
+        except Exception as pb_err:
+            _log(f"[PODBEAN] ⚠ Auto-upload failed (episode still saved locally): {pb_err}")
+
         # ── Optional: auto-upload to Buzzsprout ───────────────────────────────
         try:
-            from pipeline.buzzsprout_client import get_buzzsprout_settings, upload_podcast_episode, is_configured
-            if is_configured() and get_buzzsprout_settings().get("auto_upload"):
+            from pipeline.buzzsprout_client import get_buzzsprout_settings, upload_podcast_episode as bz_upload, is_configured as bz_configured
+            if bz_configured() and get_buzzsprout_settings().get("auto_upload"):
                 _log("[BUZZSPROUT] Auto-uploading to Buzzsprout...")
-                upload_podcast_episode(video_id, log_fn=_log)
+                bz_upload(video_id, log_fn=_log)
         except Exception as bz_err:
             _log(f"[BUZZSPROUT] ⚠ Auto-upload failed (episode still saved locally): {bz_err}")
 

@@ -45,6 +45,10 @@ import api, {
   getBuzzsproutSettings,
   saveBuzzsproutSettings,
   uploadToBuzzsprout,
+  getPodbeanStatus,
+  getPodbeanSettings,
+  savePodbeanSettings,
+  uploadToPodbean,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -1037,14 +1041,21 @@ export default function Dashboard() {
       setSpotifyConnected(r.connected);
       if (r.connected) setSpotifyProfile(r);
     }).catch(() => {});
-    // Load Buzzsprout status + settings when on settings tab
+    // Load Buzzsprout + Podbean status/settings when on settings tab
     if (tab === "settings") {
       getBuzzsproutStatus().then(r => setBuzzsproutStatus(r)).catch(() => setBuzzsproutStatus({ connected: false }));
       getBuzzsproutSettings().then(r => setBuzzsproutSettings(s => ({
         ...s,
-        api_token:   r.api_token_set ? s.api_token || "••••••••" : "",
+        api_token:   r.api_token_set ? (s.api_token || "••••••••") : "",
         podcast_id:  r.podcast_id  || "",
         auto_upload: r.auto_upload || false,
+      }))).catch(() => {});
+      getPodbeanStatus().then(r => setPodbeanStatus(r)).catch(() => setPodbeanStatus({ connected: false }));
+      getPodbeanSettings().then(r => setPodbeanSettings(s => ({
+        ...s,
+        client_id:     r.client_id     || "",
+        client_secret: r.client_secret_set ? (s.client_secret || "••••••••") : "",
+        auto_upload:   r.auto_upload   || false,
       }))).catch(() => {});
     }
   }, [tab]);
@@ -1197,11 +1208,17 @@ export default function Dashboard() {
   const [spotifyTopArtists, setSpotifyTopArtists] = useState([]);
   const [tiktokUploading, setTiktokUploading] = useState({});
   // Buzzsprout state
-  const [buzzsproutStatus, setBuzzsproutStatus] = useState(null); // null = not loaded
+  const [buzzsproutStatus, setBuzzsproutStatus] = useState(null);
   const [buzzsproutSettings, setBuzzsproutSettings] = useState({ api_token: "", podcast_id: "", auto_upload: false });
   const [buzzsproutSaving, setBuzzsproutSaving] = useState(false);
   const [buzzsproutTesting, setBuzzsproutTesting] = useState(false);
-  const [buzzsproutUploading, setBuzzsproutUploading] = useState({}); // { [videoId]: bool }
+  const [buzzsproutUploading, setBuzzsproutUploading] = useState({});
+  // Podbean state
+  const [podbeanStatus, setPodbeanStatus] = useState(null);
+  const [podbeanSettings, setPodbeanSettings] = useState({ client_id: "", client_secret: "", auto_upload: false });
+  const [podbeanSaving, setPodbeanSaving] = useState(false);
+  const [podbeanTesting, setPodbeanTesting] = useState(false);
+  const [podbeanUploading, setPodbeanUploading] = useState({});
   const [autoShortJobId, setAutoShortJobId] = useState(null);
   const [autoShortPrompt, setAutoShortPrompt] = useState("");
   const [autoShortStep, setAutoShortStep] = useState(0);
@@ -3768,58 +3785,64 @@ export default function Dashboard() {
                           {(v.status === "ready" || v.status === "uploading") && (
                             /* Audio-only (podcast/MP3) → Spotify placeholder; video → YouTube upload */
                             v.narration_url && !v.file_path ? (
-                              v.buzzsprout_episode_id ? (
-                                <a
-                                  href={v.buzzsprout_url || `https://www.buzzsprout.com`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  className="btn-sm"
-                                  style={{
-                                    color: "#1db954",
-                                    borderColor: "rgba(29,185,84,0.35)",
-                                    background: "rgba(29,185,84,0.08)",
-                                    textDecoration: "none",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                  }}
-                                  title="View on Buzzsprout"
-                                >
-                                  ✓ BUZZSPROUT ↗
-                                </a>
-                              ) : (
-                                <button
-                                  className="btn-sm"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (!buzzsproutStatus?.connected) {
-                                      showToast("Configure Buzzsprout in Settings first", "error"); return;
-                                    }
-                                    setBuzzsproutUploading(p => ({ ...p, [v.id]: true }));
-                                    try {
-                                      await uploadToBuzzsprout(v.id);
-                                      showToast("Uploading to Buzzsprout — processing in background");
-                                      setTimeout(refresh, 4000);
-                                    } catch (err) {
-                                      showToast(err?.response?.data?.detail || "Buzzsprout upload failed", "error");
-                                    } finally {
-                                      setBuzzsproutUploading(p => ({ ...p, [v.id]: false }));
-                                    }
-                                  }}
-                                  disabled={buzzsproutUploading[v.id]}
-                                  style={{
-                                    color: "#1db954",
-                                    borderColor: "rgba(29,185,84,0.3)",
-                                    background: "rgba(29,185,84,0.07)",
-                                    opacity: buzzsproutUploading[v.id] ? 0.6 : 1,
-                                    cursor: buzzsproutUploading[v.id] ? "default" : "pointer",
-                                  }}
-                                  title={buzzsproutStatus?.connected ? "Upload to Buzzsprout → distributes to Spotify" : "Connect Buzzsprout in Settings"}
-                                >
-                                  {buzzsproutUploading[v.id] ? "⟳ Uploading..." : "🎙 BUZZSPROUT"}
-                                </button>
-                              )
+                              <>
+                                {/* Podbean upload / status */}
+                                {v.podbean_episode_id ? (
+                                  <a
+                                    href={v.podbean_url || "https://www.podbean.com"}
+                                    target="_blank" rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="btn-sm"
+                                    style={{ color: "#f26522", borderColor: "rgba(242,101,34,0.35)", background: "rgba(242,101,34,0.08)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                    title="View on Podbean"
+                                  >
+                                    ✓ PODBEAN ↗
+                                  </a>
+                                ) : (
+                                  <button
+                                    className="btn-sm"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!podbeanStatus?.connected) {
+                                        showToast("Configure Podbean in Settings first", "error"); return;
+                                      }
+                                      setPodbeanUploading(p => ({ ...p, [v.id]: true }));
+                                      try {
+                                        await uploadToPodbean(v.id);
+                                        showToast("Uploading to Podbean — distributing to Spotify, Apple & more");
+                                        setTimeout(refresh, 5000);
+                                      } catch (err) {
+                                        showToast(err?.response?.data?.detail || "Podbean upload failed", "error");
+                                      } finally {
+                                        setPodbeanUploading(p => ({ ...p, [v.id]: false }));
+                                      }
+                                    }}
+                                    disabled={podbeanUploading[v.id]}
+                                    style={{
+                                      color: "#f26522",
+                                      borderColor: "rgba(242,101,34,0.3)",
+                                      background: "rgba(242,101,34,0.07)",
+                                      opacity: podbeanUploading[v.id] ? 0.6 : 1,
+                                      cursor: podbeanUploading[v.id] ? "default" : "pointer",
+                                    }}
+                                    title={podbeanStatus?.connected ? "Publish to Podbean → auto-distributes to Spotify, Apple, Amazon" : "Connect Podbean in Settings"}
+                                  >
+                                    {podbeanUploading[v.id] ? "⟳ Publishing..." : "🎙 PODBEAN"}
+                                  </button>
+                                )}
+                                {/* Buzzsprout badge (if also uploaded there) */}
+                                {v.buzzsprout_episode_id && (
+                                  <a
+                                    href={v.buzzsprout_url || "https://www.buzzsprout.com"}
+                                    target="_blank" rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="btn-sm"
+                                    style={{ color: "#1db954", borderColor: "rgba(29,185,84,0.35)", background: "rgba(29,185,84,0.08)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                  >
+                                    ✓ BUZZSPROUT ↗
+                                  </a>
+                                )}
+                              </>
                             ) : (
                               <button
                                 className="btn-sm"
@@ -8438,6 +8461,132 @@ export default function Dashboard() {
                         ))}
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* ── Podbean ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>PODBEAN — PODCAST HOSTING</div>
+                  <div style={{ background: T.bgCard, border: `1px solid ${podbeanStatus?.connected ? "rgba(242,101,34,0.4)" : T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+
+                    {/* Header */}
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "flex", alignItems: "center", gap: 8 }}>
+                          {podbeanStatus?.connected ? `✅ ${podbeanStatus.title || "Podbean Connected"}` : "🎙 Podbean"}
+                          {podbeanStatus?.connected && (
+                            <span style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(242,101,34,0.12)", border: "1px solid rgba(242,101,34,0.3)", color: "#f26522", fontSize: 9, letterSpacing: "0.07em" }}>
+                              CONNECTED
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 3 }}>
+                          {podbeanStatus?.connected
+                            ? `${podbeanStatus.episode_count ?? 0} episodes · distributes to Spotify, Apple, Amazon, Google`
+                            : "Your podcast host — connect to auto-publish and preserve Spotify monetization"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent episodes */}
+                    {podbeanStatus?.connected && podbeanStatus.recent_episodes?.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>RECENT EPISODES</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          {podbeanStatus.recent_episodes.slice(0, 4).map(ep => (
+                            <a key={ep.id} href={ep.player_url || "#"} target="_blank" rel="noopener noreferrer"
+                              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: T.bgBase, borderRadius: 6, textDecoration: "none", gap: 8 }}>
+                              <span style={{ fontSize: 11, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.title}</span>
+                              <span style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>
+                                {ep.duration ? `${Math.floor(ep.duration / 60)}m` : "—"}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Config form */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 4 }}>CLIENT ID</div>
+                        <input
+                          type="text"
+                          placeholder="Paste your Podbean Client ID..."
+                          value={podbeanSettings.client_id}
+                          onChange={e => setPodbeanSettings(s => ({ ...s, client_id: e.target.value }))}
+                          style={{ width: "100%", padding: "8px 10px", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+                        />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 4 }}>CLIENT SECRET</div>
+                        <input
+                          type="password"
+                          placeholder="Paste your Podbean Client Secret..."
+                          value={podbeanSettings.client_secret}
+                          onChange={e => setPodbeanSettings(s => ({ ...s, client_secret: e.target.value }))}
+                          style={{ width: "100%", padding: "8px 10px", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+                        />
+                        <div style={{ fontSize: 9, color: T.textFaint, marginTop: 3 }}>
+                          Podbean → Settings → Developer → your app → Client ID &amp; Secret
+                        </div>
+                      </div>
+
+                      {/* Auto-upload toggle */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: T.bgBase, borderRadius: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>Auto-publish on generate</div>
+                          <div style={{ fontSize: 10, color: T.textFaint, marginTop: 1 }}>Push to Podbean automatically when a podcast episode completes</div>
+                        </div>
+                        <div
+                          onClick={() => setPodbeanSettings(s => ({ ...s, auto_upload: !s.auto_upload }))}
+                          style={{ width: 38, height: 20, borderRadius: 10, cursor: "pointer", flexShrink: 0, background: podbeanSettings.auto_upload ? "#f26522" : T.border, position: "relative", transition: "background 0.2s" }}
+                        >
+                          <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: podbeanSettings.auto_upload ? 21 : 3, transition: "left 0.2s" }} />
+                        </div>
+                      </div>
+
+                      {/* Buttons */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                        <button
+                          onClick={async () => {
+                            setPodbeanSaving(true);
+                            try {
+                              await savePodbeanSettings(podbeanSettings);
+                              showToast("Podbean settings saved");
+                              const s = await getPodbeanStatus();
+                              setPodbeanStatus(s);
+                            } catch {
+                              showToast("Failed to save settings", "error");
+                            } finally {
+                              setPodbeanSaving(false);
+                            }
+                          }}
+                          disabled={podbeanSaving}
+                          style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: "1px solid rgba(242,101,34,0.4)", background: "rgba(242,101,34,0.1)", color: "#f26522", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", fontWeight: 700 }}
+                        >
+                          {podbeanSaving ? "SAVING..." : "SAVE"}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setPodbeanTesting(true);
+                            try {
+                              const s = await getPodbeanStatus();
+                              setPodbeanStatus(s);
+                              showToast(s.connected ? `✅ Connected: ${s.title}` : "Connection failed — check credentials", s.connected ? "success" : "error");
+                            } catch {
+                              showToast("Connection test failed", "error");
+                            } finally {
+                              setPodbeanTesting(false);
+                            }
+                          }}
+                          disabled={podbeanTesting}
+                          style={{ padding: "8px 14px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}
+                        >
+                          {podbeanTesting ? "..." : "TEST"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
