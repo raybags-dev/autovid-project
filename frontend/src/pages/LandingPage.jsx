@@ -2,12 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import lifeLogoLong from "../assets/logo/life-logo-long.png";
-import faceVideo from "../assets/static/face.mp4";
 import freedomImg from "../assets/static/freedom.jpg";
 import jajja2 from "../assets/static/jajja2.jpg";
 import metrixVideo from "../assets/static/metrix.mp4";
 import nebularVideo from "../assets/static/nebular.mp4";
 import faceImg from "../assets/static/relaxedface.png";
+import sea_shower from "../assets/static/sea_shower.mp4";
 
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4life_mystery",
@@ -130,6 +130,7 @@ function BlogSection({ c, theme }) {
   const [likingId, setLikingId] = React.useState(null);
   const [replyForm, setReplyForm] = React.useState(null); // comment id with open reply form
   const [replyData, setReplyData] = React.useState({}); // { [commentId]: { name, content, submitting, error, success } }
+  const [openReplies, setOpenReplies] = React.useState(new Set());
   const [pendingComment, setPendingComment] = React.useState(null); // optimistic placeholder
 
   const fp = getOrCreateFP();
@@ -602,6 +603,27 @@ function BlogSection({ c, theme }) {
                         </button>
                       </div>
                     </div>
+                    {/* Replies toggle badge */}
+                    {comment.replies?.length > 0 && (
+                      <button
+                        onClick={() => setOpenReplies(prev => {
+                          const s = new Set(prev);
+                          s.has(comment.id) ? s.delete(comment.id) : s.add(comment.id);
+                          return s;
+                        })}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 5,
+                          marginTop: 8, background: "none", border: `1px solid ${c.secBr}`,
+                          borderRadius: 20, padding: "3px 10px", cursor: "pointer",
+                          color: openReplies.has(comment.id) ? "#ff6633" : c.textM,
+                          fontSize: 10, fontFamily: "inherit", transition: "color 0.2s, border-color 0.2s",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        <span style={{ fontSize: 11 }}>{openReplies.has(comment.id) ? "▴" : "▾"}</span>
+                        {comment.replies.length} {comment.replies.length === 1 ? "reply" : "replies"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -744,8 +766,8 @@ function BlogSection({ c, theme }) {
                   </div>
                 )}
 
-                {/* Replies — always visible, indented subtree */}
-                {comment.replies?.length > 0 && (
+                {/* Replies — visible only when toggled open */}
+                {comment.replies?.length > 0 && openReplies.has(comment.id) && (
                   <div
                     style={{
                       marginLeft: 42,
@@ -1053,20 +1075,29 @@ function SpotifyCarousel() {
       `}</style>
 
       <div style={{ overflow: "hidden", borderRadius: 16 }}>
-        <div className="sp-track" style={{ transform: `translateX(-${idx * 100}%)` }}>
+        <div
+          className="sp-track"
+          style={{ transform: `translateX(-${idx * 100}%)` }}
+        >
           {SPOTIFY_EPISODES.map((episodeId, i) => (
             <div key={episodeId} className="sp-slide">
-              <div style={{
-                borderRadius: 16, overflow: "hidden",
-                border: "1px solid rgba(29,185,84,0.25)",
-                boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
-                background: "rgba(3,6,15,0.85)",
-                backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-              }}>
+              <div
+                style={{
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  border: "1px solid rgba(29,185,84,0.25)",
+                  boxShadow:
+                    "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(29,185,84,0.08)",
+                  background: "rgba(3,6,15,0.85)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                }}
+              >
                 {loaded.has(i) ? (
                   <iframe
                     src={`https://open.spotify.com/embed/episode/${episodeId}?utm_source=generator&theme=0`}
-                    width="100%" height="352"
+                    width="100%"
+                    height="352"
                     style={{ border: "none", display: "block" }}
                     allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                     title="4Life Mystery Podcast Episode"
@@ -1080,18 +1111,59 @@ function SpotifyCarousel() {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 14 }}>
-        <button onClick={() => goTo(idx - 1)}
-          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>‹</button>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 12,
+          marginTop: 14,
+        }}
+      >
+        <button
+          onClick={() => goTo(idx - 1)}
+          style={{
+            background: "none",
+            border: "none",
+            color: "rgba(29,185,84,0.6)",
+            fontSize: 18,
+            cursor: "pointer",
+            padding: "0 4px",
+            lineHeight: 1,
+          }}
+        >
+          ‹
+        </button>
         {SPOTIFY_EPISODES.map((_, i) => (
-          <button key={i} onClick={() => goTo(i)} style={{
-            width: i === idx ? 20 : 8, height: 8, borderRadius: 4, border: "none",
-            background: i === idx ? "#1db954" : "rgba(255,255,255,0.18)",
-            cursor: "pointer", padding: 0, transition: "width 0.3s, background 0.3s",
-          }} />
+          <button
+            key={i}
+            onClick={() => goTo(i)}
+            style={{
+              width: i === idx ? 20 : 8,
+              height: 8,
+              borderRadius: 4,
+              border: "none",
+              background: i === idx ? "#1db954" : "rgba(255,255,255,0.18)",
+              cursor: "pointer",
+              padding: 0,
+              transition: "width 0.3s, background 0.3s",
+            }}
+          />
         ))}
-        <button onClick={() => goTo(idx + 1)}
-          style={{ background: "none", border: "none", color: "rgba(29,185,84,0.6)", fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>›</button>
+        <button
+          onClick={() => goTo(idx + 1)}
+          style={{
+            background: "none",
+            border: "none",
+            color: "rgba(29,185,84,0.6)",
+            fontSize: 18,
+            cursor: "pointer",
+            padding: "0 4px",
+            lineHeight: 1,
+          }}
+        >
+          ›
+        </button>
       </div>
     </div>
   );
@@ -1230,6 +1302,22 @@ export default function LandingPage() {
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
+  }, []);
+
+  // Scroll-reveal — runs once per element when it enters viewport
+  useEffect(() => {
+    const els = document.querySelectorAll(".scroll-reveal");
+    if (!els.length) return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add("sr-visible");
+          obs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    els.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
   }, []);
 
   // Slow down hero video
@@ -1497,6 +1585,12 @@ export default function LandingPage() {
         .anim-2 { animation:fadeUp 0.7s 0.12s ease both; }
         .anim-3 { animation:fadeUp 0.7s 0.24s ease both; }
         .anim-4 { animation:fadeUp 0.7s 0.36s ease both; }
+        @keyframes scrollRise { from { opacity:0; transform:translateY(36px); } to { opacity:1; transform:translateY(0); } }
+        .scroll-reveal { opacity:0; transform:translateY(36px); }
+        .scroll-reveal.sr-visible { animation: scrollRise 0.65s cubic-bezier(0.22,1,0.36,1) forwards; }
+        .scroll-reveal.sr-d1 { animation-delay:0.07s; }
+        .scroll-reveal.sr-d2 { animation-delay:0.15s; }
+        .scroll-reveal.sr-d3 { animation-delay:0.23s; }
         .carousel-slide { animation:slideInRight 0.42s cubic-bezier(0.22,1,0.36,1) both; }
         .carousel-slide-icon { animation:slideInLeft 0.42s 0.06s cubic-bezier(0.22,1,0.36,1) both; }
 
@@ -1519,6 +1613,7 @@ export default function LandingPage() {
 
         /* ── FOOTER LINKS ─────────────────────────────── */
         .ft-link { display:block; font-size:13.5px; text-decoration:none; margin-bottom:11px; transition:color 0.2s, padding-left 0.2s; letter-spacing:0.03em; }
+        @media (min-width: 1280px) { .ft-link { font-size:15.5px; margin-bottom:13px; } }
         .ft-link:hover { color:#ff6633 !important; padding-left:4px; }
         button.ft-link { background:none; border:none; cursor:pointer; font-family:inherit; text-align:left; padding:0; padding-bottom:10px; }
         button.ft-link:hover { color:#ff6633 !important; padding-left:4px; }
@@ -2293,7 +2388,7 @@ export default function LandingPage() {
       >
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <div
-            className="about-grid"
+            className="about-grid scroll-reveal"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
@@ -2314,36 +2409,14 @@ export default function LandingPage() {
                 cursor: "pointer",
               }}
               className="face-feature"
-              onClick={(e) => {
-                const vid = e.currentTarget.querySelector("video");
-                const img = e.currentTarget.querySelector("img.face-poster");
-                if (!vid) return;
-                vid.style.opacity = "1";
-                if (img) img.style.opacity = "0";
-                vid.play().catch(() => {});
-              }}
             >
-              {/* Poster image — shown by default, hidden once video plays */}
-              <img
-                src={faceImg}
-                alt="4Life Mystery"
-                className="face-sway face-poster"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "105%",
-                  objectFit: "cover",
-                  objectPosition: "center top",
-                  zIndex: 1,
-                  transition: "opacity 0.8s ease",
-                }}
-              />
-              {/* Video — hidden until user clicks */}
+              {/* Video autoplays; poster image shows as fallback if video can't load */}
               <video
+                autoPlay
                 muted
                 loop
                 playsInline
+                poster={faceImg}
                 style={{
                   position: "absolute",
                   inset: 0,
@@ -2351,12 +2424,10 @@ export default function LandingPage() {
                   height: "100%",
                   objectFit: "cover",
                   objectPosition: "center top",
-                  zIndex: 2,
-                  opacity: 0,
-                  transition: "opacity 0.8s ease",
+                  zIndex: 1,
                 }}
               >
-                <source src={faceVideo} type="video/mp4" />
+                <source src={sea_shower} type="video/mp4" />
               </video>
               {/* Gradient overlay with name badge */}
               <div
@@ -2965,6 +3036,7 @@ export default function LandingPage() {
         />
 
         <div
+          className="scroll-reveal"
           style={{
             maxWidth: 1220,
             margin: "0 auto",
@@ -3197,7 +3269,7 @@ export default function LandingPage() {
         id="podcast"
         style={{ padding: "100px 20px", borderTop: `1px solid ${c.secBr}` }}
       >
-        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        <div className="scroll-reveal" style={{ maxWidth: 1180, margin: "0 auto" }}>
           <span className="section-tag" style={{ color: "#1db954" }}>
             PODCAST
           </span>
@@ -3485,6 +3557,7 @@ export default function LandingPage() {
         />
 
         <div
+          className="scroll-reveal"
           style={{
             maxWidth: 1180,
             margin: "0 auto",
@@ -3803,19 +3876,31 @@ export default function LandingPage() {
             <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
               <Link
                 to="/privacy-policy"
-                style={{ fontSize: 12, color: c.ftLink, textDecoration: "none" }}
+                style={{
+                  fontSize: 12,
+                  color: c.ftLink,
+                  textDecoration: "none",
+                }}
               >
                 Privacy
               </Link>
               <Link
                 to="/terms-of-service"
-                style={{ fontSize: 12, color: c.ftLink, textDecoration: "none" }}
+                style={{
+                  fontSize: 12,
+                  color: c.ftLink,
+                  textDecoration: "none",
+                }}
               >
                 Terms
               </Link>
               <Link
                 to="/cookie-policy"
-                style={{ fontSize: 12, color: c.ftLink, textDecoration: "none" }}
+                style={{
+                  fontSize: 12,
+                  color: c.ftLink,
+                  textDecoration: "none",
+                }}
               >
                 Cookies
               </Link>

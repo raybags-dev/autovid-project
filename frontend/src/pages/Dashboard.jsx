@@ -418,7 +418,7 @@ export default function Dashboard() {
   const [profile, setProfile] = useState("educational");
   const [visualMood, setVisualMood] = useState("inspirational");
   const [musicStyle, setMusicStyle] = useState("Birds_Atmosphere_Piano");
-  const [musicVolume, setMusicVolume] = useState(0.06); // 0.0–0.3; default 6%
+  const [musicVolume, setMusicVolume] = useState(0.12); // 0.0–0.5; default 12%
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
@@ -1050,7 +1050,7 @@ export default function Dashboard() {
   const [manualPodcastTopic, setManualPodcastTopic] = useState("");
   const [manualPodcastEssay, setManualPodcastEssay] = useState("");
   const [manualPodcastMusic, setManualPodcastMusic] = useState("Birds_Atmosphere_Piano");
-  const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.06);
+  const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.15);
   const podcastLogsEndRef = useRef(null);
   const podcastLogPollRef = useRef(null);
   const podcastLogLineRef = useRef(0);
@@ -2295,7 +2295,7 @@ export default function Dashboard() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                       <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>VOL</div>
                       <input
-                        type="range" min={0} max={0.3} step={0.01}
+                        type="range" min={0} max={0.5} step={0.01}
                         value={musicVolume}
                         onChange={e => setMusicVolume(parseFloat(e.target.value))}
                         disabled={generating}
@@ -7609,7 +7609,7 @@ export default function Dashboard() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                             <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>VOL</div>
                             <input
-                              type="range" min={0} max={0.3} step={0.01}
+                              type="range" min={0} max={0.5} step={0.01}
                               value={podcastMusicVolume}
                               onChange={e => setPodcastMusicVolume(parseFloat(e.target.value))}
                               style={{ flex: 1, accentColor: T.accent, cursor: "pointer" }}
@@ -7733,7 +7733,7 @@ export default function Dashboard() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                             <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>VOL</div>
                             <input
-                              type="range" min={0} max={0.3} step={0.01}
+                              type="range" min={0} max={0.5} step={0.01}
                               value={podcastMusicVolume}
                               onChange={e => setPodcastMusicVolume(parseFloat(e.target.value))}
                               style={{ flex: 1, accentColor: T.accent, cursor: "pointer" }}
