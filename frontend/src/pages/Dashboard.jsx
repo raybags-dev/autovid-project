@@ -3745,39 +3745,44 @@ export default function Dashboard() {
                               🎬 No Preview
                             </span>
                           ) : null}
-                          {(v.status === "ready" ||
-                            v.status === "uploading") && (
-                            <button
-                              className="btn-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (v.status === "ready") setUploadModal(v);
-                              }}
-                              disabled={v.status === "uploading"}
-                              style={{
-                                color:
-                                  v.status === "uploading"
-                                    ? T.textFaint
-                                    : T.accentYellow,
-                                borderColor:
-                                  v.status === "uploading"
-                                    ? T.border
-                                    : `${T.accentYellow}40`,
-                                background:
-                                  v.status === "uploading"
-                                    ? "transparent"
-                                    : `${T.accentYellow}0d`,
-                                opacity: v.status === "uploading" ? 0.6 : 1,
-                                cursor:
-                                  v.status === "uploading"
-                                    ? "default"
-                                    : "pointer",
-                              }}
-                            >
-                              {v.status === "uploading"
-                                ? "⟳ Uploading..."
-                                : "🚀 UPLOAD TO YOUTUBE"}
-                            </button>
+                          {(v.status === "ready" || v.status === "uploading") && (
+                            /* Audio-only (podcast/MP3) → Spotify placeholder; video → YouTube upload */
+                            v.narration_url && !v.file_path ? (
+                              <button
+                                className="btn-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  showToast("Upload manually via Spotify for Podcasters to preserve monetization", "info");
+                                }}
+                                style={{
+                                  color: "#1db954",
+                                  borderColor: "rgba(29,185,84,0.3)",
+                                  background: "rgba(29,185,84,0.07)",
+                                  cursor: "pointer",
+                                }}
+                                title="Upload to Spotify for Podcasters — done manually to preserve monetization"
+                              >
+                                🎙 UPLOAD TO SPOTIFY
+                              </button>
+                            ) : (
+                              <button
+                                className="btn-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (v.status === "ready") setUploadModal(v);
+                                }}
+                                disabled={v.status === "uploading"}
+                                style={{
+                                  color: v.status === "uploading" ? T.textFaint : T.accentYellow,
+                                  borderColor: v.status === "uploading" ? T.border : `${T.accentYellow}40`,
+                                  background: v.status === "uploading" ? "transparent" : `${T.accentYellow}0d`,
+                                  opacity: v.status === "uploading" ? 0.6 : 1,
+                                  cursor: v.status === "uploading" ? "default" : "pointer",
+                                }}
+                              >
+                                {v.status === "uploading" ? "⟳ Uploading..." : "🚀 UPLOAD TO YOUTUBE"}
+                              </button>
+                            )
                           )}
                           {/* MP3 narration download — show for any video with a narration */}
                           {v.narration_url && (
@@ -3828,6 +3833,26 @@ export default function Dashboard() {
                                 : v.tiktok_status === "posted"
                                 ? "✓ ON TIKTOK"
                                 : "🎵 TIKTOK"}
+                            </button>
+                          )}
+                          {/* Instagram — ready for when verification completes */}
+                          {(v.status === "ready" || v.status === "posted") && v.file_path && (
+                            <button
+                              className="btn-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                showToast("Instagram verification in progress — this will go live once approved", "info");
+                              }}
+                              style={{
+                                color: "#e1306c",
+                                borderColor: "rgba(225,48,108,0.25)",
+                                background: "rgba(225,48,108,0.06)",
+                                opacity: 0.65,
+                                cursor: "pointer",
+                              }}
+                              title="Instagram — verification in progress"
+                            >
+                              📸 INSTAGRAM
                             </button>
                           )}
                           {v.status === "posted" && (
@@ -4196,7 +4221,7 @@ export default function Dashboard() {
                     </div>
                     {/* Action buttons for unposted ready shorts */}
                     {isUnposted && (
-                      <div style={{ display: "flex", gap: 5 }}>
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -4220,6 +4245,20 @@ export default function Dashboard() {
                           }}
                         >
                           {uploadingYt ? "⟳..." : "▶ YT"}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showToast("Instagram verification in progress — this will go live once approved", "info");
+                          }}
+                          style={{
+                            padding: "4px 8px", borderRadius: 6, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+                            border: "1px solid rgba(225,48,108,0.25)", background: "rgba(225,48,108,0.06)",
+                            color: "#e1306c", cursor: "pointer", fontFamily: "inherit", opacity: 0.65,
+                          }}
+                          title="Instagram — verification in progress"
+                        >
+                          📸 IG
                         </button>
                         {tiktokConnected && (
                           <button
