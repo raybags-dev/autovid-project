@@ -148,6 +148,47 @@ def _synthesize_pyttsx3(text: str, mp3_path: Path) -> bool:
     return False
 
 
+# ── Audio Normalisation ───────────────────────────────────────────────────────
+
+def _normalize_audio(mp3_path: Path) -> None:
+    """
+    Flatten dynamic range of a synthesized narration file in-place using FFmpeg.
+
+    ElevenLabs applies its own gain envelope: voice starts quiet, builds to a
+    louder steady state, then fades at the end.  dynaudnorm corrects this by
+    measuring the peak of each short frame and amplifying/attenuating so every
+    frame reaches the same target peak — essentially locking the whole track at
+    whatever level the loudest (mid-sentence) section was sitting at.
+
+    Parameters chosen for speech:
+      f=200   — 200 ms analysis frame  (short enough to catch buildup, long
+                  enough not to react to individual plosives)
+      g=11    — Gaussian smoothing window of 11 frames (~2 s) so transitions
+                  between gain adjustments are gradual rather than jumpy
+      p=0.95  — target peak 95 % of full scale (leaves 0.5 dB headroom)
+      m=5.0   — maximum allowed amplification factor (5× = +14 dB) — prevents
+                  near-silence sections from being boosted into noise
+      r=0.0   — peak-based (not RMS) so the measurement tracks instantaneous
+                  loudness rather than average power
+    """
+    tmp = mp3_path.with_suffix(".norm_tmp.mp3")
+    result = subprocess.run(
+        [
+            "ffmpeg", "-y", "-i", str(mp3_path),
+            "-af", "dynaudnorm=f=200:g=11:p=0.95:m=5.0:r=0.0",
+            "-acodec", "libmp3lame", "-b:a", "128k",
+            str(tmp),
+        ],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"⚠️  Audio normalisation failed — keeping original audio\n   {result.stderr[-200:]}")
+        tmp.unlink(missing_ok=True)
+        return
+    tmp.replace(mp3_path)
+    print("🎚️  Audio normalised (dynaudnorm — uniform volume throughout)")
+
+
 # ── Main Synthesis ────────────────────────────────────────────────────────────
 
 def synthesize(text: str, video_id: str) -> dict:
@@ -185,6 +226,10 @@ def synthesize(text: str, video_id: str) -> dict:
             "ElevenLabs: check quota at elevenlabs.io\n"
             "gTTS: run 'pip install gtts' in your venv\n"
         )
+
+    # Flatten ElevenLabs gain envelope — locks every part of the track to the
+    # same loudness so there is no quiet intro / loud middle / quiet outro.
+    _normalize_audio(mp3_path)
 
     duration = _get_audio_duration(mp3_path)
     size_kb  = mp3_path.stat().st_size / 1024
