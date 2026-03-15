@@ -1027,11 +1027,7 @@ function BlogSection({ c, theme }) {
 const SPOTIFY_EPISODES = [
   "7hCDCS7wBcqgpQbZtdbD4O",
   "5b9G6AQXt2z1ARRVc5KPCW",
-  "50JTbPBRUMIyJIUROLBcV9",
-  "0fqEGJtyCgS9jnfslTv13Q",
-  "2aYzYLAmKO3ya8ajCc4d9W",
-  "4qmjabSq9gjdMbouJXmBBI",
-  "5CLu5g3ydeX8Tel1flsUaT",
+  "0J2o5s1kRuau8Uv0LEyOZx",
 ];
 
 function SpotifyCarousel() {

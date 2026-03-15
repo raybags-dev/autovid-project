@@ -400,6 +400,58 @@ def _ember_glow_frame(t: float) -> np.ndarray:
     return (frame.clip(0, 1) * 255).astype(np.uint8)
 
 
+def _rain_frame(t: float) -> np.ndarray:
+    """Rainy window at night — city lights blurred through raindrops (landscape 1920x1080)."""
+    rng = np.random.default_rng(55)
+    n_drops = 300
+    # Fixed per-drop x position and velocity (deterministic)
+    drop_x = rng.uniform(0, WIDTH,  n_drops)
+    drop_v = rng.uniform(80, 220, n_drops)   # pixels per second
+    drop_y0 = rng.uniform(0, HEIGHT, n_drops)
+    drop_l  = rng.integers(12, 45, n_drops).astype(np.float32)
+
+    # Static bokeh city-lights background
+    bokeh_bg = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
+    rng_b = np.random.default_rng(55)
+    colors_list = [(255, 150, 50), (50, 150, 255), (255, 255, 100), (200, 100, 255)]
+    ys = np.arange(HEIGHT, dtype=np.float32)
+    xs = np.arange(WIDTH,  dtype=np.float32)
+    for li in range(22):
+        lx = int(WIDTH  * (li / 22.0 + 0.02))
+        ly = int(HEIGHT * rng_b.uniform(0.25, 0.75))
+        col = np.array(colors_list[li % len(colors_list)], dtype=np.float32)
+        radius = int(rng_b.integers(50, 130))
+        y0, y1 = max(0, ly - radius), min(HEIGHT, ly + radius)
+        x0, x1 = max(0, lx - radius), min(WIDTH,  lx + radius)
+        if y1 > y0 and x1 > x0:
+            dy = ys[y0:y1, None] - ly
+            dx = xs[None, x0:x1] - lx
+            dist = np.sqrt(dx ** 2 + dy ** 2)
+            alpha = np.maximum(0.0, 1.0 - dist / radius) * 0.15
+            bokeh_bg[y0:y1, x0:x1] += alpha[:, :, None] * col[None, None, :]
+
+    frame = bokeh_bg.copy()
+    # Compute deterministic drop y positions at time t
+    drop_y = (drop_y0 + drop_v * t) % HEIGHT
+
+    for j in range(n_drops):
+        dx_val = int(drop_x[j])
+        dy_val = int(drop_y[j])
+        if not (0 <= dx_val < WIDTH):
+            continue
+        length = int(drop_l[j])
+        y_end = min(dy_val + length, HEIGHT)
+        if dy_val >= y_end:
+            continue
+        dl = np.arange(y_end - dy_val, dtype=np.float32)
+        alpha = 1.0 - dl / length
+        frame[dy_val:y_end, dx_val, 0] += 150 * alpha
+        frame[dy_val:y_end, dx_val, 1] += 180 * alpha
+        frame[dy_val:y_end, dx_val, 2] += 220 * alpha
+
+    return np.clip(frame, 0, 255).astype(np.uint8)
+
+
 FRAME_FUNCS = {
     # Original generators
     'gradient_wave':   _gradient_wave_frame,
@@ -419,6 +471,8 @@ FRAME_FUNCS = {
     'neon_purple':     _neon_purple_frame,
     'cosmic_dust':     _cosmic_dust_frame,
     'ember_glow':      _ember_glow_frame,
+    # Rain — city lights blurred through rainy window
+    'rain':            _rain_frame,
 }
 
 
