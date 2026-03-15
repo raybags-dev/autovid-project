@@ -2331,6 +2331,26 @@ def upload_episode_to_podbean(video_id: str, background_tasks: BackgroundTasks, 
     return {"message": "Podbean upload started", "video_id": video_id}
 
 
+# ── Subscriptions / Expenditure Tracker ──────────────────────────────────────
+
+@app.get("/subscriptions")
+def get_subscriptions(user: str = Depends(verify_token)):
+    """Return saved subscription list."""
+    import json
+    raw = db.get_setting("subscriptions", default="[]")
+    try:
+        return json.loads(raw)
+    except Exception:
+        return []
+
+@app.post("/subscriptions")
+def save_subscriptions(body: list, user: str = Depends(verify_token)):
+    """Persist subscription list as JSON."""
+    import json
+    db.set_setting("subscriptions", json.dumps(body))
+    return {"ok": True}
+
+
 @app.get("/podbean/callback")
 def podbean_oauth_callback(code: str = None, error: str = None):
     """OAuth2 callback — not needed for Client Credentials flow but registered for completeness."""

@@ -279,6 +279,10 @@ export const renameCompilation = async (id, title) => {
   return data;
 };
 
+// ── Subscriptions / Expenditure Tracker ─────────────────────────────────────
+export const getSubscriptions  = async ()       => (await api.get("/subscriptions")).data;
+export const saveSubscriptions = async (list)   => (await api.post("/subscriptions", list)).data;
+
 // ── Podbean ───────────────────────────────────────────────────────────────────
 export const getPodbeanStatus    = async () => { const { data } = await api.get("/podbean/status");    return data; };
 export const getPodbeanSettings  = async () => { const { data } = await api.get("/podbean/settings");  return data; };
