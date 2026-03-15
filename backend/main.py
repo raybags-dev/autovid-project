@@ -2249,6 +2249,97 @@ def upload_episode_to_buzzsprout(video_id: str, background_tasks: BackgroundTask
     return {"message": "Buzzsprout upload started", "video_id": video_id}
 
 
+# ── Podbean ────────────────────────────────────────────────────────────────────
+
+@app.get("/podbean/settings")
+def get_podbean_settings_endpoint(user: str = Depends(verify_token)):
+    from pipeline.podbean_client import get_podbean_settings
+    s = get_podbean_settings()
+    masked_secret = ("*" * (len(s["client_secret"]) - 4) + s["client_secret"][-4:]) if len(s.get("client_secret","")) > 4 else s.get("client_secret","")
+    return {**s, "client_secret": masked_secret, "client_secret_set": bool(s.get("client_secret"))}
+
+
+@app.post("/podbean/settings")
+def save_podbean_settings_endpoint(body: dict, user: str = Depends(verify_token)):
+    from pipeline.podbean_client import save_podbean_settings, get_podbean_settings
+    current = get_podbean_settings()
+    client_secret = body.get("client_secret", "")
+    if client_secret.startswith("*"):
+        client_secret = current.get("client_secret", "")
+    save_podbean_settings({
+        "client_id":     body.get("client_id",     current.get("client_id",     "")),
+        "client_secret": client_secret,
+        "auto_upload":   body.get("auto_upload",   current.get("auto_upload",   False)),
+    })
+    return {"message": "Podbean settings saved"}
+
+
+@app.get("/podbean/status")
+def podbean_status(user: str = Depends(verify_token)):
+    from pipeline.podbean_client import get_podbean_settings, get_podcast_info, list_episodes, is_configured
+    s = get_podbean_settings()
+    if not is_configured():
+        return {"connected": False}
+    try:
+        info     = get_podcast_info(s["client_id"], s["client_secret"])
+        episodes = list_episodes(s["client_id"], s["client_secret"], limit=5)
+        return {
+            "connected":       True,
+            "auto_upload":     s["auto_upload"],
+            "title":           info.get("title", ""),
+            "image":           info.get("logo_url", ""),
+            "subscriber_count": info.get("subscriber_count", 0),
+            "episode_count":   info.get("total_count", len(episodes)),
+            "recent_episodes": [
+                {
+                    "id":           e.get("id", ""),
+                    "title":        e.get("title", ""),
+                    "published_at": e.get("publish_time", ""),
+                    "duration":     e.get("duration", 0),
+                    "player_url":   e.get("player_url", ""),
+                }
+                for e in episodes
+            ],
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/podcast-episode/{video_id}/upload-podbean")
+def upload_episode_to_podbean(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+    """Manually push a podcast episode to Podbean."""
+    from pipeline.podbean_client import is_configured, upload_podcast_episode
+    if not is_configured():
+        raise HTTPException(status_code=400, detail="Podbean not configured — add credentials in Settings")
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.get("narration_url"):
+        raise HTTPException(status_code=400, detail="No audio file available")
+    if video.get("podbean_episode_id"):
+        raise HTTPException(status_code=409, detail=f"Already on Podbean (episode {video['podbean_episode_id']})")
+
+    def do_upload():
+        try:
+            _push_log(video_id, "[PODBEAN] Starting upload to Podbean...")
+            upload_podcast_episode(video_id, log_fn=lambda m: _push_log(video_id, m))
+            _push_log(video_id, "[PODBEAN] ✅ Episode published — distributing to Spotify, Apple Podcasts & more")
+        except Exception as e:
+            _push_log(video_id, f"[PODBEAN] ❌ Upload failed: {e}")
+
+    background_tasks.add_task(do_upload)
+    return {"message": "Podbean upload started", "video_id": video_id}
+
+
+@app.get("/podbean/callback")
+def podbean_oauth_callback(code: str = None, error: str = None):
+    """OAuth2 callback — not needed for Client Credentials flow but registered for completeness."""
+    from fastapi.responses import HTMLResponse
+    if error:
+        return HTMLResponse(f"<html><body style='background:#08080f;color:#f87171;font-family:sans-serif;padding:40px'><h2>Podbean Auth Error</h2><p>{error}</p><a href='/dashboard' style='color:#00a0dc'>Back to dashboard</a></body></html>")
+    return HTMLResponse("<html><body style='background:#08080f;color:#4ade80;font-family:sans-serif;padding:40px'><h2>✅ Podbean Connected</h2><p>You can close this tab.</p></body></html>")
+
+
 @app.post("/videos/{video_id}/upload-tiktok")
 def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: BackgroundTasks = None, user: str = Depends(verify_token)):
     """Upload a ready video to TikTok."""

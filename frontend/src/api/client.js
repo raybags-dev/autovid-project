@@ -279,6 +279,12 @@ export const renameCompilation = async (id, title) => {
   return data;
 };
 
+// ── Podbean ───────────────────────────────────────────────────────────────────
+export const getPodbeanStatus    = async () => { const { data } = await api.get("/podbean/status");    return data; };
+export const getPodbeanSettings  = async () => { const { data } = await api.get("/podbean/settings");  return data; };
+export const savePodbeanSettings = async (s) => { const { data } = await api.post("/podbean/settings", s); return data; };
+export const uploadToPodbean     = async (id) => { const { data } = await api.post(`/podcast-episode/${id}/upload-podbean`); return data; };
+
 // ── Buzzsprout ────────────────────────────────────────────────────────────────
 export const getBuzzsproutStatus   = async () => { const { data } = await api.get("/buzzsprout/status");   return data; };
 export const getBuzzsproutSettings = async () => { const { data } = await api.get("/buzzsprout/settings"); return data; };
