@@ -320,3 +320,6 @@ export const adminDeleteComment = async (id) =>
 
 export const adminReplyComment = async (id, content) =>
   (await api.post(`/admin/blog/comments/${id}/reply`, { content })).data;
+
+// ── Pipeline Metrics ──────────────────────────────────────────────────────────
+export const getPipelineMetrics = async () => { const { data } = await api.get("/pipeline/metrics"); return data; };

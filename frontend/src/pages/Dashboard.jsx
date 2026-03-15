@@ -51,6 +51,7 @@ import api, {
   uploadToPodbean,
   getSubscriptions,
   saveSubscriptions,
+  getPipelineMetrics,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -1247,6 +1248,7 @@ export default function Dashboard() {
   const [manualPodcastEssay, setManualPodcastEssay] = useState("");
   const [manualPodcastMusic, setManualPodcastMusic] = useState("Birds_Atmosphere_Piano");
   const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.01);
+  const [pipelineMetrics, setPipelineMetrics] = useState(null);
   const podcastLogsEndRef = useRef(null);
   const podcastLogPollRef = useRef(null);
   const podcastLogLineRef = useRef(0);
@@ -1262,6 +1264,16 @@ export default function Dashboard() {
     setTab(id);
     setTabLoading(true);
   };
+
+  // Load pipeline metrics when analytics tab is active, refresh every 30s
+  useEffect(() => {
+    if (tab !== "analytics") return;
+    let cancelled = false;
+    const load = () => getPipelineMetrics().then((d) => { if (!cancelled) setPipelineMetrics(d); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [tab]);
 
   // Remove tab spinner 100ms after the new tab's content has rendered in the DOM
   useEffect(() => {
@@ -6925,6 +6937,75 @@ export default function Dashboard() {
                     );
                   })}
                 </div>
+
+                {/* ── Pipeline Activity Chart ────────────────────────── */}
+                {pipelineMetrics && (() => {
+                  const hourly = pipelineMetrics.hourly || {};
+                  const summary = pipelineMetrics.summary || {};
+                  const hours = Array.from({ length: 24 }, (_, i) => String(i));
+                  const doneVals = hours.map(h => (hourly[h]?.done || 0));
+                  const failVals = hours.map(h => (hourly[h]?.failed || 0));
+                  const maxVal = Math.max(1, ...doneVals, ...failVals);
+                  const W = 520, H = 90, PAD = 8;
+                  const barW = (W - PAD * 2) / 24;
+                  const recentJobs = pipelineMetrics.recent_jobs || [];
+                  const JOB_COLORS = { video: "#0070cc", short: "#9b59b6", short_clip: "#8e44ad", script: "#00a896", podcast: "#f26522", compilation: "#e67e22", job: "#999" };
+                  return (
+                    <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20, marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.12em", marginBottom: 14 }}>PIPELINE ACTIVITY — TODAY</div>
+                      <div style={{ display: "flex", gap: 20, marginBottom: 14, flexWrap: "wrap" }}>
+                        {[
+                          { label: "DONE", value: summary.total_done || 0, color: T.accentGreen },
+                          { label: "FAILED", value: summary.total_failed || 0, color: T.accentRed },
+                          { label: "QUEUED", value: summary.pending || 0, color: T.accentYellow },
+                        ].map(s => (
+                          <div key={s.label}>
+                            <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 3 }}>{s.label}</div>
+                            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 22, color: s.color }}>{s.value}</div>
+                          </div>
+                        ))}
+                        <div style={{ marginLeft: "auto", fontSize: 9, color: T.textFaint, alignSelf: "flex-end" }}>{pipelineMetrics.date}</div>
+                      </div>
+                      <svg width="100%" viewBox={`0 0 ${W} ${H + 14}`} style={{ display: "block", overflow: "visible" }}>
+                        {hours.map((h, i) => {
+                          const dH = Math.round((doneVals[i] / maxVal) * H);
+                          const fH = Math.round((failVals[i] / maxVal) * H);
+                          const x = PAD + i * barW;
+                          return (
+                            <g key={h}>
+                              {dH > 0 && <rect x={x + 1} y={H - dH} width={barW - 3} height={dH} fill={T.accentGreen} opacity={0.75} rx={2} />}
+                              {fH > 0 && <rect x={x + 1} y={H - dH - fH} width={barW - 3} height={fH} fill={T.accentRed} opacity={0.75} rx={2} />}
+                              {i % 4 === 0 && <text x={x + barW / 2} y={H + 12} textAnchor="middle" fontSize={8} fill={T.textFaint}>{h}h</text>}
+                            </g>
+                          );
+                        })}
+                        <line x1={PAD} y1={H} x2={W - PAD} y2={H} stroke={T.border} strokeWidth={1} />
+                      </svg>
+                      <div style={{ display: "flex", gap: 14, marginTop: 4, marginBottom: 16 }}>
+                        {[{ c: T.accentGreen, l: "done" }, { c: T.accentRed, l: "failed" }].map(e => (
+                          <div key={e.l} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, color: T.textFaint }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 2, background: e.c, opacity: 0.8 }} />{e.l}
+                          </div>
+                        ))}
+                      </div>
+                      {recentJobs.length > 0 && (
+                        <>
+                          <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>RECENT JOBS</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {recentJobs.slice(0, 10).map((j, idx) => (
+                              <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: T.textMid }}>
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: j.status === "done" ? T.accentGreen : T.accentRed, flexShrink: 0, display: "inline-block" }} />
+                                <span style={{ width: 70, fontSize: 9, color: JOB_COLORS[j.type] || T.textFaint, letterSpacing: "0.05em", flexShrink: 0 }}>{(j.type || "job").toUpperCase()}</span>
+                                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j.prompt || "—"}</span>
+                                <span style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>{j.duration_s}s</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {quota.chars_remaining !== undefined && (
                   <div

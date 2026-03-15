@@ -1,2 +1,0 @@
-<div id='buzzsprout-small-player'></div><script type='text/javascript' charset='utf-8' src='https://www.buzzsprout.com/2603264.js?container_id=buzzsprout-small-player&player=small'></script>
-<div id='buzzsprout-large-player'></div><script type='text/javascript' charset='utf-8' src='https://www.buzzsprout.com/2603264.js?container_id=buzzsprout-large-player&player=large'></script>
