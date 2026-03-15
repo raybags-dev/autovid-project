@@ -23,15 +23,12 @@ const MOODS = [
 ];
 
 const MUSIC = [
-  { id: "none",              emoji: "🔇", label: "No Music",         desc: "Voice only" },
-  { id: "ambient",           emoji: "🌙", label: "Ambient",           desc: "Calm & atmospheric" },
-  { id: "meditation",        emoji: "🧘", label: "Meditation",        desc: "Deep resonant bowls" },
-  { id: "jazz",              emoji: "🎷", label: "Jazz",              desc: "Warm laid-back chords" },
-  { id: "cinematic",         emoji: "🎬", label: "Cinematic",         desc: "Epic strings & brass" },
-  { id: "epic_trailer",      emoji: "💥", label: "Epic Trailer",      desc: "Dramatic hybrid score" },
-  { id: "lofi",              emoji: "🎵", label: "Lo-Fi",             desc: "Chill background beats" },
-  { id: "upbeat",            emoji: "🥁", label: "Upbeat",            desc: "Energetic & punchy" },
-  { id: "chill_electronic",  emoji: "🎛️", label: "Chill Electronic", desc: "Modern synth pads" },
+  { id: "Birds_Atmosphere_Piano", emoji: "🌙", label: "Birds & Piano",  desc: "Birds atmosphere + piano" },
+  { id: "Birds_Atmosphere_Wing",  emoji: "🍃", label: "Birds & Wing",   desc: "Birds atmosphere + wing pads" },
+  { id: "Laidback_Fevorite",      emoji: "🎹", label: "Laidback Fav",   desc: "Smooth laidback favourite" },
+  { id: "Pads_EPiano",            emoji: "🎧", label: "Pads & EPiano",  desc: "Deep smooth pads + e-piano" },
+  { id: "Pads",                   emoji: "🎵", label: "Pads",           desc: "Chill heavy pads" },
+  { id: "none",                   emoji: "🔇", label: "No Music",       desc: "Voice only" },
 ];
 
 const PIPE_STEPS = ["Script", "Voice", "Visuals", "Music", "Assemble", "Upload"];
@@ -51,7 +48,8 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
   const [script, setScript]   = useState("");
   const [profile, setProfile] = useState("educational");
   const [mood, setMood]       = useState("stars");
-  const [music, setMusic]     = useState("ambient");
+  const [music, setMusic]         = useState("Birds_Atmosphere_Piano");
+  const [musicVolume, setMusicVolume] = useState(0.01);
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep]   = useState(0);
   const [jobId, setJobId]         = useState(null);
@@ -102,6 +100,7 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
         profile,
         visual_mood:  mood,
         music_style:  music,
+        music_volume: musicVolume,
       });
       const vid = data.video_id;
       setJobId(vid);
@@ -744,8 +743,18 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
             <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>
               BACKGROUND MUSIC
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
               {MUSIC.map((m) => <MusicCard key={m.id} m={m} />)}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0, letterSpacing: "0.08em" }}>VOL</div>
+              <input type="range" min={0} max={0.5} step={0.01}
+                value={musicVolume}
+                onChange={e => setMusicVolume(parseFloat(e.target.value))}
+                disabled={running}
+                style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+              />
+              <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round(musicVolume * 100)}%</div>
             </div>
           </div>
 

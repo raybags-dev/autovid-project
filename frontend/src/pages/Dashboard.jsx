@@ -456,6 +456,8 @@ export default function Dashboard() {
   const genLogsEndRef = useRef(null);
   const [shortPrompt, setShortPrompt] = useState("");
   const [shortAmbience, setShortAmbience] = useState("stars");
+  const [shortMusicStyle, setShortMusicStyle] = useState("Birds_Atmosphere_Piano");
+  const [shortMusicVolume, setShortMusicVolume] = useState(0.01);
   const [shortGenerating, setShortGenerating] = useState(false);
   const [shortGenError, setShortGenError] = useState("");
   const [shortLogs, setShortLogs] = useState([]);
@@ -686,7 +688,7 @@ export default function Dashboard() {
     shortLogLineRef.current = 0;
     setShortLogVideoId(null);
     try {
-      const res = await generateShortFromScratch(shortPrompt.trim(), shortAmbience);
+      const res = await generateShortFromScratch(shortPrompt.trim(), shortAmbience, shortMusicStyle, shortMusicVolume);
       const vid = res?.video_id;
       setShortPrompt("");
       showToast("Short generation started!");
@@ -4005,6 +4007,39 @@ export default function Dashboard() {
                       <div style={{ fontSize: 10, color: T.textDim }}>{a.desc}</div>
                     </button>
                   ))}
+                </div>
+              </div>
+              {/* Background music */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>BACKGROUND MUSIC</div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+                  {[
+                    { id: "Birds_Atmosphere_Piano", label: "🌙 Birds & Piano" },
+                    { id: "Birds_Atmosphere_Wing",  label: "🍃 Birds & Wing" },
+                    { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav" },
+                    { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
+                    { id: "Pads",                   label: "🎵 Pads" },
+                    { id: "none",                   label: "🔇 None" },
+                  ].map(m => (
+                    <button key={m.id} onClick={() => setShortMusicStyle(m.id)}
+                      style={{
+                        padding: "5px 10px", borderRadius: 6, cursor: "pointer",
+                        border: `1px solid ${shortMusicStyle === m.id ? T.accentGreen + "80" : T.border}`,
+                        background: shortMusicStyle === m.id ? `${T.accentGreen}10` : "transparent",
+                        color: shortMusicStyle === m.id ? T.accentGreen : T.textFaint,
+                        fontSize: 9, fontFamily: "inherit",
+                      }}
+                    >{m.label}</button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>VOL</div>
+                  <input type="range" min={0} max={0.5} step={0.01}
+                    value={shortMusicVolume}
+                    onChange={e => setShortMusicVolume(parseFloat(e.target.value))}
+                    style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+                  />
+                  <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round(shortMusicVolume * 100)}%</div>
                 </div>
               </div>
             </>
