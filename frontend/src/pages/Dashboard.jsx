@@ -1012,22 +1012,18 @@ export default function Dashboard() {
       .catch(() => {});
   }, []); // eslint-disable-line
 
-  // Settings tab — load auto-reply + auto-generate + auto-short
+  // Settings tab — staggered loading to avoid ERR_INSUFFICIENT_RESOURCES
+  // Fast DB-only calls fire immediately; slow external-API status calls are
+  // delayed so they never all hit the backend simultaneously.
   useEffect(() => {
     if (tab !== "settings") return;
-    api
-      .get("/auto-reply/status")
-      .then((r) => {
-        setAutoReplyEnabled(r.data.enabled);
-        setAutoReplyStatus(r.data);
-      })
-      .catch(() => {});
-    api
-      .get("/auto-generate/settings")
-      .then((r) => {
-        setAutoGenSettings(r.data);
-      })
-      .catch(() => {});
+
+    // ── Batch 1: fast DB-only reads (fire immediately) ──────────────────────
+    api.get("/auto-reply/status").then(r => {
+      setAutoReplyEnabled(r.data.enabled);
+      setAutoReplyStatus(r.data);
+    }).catch(() => {});
+    api.get("/auto-generate/settings").then(r => setAutoGenSettings(r.data)).catch(() => {});
     api.get("/auto-short/settings").then(r => {
       const cfg = (() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}"); } catch { return {}; } })();
       setAutoShortSettings({
@@ -1038,29 +1034,27 @@ export default function Dashboard() {
       });
     }).catch(() => {});
     getPodcastSettings().then(r => setPodcastSettings(r)).catch(() => {});
-    getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {});
-    getSpotifyStatus().then(r => {
-      setSpotifyConnected(r.connected);
-      if (r.connected) setSpotifyProfile(r);
-    }).catch(() => {});
-    // Load Buzzsprout + Podbean status/settings when on settings tab
-    if (tab === "settings") {
-      getBuzzsproutStatus().then(r => setBuzzsproutStatus(r)).catch(() => setBuzzsproutStatus({ connected: false }));
-      getBuzzsproutSettings().then(r => setBuzzsproutSettings(s => ({
-        ...s,
-        api_token:   r.api_token_set ? (s.api_token || "••••••••") : "",
-        podcast_id:  r.podcast_id  || "",
-        auto_upload: r.auto_upload || false,
-      }))).catch(() => {});
-      getPodbeanStatus().then(r => setPodbeanStatus(r)).catch(() => setPodbeanStatus({ connected: false }));
-      getPodbeanSettings().then(r => setPodbeanSettings(s => ({
-        ...s,
-        client_id:     r.client_id     || "",
-        client_secret: r.client_secret_set ? (s.client_secret || "••••••••") : "",
-        auto_upload:   r.auto_upload   || false,
-      }))).catch(() => {});
-      getSubscriptions().then(r => setSubscriptions(Array.isArray(r) ? r : [])).catch(() => {});
-    }
+    getBuzzsproutSettings().then(r => setBuzzsproutSettings(s => ({
+      ...s,
+      api_token:   r.api_token_set ? (s.api_token || "••••••••") : "",
+      podcast_id:  r.podcast_id  || "",
+      auto_upload: r.auto_upload || false,
+    }))).catch(() => {});
+    getPodbeanSettings().then(r => setPodbeanSettings(s => ({
+      ...s,
+      client_id:     r.client_id     || "",
+      client_secret: r.client_secret_set ? (s.client_secret || "••••••••") : "",
+      auto_upload:   r.auto_upload   || false,
+    }))).catch(() => {});
+    getSubscriptions().then(r => setSubscriptions(Array.isArray(r) ? r : [])).catch(() => {});
+
+    // ── Batch 2: external-API status checks — staggered to avoid thread exhaustion ──
+    const t1 = setTimeout(() => getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {}), 200);
+    const t2 = setTimeout(() => getSpotifyStatus().then(r => { setSpotifyConnected(r.connected); if (r.connected) setSpotifyProfile(r); }).catch(() => {}), 600);
+    const t3 = setTimeout(() => getBuzzsproutStatus().then(r => setBuzzsproutStatus(r)).catch(() => setBuzzsproutStatus({ connected: false })), 1000);
+    const t4 = setTimeout(() => getPodbeanStatus().then(r => setPodbeanStatus(r)).catch(() => setPodbeanStatus({ connected: false })), 1400);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, [tab]);
 
   // Infinite scroll — load more channel videos when bottom sentinel is visible
