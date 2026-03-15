@@ -35,9 +35,10 @@ TOKEN_CACHE   = {}   # in-memory cache: {"access_token": "...", "expires_at": <t
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def get_podbean_settings() -> dict:
+    # Env vars take priority over DB (useful for docker .env file)
     return {
-        "client_id":     db.get_setting("podbean_client_id",     default=""),
-        "client_secret": db.get_setting("podbean_client_secret", default=""),
+        "client_id":     os.environ.get("PODBEAN_CLIENT_ID")     or db.get_setting("podbean_client_id",     default=""),
+        "client_secret": os.environ.get("PODBEAN_CLIENT_SECRET") or db.get_setting("podbean_client_secret", default=""),
         "auto_upload":   db.get_setting("podbean_auto_upload",   default="false") == "true",
     }
 
