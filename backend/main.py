@@ -425,6 +425,26 @@ def fix_posted_status(user: str = Depends(verify_token)):
     return {"fixed": fixed, "message": f"Fixed {fixed} videos"}
 
 
+@app.post("/videos/{video_id}/force-reset")
+def force_reset_video(video_id: str, user: str = Depends(verify_token)):
+    """Force-reset a single stuck video: resolve state based on available data."""
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    stuck = ['generating', 'scripted', 'voiced', 'assembled', 'captioned', 'labeled', 'uploading']
+    if video['status'] not in stuck:
+        raise HTTPException(status_code=400, detail=f"Video is not in a stuck state (status: {video['status']})")
+    if video.get('youtube_id'):
+        db.set_posted(video_id, video['youtube_id'], video.get('youtube_url', ''))
+        return {"message": "Resolved as posted", "new_status": "posted"}
+    elif video.get('file_path'):
+        db.set_ready(video_id)
+        return {"message": "Resolved as ready", "new_status": "ready"}
+    else:
+        db.set_failed(video_id, "Force-reset: pipeline was stuck with no output file")
+        return {"message": "Resolved as failed (no output)", "new_status": "failed"}
+
+
 @app.post("/videos/sync-youtube")
 def sync_youtube_stats(user: str = Depends(verify_token)):
     """Pull latest views/likes from YouTube API for all posted videos."""

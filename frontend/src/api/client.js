@@ -201,6 +201,16 @@ export const listShorts = async (limit = 25, offset = 0) => {
   return data;
 };
 
+export const fixStuckVideos = async () => {
+  const { data } = await api.post("/videos/fix-stuck");
+  return data;
+};
+
+export const forceResetVideo = async (id) => {
+  const { data } = await api.post(`/videos/${id}/force-reset`);
+  return data;
+};
+
 export const clearCache = async () => {
   const { data } = await api.post("/cache/clear");
   return data;

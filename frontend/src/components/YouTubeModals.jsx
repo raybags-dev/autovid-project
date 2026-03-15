@@ -331,9 +331,15 @@ const AMBIENCE_OPTIONS = [
   { value: "candlelight", label: "🕯 Candle", desc: "Soft flickering flame" },
 ];
 
+const _getShortsConfig = () => {
+  try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}"); } catch { return {}; }
+};
+
 export function ShortsModal({ video, onClose, onSuccess, theme }) {
   const [mode, setMode] = useState("clip"); // "clip" | "scratch"
-  const [ambience, setAmbience] = useState("stars");
+  const [ambience, setAmbience] = useState(() => _getShortsConfig().ambience || "rain");
+  const [musicStyle, setMusicStyle] = useState(() => _getShortsConfig().music_style || "Laidback_Fevorite");
+  const [musicVolume, setMusicVolume] = useState(() => { const v = _getShortsConfig().music_volume; return v !== undefined ? v : 0.04; });
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -387,7 +393,7 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
           setLoading(false);
           return;
         }
-        await generateShortFromScratch(prompt, ambience);
+        await generateShortFromScratch(prompt, ambience, musicStyle, musicVolume);
         onSuccess?.("Short generation started — check back in a few minutes.");
         onClose();
       }
