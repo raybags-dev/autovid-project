@@ -237,13 +237,17 @@ def run_script_pipeline(
             print(f"⚠️  Storage upload failed: {e}")
             public_url = None
 
+        # ── Generate description via Groq ─────────────────────────────────────
+        from pipeline.script_gen import generate_description
+        description = generate_description(title, script)
+
         # ── Save to DB ────────────────────────────────────────────────────────
         # Merge into one call to avoid partial updates
         db.update_video(video_id,
             file_path=public_url or final_path,
             status="ready",
             title=title,
-            description=f"Script Studio video — {len(script.split())} words · {duration/60:.1f} min",
+            description=description,
             duration_seconds=int(duration),
         )
 

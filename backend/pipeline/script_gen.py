@@ -402,6 +402,60 @@ Education, Lifestyle, Travel, DIY, Sports, News, Music, Art, Business, Health
     return json.loads(response.choices[0].message.content)
 
 
+def generate_description(title: str, script: str) -> str:
+    """
+    Generate a YouTube-ready SEO description for a Script Studio video.
+    Used when the user writes their own script (no AI script generation),
+    so the stored description is meaningful rather than a word-count placeholder.
+
+    Returns the description string with the promo footer already appended.
+    Falls back to a bare title-based string if Groq fails.
+    """
+    print(f"📝 Generating description for: '{title}'")
+    # Use up to ~600 words of the script as context — enough for Groq to capture
+    # the tone and subject matter without hitting token limits.
+    excerpt = " ".join(script.split()[:600])
+    try:
+        client = get_groq()
+        response = client.chat.completions.create(
+            model=config.GROQ_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a YouTube SEO copywriter. "
+                        "Write emotionally resonant, search-optimised YouTube descriptions. "
+                        "Return ONLY valid JSON. No markdown."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Write a YouTube description for this video.\n\n"
+                        f"Title: {title}\n\n"
+                        f"Script excerpt:\n{excerpt}\n\n"
+                        f'Return JSON: {{"description": "3-4 sentences. '
+                        f"SEO-rich, emotionally resonant summary. "
+                        f'No hashtags, no links — those are added separately."}}'
+                    ),
+                },
+            ],
+            temperature=0.7,
+            max_tokens=300,
+            response_format={"type": "json_object"},
+        )
+        raw = json.loads(response.choices[0].message.content)
+        desc = raw.get("description", "").strip()
+        if not desc:
+            raise ValueError("Empty description returned")
+        print(f"✅ Description generated ({len(desc)} chars)")
+    except Exception as e:
+        print(f"⚠️  Description generation failed ({e}) — using title fallback")
+        desc = title
+
+    return _append_promo_footer(desc, title=title)
+
+
 # ── Quick test ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     result = generate_script("A penguin tries stand-up comedy at a corporate event")
