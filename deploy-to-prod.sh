@@ -83,9 +83,9 @@ ssh $SERVER << REMOTE
   echo "→ Pulling latest images and rebuilding..."
   docker compose down --remove-orphans
 
-  # Only rebuild backend if Python files changed, always rebuild frontend
+  # Rebuild all services — celery-worker runs the actual pipelines and must stay in sync
   docker compose build --no-cache frontend
-  docker compose build backend-1 backend-2
+  docker compose build backend-1 backend-2 celery-worker
 
   docker compose up -d
 
