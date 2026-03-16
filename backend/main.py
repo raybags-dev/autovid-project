@@ -415,6 +415,9 @@ def fix_stuck_videos(user: str = Depends(verify_token)):
     fixed = 0
     for v in all_videos:
         if v['status'] in stuck_statuses:
+            # Skip videos that are actively running or queued in the executor
+            if v['id'] in _active_pipelines:
+                continue
             # If it has a youtube_id it was actually posted — mark posted
             if v.get('youtube_id'):
                 db.set_posted(v['id'], v['youtube_id'], v.get('youtube_url',''))
