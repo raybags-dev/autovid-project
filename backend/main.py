@@ -282,6 +282,7 @@ class VideoResponse(BaseModel):
     created_at: str
     posted_at: Optional[str] = None
     scheduled_for: Optional[str] = None   # ISO date — episode hidden from feed until this date
+    archived: Optional[bool] = False
 
 
 # ── Video routes — IMPORTANT: specific paths BEFORE /{video_id} ──────────────
@@ -447,6 +448,65 @@ def fix_posted_status(user: str = Depends(verify_token)):
     return {"fixed": fixed, "message": f"Fixed {fixed} videos"}
 
 
+# ── Danger Zone ───────────────────────────────────────────────────────────────
+
+class DangerAuthRequest(BaseModel):
+    key: str
+
+
+def verify_danger_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """Dependency: accepts only tokens with role='danger' (issued by /admin/danger/verify)."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Danger token required")
+    try:
+        payload = jwt.decode(credentials.credentials, config.SECRET_KEY, algorithms=["HS256"])
+        if payload.get("role") != "danger":
+            raise HTTPException(status_code=403, detail="Insufficient privileges — danger token required")
+        return payload["sub"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Danger token expired")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid danger token")
+
+
+@app.post("/admin/danger/verify")
+def verify_danger_access(req: DangerAuthRequest, user: str = Depends(verify_token)):
+    """Verify the danger zone key and return a short-lived (1h) danger token."""
+    if not config.DANGER_ZONE_KEY:
+        raise HTTPException(status_code=503, detail="Danger zone is disabled — DANGER_ZONE_KEY not set in .env")
+    if req.key != config.DANGER_ZONE_KEY:
+        raise HTTPException(status_code=401, detail="Invalid danger zone key")
+    payload = {
+        "sub": user,
+        "role": "danger",
+        "iat": int(time.time()),
+        "exp": int(time.time()) + 3600,
+    }
+    danger_token = jwt.encode(payload, config.SECRET_KEY, algorithm="HS256")
+    return {"danger_token": danger_token}
+
+
+@app.delete("/admin/danger/clear-videos")
+def danger_clear_videos(user: str = Depends(verify_danger_token)):
+    """DANGER: Permanently delete ALL video records from the database."""
+    count = db.danger_clear_all_videos()
+    return {"deleted": count, "message": f"Deleted all {count} video records from database"}
+
+
+@app.delete("/admin/danger/clear-storage")
+def danger_clear_storage_files(user: str = Depends(verify_danger_token)):
+    """DANGER: Delete ALL files from Supabase Storage (videos + narrations buckets)."""
+    result = db.danger_clear_storage()
+    return {
+        "videos_deleted": result["videos"],
+        "narrations_deleted": result["narrations"],
+        "errors": result["errors"],
+        "message": f"Cleared {result['videos']} video files and {result['narrations']} narration files",
+    }
+
+
 @app.post("/videos/{video_id}/force-reset")
 def force_reset_video(video_id: str, user: str = Depends(verify_token)):
     """Force-reset a single stuck video: resolve state based on available data."""
@@ -505,6 +565,29 @@ def sync_youtube_stats(user: str = Depends(verify_token)):
 @app.get("/videos", response_model=list[VideoResponse])
 def list_videos(status: Optional[str] = None, user: str = Depends(verify_token)):
     return db.list_videos(status=status)
+
+
+@app.get("/videos/archived")
+def list_archived_videos(user: str = Depends(verify_token)):
+    """List all archived videos."""
+    return db.list_archived_videos()
+
+
+@app.post("/videos/{video_id}/archive")
+def archive_video(video_id: str, user: str = Depends(verify_token)):
+    """Archive a video (hide from normal listings)."""
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    db.archive_video(video_id)
+    return {"message": "Video archived"}
+
+
+@app.post("/videos/{video_id}/unarchive")
+def unarchive_video(video_id: str, user: str = Depends(verify_token)):
+    """Restore a video from archive."""
+    db.unarchive_video(video_id)
+    return {"message": "Video unarchived"}
 
 
 @app.get("/videos/{video_id}", response_model=VideoResponse)

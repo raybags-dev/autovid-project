@@ -52,9 +52,13 @@ import api, {
   getSubscriptions,
   saveSubscriptions,
   getPipelineMetrics,
+  archiveVideo,
+  unarchiveVideo,
+  listArchivedVideos,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
+import DangerZone from "../components/DangerZone";
 import {
   ShortsModal,
   UploadModal,
@@ -818,6 +822,76 @@ export default function Dashboard() {
     }
   };
 
+  // ── Card-level log viewer ─────────────────────────────────────────────────
+  const startCardLogs = (videoId, e) => {
+    e?.stopPropagation();
+    if (cardLogsVideoId === videoId) {
+      clearInterval(cardLogsPollRef.current);
+      setCardLogsVideoId(null);
+      setCardLogsLines([]);
+      cardLogsLineRef.current = 0;
+      return;
+    }
+    clearInterval(cardLogsPollRef.current);
+    setCardLogsVideoId(videoId);
+    setCardLogsLines([]);
+    cardLogsLineRef.current = 0;
+    cardLogsPollRef.current = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/videos/${videoId}/logs?since=${cardLogsLineRef.current}`);
+        if (data?.lines?.length > 0) {
+          cardLogsLineRef.current += data.lines.length;
+          setCardLogsLines(prev => [...prev, ...data.lines].slice(-200));
+          setTimeout(() => cardLogsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+        }
+        if (data?.done) {
+          clearInterval(cardLogsPollRef.current);
+          setTimeout(() => {
+            setCardLogsVideoId(null);
+            setCardLogsLines([]);
+            cardLogsLineRef.current = 0;
+          }, 3000);
+        }
+      } catch (_) {}
+    }, 1500);
+  };
+
+  // ── Archive ───────────────────────────────────────────────────────────────
+  const handleArchive = async (id, e) => {
+    e?.stopPropagation();
+    try {
+      await archiveVideo(id);
+      setVideos(vs => vs.filter(v => v.id !== id));
+      showToast("Video archived");
+    } catch {
+      showToast("Archive failed", "error");
+    }
+  };
+
+  const handleUnarchive = async (id, e) => {
+    e?.stopPropagation();
+    try {
+      await unarchiveVideo(id);
+      setArchivedVideos(vs => vs.filter(v => v.id !== id));
+      showToast("Video restored");
+      refresh();
+    } catch {
+      showToast("Unarchive failed", "error");
+    }
+  };
+
+  const loadArchived = async () => {
+    setArchivedLoading(true);
+    try {
+      const data = await listArchivedVideos();
+      setArchivedVideos(Array.isArray(data) ? data : []);
+    } catch {
+      setArchivedVideos([]);
+    } finally {
+      setArchivedLoading(false);
+    }
+  };
+
   const SHORT_STEPS = ["Script", "Voice", "Visual", "Captions", "Final", "Ready"];
   const SHORT_STEP_MAP = { generating: 1, scripted: 2, voiced: 3, assembled: 4, captioned: 5, labeled: 5, ready: 6, posted: 6 };
 
@@ -1255,6 +1329,17 @@ export default function Dashboard() {
   const [topicsInputText, setTopicsInputText] = useState("");
   const [podcastTopicsSaving, setPodcastTopicsSaving] = useState(false);
   const [pipelineMetrics, setPipelineMetrics] = useState(null);
+  // Card-level live logs (view logs for any in-progress card)
+  const [cardLogsVideoId, setCardLogsVideoId] = useState(null);
+  const [cardLogsLines, setCardLogsLines] = useState([]);
+  const cardLogsPollRef = useRef(null);
+  const cardLogsLineRef = useRef(0);
+  const cardLogsEndRef = useRef(null);
+  // Archive
+  const [archivedVideos, setArchivedVideos] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  // Danger zone
+  const [showDangerZone, setShowDangerZone] = useState(false);
   const podcastLogsEndRef = useRef(null);
   const podcastLogPollRef = useRef(null);
   const podcastLogLineRef = useRef(0);
@@ -1579,8 +1664,11 @@ export default function Dashboard() {
     return /missing \d+ required positional argument|TypeError:|AttributeError:|NameError:|SyntaxError:|ImportError:|KeyError:|IndexError:|UnboundLocalError:|RecursionError:|<locals>/.test(msg);
   };
 
-  // Reset pagination when filter or search changes
-  useEffect(() => { setVisibleCount(20); }, [filter, videoSearch]);
+  // Reset pagination when filter or search changes; load archived list when switching to it
+  useEffect(() => {
+    setVisibleCount(20);
+    if (filter === "archived") loadArchived();
+  }, [filter, videoSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // IntersectionObserver — load 20 more items when the sentinel scrolls into view
   useEffect(() => {
@@ -2016,6 +2104,29 @@ export default function Dashboard() {
               <span style={{ fontSize: 13 }}>📖</span>
               <span>Docs &amp; API</span>
               <span style={{ marginLeft: "auto", fontSize: 9, opacity: 0.5 }}>↗</span>
+            </div>
+            {/* Danger Zone — subtle, red-tinted */}
+            <div
+              style={{
+                marginTop: 4,
+                padding: "8px 10px",
+                borderRadius: 8,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 13,
+                color: "rgba(180,30,30,0.5)",
+                transition: "background 0.15s, color 0.15s",
+                borderTop: `1px solid rgba(200,0,30,0.1)`,
+              }}
+              onClick={() => setShowDangerZone(true)}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(200,0,30,0.06)"; e.currentTarget.style.color = "#ff4040"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(180,30,30,0.5)"; }}
+              title="Admin — destructive operations"
+            >
+              <span style={{ fontSize: 13 }}>☠</span>
+              <span style={{ fontSize: 11, letterSpacing: "0.06em" }}>Danger Zone</span>
             </div>
           </nav>
 
@@ -2994,6 +3105,16 @@ export default function Dashboard() {
                       {videos.filter((v) => v.resolution === "1080x1920").length}
                     </span>
                   </button>
+                  <span style={{ width: 1, height: 16, background: T.border, alignSelf: "center", flexShrink: 0 }} />
+                  <button
+                    className={`filter-btn ${filter === "archived" ? "active" : ""}`}
+                    onClick={() => setFilter("archived")}
+                    style={filter === "archived"
+                      ? { background: "rgba(120,80,200,0.12)", borderColor: "rgba(120,80,200,0.4)", color: "#a070e8" }
+                      : { color: "#8060c0", borderColor: "rgba(120,80,200,0.18)" }}
+                  >
+                    📦 ARCHIVED
+                  </button>
                 </div>
 
                 {/* Video list */}
@@ -3027,17 +3148,21 @@ export default function Dashboard() {
                       ? "NO MP3 FILES YET — GENERATED VIA PODCAST PIPELINE"
                       : filter === "shorts"
                       ? "NO SHORTS YET — CREATE SHORTS FROM EXISTING VIDEOS"
+                      : filter === "archived"
+                      ? "NO ARCHIVED ITEMS"
                       : `NO ${filter.toUpperCase()} VIDEOS`}
                   </div>
                 ) : (
-                  filtered.slice(0, visibleCount).map((v) => {
+                  (filter === "archived" ? archivedVideos : filtered).slice(0, visibleCount).map((v) => {
                     const s = sc(v.status);
                     const vUrl = getVideoUrl(v.file_path);
+                    const isArchived = filter === "archived";
                     return (
                       <div
                         key={v.id}
                         className="video-row"
-                        onClick={() => setSelected(v)}
+                        onClick={() => !isArchived && setSelected(v)}
+                        style={isArchived ? { opacity: 0.75, cursor: "default" } : {}}
                       >
                         <div
                           style={{
@@ -3211,6 +3336,22 @@ export default function Dashboard() {
                                   lineHeight: 1.5,
                                 }}>🎙 PODBEAN</span>
                               )}
+                              {/* VIEW LOGS button — visible on all in-progress cards */}
+                              {IN_PROGRESS.includes(v.status) && (
+                                <button
+                                  className="btn-sm"
+                                  onClick={(e) => startCardLogs(v.id, e)}
+                                  style={{
+                                    color: cardLogsVideoId === v.id ? T.accent : T.textFaint,
+                                    borderColor: cardLogsVideoId === v.id ? `${T.accent}50` : `${T.border}`,
+                                    background: cardLogsVideoId === v.id ? `${T.accent}12` : "transparent",
+                                    flexShrink: 0,
+                                    fontSize: 9,
+                                  }}
+                                >
+                                  {cardLogsVideoId === v.id ? "▼ LOGS" : "▶ LOGS"}
+                                </button>
+                              )}
                             </div>
                             <div
                               style={{
@@ -3336,8 +3477,78 @@ export default function Dashboard() {
                                 CREATED
                               </div>
                             </div>
+                            {/* Archive / Unarchive button */}
+                            {isArchived ? (
+                              <button
+                                className="btn-sm"
+                                onClick={(e) => handleUnarchive(v.id, e)}
+                                title="Restore from archive"
+                                style={{
+                                  color: "#a070e8",
+                                  borderColor: "rgba(120,80,200,0.3)",
+                                  background: "rgba(120,80,200,0.08)",
+                                  fontSize: 9,
+                                }}
+                              >
+                                ↩ RESTORE
+                              </button>
+                            ) : (
+                              <button
+                                className="btn-sm"
+                                onClick={(e) => handleArchive(v.id, e)}
+                                title="Archive this video"
+                                style={{
+                                  color: T.textFaint,
+                                  borderColor: T.border,
+                                  background: "transparent",
+                                  fontSize: 9,
+                                }}
+                              >
+                                📦
+                              </button>
+                            )}
                           </div>
                         </div>
+
+                        {/* ── Inline live log panel (for in-progress cards) ─────── */}
+                        {cardLogsVideoId === v.id && (
+                          <div
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              marginTop: 10,
+                              background: T.bgDeep,
+                              border: `1px solid ${T.accent}22`,
+                              borderRadius: 8,
+                              padding: "10px 12px",
+                              maxHeight: 200,
+                              overflowY: "auto",
+                              fontFamily: "'DM Mono',monospace",
+                              fontSize: 10,
+                              lineHeight: 1.6,
+                              color: T.textDim,
+                            }}
+                          >
+                            {cardLogsLines.length === 0 ? (
+                              <span style={{ color: T.textFaint, letterSpacing: "0.08em" }}>
+                                ⟳ Waiting for logs...
+                              </span>
+                            ) : (
+                              cardLogsLines.map((line, i) => (
+                                <div key={i} style={{
+                                  color: line.startsWith("✅") || line.startsWith("[DONE]") ? T.accentGreen
+                                       : line.startsWith("❌") || line.startsWith("[ERROR]") ? T.accentRed
+                                       : line.startsWith("⚠") ? T.accentYellow
+                                       : T.textDim,
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                }}>
+                                  {line}
+                                </div>
+                              ))
+                            )}
+                            <div ref={cardLogsEndRef} />
+                          </div>
+                        )}
 
                         {v.error_message && (v.status === "failed" || v.status === "ready") && (
                           <div
@@ -11046,6 +11257,11 @@ export default function Dashboard() {
               showToast(msg);
             }}
           />
+        )}
+
+        {/* ── Danger Zone Modal ─────────────────────────────────────────────────── */}
+        {showDangerZone && (
+          <DangerZone onClose={() => setShowDangerZone(false)} />
         )}
 
         {/* ── Mobile Bottom Nav ──────────────────────────────────────────────────── */}
