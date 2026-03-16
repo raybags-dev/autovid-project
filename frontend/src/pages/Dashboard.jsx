@@ -1250,6 +1250,9 @@ export default function Dashboard() {
   const [manualPodcastEssay, setManualPodcastEssay] = useState("");
   const [manualPodcastMusic, setManualPodcastMusic] = useState("Birds_Atmosphere_Piano");
   const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.01);
+  const [showTopicsPanel, setShowTopicsPanel] = useState(false);
+  const [topicsInputText, setTopicsInputText] = useState("");
+  const [podcastTopicsSaving, setPodcastTopicsSaving] = useState(false);
   const [pipelineMetrics, setPipelineMetrics] = useState(null);
   const podcastLogsEndRef = useRef(null);
   const podcastLogPollRef = useRef(null);
@@ -8258,6 +8261,144 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
+
+                      {/* ── Custom Topics ── */}
+                      {(() => {
+                        const customTopics = podcastSettings.topics || [];
+                        const hasCustom = customTopics.length > 0;
+                        const parsedInput = topicsInputText
+                          .split("\n")
+                          .map(t => t.trim())
+                          .filter(Boolean);
+
+                        return (
+                          <div style={{
+                            marginBottom: 14,
+                            background: T.bgDeep,
+                            border: `1px solid ${hasCustom ? T.accent + "50" : T.border}`,
+                            borderRadius: 8,
+                            overflow: "hidden",
+                          }}>
+                            {/* Header row */}
+                            <div
+                              onClick={() => {
+                                if (!showTopicsPanel) {
+                                  setTopicsInputText(customTopics.join("\n"));
+                                }
+                                setShowTopicsPanel(v => !v);
+                              }}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                padding: "9px 12px", cursor: "pointer",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 14 }}>📋</span>
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>
+                                    Custom Topics
+                                  </div>
+                                  <div style={{ fontSize: 10, color: hasCustom ? T.accent : T.textFaint }}>
+                                    {hasCustom
+                                      ? `✓ Using ${customTopics.length} custom topic${customTopics.length !== 1 ? "s" : ""}`
+                                      : "Using built-in defaults (107 topics)"}
+                                  </div>
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 11, color: T.textFaint }}>
+                                {showTopicsPanel ? "▲" : "▼"}
+                              </span>
+                            </div>
+
+                            {/* Expanded panel */}
+                            {showTopicsPanel && (
+                              <div style={{ padding: "0 12px 12px" }}>
+                                <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, lineHeight: 1.6 }}>
+                                  Paste your topics below — one per line. When saved, automation will cycle through these
+                                  instead of the built-in list. Purge to revert to defaults.
+                                </div>
+                                <textarea
+                                  value={topicsInputText}
+                                  onChange={e => setTopicsInputText(e.target.value)}
+                                  rows={10}
+                                  placeholder={"Why silence is the loudest truth\nThe thing we never say out loud\nWhat ancient civilisations knew that we forgot\n...one topic per line"}
+                                  style={{
+                                    width: "100%", boxSizing: "border-box",
+                                    background: T.bgCard, border: `1px solid ${T.border}`,
+                                    borderRadius: 6, padding: "8px 10px",
+                                    color: T.text, fontSize: 11, fontFamily: "monospace",
+                                    resize: "vertical", outline: "none", lineHeight: 1.6,
+                                  }}
+                                />
+                                <div style={{ fontSize: 10, color: T.textFaint, marginTop: 4, marginBottom: 10 }}>
+                                  {parsedInput.length > 0
+                                    ? <span style={{ color: T.accentGreen }}>{parsedInput.length} topic{parsedInput.length !== 1 ? "s" : ""} ready to save</span>
+                                    : "No topics entered"}
+                                </div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <button
+                                    disabled={podcastTopicsSaving || parsedInput.length === 0}
+                                    onClick={async () => {
+                                      setPodcastTopicsSaving(true);
+                                      try {
+                                        const updated = { ...podcastSettings, topics: parsedInput };
+                                        await savePodcastSettings(updated);
+                                        setPodcastSettings(updated);
+                                        showToast(`✅ ${parsedInput.length} custom topics saved`);
+                                        setShowTopicsPanel(false);
+                                      } catch {
+                                        showToast("Failed to save topics", "error");
+                                      } finally {
+                                        setPodcastTopicsSaving(false);
+                                      }
+                                    }}
+                                    style={{
+                                      flex: 1, padding: "7px 0", borderRadius: 6,
+                                      border: `1px solid ${parsedInput.length === 0 ? T.border : T.accentGreen + "70"}`,
+                                      background: parsedInput.length === 0 ? "transparent" : `${T.accentGreen}12`,
+                                      color: parsedInput.length === 0 ? T.textFaint : T.accentGreen,
+                                      fontSize: 11, fontFamily: "inherit", cursor: parsedInput.length === 0 ? "not-allowed" : "pointer",
+                                      fontWeight: 600, letterSpacing: "0.05em",
+                                    }}
+                                  >
+                                    {podcastTopicsSaving ? "Saving..." : "💾 Save topics"}
+                                  </button>
+                                  {hasCustom && (
+                                    <button
+                                      disabled={podcastTopicsSaving}
+                                      onClick={async () => {
+                                        setPodcastTopicsSaving(true);
+                                        try {
+                                          const updated = { ...podcastSettings, topics: [] };
+                                          await savePodcastSettings(updated);
+                                          setPodcastSettings(updated);
+                                          setTopicsInputText("");
+                                          showToast("Topics purged — reverted to defaults");
+                                          setShowTopicsPanel(false);
+                                        } catch {
+                                          showToast("Failed to purge topics", "error");
+                                        } finally {
+                                          setPodcastTopicsSaving(false);
+                                        }
+                                      }}
+                                      style={{
+                                        padding: "7px 14px", borderRadius: 6,
+                                        border: `1px solid ${T.accentRed}50`,
+                                        background: `${T.accentRed}0a`,
+                                        color: T.accentRed, fontSize: 11,
+                                        fontFamily: "inherit", cursor: "pointer",
+                                        letterSpacing: "0.05em",
+                                      }}
+                                    >
+                                      🗑 Purge
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Save + Run Now buttons */}
                       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>

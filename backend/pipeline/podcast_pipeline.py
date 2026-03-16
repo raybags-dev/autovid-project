@@ -452,12 +452,8 @@ def _get_duration(mp3_path: str) -> float:
 def run_auto_podcast(push_log_fn=None, unregister_fn=None) -> str | None:
     """Trigger one auto-generated podcast episode."""
     settings = get_podcast_settings()
-    topics   = settings.get("topics", DEFAULT_PODCAST_TOPICS)
+    topics   = settings.get("topics") or DEFAULT_PODCAST_TOPICS
     music    = settings.get("music_style", DEFAULT_MUSIC_STYLE)
-
-    if not topics:
-        print("⚠️  Auto-podcast: no topics configured")
-        return None
 
     topic = _pick_next_podcast_topic(topics)
     print(f"🎙  Auto-podcast: '{topic}'")
