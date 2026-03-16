@@ -187,7 +187,10 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
             setCompLogs(prev => [...prev, ...ld.lines].slice(-500));
             setTimeout(() => compLogsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
           }
-          if (ld?.done) clearInterval(compLogPollRef.current);
+          if (ld?.done) {
+            clearInterval(compLogPollRef.current);
+            setTimeout(() => setShowCompLogs(false), 2500);
+          }
         } catch (_) {}
       }, 1500);
     } catch (e) {

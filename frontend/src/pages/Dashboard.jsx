@@ -1128,6 +1128,7 @@ export default function Dashboard() {
     setPodcastStep(1);
     setPodcastLogs([]);
     podcastLogLineRef.current = 0;
+    setShowPodcastLogs(true);
 
     const stepMap = { generating:1, scripted:2, voiced:3, assembled:4, ready:5 };
 
@@ -1139,6 +1140,7 @@ export default function Dashboard() {
           clearInterval(stepPoll);
           clearInterval(podcastLogPollRef.current);
           setPodcastRunning(false);
+          setTimeout(() => setShowPodcastLogs(false), 2500);
           if (st.status === "failed") { showToast("Podcast episode failed", "error"); addNotification("Podcast Failed", "The podcast episode pipeline failed.", "error"); }
           else { showToast("✅ Podcast episode ready!"); addNotification("Podcast Ready", "Your podcast episode is ready."); refresh(); }
         }
@@ -1603,6 +1605,13 @@ export default function Dashboard() {
     return true;
   });
   const sc = (s) => STATUS[s] || STATUS.failed;
+  // True for any podcast/audio-only record regardless of how it was created.
+  // Automation pipeline sets narration_url with no file_path;
+  // Compilation Studio sets file_path to an .mp3 and may tag labels with "mp3".
+  const isPodcast = (v) =>
+    (v.labels || []).includes("mp3") ||
+    (v.file_path && v.file_path.toLowerCase().endsWith(".mp3")) ||
+    (v.narration_url && !v.file_path);
 
   return (
     <>
@@ -2343,7 +2352,7 @@ export default function Dashboard() {
                     [
                       {
                         label: "TOTAL VIDEOS",
-                        value: videos.length,
+                        value: stats?.total || videos.length,
                         color: T.accent,
                         icon: "▣",
                       },
@@ -3039,8 +3048,12 @@ export default function Dashboard() {
                               width: 96,
                               height: 54,
                               borderRadius: 8,
-                              background: `linear-gradient(135deg,${s.color}18,rgba(0,0,0,0.15))`,
-                              border: `1px solid ${s.color}28`,
+                              background: isPodcast(v)
+                                ? "linear-gradient(135deg,rgba(29,185,84,0.12),rgba(0,0,0,0.15))"
+                                : `linear-gradient(135deg,${s.color}18,rgba(0,0,0,0.15))`,
+                              border: isPodcast(v)
+                                ? "1px solid rgba(29,185,84,0.28)"
+                                : `1px solid ${s.color}28`,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -3086,7 +3099,7 @@ export default function Dashboard() {
                                   ▶
                                 </span>
                               </div>
-                            ) : v.narration_url && !IN_PROGRESS.includes(v.status) && v.status !== "failed" ? (
+                            ) : isPodcast(v) && !IN_PROGRESS.includes(v.status) && v.status !== "failed" ? (
                               // Audio-only — MP3 play button
                               <div
                                 onClick={(e) => {
@@ -3829,8 +3842,8 @@ export default function Dashboard() {
                             </span>
                           ) : null}
                           {(v.status === "ready" || v.status === "uploading") && (
-                            /* Audio-only (podcast/MP3) → Spotify placeholder; video → YouTube upload */
-                            v.narration_url && !v.file_path ? (
+                            /* Audio-only (podcast/MP3) → Podbean; video → YouTube upload */
+                            isPodcast(v) ? (
                               <>
                                 {/* Podbean upload / status */}
                                 {v.podbean_episode_id ? (
@@ -7452,6 +7465,7 @@ export default function Dashboard() {
                               setAutoGenStep(1);
                               setAutoGenLogs([]);
                               autoGenLogLineRef.current = 0;
+                              setShowAutoGenLogs(true);
                               showToast("🤖 Auto-generate started!");
 
                               // Poll for step progress — use functional updater to avoid stale closure
@@ -7480,6 +7494,7 @@ export default function Dashboard() {
                                     clearInterval(stepPoll);
                                     clearInterval(autoGenLogPollRef.current);
                                     setAutoGenRunning(false);
+                                    setTimeout(() => setShowAutoGenLogs(false), 2500);
                                     if (st.status === "failed") {
                                       showToast("Auto-generate failed", "error");
                                       addNotification("Auto-Generate Failed", "The auto-generate video pipeline failed.", "error");
@@ -8013,6 +8028,7 @@ export default function Dashboard() {
                               setAutoShortStep(1);
                               setAutoShortLogs([]);
                               autoShortLogLineRef.current = 0;
+                              setShowAutoShortLogs(true);
                               showToast("📱 Auto-short started!");
 
                               const stepMap = { generating:1, scripted:2, voiced:3, assembled:4, captioned:5, labeled:5, ready:6, posted:6 };
@@ -8024,6 +8040,7 @@ export default function Dashboard() {
                                     clearInterval(stepPoll);
                                     clearInterval(autoShortLogPollRef.current);
                                     setAutoShortRunning(false);
+                                    setTimeout(() => setShowAutoShortLogs(false), 2500);
                                     if (st.status === "failed") { showToast("Auto-short failed", "error"); addNotification("Auto-Short Failed", "The auto-short pipeline failed.", "error"); }
                                     else { showToast("✅ Auto-short ready!"); addNotification("Auto-Short Ready", "Your auto-short has been generated."); refresh(); }
                                   }
