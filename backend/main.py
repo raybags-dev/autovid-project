@@ -1534,13 +1534,14 @@ def get_public_stats():
     except Exception as e:
         print(f"⚠️  Stats: YouTube subscriber fetch failed: {e}")
 
-    # ── Episode count + views/likes aggregates ────────────────────────────────
+    # ── Episode count + views/likes aggregates (all videos, no limit) ────────
     try:
-        all_videos = db.list_videos(limit=500)
-        result["episodes"] = len([v for v in all_videos if v.get("narration_url") and v.get("title")])
-        posted = [v for v in all_videos if v.get("status") == "posted"]
-        result["total_views"] = sum(v.get("views_count", 0) for v in posted)
-        result["total_likes"] = sum(v.get("likes_count", 0) for v in posted)
+        db_client = db.get_client()
+        all_rows = db_client.table("videos").select("status,views_count,likes_count,narration_url,title").limit(5000).execute().data or []
+        result["episodes"] = len([v for v in all_rows if v.get("narration_url") and v.get("title")])
+        posted = [v for v in all_rows if v.get("status") == "posted"]
+        result["total_views"] = sum(v.get("views_count") or 0 for v in posted)
+        result["total_likes"] = sum(v.get("likes_count") or 0 for v in posted)
     except Exception as e:
         print(f"⚠️  Stats: episode count failed: {e}")
 
