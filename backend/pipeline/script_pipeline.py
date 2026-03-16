@@ -32,7 +32,7 @@ except ModuleNotFoundError:
 # Moods that use generated animations instead of Pexels stock footage
 GENERATED_VISUAL_MOODS = {
     "fluid_red", "fluid_blue", "fluid_black",
-    "aurora_blue", "aurora_dark",
+    "aurora", "aurora_blue", "aurora_dark",
     "gradient_wave", "starfield", "geometric_pulse",
     "colour_wash", "particle_field",
     "neon_purple", "cosmic_dust", "ember_glow",

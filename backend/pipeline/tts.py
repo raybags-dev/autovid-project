@@ -189,43 +189,128 @@ def _normalize_audio(mp3_path: Path) -> None:
     print("🎚️  Audio normalised (dynaudnorm — uniform volume throughout)")
 
 
+# ── Chunked Synthesis Helpers ─────────────────────────────────────────────────
+
+def _split_into_chunks(text: str, max_words: int = 500) -> list:
+    """
+    Split text into chunks of at most max_words, preferring sentence boundaries.
+    Returns a list of text strings.
+    """
+    words = text.split()
+    if len(words) <= max_words:
+        return [text]
+
+    chunks = []
+    current = []
+    for word in words:
+        current.append(word)
+        # Split at sentence boundary once we've hit the word limit
+        if len(current) >= max_words and current[-1] and current[-1][-1] in ".!?…":
+            chunks.append(" ".join(current))
+            current = []
+
+    if current:
+        # Merge a tiny trailing fragment into the previous chunk to avoid a very short final chunk
+        if chunks and len(current) < 50:
+            chunks[-1] = chunks[-1] + " " + " ".join(current)
+        else:
+            chunks.append(" ".join(current))
+
+    return chunks or [text]
+
+
+def _synthesize_chunk(text: str, mp3_path: Path) -> bool:
+    """
+    Try the full TTS fallback chain for a single text chunk.
+    Returns True on success.
+    """
+    default_voice = getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
+    if _synthesize_elevenlabs(text, mp3_path, voice_id=default_voice):
+        return True
+    print(f"🔄 Trying fallback ElevenLabs voice: {ELEVENLABS_FALLBACK_VOICE_ID}")
+    if _synthesize_elevenlabs(text, mp3_path, voice_id=ELEVENLABS_FALLBACK_VOICE_ID):
+        return True
+    if _synthesize_gtts(text, mp3_path):
+        return True
+    if _synthesize_pyttsx3(text, mp3_path):
+        return True
+    return False
+
+
+def _concat_audio_chunks(chunk_paths: list, output_path: Path) -> None:
+    """Concatenate MP3 chunk files into a single output file via FFmpeg concat demuxer."""
+    if len(chunk_paths) == 1:
+        import shutil
+        shutil.copy2(chunk_paths[0], output_path)
+        return
+
+    list_file = output_path.with_suffix(".concat_list.txt")
+    try:
+        with open(list_file, "w") as f:
+            for p in chunk_paths:
+                f.write(f"file '{Path(p).absolute()}'\n")
+
+        result = subprocess.run([
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0",
+            "-i", str(list_file),
+            "-acodec", "libmp3lame", "-b:a", "128k",
+            str(output_path),
+        ], capture_output=True)
+
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg concat failed: {result.stderr.decode()[-300:]}")
+    finally:
+        list_file.unlink(missing_ok=True)
+
+
 # ── Main Synthesis ────────────────────────────────────────────────────────────
 
 def synthesize(text: str, video_id: str) -> dict:
     """
-    Synthesize speech with automatic fallback chain:
-      1. ElevenLabs (best quality)
-      2. gTTS (free, good quality)
-      3. pyttsx3 (system TTS, last resort)
+    Synthesize speech from text, splitting into ≤500-word chunks when the input
+    is large.  Each chunk is synthesized with the full fallback chain
+    (ElevenLabs → gTTS → pyttsx3); failed chunks are skipped and a warning is
+    printed.  Successful chunks are concatenated into a single MP3.
 
     Returns {"path": str, "duration": float}
     """
     mp3_path   = config.AUDIO_OUTPUT_DIR / f"{video_id}.mp3"
     clean_text = _clean_script(text)
 
-    # Voice chain: DEFAULT → FALLBACK → gTTS → pyttsx3
-    default_voice = getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
-    success = _synthesize_elevenlabs(clean_text, mp3_path, voice_id=default_voice)
+    chunks = _split_into_chunks(clean_text, max_words=500)
+    print(f"🔤 Text split into {len(chunks)} chunk(s) ({len(clean_text.split())} words total)")
 
-    # Try fallback ElevenLabs voice before dropping to free TTS
-    if not success:
-        print(f"🔄 Trying fallback ElevenLabs voice: {ELEVENLABS_FALLBACK_VOICE_ID}")
-        success = _synthesize_elevenlabs(clean_text, mp3_path, voice_id=ELEVENLABS_FALLBACK_VOICE_ID)
+    if len(chunks) == 1:
+        # Fast path — no chunking needed
+        success = _synthesize_chunk(clean_text, mp3_path)
+        if not success or not mp3_path.exists() or mp3_path.stat().st_size == 0:
+            raise RuntimeError(
+                "All TTS engines failed.\n"
+                "ElevenLabs: check quota at elevenlabs.io\n"
+                "gTTS: run 'pip install gtts' in your venv\n"
+            )
+    else:
+        # Multi-chunk path — synthesize each chunk, skip failures
+        chunk_paths = []
+        for i, chunk in enumerate(chunks):
+            chunk_path = config.AUDIO_OUTPUT_DIR / f"{video_id}_chunk{i:02d}.mp3"
+            print(f"🔤 Synthesizing chunk {i + 1}/{len(chunks)} ({len(chunk.split())} words)...")
+            try:
+                if _synthesize_chunk(chunk, chunk_path):
+                    chunk_paths.append(chunk_path)
+                else:
+                    print(f"⚠️  Chunk {i + 1} synthesis failed — skipping")
+            except Exception as e:
+                print(f"⚠️  Chunk {i + 1} error, skipping: {e}")
 
-    # Fallback to gTTS
-    if not success:
-        success = _synthesize_gtts(clean_text, mp3_path)
+        if not chunk_paths:
+            raise RuntimeError("All TTS chunks failed — no audio produced.")
 
-    # Final fallback to system TTS
-    if not success:
-        success = _synthesize_pyttsx3(clean_text, mp3_path)
-
-    if not success or not mp3_path.exists() or mp3_path.stat().st_size == 0:
-        raise RuntimeError(
-            "All TTS engines failed.\n"
-            "ElevenLabs: check quota at elevenlabs.io\n"
-            "gTTS: run 'pip install gtts' in your venv\n"
-        )
+        print(f"🔗 Concatenating {len(chunk_paths)}/{len(chunks)} chunks...")
+        _concat_audio_chunks(chunk_paths, mp3_path)
+        for p in chunk_paths:
+            Path(p).unlink(missing_ok=True)
 
     # Flatten ElevenLabs gain envelope — locks every part of the track to the
     # same loudness so there is no quiet intro / loud middle / quiet outro.
