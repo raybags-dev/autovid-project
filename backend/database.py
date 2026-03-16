@@ -200,15 +200,21 @@ def list_videos(status: Optional[str] = None, limit: int = 50) -> list[dict]:
 
 
 def get_stats() -> dict:
-    videos = list_videos(limit=1000)
-    posted = [v for v in videos if v["status"] == "posted"]
+    # Use a separate query that includes archived videos so views/likes are never undercounted
+    db = get_client()
+    try:
+        all_rows = db.table("videos").select("status,views_count,likes_count").limit(5000).execute().data or []
+    except Exception:
+        all_rows = []
+    active = [v for v in all_rows if not v.get("archived")]
+    posted = [v for v in all_rows if v["status"] == "posted"]
     return {
-        "total": len(videos),
-        "posted": len(posted),
-        "generating": len([v for v in videos if v["status"] == "generating"]),
-        "failed": len([v for v in videos if v["status"] == "failed"]),
-        "total_views": sum(v.get("views_count", 0) for v in posted),
-        "total_likes": sum(v.get("likes_count", 0) for v in posted),
+        "total": len([v for v in active if v["status"] != "archived"]),
+        "posted": len([v for v in active if v["status"] == "posted"]),
+        "generating": len([v for v in active if v["status"] == "generating"]),
+        "failed": len([v for v in active if v["status"] == "failed"]),
+        "total_views": sum(v.get("views_count") or 0 for v in posted),
+        "total_likes": sum(v.get("likes_count") or 0 for v in posted),
     }
 
 

@@ -2485,17 +2485,13 @@ export default function Dashboard() {
                       },
                       {
                         label: "TOTAL VIEWS",
-                        value: fmtNum(
-                          videos.reduce((s, v) => s + (v.views_count || 0), 0),
-                        ),
+                        value: fmtNum(stats?.total_views ?? videos.reduce((s, v) => s + (v.views_count || 0), 0)),
                         color: T.accentYellow,
                         icon: "◉",
                       },
                       {
                         label: "TOTAL LIKES",
-                        value: fmtNum(
-                          videos.reduce((s, v) => s + (v.likes_count || 0), 0),
-                        ),
+                        value: fmtNum(stats?.total_likes ?? videos.reduce((s, v) => s + (v.likes_count || 0), 0)),
                         color: "#e060a0",
                         icon: "♥",
                       },
@@ -3130,7 +3126,11 @@ export default function Dashboard() {
                       <div className="skeleton-loader" style={{ width: 60, height: 22, borderRadius: 20 }} />
                     </div>
                   ))
-                ) : filtered.length === 0 ? (
+                ) : (filter === "archived" && archivedLoading) ? (
+                  <div style={{ textAlign: "center", padding: 60, color: T.textFaint, fontSize: 12, letterSpacing: "0.1em" }}>
+                    LOADING ARCHIVED ITEMS...
+                  </div>
+                ) : (filter === "archived" ? archivedVideos : filtered).length === 0 ? (
                   <div
                     style={{
                       textAlign: "center",
