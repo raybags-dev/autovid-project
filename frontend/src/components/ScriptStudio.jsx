@@ -14,12 +14,12 @@ const PROFILES = [
 ];
 
 const MOODS = [
-  { id: "stars",  emoji: "⭐", label: "Stars",  desc: "Deep space drift" },
-  { id: "aurora", emoji: "🌌", label: "Aurora", desc: "Northern lights" },
-  { id: "ocean",  emoji: "🌊", label: "Ocean",  desc: "Underwater rays" },
-  { id: "fire",   emoji: "🔥", label: "Fire",   desc: "Floating embers" },
-  { id: "rain",   emoji: "🌧", label: "Rain",   desc: "Night city window" },
-  { id: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
+  { id: "starfield",   emoji: "⭐", label: "Stars",  desc: "Deep space drift" },
+  { id: "aurora",      emoji: "🌌", label: "Aurora", desc: "Northern lights" },
+  { id: "ocean",       emoji: "🌊", label: "Ocean",  desc: "Underwater rays" },
+  { id: "ember_glow",  emoji: "🔥", label: "Fire",   desc: "Floating embers" },
+  { id: "rain",        emoji: "🌧", label: "Rain",   desc: "Night city window" },
+  { id: "cosmic_dust", emoji: "🌀", label: "Galaxy", desc: "Cosmic nebula" },
 ];
 
 const MUSIC = [
@@ -47,7 +47,14 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
   const [title, setTitle]     = useState("");
   const [script, setScript]   = useState("");
   const [profile, setProfile] = useState("educational");
-  const [mood, setMood]       = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").ambience || "rain"; } catch { return "rain"; } });
+  const [mood, setMood]       = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").ambience || "rain";
+      // Migrate old mood IDs to current IDs
+      const MOOD_MIGRATION = { stars: "starfield", fire: "ember_glow", galaxy: "cosmic_dust" };
+      return MOOD_MIGRATION[saved] || saved;
+    } catch { return "rain"; }
+  });
   const [music, setMusic]         = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_style || "Laidback_Fevorite"; } catch { return "Laidback_Fevorite"; } });
   const [musicVolume, setMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
   const [running, setRunning] = useState(false);

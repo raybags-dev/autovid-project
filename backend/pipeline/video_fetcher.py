@@ -29,14 +29,16 @@ PEXELS_HEADERS = {"Authorization": config.PEXELS_API_KEY}
 PIXABAY_SEARCH_URL = "https://pixabay.com/api/videos/"
 
 
-def _search_pexels(query: str, duration_hint: float = 10) -> Optional[str]:
+def _search_pexels(query: str, duration_hint: float = 10, result_offset: int = 0) -> Optional[str]:
     """
     Search Pexels for a video matching the query.
+    result_offset: index into the candidate list, so different video_ids get different clips
+                   for the same query rather than always the first result.
     Returns the download URL of the best match, or None.
     """
     params = {
         "query": query,
-        "per_page": 10,
+        "per_page": 15,
         "orientation": "landscape",
         "size": "medium",
     }
@@ -47,17 +49,17 @@ def _search_pexels(query: str, duration_hint: float = 10) -> Optional[str]:
         if not videos:
             return None
 
-        # Pick a video that's long enough for our segment
-        for video in videos:
-            if video["duration"] >= max(duration_hint - 1, 3):
-                # Find HD or Full HD file
-                files = sorted(video["video_files"], key=lambda f: f.get("width", 0), reverse=True)
-                for f in files:
-                    if f.get("width", 0) >= 1280:
-                        return f["link"]
+        # Collect all videos long enough for this segment
+        candidates = [v for v in videos if v["duration"] >= max(duration_hint - 1, 3)]
+        if not candidates:
+            candidates = videos  # relax duration filter if nothing qualifies
 
-        # Fallback: return best quality from first result
-        files = sorted(videos[0]["video_files"], key=lambda f: f.get("width", 0), reverse=True)
+        # Use offset to pick a different result per script/segment
+        video = candidates[result_offset % len(candidates)]
+        files = sorted(video["video_files"], key=lambda f: f.get("width", 0), reverse=True)
+        for f in files:
+            if f.get("width", 0) >= 1280:
+                return f["link"]
         return files[0]["link"] if files else None
 
     except Exception as e:
@@ -65,15 +67,16 @@ def _search_pexels(query: str, duration_hint: float = 10) -> Optional[str]:
         return None
 
 
-def _search_pixabay(query: str) -> Optional[str]:
+def _search_pixabay(query: str, result_offset: int = 0) -> Optional[str]:
     """
     Fallback to Pixabay if Pexels fails or returns nothing.
+    result_offset: selects a different hit so different scripts get different clips.
     """
     params = {
         "key": config.PIXABAY_API_KEY,
         "q": query,
         "video_type": "film",
-        "per_page": 5,
+        "per_page": 10,
     }
     try:
         resp = requests.get(PIXABAY_SEARCH_URL, params=params, timeout=10)
@@ -82,8 +85,9 @@ def _search_pixabay(query: str) -> Optional[str]:
         if not hits:
             return None
 
-        # Get highest quality available
-        videos = hits[0].get("videos", {})
+        # Use offset so different scripts pick different hits
+        hit = hits[result_offset % len(hits)]
+        videos = hit.get("videos", {})
         for quality in ["large", "medium", "small", "tiny"]:
             url = videos.get(quality, {}).get("url")
             if url:
@@ -308,26 +312,31 @@ def fetch_clip(query: str, duration_hint: float, video_id: str, segment_index: i
     clip_dir = config.TEMP_DIR / video_id / "clips"
     clip_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check cache first (reuse clips with same query)
+    # Derive a per-video variation offset so different scripts get different
+    # clips for the same query instead of always the first API result.
+    vid_hash     = int(hashlib.md5(video_id.encode()).hexdigest()[:4], 16)
+    result_offset = (vid_hash + segment_index) % 15
+
     cache_key = _cache_key(query)
-    cached = list(clip_dir.glob(f"cache_{cache_key}.*"))
+    clip_path = clip_dir / f"seg_{segment_index:02d}_{cache_key}.mp4"
+
+    # Within a single video run, reuse already-downloaded clips for the same query
+    cached = list(clip_dir.glob(f"seg_*_{cache_key}.mp4"))
     if cached:
         print(f"📦 Cache hit for '{query}'")
         return str(cached[0])
 
-    clip_path = clip_dir / f"seg_{segment_index:02d}_{cache_key}.mp4"
-
-    print(f"🎬 Fetching clip for: '{query}' (~{duration_hint:.0f}s needed)")
+    print(f"🎬 Fetching clip for: '{query}' (~{duration_hint:.0f}s needed, offset={result_offset})")
 
     # Try Pexels with original query
-    url = _search_pexels(query, duration_hint)
+    url = _search_pexels(query, duration_hint, result_offset=result_offset)
 
     # Try expanded/conceptual fallback queries
     if not url:
         expansions = _expand_query(query)
         for alt_query in expansions:
             print(f"   Trying expanded query: '{alt_query}'")
-            url = _search_pexels(alt_query, duration_hint)
+            url = _search_pexels(alt_query, duration_hint, result_offset=result_offset)
             if url:
                 print(f"   ✅ Expansion matched: '{alt_query}'")
                 break
@@ -335,12 +344,12 @@ def fetch_clip(query: str, duration_hint: float, video_id: str, segment_index: i
     # Fallback to Pixabay with original query
     if not url:
         print(f"   Pexels empty, trying Pixabay...")
-        url = _search_pixabay(query)
+        url = _search_pixabay(query, result_offset=result_offset)
 
     # Pixabay with expanded queries
     if not url:
         for alt_query in _expand_query(query)[:2]:
-            url = _search_pixabay(alt_query)
+            url = _search_pixabay(alt_query, result_offset=result_offset)
             if url:
                 break
 
