@@ -70,7 +70,7 @@ export const retryVideo = async (id) => {
   return data;
 };
 export const retryUploadVideo = async (id) => {
-  const { data } = await api.post(`/videos/${id}/retry-upload`);
+  const { data } = await api.post(`/videos/${id}/retry-upload`, {});
   return data;
 };
 export const uploadVideo = async (id) => {

@@ -1178,7 +1178,8 @@ export default function Dashboard() {
       refresh();
       showToast("YouTube upload retry started");
     } catch (err) {
-      showToast(err?.response?.data?.detail || "Retry upload failed", "error");
+      const detail = err?.response?.data?.detail;
+      showToast(Array.isArray(detail) ? detail.map(d => d.msg).join(", ") : detail || "Retry upload failed", "error");
     }
   };
   // YouTube modal state
