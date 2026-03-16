@@ -1239,6 +1239,7 @@ export default function LandingPage() {
     followers: 0,
     episodes: 0,
     comments: 0,
+    views: 0,
   });
   const [cookieConsent, setCookieConsent] = useState(null); // null=unknown, 'accepted', 'declined'
   const [cookieManage, setCookieManage] = useState(false);
@@ -1405,6 +1406,7 @@ export default function LandingPage() {
       episodes:
         typeof heroStats.episodes === "number" ? heroStats.episodes : 50,
       comments: typeof heroStats.comments === "number" ? heroStats.comments : 0,
+      views: typeof heroStats.total_views === "number" ? heroStats.total_views : 0,
     };
     const duration = 2000; // ms
     const startTime = performance.now();
@@ -1418,6 +1420,7 @@ export default function LandingPage() {
         followers: Math.round(targets.followers * ease),
         episodes: Math.round(targets.episodes * ease),
         comments: Math.round(targets.comments * ease),
+        views: Math.round(targets.views * ease),
       });
       if (t < 1) raf = requestAnimationFrame(tick);
     };
@@ -2251,6 +2254,16 @@ export default function LandingPage() {
                 "FOLLOWERS",
               ],
               [heroStats ? counterVals.episodes || "50+" : "50+", "EPISODES"],
+              [
+                heroStats
+                  ? counterVals.views >= 1000000
+                    ? (counterVals.views / 1000000).toFixed(1) + "M"
+                    : counterVals.views >= 1000
+                      ? Math.round(counterVals.views / 1000) + "K"
+                      : counterVals.views || "0"
+                  : "4K+",
+                "VIEWS",
+              ],
               [
                 heroStats
                   ? counterVals.comments >= 1000

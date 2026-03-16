@@ -1520,7 +1520,7 @@ def get_public_stats():
     if _stats_cache["data"] is not None and age < STATS_CACHE_TTL:
         return _stats_cache["data"]
 
-    result = {"followers": None, "episodes": None, "comments": None}
+    result = {"followers": None, "episodes": None, "comments": None, "total_views": None, "total_likes": None}
 
     # ── YouTube subscriber count ──────────────────────────────────────────────
     try:
@@ -1534,10 +1534,13 @@ def get_public_stats():
     except Exception as e:
         print(f"⚠️  Stats: YouTube subscriber fetch failed: {e}")
 
-    # ── Episode count (videos with narration_url) ─────────────────────────────
+    # ── Episode count + views/likes aggregates ────────────────────────────────
     try:
         all_videos = db.list_videos(limit=500)
         result["episodes"] = len([v for v in all_videos if v.get("narration_url") and v.get("title")])
+        posted = [v for v in all_videos if v.get("status") == "posted"]
+        result["total_views"] = sum(v.get("views_count", 0) for v in posted)
+        result["total_likes"] = sum(v.get("likes_count", 0) for v in posted)
     except Exception as e:
         print(f"⚠️  Stats: episode count failed: {e}")
 
