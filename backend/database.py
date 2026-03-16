@@ -181,11 +181,22 @@ def get_video(video_id: str) -> dict:
 
 def list_videos(status: Optional[str] = None, limit: int = 50) -> list[dict]:
     db = get_client()
-    query = db.table("videos").select("*").order("created_at", desc=True).limit(limit)
-    if status:
-        query = query.eq("status", status)
-    result = query.execute()
-    return result.data
+    try:
+        query = (db.table("videos")
+                    .select("*")
+                    .eq("archived", False)
+                    .order("created_at", desc=True)
+                    .limit(limit))
+        if status:
+            query = query.eq("status", status)
+        result = query.execute()
+        return result.data
+    except Exception:
+        # Graceful fallback if 'archived' column not yet added via SQL migration
+        query = db.table("videos").select("*").order("created_at", desc=True).limit(limit)
+        if status:
+            query = query.eq("status", status)
+        return query.execute().data
 
 
 def get_stats() -> dict:
@@ -225,10 +236,82 @@ def create_compilation(title: str, source_ids: list) -> dict:
 def list_compilations(limit: int = 50) -> list[dict]:
     """List all compilation videos (identified by 'compilation' label)."""
     db = get_client()
-    result = (db.table("videos")
-               .select("*")
-               .contains("labels", ["compilation"])
-               .order("created_at", desc=True)
-               .limit(limit)
-               .execute())
+    try:
+        result = (db.table("videos")
+                   .select("*")
+                   .contains("labels", ["compilation"])
+                   .eq("archived", False)
+                   .order("created_at", desc=True)
+                   .limit(limit)
+                   .execute())
+    except Exception:
+        result = (db.table("videos")
+                   .select("*")
+                   .contains("labels", ["compilation"])
+                   .order("created_at", desc=True)
+                   .limit(limit)
+                   .execute())
     return result.data or []
+
+
+# ── Archive ────────────────────────────────────────────────────────────────────
+# SQL migration required (run once in Supabase SQL Editor):
+#   ALTER TABLE videos ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;
+#   CREATE INDEX IF NOT EXISTS idx_videos_archived ON videos(archived);
+
+def archive_video(video_id: str) -> dict:
+    """Mark a video as archived (hidden from normal listings)."""
+    db = get_client()
+    result = db.table("videos").update({"archived": True}).eq("id", video_id).execute()
+    return result.data[0] if result.data else {}
+
+
+def unarchive_video(video_id: str) -> dict:
+    """Restore an archived video to normal listings."""
+    db = get_client()
+    result = db.table("videos").update({"archived": False}).eq("id", video_id).execute()
+    return result.data[0] if result.data else {}
+
+
+def list_archived_videos(limit: int = 200) -> list[dict]:
+    """List all archived videos."""
+    db = get_client()
+    result = (db.table("videos")
+                .select("*")
+                .eq("archived", True)
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute())
+    return result.data or []
+
+
+# ── Danger Zone ────────────────────────────────────────────────────────────────
+
+def danger_clear_all_videos() -> int:
+    """DANGER: Permanently delete ALL video records from the database."""
+    db = get_client()
+    result = db.table("videos").select("id").execute()
+    count = len(result.data or [])
+    if count > 0:
+        db.table("videos").delete().gte("created_at", "1970-01-01").execute()
+    print(f"🚨 DANGER: Deleted {count} video records")
+    return count
+
+
+def danger_clear_storage() -> dict:
+    """DANGER: Delete ALL files from Supabase Storage (videos + narrations buckets)."""
+    client = get_client()
+    results = {"videos": 0, "narrations": 0, "errors": []}
+    for bucket_name in ["videos", "narrations"]:
+        try:
+            files = client.storage.from_(bucket_name).list()
+            if not files:
+                continue
+            names = [f["name"] for f in files if f.get("name")]
+            if names:
+                client.storage.from_(bucket_name).remove(names)
+                results[bucket_name] = len(names)
+        except Exception as e:
+            results["errors"].append(f"{bucket_name}: {str(e)}")
+    print(f"🚨 DANGER: Cleared storage — videos: {results['videos']}, narrations: {results['narrations']}")
+    return results

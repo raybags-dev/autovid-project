@@ -323,3 +323,35 @@ export const adminReplyComment = async (id, content) =>
 
 // ── Pipeline Metrics ──────────────────────────────────────────────────────────
 export const getPipelineMetrics = async () => { const { data } = await api.get("/pipeline/metrics"); return data; };
+
+// ── Archive ───────────────────────────────────────────────────────────────────
+export const archiveVideo = async (id) => {
+  const { data } = await api.post(`/videos/${id}/archive`);
+  return data;
+};
+export const unarchiveVideo = async (id) => {
+  const { data } = await api.post(`/videos/${id}/unarchive`);
+  return data;
+};
+export const listArchivedVideos = async () => {
+  const { data } = await api.get("/videos/archived");
+  return data;
+};
+
+// ── Danger Zone ───────────────────────────────────────────────────────────────
+export const dangerVerify = async (key) => {
+  const { data } = await api.post("/admin/danger/verify", { key });
+  return data;
+};
+export const dangerClearVideos = async (dangerToken) => {
+  const { data } = await api.delete("/admin/danger/clear-videos", {
+    headers: { Authorization: `Bearer ${dangerToken}` },
+  });
+  return data;
+};
+export const dangerClearStorage = async (dangerToken) => {
+  const { data } = await api.delete("/admin/danger/clear-storage", {
+    headers: { Authorization: `Bearer ${dangerToken}` },
+  });
+  return data;
+};

@@ -71,6 +71,7 @@ YOUTUBE_CHANNEL_ID          = os.getenv("YOUTUBE_CHANNEL_ID", "")
 SECRET_KEY         = os.getenv("SECRET_KEY", "change-me")
 SUPERUSER_EMAIL    = os.getenv("SUPERUSER_EMAIL", "admin@autovid.ai")
 SUPERUSER_PASSWORD = os.getenv("SUPERUSER_PASSWORD", "supersecret")
+DANGER_ZONE_KEY    = os.getenv("DANGER_ZONE_KEY", "")  # Must be set to enable danger zone
 
 # ── Video Export Settings ─────────────────────────────────────────────────────
 VIDEO_RESOLUTION_W = int(os.getenv("VIDEO_RESOLUTION_W", 1920))
