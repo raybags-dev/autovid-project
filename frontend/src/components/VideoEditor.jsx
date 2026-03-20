@@ -1,7 +1,10 @@
 /**
  * VideoEditor — Stick-Figure Compositor UI
- *
  * Full-screen overlay (position:fixed) covering the dashboard sidebar.
+ *
+ * Clip preview: clicking ▶ on a clip card plays it in the main video area.
+ * Real-time overlay preview: added overlays appear as positioned <video>
+ *   elements on top of the main video, synced to playback time.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -41,64 +44,72 @@ function formatTime(s) {
 let _oidCounter = 0;
 function newId() { return `ov_${++_oidCounter}_${Date.now()}`; }
 
-// Build the correct preview URL for a clip — preview_url may not be set by the API
 function clipSrc(clip) {
   return clip.preview_url || `/stickfigures-assets/${clip.filename}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ClipCard — explicit play button + loop mode selector
+// Overlay video — shown on top of the main video during playback
 // ─────────────────────────────────────────────────────────────────────────────
-function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
-  const videoRef  = useRef(null);
-  const [playing,    setPlaying]    = useState(false);
-  const [hovered,    setHovered]    = useState(false);
-  const [editing,    setEditing]    = useState(false);
+function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
+  const ref = useRef(null);
+  const isActive = mainCurrentTime >= overlay.startTime &&
+                   mainCurrentTime < overlay.startTime + overlay.duration;
+  const clipTime = mainCurrentTime - overlay.startTime;
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !isActive) return;
+    v.muted = true;
+    // Resync if drift > 0.4 s
+    if (Math.abs(v.currentTime - clipTime) > 0.4) {
+      v.currentTime = Math.max(0, clipTime);
+    }
+    if (isMainPlaying && v.paused) {
+      v.play().catch(() => {});
+    } else if (!isMainPlaying && !v.paused) {
+      v.pause();
+    }
+  });
+
+  if (!isActive) return null;
+
+  return (
+    <video
+      ref={ref}
+      src={overlay.previewUrl}
+      muted
+      playsInline
+      loop={overlay.loopMode === "full"}
+      style={{
+        position: "absolute",
+        left:  `${Math.min((overlay.x / 1920) * 100, 85)}%`,
+        top:   `${Math.min((overlay.y / 1080) * 100, 80)}%`,
+        width: `${Math.max(8, overlay.scale * 22)}%`,
+        pointerEvents: "none",
+        zIndex: 5,
+        opacity: 0.9,
+        borderRadius: 4,
+        boxShadow: "0 0 0 2px rgba(255,255,255,0.4)",
+        background: "transparent",
+      }}
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ClipCard — shows clip info + loop mode; clicking Play previews in main area
+// ─────────────────────────────────────────────────────────────────────────────
+function ClipCard({ clip, onAdd, onPreview, onUpdated, onDeleted, isPreviewActive, T }) {
   const [loopMode,   setLoopMode]   = useState("none");
+  const [editing,    setEditing]    = useState(false);
+  const [hovered,    setHovered]    = useState(false);
   const [draftLabel, setDraftLabel] = useState(clip.label || clip.filename.replace(".mp4",""));
   const [draftKw,    setDraftKw]    = useState((clip.keywords || []).join(", "));
   const [saving,     setSaving]     = useState(false);
   const [delConfirm, setDelConfirm] = useState(false);
 
-  // React doesn't reliably set the `muted` DOM attribute via props
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.muted = true;
-      videoRef.current.volume = 0;
-    }
-  }, []);
-
-  const togglePlay = (e) => {
-    e.stopPropagation();
-    const v = videoRef.current;
-    if (!v) return;
-    if (playing) {
-      v.pause();
-      setPlaying(false);
-    } else {
-      v.muted = true;
-      v.volume = 0;
-      v.currentTime = 0;
-      const p = v.play();
-      if (p && typeof p.then === "function") {
-        p.then(() => setPlaying(true)).catch(() => {
-          // Retry once with explicit muted
-          v.muted = true;
-          v.play().then(() => setPlaying(true)).catch(() => {});
-        });
-      } else {
-        setPlaying(true);
-      }
-    }
-  };
-
-  const handleAdd = (e) => {
-    e.stopPropagation();
-    if (clip.enabled === false) return;
-    if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
-    setPlaying(false);
-    onAdd(clip, loopMode);
-  };
+  const label = clip.label || clip.filename.replace(".mp4","").replace(/_/g," ");
 
   const save = async (e) => {
     e.stopPropagation();
@@ -130,37 +141,27 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
     } catch { /* ignore */ }
   };
 
-  const label = clip.label || clip.filename.replace(".mp4","").replace(/_/g," ");
-  const src = clipSrc(clip);
-
   if (editing) {
     return (
-      <div style={{ border:`1px solid ${T.accent}`, borderRadius:8, padding:10, background:T.bgCard, minHeight:200 }}
+      <div style={{ border:`1px solid ${T.accent}`, borderRadius:8, padding:10, background:T.bgCard }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize:9, color:T.textFaint, marginBottom:3 }}>Label</div>
-        <input value={draftLabel} onChange={e => setDraftLabel(e.target.value)}
+        <input value={draftLabel} onChange={e => setDraftLabel(e.target.value)} placeholder="Label"
           style={{ width:"100%", background:T.inputBg, border:`1px solid ${T.border}`, borderRadius:5, padding:"4px 7px", color:T.text, fontFamily:"inherit", fontSize:11, boxSizing:"border-box", marginBottom:5 }} />
-        <div style={{ fontSize:9, color:T.textFaint, marginBottom:3 }}>Keywords (comma-separated)</div>
-        <textarea value={draftKw} onChange={e => setDraftKw(e.target.value)} rows={2}
+        <textarea value={draftKw} onChange={e => setDraftKw(e.target.value)} rows={2} placeholder="Keywords (comma-separated)"
           style={{ width:"100%", background:T.inputBg, border:`1px solid ${T.border}`, borderRadius:5, padding:"4px 7px", color:T.text, fontFamily:"inherit", fontSize:10, boxSizing:"border-box", resize:"vertical", marginBottom:6 }} />
         <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-          <button onClick={save} disabled={saving}
-            style={{ padding:"3px 10px", borderRadius:5, border:"none", background:T.accentGreen, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+          <button onClick={save} disabled={saving} style={{ padding:"3px 10px", borderRadius:5, border:"none", background:T.accentGreen, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
             {saving ? "…" : "Save"}
           </button>
-          <button onClick={() => setEditing(false)}
-            style={{ padding:"3px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+          <button onClick={() => setEditing(false)} style={{ padding:"3px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
             Cancel
           </button>
           {!delConfirm ? (
-            <button onClick={() => setDelConfirm(true)}
-              style={{ marginLeft:"auto", padding:"3px 10px", borderRadius:5, border:`1px solid ${T.accentRed}40`, background:"transparent", color:T.accentRed, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
+            <button onClick={() => setDelConfirm(true)} style={{ marginLeft:"auto", padding:"3px 10px", borderRadius:5, border:`1px solid ${T.accentRed}40`, background:"transparent", color:T.accentRed, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
           ) : (
             <>
-              <button onClick={doDelete}
-                style={{ marginLeft:"auto", padding:"3px 10px", borderRadius:5, border:"none", background:T.accentRed, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Confirm Delete</button>
-              <button onClick={() => setDelConfirm(false)}
-                style={{ padding:"3px 8px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+              <button onClick={doDelete} style={{ marginLeft:"auto", padding:"3px 10px", borderRadius:5, border:"none", background:T.accentRed, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Confirm Delete</button>
+              <button onClick={() => setDelConfirm(false)} style={{ padding:"3px 8px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
             </>
           )}
         </div>
@@ -173,82 +174,55 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        border:`1px solid ${hovered ? T.accent : T.border}`,
-        borderRadius:8, overflow:"hidden",
-        background:T.bgCard, transition:"border-color 0.15s",
-        position:"relative",
+        border:`1px solid ${isPreviewActive ? T.accentGreen : hovered ? T.accent : T.border}`,
+        borderRadius:8, background:T.bgCard, transition:"border-color 0.15s",
         opacity: clip.enabled === false ? 0.45 : 1,
-        cursor: clip.enabled === false ? "not-allowed" : "default",
-        height:200, minHeight:200,
-        display:"flex", flexDirection:"column",
-        flexShrink:0,
+        padding: "8px",
+        flexShrink: 0,
       }}
     >
-      {/* ── Video preview (fixed 100px) ── */}
-      <div style={{ height:100, flexShrink:0, background:"#111", position:"relative", overflow:"hidden" }}>
-        <video
-          ref={videoRef}
-          src={src}
-          loop
-          playsInline
-          muted
-          preload="metadata"
-          style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
-          onEnded={() => setPlaying(false)}
-        />
-
-        {/* Centered play/pause overlay — always visible */}
-        <div
-          onClick={togglePlay}
-          style={{
-            position:"absolute", inset:0,
-            display:"flex", alignItems:"center", justifyContent:"center",
-            background: playing ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.45)",
-            cursor:"pointer",
-          }}
-        >
-          <div style={{
-            width:36, height:36, borderRadius:"50%",
-            background:"rgba(255,255,255,0.2)",
-            border:"2px solid rgba(255,255,255,0.7)",
-            display:"flex", alignItems:"center", justifyContent:"center",
-          }}>
-            <span style={{ color:"#fff", fontSize:14, marginLeft: playing ? 0 : 3 }}>
-              {playing ? "⏸" : "▶"}
-            </span>
+      {/* Label row */}
+      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:10, color: isPreviewActive ? T.accentGreen : T.text, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            {isPreviewActive ? "▶ " : ""}{label}
+          </div>
+          <div style={{ fontSize:9, color:T.textDim, marginTop:1 }}>
+            {clip.duration ? `${clip.duration}s` : "?"} · {clip.has_alpha ? "α-ch" : "chroma"}
           </div>
         </div>
-
-        {/* Edit / enable buttons — visible on hover */}
+        {/* Preview in main area button */}
+        <button
+          onClick={e => { e.stopPropagation(); onPreview(isPreviewActive ? null : clip); }}
+          title={isPreviewActive ? "Stop previewing" : "Preview this clip in the main video area"}
+          style={{
+            width:28, height:28, borderRadius:"50%", border:"none", flexShrink:0,
+            background: isPreviewActive ? T.accentGreen : `${T.accent}30`,
+            color: isPreviewActive ? "#fff" : T.accent,
+            fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+          }}
+        >
+          {isPreviewActive ? "⏹" : "▶"}
+        </button>
         {hovered && clip.id && (
-          <div style={{ position:"absolute", top:4, right:4, display:"flex", gap:3, zIndex:2 }}
-            onClick={e => e.stopPropagation()}>
-            <button onClick={e => { e.stopPropagation(); setEditing(true); }}
-              style={{ padding:"2px 5px", borderRadius:4, border:"none", background:"rgba(0,0,0,0.7)", color:"#fff", fontSize:10, cursor:"pointer" }}>✎</button>
-            <button onClick={toggleEnabled}
-              style={{ padding:"2px 5px", borderRadius:4, border:"none", background: clip.enabled === false ? "rgba(61,214,140,0.8)" : "rgba(255,92,108,0.8)", color:"#fff", fontSize:10, cursor:"pointer" }}>
-              {clip.enabled === false ? "On" : "Off"}
-            </button>
-          </div>
+          <button onClick={e => { e.stopPropagation(); setEditing(true); }}
+            style={{ width:24, height:24, borderRadius:4, border:"none", background:`${T.border}80`, color:T.textDim, fontSize:10, cursor:"pointer", flexShrink:0 }}>✎</button>
+        )}
+        {hovered && clip.id && (
+          <button onClick={toggleEnabled}
+            style={{ height:24, padding:"0 6px", borderRadius:4, border:"none", background: clip.enabled === false ? `${T.accentGreen}40` : `${T.accentRed}30`, color: clip.enabled === false ? T.accentGreen : T.accentRed, fontSize:9, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap" }}>
+            {clip.enabled === false ? "On" : "Off"}
+          </button>
         )}
       </div>
 
-      {/* ── Label + metadata ── */}
-      <div style={{ padding:"5px 8px 3px", flexShrink:0 }}>
-        <div style={{ fontSize:10, color:T.text, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{label}</div>
-        <div style={{ fontSize:9, color:T.textDim, marginTop:1 }}>
-          {clip.duration ? `${clip.duration}s` : "?"} · {clip.has_alpha ? "α-channel" : "chroma-key"}
-        </div>
-      </div>
-
-      {/* ── Loop mode ── */}
-      <div style={{ padding:"3px 8px", display:"flex", gap:3, flexWrap:"wrap", flexShrink:0 }}>
+      {/* Loop mode */}
+      <div style={{ display:"flex", gap:3, flexWrap:"wrap", marginBottom:6 }}>
         {LOOP_OPTIONS.map(opt => (
           <button key={opt.value} title={opt.title}
             onClick={e => { e.stopPropagation(); setLoopMode(opt.value); }}
             style={{
-              padding:"2px 5px", borderRadius:4, fontSize:9, cursor:"pointer",
-              fontFamily:"inherit", border:"none",
+              padding:"2px 5px", borderRadius:4, fontSize:9, cursor:"pointer", fontFamily:"inherit", border:"none",
               background: loopMode === opt.value ? T.accent : `${T.border}80`,
               color: loopMode === opt.value ? "#fff" : T.textDim,
               fontWeight: loopMode === opt.value ? 700 : 400,
@@ -258,19 +232,19 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
         ))}
       </div>
 
-      {/* ── Add button ── */}
-      <div style={{ padding:"4px 8px 7px", flexShrink:0, marginTop:"auto" }}>
-        <button onClick={handleAdd} disabled={clip.enabled === false}
-          style={{
-            width:"100%", padding:"5px 0", borderRadius:5, border:"none",
-            background: clip.enabled === false ? T.bgDeep : T.accent,
-            color: clip.enabled === false ? T.textFaint : "#fff",
-            fontSize:10, fontWeight:600, cursor: clip.enabled === false ? "not-allowed" : "pointer",
-            fontFamily:"inherit",
-          }}>
-          + Add to Timeline
-        </button>
-      </div>
+      {/* Add button */}
+      <button
+        onClick={e => { e.stopPropagation(); if (clip.enabled !== false) onAdd(clip, loopMode); }}
+        disabled={clip.enabled === false}
+        style={{
+          width:"100%", padding:"5px 0", borderRadius:5, border:"none",
+          background: clip.enabled === false ? T.bgDeep : T.accent,
+          color: clip.enabled === false ? T.textFaint : "#fff",
+          fontSize:10, fontWeight:600, cursor: clip.enabled === false ? "not-allowed" : "pointer", fontFamily:"inherit",
+        }}
+      >
+        + Add to Timeline
+      </button>
     </div>
   );
 }
@@ -284,7 +258,7 @@ function Timeline({ overlays, videoDuration, selectedId, onSelect, T }) {
       <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.08em", marginBottom:4, textTransform:"uppercase" }}>
         Timeline — {formatTime(videoDuration)} · {overlays.length} overlay{overlays.length !== 1 ? "s" : ""}
       </div>
-      <div style={{ position:"relative", height:18, background:T.bgDeep, borderRadius:4, border:`1px solid ${T.border}`, marginBottom:5 }}>
+      <div style={{ position:"relative", height:18, background:T.bgDeep, borderRadius:4, border:`1px solid ${T.border}`, marginBottom:4 }}>
         {videoDuration > 0 && Array.from({ length:Math.floor(videoDuration / 10) }).map((_, i) => (
           <div key={i} style={{ position:"absolute", left:`${((i+1)*10/videoDuration)*100}%`, top:0, bottom:0, width:1, background:T.border, opacity:0.5 }} />
         ))}
@@ -294,7 +268,7 @@ function Timeline({ overlays, videoDuration, selectedId, onSelect, T }) {
         const left  = videoDuration ? (ov.startTime / videoDuration) * 100 : 0;
         const width = videoDuration ? Math.max(1.5, (ov.duration / videoDuration) * 100) : 5;
         return (
-          <div key={ov.id} style={{ position:"relative", height:20, marginBottom:3 }}>
+          <div key={ov.id} style={{ position:"relative", height:20, marginBottom:2 }}>
             <div style={{ position:"absolute", inset:0, background:T.bgDeep, borderRadius:4, border:`1px solid ${T.border}20` }} />
             <div onClick={() => onSelect(ov.id)}
               style={{
@@ -314,7 +288,7 @@ function Timeline({ overlays, videoDuration, selectedId, onSelect, T }) {
         );
       })}
       {overlays.length === 0 && (
-        <div style={{ fontSize:10, color:T.textFaint, padding:"5px 0" }}>
+        <div style={{ fontSize:10, color:T.textFaint, padding:"4px 0" }}>
           No overlays — pick a clip from the library and click "+ Add to Timeline".
         </div>
       )}
@@ -327,18 +301,12 @@ function Timeline({ overlays, videoDuration, selectedId, onSelect, T }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function OverlayControls({ overlay, onChange, onRemove, onDuplicate, videoDuration, T }) {
   if (!overlay) {
-    return (
-      <div style={{ fontSize:11, color:T.textFaint, padding:"16px 0", textAlign:"center" }}>
-        Click an overlay on the timeline to edit it.
-      </div>
-    );
+    return <div style={{ fontSize:11, color:T.textFaint, padding:"16px 0", textAlign:"center" }}>Click an overlay on the timeline to edit it.</div>;
   }
 
   const slider = (lbl, val, min, max, step, onCh, fmt = v => v) => (
     <div style={{ marginBottom:9 }}>
-      <label style={{ display:"block", fontSize:9, color:T.textFaint, letterSpacing:"0.08em", marginBottom:2, textTransform:"uppercase" }}>
-        {lbl}: {fmt(val)}
-      </label>
+      <label style={{ display:"block", fontSize:9, color:T.textFaint, letterSpacing:"0.08em", marginBottom:2, textTransform:"uppercase" }}>{lbl}: {fmt(val)}</label>
       <input type="range" min={min} max={max} step={step} value={val}
         style={{ width:"100%", accentColor:T.accent }}
         onChange={e => onCh(Number(e.target.value))} />
@@ -350,29 +318,21 @@ function OverlayControls({ overlay, onChange, onRemove, onDuplicate, videoDurati
       <div style={{ fontSize:11, color:T.text, fontWeight:700, marginBottom:8, wordBreak:"break-word" }}>
         {overlay.filename.replace(".mp4","").replace(/_/g," ")}
       </div>
-      {slider("Start", overlay.startTime, 0, Math.max(videoDuration-1,1), 0.1,
-        v => onChange({...overlay, startTime:v}), formatTime)}
-      {slider("Duration", overlay.duration, 0.5, 30, 0.5,
-        v => onChange({...overlay, duration:v}), v => `${v}s`)}
-      {slider("X position", overlay.x, 0, 1920, 10,
-        v => onChange({...overlay, x:v}), v => `${v}px`)}
-      {slider("Y position", overlay.y, 0, 1080, 10,
-        v => onChange({...overlay, y:v}), v => `${v}px`)}
-      {slider("Scale", overlay.scale, 0.1, 2.0, 0.05,
-        v => onChange({...overlay, scale:v}), v => `${Math.round(v*100)}%`)}
+      {slider("Start",    overlay.startTime, 0, Math.max(videoDuration-1,1), 0.1, v => onChange({...overlay, startTime:v}), formatTime)}
+      {slider("Duration", overlay.duration,  0.5, 30, 0.5, v => onChange({...overlay, duration:v}),  v => `${v}s`)}
+      {slider("X",        overlay.x,         0, 1920, 10,  v => onChange({...overlay, x:v}),         v => `${v}px`)}
+      {slider("Y",        overlay.y,         0, 1080, 10,  v => onChange({...overlay, y:v}),         v => `${v}px`)}
+      {slider("Scale",    overlay.scale,     0.1, 2.0, 0.05, v => onChange({...overlay, scale:v}),   v => `${Math.round(v*100)}%`)}
 
       <div style={{ marginBottom:9 }}>
         <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.08em", marginBottom:4, textTransform:"uppercase" }}>Loop mode</div>
         <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
           {LOOP_OPTIONS.map(opt => (
-            <button key={opt.value} title={opt.title}
-              onClick={() => onChange({...overlay, loopMode:opt.value})}
-              style={{
-                padding:"3px 7px", borderRadius:5, fontSize:10, cursor:"pointer", fontFamily:"inherit",
+            <button key={opt.value} title={opt.title} onClick={() => onChange({...overlay, loopMode:opt.value})}
+              style={{ padding:"3px 7px", borderRadius:5, fontSize:10, cursor:"pointer", fontFamily:"inherit",
                 background: overlay.loopMode === opt.value ? T.accent : "transparent",
                 color: overlay.loopMode === opt.value ? "#fff" : T.textDim,
-                border:`1px solid ${overlay.loopMode === opt.value ? T.accent : T.border}`,
-              }}>
+                border:`1px solid ${overlay.loopMode === opt.value ? T.accent : T.border}` }}>
               {opt.label}
             </button>
           ))}
@@ -380,13 +340,11 @@ function OverlayControls({ overlay, onChange, onRemove, onDuplicate, videoDurati
       </div>
 
       <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", marginBottom:10 }}>
-        <input type="checkbox" checked={overlay.hasSound}
-          onChange={e => onChange({...overlay, hasSound:e.target.checked})}
-          style={{ accentColor:T.accent }} />
+        <input type="checkbox" checked={overlay.hasSound} onChange={e => onChange({...overlay, hasSound:e.target.checked})} style={{ accentColor:T.accent }} />
         <span style={{ fontSize:11, color:T.textMid }}>Mix overlay audio</span>
       </label>
 
-      <div style={{ display:"flex", gap:5, marginBottom:4 }}>
+      <div style={{ display:"flex", gap:5 }}>
         <button onClick={() => onDuplicate(overlay)}
           style={{ flex:1, padding:"5px 0", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
           Duplicate
@@ -400,95 +358,12 @@ function OverlayControls({ overlay, onChange, onRemove, onDuplicate, videoDurati
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Inline confirm dialog
-// ─────────────────────────────────────────────────────────────────────────────
 function ConfirmBanner({ message, confirmLabel, cancelLabel, onConfirm, onCancel, color, T }) {
   return (
-    <div style={{
-      padding:"10px 16px", background:`${color}18`,
-      border:`1px solid ${color}55`, borderRadius:8,
-      display:"flex", alignItems:"center", gap:12, flexWrap:"wrap",
-    }}>
+    <div style={{ padding:"10px 16px", background:`${color}18`, border:`1px solid ${color}55`, borderRadius:8, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
       <span style={{ flex:1, fontSize:11, color:T.textMid }}>{message}</span>
-      <button onClick={onConfirm}
-        style={{ padding:"5px 14px", borderRadius:6, border:"none", background:color, color:"#fff", fontSize:11, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>
-        {confirmLabel}
-      </button>
-      <button onClick={onCancel}
-        style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-        {cancelLabel}
-      </button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Save action bar — shown in top bar AND inline so it's never hidden
-// ─────────────────────────────────────────────────────────────────────────────
-function SaveBar({ resultUrl, finalized, finalizing, onFinalize, onDiscard, T }) {
-  const downloadFilename = (() => {
-    if (!resultUrl) return "composite.mp4";
-    const parts = resultUrl.split("/");
-    const last = parts[parts.length - 1];
-    return last.endsWith(".mp4") ? last : "composite.mp4";
-  })();
-
-  if (finalized) {
-    return (
-      <div style={{
-        display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
-        padding:"7px 14px", background:`${T.accentGreen}14`,
-        borderTop:`1px solid ${T.accentGreen}40`, flexShrink:0,
-      }}>
-        <span style={{ fontSize:11, color:T.accentGreen, fontWeight:600 }}>💾 Saved — original replaced.</span>
-        {resultUrl && (
-          <a
-            href={resultUrl}
-            download={downloadFilename}
-            style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit" }}
-          >
-            📥 Download Local Copy
-          </a>
-        )}
-        <button onClick={onDiscard}
-          style={{ marginLeft:"auto", padding:"4px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
-          Start New Edit
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{
-      display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
-      padding:"8px 14px", background:`${T.accentGreen}0e`,
-      borderTop:`1px solid ${T.accentGreen}40`, flexShrink:0,
-    }}>
-      <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>✓ Composite ready:</span>
-
-      {/* Save & Replace Original */}
-      <button onClick={onFinalize} disabled={finalizing}
-        style={{ padding:"6px 14px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:600, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit", opacity:finalizing?0.6:1 }}>
-        {finalizing ? "Saving…" : "💾 Save & Replace Original"}
-      </button>
-
-      {/* Download local — no target="_blank" so the browser downloads the file, not the SPA */}
-      {resultUrl && (
-        <a
-          href={resultUrl}
-          download={downloadFilename}
-          style={{ padding:"6px 14px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}
-        >
-          📥 Download to Computer
-        </a>
-      )}
-
-      {/* Discard — clearly shows original is safe */}
-      <button onClick={onDiscard}
-        style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:`${T.accentRed}12`, color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-        🗑 Discard (Keep Original)
-      </button>
+      <button onClick={onConfirm} style={{ padding:"5px 14px", borderRadius:6, border:"none", background:color, color:"#fff", fontSize:11, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>{confirmLabel}</button>
+      <button onClick={onCancel}  style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{cancelLabel}</button>
     </div>
   );
 }
@@ -497,13 +372,11 @@ function SaveBar({ resultUrl, finalized, finalizing, onFinalize, onDiscard, T })
 // Main VideoEditor
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VideoEditor({ video, onClose, T }) {
-  // ── Clip library ──────────────────────────────────────────────────────────
   const [clips,        setClips]        = useState([]);
   const [clipsLoading, setClipsLoading] = useState(true);
   const [search,       setSearch]       = useState("");
   const [showDisabled, setShowDisabled] = useState(false);
 
-  // ── Upload ────────────────────────────────────────────────────────────────
   const uploadRef = useRef(null);
   const [uploading,      setUploading]      = useState(false);
   const [uploadLabel,    setUploadLabel]    = useState("");
@@ -512,35 +385,36 @@ export default function VideoEditor({ video, onClose, T }) {
   const [seeding,        setSeeding]        = useState(false);
   const [seedResult,     setSeedResult]     = useState(null);
 
-  // ── Overlays ──────────────────────────────────────────────────────────────
   const [overlays,   setOverlays]   = useState([]);
   const [selectedId, setSelectedId] = useState(null);
 
-  // ── Composite job ─────────────────────────────────────────────────────────
+  // Clip being previewed in the main video area
+  const [previewClip, setPreviewClip] = useState(null);
+
+  // Main video playback tracking (for real-time overlay preview)
+  const [mainCurrentTime, setMainCurrentTime] = useState(0);
+  const [isMainPlaying,   setIsMainPlaying]   = useState(false);
+
   const [jobStatus,  setJobStatus]  = useState(null);
   const [jobMsg,     setJobMsg]     = useState("");
   const [resultUrl,  setResultUrl]  = useState(null);
   const [finalizing, setFinalizing] = useState(false);
   const [finalized,  setFinalized]  = useState(false);
 
-  // ── Auto-composite ────────────────────────────────────────────────────────
-  const [autoPreview,     setAutoPreview]     = useState(null);
-  const [autoLoading,     setAutoLoading]     = useState(false);
+  const [autoPreview,      setAutoPreview]      = useState(null);
+  const [autoLoading,      setAutoLoading]      = useState(false);
   const [zeroMatchConfirm, setZeroMatchConfirm] = useState(false);
+  const [backConfirm,      setBackConfirm]      = useState(false);
 
-  // ── Back-navigation safety ────────────────────────────────────────────────
-  const [backConfirm, setBackConfirm] = useState(false);
-
-  // ── Chroma / audio settings ───────────────────────────────────────────────
   const [chromaColor, setChromaColor] = useState("#00FF00");
   const [chromaSim,   setChromaSim]   = useState(0.35);
   const [mixAudio,    setMixAudio]    = useState(true);
 
-  const pollRef  = useRef(null);
+  const pollRef      = useRef(null);
   const mainVideoRef = useRef(null);
+  const previewVideoRef = useRef(null);
   const [videoDuration, setVideoDuration] = useState(video?.duration_seconds || 60);
 
-  // ── Load clips ────────────────────────────────────────────────────────────
   const loadClips = useCallback(() => {
     setClipsLoading(true);
     listStickFigures(false)
@@ -551,7 +425,15 @@ export default function VideoEditor({ video, onClose, T }) {
 
   useEffect(() => { loadClips(); }, [loadClips]);
 
-  // ── Poll composite job ────────────────────────────────────────────────────
+  // Fix muted on preview video
+  useEffect(() => {
+    if (previewVideoRef.current) {
+      previewVideoRef.current.muted = true;
+      previewVideoRef.current.volume = 0;
+    }
+  }, [previewClip]);
+
+  // Poll composite job
   useEffect(() => {
     if (jobStatus !== "running") { clearInterval(pollRef.current); return; }
     pollRef.current = setInterval(async () => {
@@ -559,7 +441,7 @@ export default function VideoEditor({ video, onClose, T }) {
         const s = await getCompositeStatus(video.id);
         if (s.status === "done") {
           setJobStatus("done");
-          setJobMsg("Composite ready — choose an action below");
+          setJobMsg("Composite ready — choose an action");
           setResultUrl(s.preview_url || null);
           clearInterval(pollRef.current);
         } else if (s.status === "error") {
@@ -574,17 +456,13 @@ export default function VideoEditor({ video, onClose, T }) {
     return () => clearInterval(pollRef.current);
   }, [jobStatus, video?.id]);
 
-  // ── Seed ──────────────────────────────────────────────────────────────────
   const handleSeed = async () => {
     setSeeding(true); setSeedResult(null);
-    try {
-      const r = await seedStickFigures();
-      setSeedResult(r); loadClips();
-    } catch { setSeedResult({ error: "Seed failed" }); }
+    try { const r = await seedStickFigures(); setSeedResult(r); loadClips(); }
+    catch { setSeedResult({ error: "Seed failed" }); }
     setSeeding(false);
   };
 
-  // ── Upload file ───────────────────────────────────────────────────────────
   const handleUploadFile = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     setUploading(true);
@@ -599,7 +477,6 @@ export default function VideoEditor({ video, onClose, T }) {
     if (uploadRef.current) uploadRef.current.value = "";
   };
 
-  // ── Clip library helpers ──────────────────────────────────────────────────
   const filteredClips = clips.filter(c => {
     if (!showDisabled && c.enabled === false) return false;
     if (!search) return true;
@@ -609,13 +486,10 @@ export default function VideoEditor({ video, onClose, T }) {
            (c.keywords || []).some(k => k.includes(q));
   });
 
-  // ── Add clip to timeline + seek main video ────────────────────────────────
+  // Add clip → seek main video to that time and play
   const addClip = useCallback((clip, loopMode = "none") => {
     const v = mainVideoRef.current;
-    const startT = v
-      ? Math.min(v.currentTime, Math.max(0, videoDuration - 1))
-      : 0;
-
+    const startT = v ? Math.min(v.currentTime, Math.max(0, videoDuration - 1)) : 0;
     const newOv = {
       id:         newId(),
       filename:   clip.filename,
@@ -627,29 +501,25 @@ export default function VideoEditor({ video, onClose, T }) {
       loopMode,
       hasSound: clip.has_audio,
     };
-
     setOverlays(prev => [...prev, newOv]);
     setSelectedId(newOv.id);
-
-    // Seek main video to clip start time so the user can see the context
+    // Clear clip preview and seek main video
+    setPreviewClip(null);
     if (v) {
       v.currentTime = newOv.startTime;
-      if (v.paused) {
-        v.play().catch(() => {});
-      }
+      if (v.paused) v.play().catch(() => {});
     }
   }, [videoDuration]);
 
-  const selectedOverlay = overlays.find(o => o.id === selectedId) || null;
-  const updateOverlay   = updated => setOverlays(prev => prev.map(o => o.id === updated.id ? updated : o));
-  const removeOverlay   = id => { setOverlays(prev => prev.filter(o => o.id !== id)); if (selectedId === id) setSelectedId(null); };
+  const selectedOverlay  = overlays.find(o => o.id === selectedId) || null;
+  const updateOverlay    = updated => setOverlays(prev => prev.map(o => o.id === updated.id ? updated : o));
+  const removeOverlay    = id => { setOverlays(prev => prev.filter(o => o.id !== id)); if (selectedId === id) setSelectedId(null); };
   const duplicateOverlay = (ov) => {
     const copy = { ...ov, id: newId(), startTime: Math.min(ov.startTime + ov.duration + 1, videoDuration - 1) };
     setOverlays(prev => [...prev, copy]);
     setSelectedId(copy.id);
   };
 
-  // ── Build API payload ─────────────────────────────────────────────────────
   const buildPayload = () => overlays.map(ov => ({
     clip_path:  ov.clipPath,
     start_time: ov.startTime,
@@ -659,11 +529,10 @@ export default function VideoEditor({ video, onClose, T }) {
     has_sound:  ov.hasSound,
   }));
 
-  // ── Apply overlays ────────────────────────────────────────────────────────
   const handleApply = async () => {
     if (overlays.length === 0 || jobStatus === "running") return;
     setJobStatus("running"); setJobMsg("Starting composite…");
-    setResultUrl(null); setFinalized(false);
+    setResultUrl(null); setFinalized(false); setPreviewClip(null);
     try {
       await startComposite(video.id, buildPayload(), {
         mixAudio, chromaColor: chromaColor.replace("#","0x"), chromaSimilarity: chromaSim,
@@ -675,13 +544,11 @@ export default function VideoEditor({ video, onClose, T }) {
     }
   };
 
-  // ── Save & Replace Original ───────────────────────────────────────────────
   const handleFinalize = async () => {
     setFinalizing(true);
     try {
       await finalizeComposite(video.id);
       setFinalized(true);
-      setJobMsg("Saved — this is now the canonical version of the video");
     } catch (err) {
       setJobMsg(err?.response?.data?.detail || "Save failed");
       setJobStatus("error");
@@ -689,18 +556,12 @@ export default function VideoEditor({ video, onClose, T }) {
     setFinalizing(false);
   };
 
-  // ── Discard composite ─────────────────────────────────────────────────────
-  const handleDiscard = () => {
-    setResultUrl(null); setJobStatus(null); setJobMsg(""); setFinalized(false);
-  };
+  const handleDiscard = () => { setResultUrl(null); setJobStatus(null); setJobMsg(""); setFinalized(false); };
 
-  // ── Auto-insert ───────────────────────────────────────────────────────────
   const handleAutoPreview = async () => {
     setAutoLoading(true); setAutoPreview(null); setZeroMatchConfirm(false);
-    try {
-      const res = await previewAutoComposite(video.id, { minGap:8, maxOverlays:8, mixAudio });
-      setAutoPreview(res.overlays || []);
-    } catch { setAutoPreview([]); }
+    try { const r = await previewAutoComposite(video.id, { minGap:8, maxOverlays:8, mixAudio }); setAutoPreview(r.overlays || []); }
+    catch { setAutoPreview([]); }
     setAutoLoading(false);
   };
 
@@ -710,11 +571,7 @@ export default function VideoEditor({ video, onClose, T }) {
       const res = await previewAutoComposite(video.id, { minGap:8, maxOverlays:8, mixAudio });
       const matches = res.overlays || [];
       setAutoLoading(false);
-      if (matches.length === 0) {
-        setAutoPreview([]);
-        setZeroMatchConfirm(true);
-        return;
-      }
+      if (matches.length === 0) { setAutoPreview([]); setZeroMatchConfirm(true); return; }
       setAutoPreview(null);
       setJobStatus("running"); setJobMsg("Running auto-composite…");
       setResultUrl(null); setFinalized(false);
@@ -728,45 +585,41 @@ export default function VideoEditor({ video, onClose, T }) {
 
   const importAutoPreview = () => {
     if (!autoPreview) return;
-    const newOvs = autoPreview.map(ap => ({
-      id:         newId(),
-      filename:   ap.filename,
-      clipPath:   String(ap.clip_path),
+    setOverlays(autoPreview.map(ap => ({
+      id: newId(), filename: ap.filename, clipPath: String(ap.clip_path),
       previewUrl: ap.preview_url || `/stickfigures-assets/${ap.filename}`,
-      startTime:  ap.start_time,
-      duration:   ap.duration,
+      startTime: ap.start_time, duration: ap.duration,
       x:80, y:80, scale: ap.scale || 0.5,
-      loopMode:   ap.loop_mode || "none",
-      hasSound:   ap.has_sound !== false,
-    }));
-    setOverlays(newOvs);
+      loopMode: ap.loop_mode || "none", hasSound: ap.has_sound !== false,
+    })));
     setAutoPreview(null);
   };
 
-  // ── Back navigation ───────────────────────────────────────────────────────
   const tryClose = () => {
-    const hasUnsaved = overlays.length > 0 || (jobStatus === "done" && !finalized);
-    if (hasUnsaved) { setBackConfirm(true); return; }
+    if (overlays.length > 0 || (jobStatus === "done" && !finalized)) { setBackConfirm(true); return; }
     onClose();
   };
 
-  // ── Video URL ─────────────────────────────────────────────────────────────
   const getVideoUrl = () => {
     if (!video?.file_path) return null;
     if (video.file_path.startsWith("http")) return video.file_path;
     return `/local-videos/${video.file_path.split("/").pop()}`;
   };
 
-  // When composite is done, show the result; otherwise show original
-  const videoUrl = resultUrl || getVideoUrl();
-  const disabledCount = clips.filter(c => c.enabled === false).length;
   const compositeReady = jobStatus === "done" && resultUrl;
+  // When composite is done, show the composited result; when previewing a clip show the clip; otherwise show original
+  const mainVideoUrl = previewClip ? clipSrc(previewClip) : (resultUrl || getVideoUrl());
+  const disabledCount = clips.filter(c => c.enabled === false).length;
+
+  const downloadFilename = resultUrl
+    ? (resultUrl.split("/").pop() || "composite.mp4")
+    : "composite.mp4";
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", flexDirection:"column", background:T.bg }}>
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      {/* ── Top bar ── */}
       <div style={{
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:"8px 16px", background:T.topBar,
@@ -777,42 +630,34 @@ export default function VideoEditor({ video, onClose, T }) {
           <span style={{ fontSize:11, color:T.textDim, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
             {video?.title || video?.prompt?.slice(0,60) || video?.id}
           </span>
+          {previewClip && (
+            <span style={{ fontSize:11, color:T.accentGreen, background:`${T.accentGreen}18`, padding:"2px 8px", borderRadius:10, whiteSpace:"nowrap" }}>
+              ▶ Previewing: {previewClip.label || previewClip.filename.replace(".mp4","")}
+            </span>
+          )}
         </div>
 
-        {/* Status + action buttons always visible in top bar */}
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0, flexWrap:"wrap" }}>
-          {jobStatus === "running" && (
-            <span style={{ fontSize:11, color:T.accentYellow }}>⏳ {jobMsg}</span>
-          )}
-          {jobStatus === "error" && (
-            <span style={{ fontSize:11, color:T.accentRed, maxWidth:280, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>✕ {jobMsg}</span>
-          )}
+        <div style={{ display:"flex", gap:7, alignItems:"center", flexShrink:0, flexWrap:"wrap" }}>
+          {jobStatus === "running" && <span style={{ fontSize:11, color:T.accentYellow }}>⏳ {jobMsg}</span>}
+          {jobStatus === "error"   && <span style={{ fontSize:11, color:T.accentRed, maxWidth:260, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>✕ {jobMsg}</span>}
 
-          {/* Save / Download always in top bar when composite is ready */}
           {compositeReady && !finalized && (
             <>
               <button onClick={handleFinalize} disabled={finalizing}
                 style={{ padding:"5px 12px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:700, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit" }}>
-                {finalizing ? "Saving…" : "💾 Save & Replace"}
+                {finalizing ? "Saving…" : "💾 Save & Replace Original"}
               </button>
-              {resultUrl && (
-                <a
-                  href={resultUrl}
-                  download={resultUrl.split("/").pop() || "composite.mp4"}
-                  style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}
-                >
-                  📥 Download
-                </a>
-              )}
+              <a href={resultUrl} download={downloadFilename}
+                style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                📥 Download .mp4
+              </a>
               <button onClick={handleDiscard}
                 style={{ padding:"5px 10px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:"transparent", color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-                Discard
+                🗑 Discard (Keep Original)
               </button>
             </>
           )}
-          {finalized && (
-            <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>💾 Saved</span>
-          )}
+          {finalized && <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>💾 Saved</span>}
 
           <button onClick={tryClose}
             style={{ padding:"5px 14px", borderRadius:6, border:`1px solid ${T.border}`, background:T.bgCard, color:T.textMid, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
@@ -821,47 +666,38 @@ export default function VideoEditor({ video, onClose, T }) {
         </div>
       </div>
 
-      {/* ── Back confirm banner ──────────────────────────────────────────── */}
+      {/* Back confirm */}
       {backConfirm && (
         <div style={{ padding:"6px 16px", flexShrink:0 }}>
           <ConfirmBanner
             message={jobStatus === "done" && !finalized
-              ? "You have a completed composite that hasn't been saved. Go back and discard it?"
+              ? "You have a completed composite that hasn't been saved. Go back?"
               : "You have unsaved overlay changes. Go back and discard them?"}
-            confirmLabel="Discard & Go Back"
-            cancelLabel="Stay"
-            onConfirm={onClose}
-            onCancel={() => setBackConfirm(false)}
-            color={T.accentRed}
-            T={T}
+            confirmLabel="Discard & Go Back" cancelLabel="Stay"
+            onConfirm={onClose} onCancel={() => setBackConfirm(false)}
+            color={T.accentRed} T={T}
           />
         </div>
       )}
 
-      {/* ── Body ────────────────────────────────────────────────────────── */}
+      {/* ── Body ── */}
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
 
-        {/* ── LEFT: Clip Library ────────────────────────────────────────── */}
-        <div style={{
-          width:240, flexShrink:0,
-          borderRight:`1px solid ${T.border}`,
-          display:"flex", flexDirection:"column",
-          background:T.bgSub, overflow:"hidden",
-        }}>
-          {/* Header */}
+        {/* ── LEFT: Clip Library ── */}
+        <div style={{ width:240, flexShrink:0, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", background:T.bgSub, overflow:"hidden" }}>
           <div style={{ padding:"8px 8px 4px", flexShrink:0, borderBottom:`1px solid ${T.border}20` }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
               <span style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:700 }}>
                 Clips ({filteredClips.length}{disabledCount > 0 && !showDisabled ? `/${clips.length}` : ""})
               </span>
               <div style={{ display:"flex", gap:4 }}>
-                <button onClick={loadClips} title="Refresh from DB"
+                <button onClick={loadClips} title="Refresh"
                   style={{ padding:"2px 6px", borderRadius:4, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:11, cursor:"pointer" }}>↺</button>
-                <button onClick={handleSeed} disabled={seeding} title="Load all built-in clips"
-                  style={{ padding:"2px 7px", borderRadius:4, border:"none", background:seeding ? T.bgCard : `${T.accent}20`, color:T.accent, fontSize:10, cursor:seeding ? "not-allowed" : "pointer" }}>
+                <button onClick={handleSeed} disabled={seeding}
+                  style={{ padding:"2px 7px", borderRadius:4, border:"none", background:seeding ? T.bgCard : `${T.accent}20`, color:T.accent, fontSize:10, cursor:seeding?"not-allowed":"pointer" }}>
                   {seeding ? "…" : "Seed"}
                 </button>
-                <button onClick={() => setShowUploadForm(v => !v)} title="Upload new clip"
+                <button onClick={() => setShowUploadForm(v => !v)}
                   style={{ padding:"2px 7px", borderRadius:4, border:"none", background:showUploadForm ? T.accent : T.bgCard, color:showUploadForm ? "#fff" : T.textDim, fontSize:10, cursor:"pointer" }}>+</button>
               </div>
             </div>
@@ -897,84 +733,147 @@ export default function VideoEditor({ video, onClose, T }) {
             )}
           </div>
 
-          {/* Scrollable clip list */}
-          <div style={{ flex:1, overflowY:"auto", padding:"8px", display:"flex", flexDirection:"column", gap:8 }}>
+          <div style={{ flex:1, overflowY:"auto", padding:"8px", display:"flex", flexDirection:"column", gap:6 }}>
             {clipsLoading ? (
               <div style={{ fontSize:11, color:T.textDim, padding:10, textAlign:"center" }}>Loading clips…</div>
             ) : filteredClips.length === 0 ? (
               <div style={{ fontSize:10, color:T.textDim, padding:10, textAlign:"center", lineHeight:1.6 }}>
-                {clips.length === 0
-                  ? <><strong>No clips in DB.</strong><br />Click <strong>Seed</strong> to load built-in clips.</>
-                  : "No clips match your search."}
+                {clips.length === 0 ? <><strong>No clips in DB.</strong><br />Click <strong>Seed</strong> to load built-in clips.</> : "No clips match your search."}
               </div>
             ) : (
               filteredClips.map(c => (
-                <ClipCard key={c.id || c.filename} clip={c} onAdd={addClip}
+                <ClipCard
+                  key={c.id || c.filename}
+                  clip={c}
+                  onAdd={addClip}
+                  onPreview={clip => setPreviewClip(clip)}
                   onUpdated={u => setClips(prev => prev.map(x => x.id === u.id ? u : x))}
                   onDeleted={id => setClips(prev => prev.filter(x => x.id !== id))}
-                  T={T} />
+                  isPreviewActive={previewClip?.filename === c.filename}
+                  T={T}
+                />
               ))
             )}
           </div>
         </div>
 
-        {/* ── CENTRE: Video + scrollable bottom panel ───────────────────── */}
+        {/* ── CENTRE: Video + bottom panel ── */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:T.bg, minWidth:0 }}>
 
-          {/* Video player — flexible, takes remaining height */}
+          {/* Main video player — with overlay videos on top */}
           <div style={{
             flex:1, background:"#000",
             display:"flex", alignItems:"center", justifyContent:"center",
             overflow:"hidden", minHeight:160, position:"relative",
           }}>
-            {videoUrl ? (
-              <video
-                ref={mainVideoRef}
-                key={videoUrl}
-                src={videoUrl}
-                controls
-                style={{ maxWidth:"100%", maxHeight:"100%", outline:"none" }}
-                onLoadedMetadata={e => setVideoDuration(e.target.duration)}
-              />
+            {mainVideoUrl ? (
+              <>
+                <video
+                  ref={previewClip ? previewVideoRef : mainVideoRef}
+                  key={mainVideoUrl}
+                  src={mainVideoUrl}
+                  controls
+                  muted={!!previewClip}
+                  style={{ maxWidth:"100%", maxHeight:"100%", outline:"none" }}
+                  onLoadedMetadata={e => { if (!previewClip) setVideoDuration(e.target.duration); }}
+                  onTimeUpdate={e => { if (!previewClip) setMainCurrentTime(e.target.currentTime); }}
+                  onPlay={() => { if (!previewClip) setIsMainPlaying(true); }}
+                  onPause={() => { if (!previewClip) setIsMainPlaying(false); }}
+                />
+                {/* Real-time overlay preview videos */}
+                {!previewClip && !resultUrl && overlays.map(ov => (
+                  <OverlayVideo
+                    key={ov.id}
+                    overlay={ov}
+                    mainCurrentTime={mainCurrentTime}
+                    isMainPlaying={isMainPlaying}
+                  />
+                ))}
+                {/* Preview mode indicator */}
+                {previewClip && (
+                  <button
+                    onClick={() => setPreviewClip(null)}
+                    style={{
+                      position:"absolute", top:10, left:10,
+                      padding:"5px 12px", borderRadius:6, border:"none",
+                      background:"rgba(0,0,0,0.7)", color:"#fff", fontSize:11,
+                      cursor:"pointer", zIndex:10,
+                    }}
+                  >
+                    ✕ Stop Preview
+                  </button>
+                )}
+                {/* Overlay count badge */}
+                {!previewClip && overlays.length > 0 && (
+                  <div style={{ position:"absolute", top:10, right:10, background:`${T.accent}cc`, color:"#fff", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:10 }}>
+                    {overlays.length} overlay{overlays.length !== 1 ? "s" : ""} queued
+                  </div>
+                )}
+                {/* Composite ready indicator */}
+                {resultUrl && !finalized && (
+                  <div style={{ position:"absolute", top:10, right:10, background:`${T.accentGreen}cc`, color:"#fff", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:10 }}>
+                    ✓ Composite preview
+                  </div>
+                )}
+              </>
             ) : (
-              <div style={{ color:T.textDim, fontSize:12 }}>No video file available for this entry.</div>
-            )}
-            {overlays.length > 0 && (
-              <div style={{ position:"absolute", top:10, right:10, background:`${T.accent}cc`, color:"#fff", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:10 }}>
-                {overlays.length} overlay{overlays.length !== 1 ? "s" : ""} queued
-              </div>
+              <div style={{ color:T.textDim, fontSize:12 }}>No video file available.</div>
             )}
           </div>
 
-          {/* ── Scrollable bottom panel — everything below the video ── */}
+          {/* ── Scrollable bottom panel ── */}
           <div style={{
-            flexShrink:0,
-            overflowY:"auto",
-            maxHeight:"48vh",
-            display:"flex",
-            flexDirection:"column",
+            flexShrink:0, overflowY:"auto", maxHeight:"48vh",
+            display:"flex", flexDirection:"column",
             borderTop:`1px solid ${T.border}`,
           }}>
 
-            {/* Save bar (inline, in addition to top-bar buttons) */}
+            {/* Save bar — always shown when composite is ready */}
             {compositeReady && (
-              <SaveBar
-                resultUrl={resultUrl}
-                finalized={finalized}
-                finalizing={finalizing}
-                onFinalize={handleFinalize}
-                onDiscard={handleDiscard}
-                T={T}
-              />
+              <div style={{
+                display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
+                padding:"8px 14px",
+                background: finalized ? `${T.accentGreen}14` : `${T.accentGreen}0e`,
+                borderBottom:`1px solid ${T.accentGreen}40`,
+                flexShrink:0,
+              }}>
+                {finalized ? (
+                  <>
+                    <span style={{ fontSize:11, color:T.accentGreen, fontWeight:600 }}>💾 Saved — original replaced.</span>
+                    <a href={resultUrl} download={downloadFilename}
+                      style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit" }}>
+                      📥 Download Local Copy
+                    </a>
+                    <button onClick={handleDiscard} style={{ marginLeft:"auto", padding:"4px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+                      Start New Edit
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>✓ Composite ready:</span>
+                    <button onClick={handleFinalize} disabled={finalizing}
+                      style={{ padding:"6px 14px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:600, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit", opacity:finalizing?0.6:1 }}>
+                      {finalizing ? "Saving…" : "💾 Save & Replace Original"}
+                    </button>
+                    <a href={resultUrl} download={downloadFilename}
+                      style={{ padding:"6px 14px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                      📥 Download to Computer
+                    </a>
+                    <button onClick={handleDiscard}
+                      style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:`${T.accentRed}12`, color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+                      🗑 Discard (Keep Original)
+                    </button>
+                  </>
+                )}
+              </div>
             )}
 
             {/* Zero-match warning */}
             {zeroMatchConfirm && (
-              <div style={{ padding:"8px 14px", flexShrink:0, borderTop:`1px solid ${T.border}` }}>
+              <div style={{ padding:"8px 14px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
                 <ConfirmBanner
-                  message="⚠ No keyword matches found — no stick-figure clips would be inserted. Proceed anyway (composite will copy the video unchanged), or manually add clips from the library."
-                  confirmLabel="Proceed anyway"
-                  cancelLabel="Cancel"
+                  message="⚠ No keyword matches found — no clips would be inserted. Proceed anyway?"
+                  confirmLabel="Proceed anyway" cancelLabel="Cancel"
                   onConfirm={async () => {
                     setZeroMatchConfirm(false);
                     setJobStatus("running"); setJobMsg("Running auto-composite (no matches)…");
@@ -983,14 +882,13 @@ export default function VideoEditor({ video, onClose, T }) {
                     catch (err) { setJobStatus("error"); setJobMsg(err?.response?.data?.detail || "Failed"); }
                   }}
                   onCancel={() => setZeroMatchConfirm(false)}
-                  color={T.accentYellow}
-                  T={T}
+                  color={T.accentYellow} T={T}
                 />
               </div>
             )}
 
-            {/* Timeline */}
-            <div style={{ padding:"10px 14px", background:T.bgSub, flexShrink:0 }}>
+            {/* Timeline — fixed height, scrollable */}
+            <div style={{ padding:"10px 14px", background:T.bgSub, flexShrink:0, overflowY:"auto", height:150 }}>
               <Timeline overlays={overlays} videoDuration={videoDuration}
                 selectedId={selectedId} onSelect={setSelectedId} T={T} />
             </div>
@@ -1003,10 +901,9 @@ export default function VideoEditor({ video, onClose, T }) {
             }}>
               <button onClick={handleApply}
                 disabled={overlays.length === 0 || jobStatus === "running"}
-                title={overlays.length === 0 ? "Add overlays first" : "Run FFmpeg composite (preview — not saved yet)"}
+                title={overlays.length === 0 ? "Add overlays first" : "Run FFmpeg composite"}
                 style={{
-                  padding:"6px 14px", borderRadius:6, border:"none",
-                  fontFamily:"inherit", fontSize:11, fontWeight:600,
+                  padding:"6px 14px", borderRadius:6, border:"none", fontFamily:"inherit", fontSize:11, fontWeight:600,
                   cursor: overlays.length === 0 || jobStatus === "running" ? "not-allowed" : "pointer",
                   background: overlays.length === 0 || jobStatus === "running" ? T.bgCard : T.accent,
                   color: overlays.length === 0 || jobStatus === "running" ? T.textFaint : "#fff",
@@ -1020,7 +917,6 @@ export default function VideoEditor({ video, onClose, T }) {
               </button>
 
               <button onClick={handleAutoApply} disabled={autoLoading || jobStatus === "running"}
-                title="Auto-match script keywords to clips, then composite"
                 style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.border}`, cursor:autoLoading||jobStatus==="running"?"not-allowed":"pointer", fontFamily:"inherit", fontSize:11, background:T.bgCard, color:T.textMid, opacity:autoLoading||jobStatus==="running"?0.5:1 }}>
                 ⚡ Auto-Insert & Render
               </button>
@@ -1082,28 +978,19 @@ export default function VideoEditor({ video, onClose, T }) {
               </div>
             )}
 
-          </div>{/* end scrollable bottom panel */}
+          </div>{/* end bottom panel */}
         </div>
 
-        {/* ── RIGHT: Overlay Controls ───────────────────────────────────── */}
-        <div style={{
-          width:230, flexShrink:0,
-          borderLeft:`1px solid ${T.border}`,
-          background:T.bgSub, overflowY:"auto", padding:12,
-        }}>
+        {/* ── RIGHT: Overlay Controls ── */}
+        <div style={{ width:230, flexShrink:0, borderLeft:`1px solid ${T.border}`, background:T.bgSub, overflowY:"auto", padding:12 }}>
           <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8, fontWeight:700 }}>
             Overlay Controls
           </div>
-
           <OverlayControls
-            overlay={selectedOverlay}
-            onChange={updateOverlay}
-            onRemove={removeOverlay}
-            onDuplicate={duplicateOverlay}
-            videoDuration={videoDuration}
-            T={T}
+            overlay={selectedOverlay} onChange={updateOverlay}
+            onRemove={removeOverlay} onDuplicate={duplicateOverlay}
+            videoDuration={videoDuration} T={T}
           />
-
           {overlays.length > 0 && (
             <div style={{ marginTop:14, borderTop:`1px solid ${T.border}`, paddingTop:10 }}>
               <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6, fontWeight:700 }}>
@@ -1119,9 +1006,7 @@ export default function VideoEditor({ video, onClose, T }) {
                       <div style={{ fontSize:9, color:T.textMid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                         {ov.filename.replace(".mp4","").replace(/_/g," ")}
                       </div>
-                      <div style={{ fontSize:8, color:T.textFaint }}>
-                        {formatTime(ov.startTime)} · {ov.duration}s · {ov.loopMode}
-                      </div>
+                      <div style={{ fontSize:8, color:T.textFaint }}>{formatTime(ov.startTime)} · {ov.duration}s · {ov.loopMode}</div>
                     </div>
                     <button onClick={e => { e.stopPropagation(); removeOverlay(ov.id); }}
                       style={{ padding:"1px 4px", borderRadius:3, border:"none", background:"transparent", color:T.accentRed, fontSize:10, cursor:"pointer", opacity:0.6 }}>✕</button>
