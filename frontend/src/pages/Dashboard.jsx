@@ -426,7 +426,7 @@ function LegalNavDropdown({ T }) {
 }
 
 // ── Video Editor Tab ──────────────────────────────────────────────────────────
-function VideoEditorTab({ videos, initialVideo, onInitialConsumed, T }) {
+function VideoEditorTab({ videos, initialVideo, onInitialConsumed, onNewVideo, T }) {
   const [selectedVideo, setSelectedVideo] = React.useState(initialVideo || null);
   const [search, setSearch] = React.useState("");
 
@@ -464,6 +464,7 @@ function VideoEditorTab({ videos, initialVideo, onInitialConsumed, T }) {
       <VideoEditor
         video={selectedVideo}
         onClose={() => setSelectedVideo(null)}
+        onNewVideo={onNewVideo}
         T={T}
       />
     );
@@ -9958,6 +9959,7 @@ export default function Dashboard() {
                 videos={videos}
                 initialVideo={editorVideo}
                 onInitialConsumed={() => setEditorVideo(null)}
+                onNewVideo={refresh}
                 T={T}
               />
             )}

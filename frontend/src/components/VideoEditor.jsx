@@ -447,7 +447,7 @@ function ConfirmBanner({ message, confirmLabel, cancelLabel, onConfirm, onCancel
 // ─────────────────────────────────────────────────────────────────────────────
 // Main VideoEditor
 // ─────────────────────────────────────────────────────────────────────────────
-export default function VideoEditor({ video, onClose, T }) {
+export default function VideoEditor({ video, onClose, onNewVideo, T }) {
   const [clips,        setClips]        = useState([]);
   const [clipsLoading, setClipsLoading] = useState(true);
   const [search,       setSearch]       = useState("");
@@ -478,6 +478,7 @@ export default function VideoEditor({ video, onClose, T }) {
   const [finalized,    setFinalized]    = useState(false);
   const [jobLogs,      setJobLogs]      = useState([]);
   const [showLogs,     setShowLogs]     = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
   const [newVideoId,   setNewVideoId]   = useState(null);
   const logsEndRef = useRef(null);
 
@@ -521,13 +522,18 @@ export default function VideoEditor({ video, onClose, T }) {
 
   // Auto-scroll logs to bottom
   useEffect(() => {
-    if (showLogs && logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [jobLogs, showLogs]);
+    if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [jobLogs]);
+
+  // Notify parent when a new video is created via composite
+  useEffect(() => {
+    if (newVideoId) onNewVideo?.();
+  }, [newVideoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll composite job
   useEffect(() => {
     if (jobStatus !== "running") { clearInterval(pollRef.current); return; }
-    setShowLogs(true);
+    setShowLogsModal(true);
     pollRef.current = setInterval(async () => {
       try {
         const s = await getCompositeStatus(video.id);
@@ -557,18 +563,33 @@ export default function VideoEditor({ video, onClose, T }) {
     setSeeding(false);
   };
 
+  const [uploadProgress, setUploadProgress] = useState(""); // e.g. "2 / 5"
+
   const handleUploadFile = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setUploading(true);
-    try {
-      const kws = uploadKw.split(",").map(s => s.trim()).filter(Boolean).join(",");
-      const row = await uploadStickFigure(file, uploadLabel, kws);
-      row.preview_url = `/stickfigures-assets/${row.filename}`;
-      setClips(prev => [row, ...prev]);
-      setUploadLabel(""); setUploadKw(""); setShowUploadForm(false);
-    } catch (err) { alert(err?.response?.data?.detail || "Upload failed"); }
+    const kws = uploadKw.split(",").map(s => s.trim()).filter(Boolean).join(",");
+    const errors = [];
+    for (let i = 0; i < files.length; i++) {
+      setUploadProgress(`${i + 1} / ${files.length}`);
+      try {
+        // For multi-file uploads label is left empty so the backend derives it from the filename
+        const label = files.length === 1 ? uploadLabel : "";
+        const row = await uploadStickFigure(files[i], label, kws);
+        setClips(prev => [row, ...prev]);
+      } catch (err) {
+        errors.push(`${files[i].name}: ${err?.response?.data?.detail || "failed"}`);
+      }
+    }
+    setUploadProgress("");
     setUploading(false);
     if (uploadRef.current) uploadRef.current.value = "";
+    if (errors.length) {
+      alert(`${files.length - errors.length} uploaded. Errors:\n${errors.join("\n")}`);
+    } else {
+      setUploadLabel(""); setUploadKw(""); setShowUploadForm(false);
+    }
   };
 
   const filteredClips = clips.filter(c => {
@@ -731,11 +752,17 @@ export default function VideoEditor({ video, onClose, T }) {
 
         <div style={{ display:"flex", gap:7, alignItems:"center", flexShrink:0, flexWrap:"wrap" }}>
           {jobStatus === "running" && (
-            <button onClick={() => setShowLogs(v => !v)} style={{ background:"transparent", border:"none", cursor:"pointer", padding:0 }}>
-              <span style={{ fontSize:11, color:T.accentYellow }}>⏳ {jobMsg} {showLogs ? "▲" : "▼"}</span>
-            </button>
+            <span style={{ fontSize:11, color:T.accentYellow, whiteSpace:"nowrap" }}>⏳ {jobMsg}</span>
           )}
           {jobStatus === "error" && <span style={{ fontSize:11, color:T.accentRed, maxWidth:260, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>✕ {jobMsg}</span>}
+          {(jobStatus === "running" || jobLogs.length > 0) && (
+            <button
+              onClick={() => setShowLogsModal(v => !v)}
+              style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${jobStatus === "running" ? T.accentYellow + "60" : T.accentGreen + "60"}`, background:`${jobStatus === "running" ? T.accentYellow : T.accentGreen}14`, color: jobStatus === "running" ? T.accentYellow : T.accentGreen, fontSize:11, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+            >
+              📋 {showLogsModal ? "Hide Logs" : "See Logs"}
+            </button>
+          )}
 
           {compositeReady && newVideoId && (
             <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>💾 Saved as new video</span>
@@ -811,10 +838,10 @@ export default function VideoEditor({ video, onClose, T }) {
                   style={{ width:"100%", background:T.inputBg, border:`1px solid ${T.border}`, borderRadius:4, padding:"3px 6px", color:T.text, fontFamily:"inherit", fontSize:10, boxSizing:"border-box", marginBottom:3 }} />
                 <input value={uploadKw} onChange={e => setUploadKw(e.target.value)} placeholder="Keywords (comma-separated)"
                   style={{ width:"100%", background:T.inputBg, border:`1px solid ${T.border}`, borderRadius:4, padding:"3px 6px", color:T.text, fontFamily:"inherit", fontSize:10, boxSizing:"border-box", marginBottom:5 }} />
-                <input ref={uploadRef} type="file" accept=".mp4,video/mp4" onChange={handleUploadFile} disabled={uploading} style={{ display:"none" }} />
+                <input ref={uploadRef} type="file" accept=".mp4,video/mp4" multiple onChange={handleUploadFile} disabled={uploading} style={{ display:"none" }} />
                 <button onClick={() => uploadRef.current?.click()} disabled={uploading}
                   style={{ width:"100%", padding:"4px 0", borderRadius:4, border:"none", background:T.accent, color:"#fff", fontSize:10, cursor:uploading?"not-allowed":"pointer", fontFamily:"inherit", opacity:uploading?0.6:1 }}>
-                  {uploading ? "Uploading…" : "Choose .mp4"}
+                  {uploading ? `Uploading ${uploadProgress}…` : "Choose .mp4 (multi-select OK)"}
                 </button>
               </div>
             )}
@@ -925,7 +952,6 @@ export default function VideoEditor({ video, onClose, T }) {
                     {jobLogs.map((l, i) => (
                       <div key={i} style={{ color: l.includes("⚠") ? T.accentYellow : l.includes("Saved") || l.includes("done") || l.includes("Uploaded") ? T.accentGreen : T.textDim }}>{l}</div>
                     ))}
-                    <div ref={logsEndRef} />
                   </div>
                 )}
               </div>
@@ -1119,8 +1145,16 @@ export default function VideoEditor({ video, onClose, T }) {
                       </div>
                       <div style={{ fontSize:8, color:T.textFaint }}>{formatTime(ov.startTime)} · {ov.duration}s · {ov.loopMode}</div>
                     </div>
+                    {ov.loopMode !== "none" && (
+                      <button
+                        onClick={e => { e.stopPropagation(); updateOverlay({...ov, loopMode:"none"}); }}
+                        title="Stop loop"
+                        style={{ padding:"1px 5px", borderRadius:3, border:`1px solid ${T.accentYellow}50`, background:`${T.accentYellow}18`, color:T.accentYellow, fontSize:9, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
+                        ⏹
+                      </button>
+                    )}
                     <button onClick={e => { e.stopPropagation(); removeOverlay(ov.id); }}
-                      style={{ padding:"1px 4px", borderRadius:3, border:"none", background:"transparent", color:T.accentRed, fontSize:10, cursor:"pointer", opacity:0.6 }}>✕</button>
+                      style={{ padding:"1px 4px", borderRadius:3, border:"none", background:"transparent", color:T.accentRed, fontSize:10, cursor:"pointer", opacity:0.6, flexShrink:0 }}>✕</button>
                   </div>
                 );
               })}
@@ -1136,6 +1170,29 @@ export default function VideoEditor({ video, onClose, T }) {
 
       {/* ── Clip preview modal ── */}
       {modalClip && <ClipPreviewModal clip={modalClip} onClose={closeModal} />}
+
+      {/* ── Floating logs modal ── */}
+      {showLogsModal && (
+        <div style={{
+          position:"fixed", bottom:20, right:20, zIndex:19990, width:420,
+          background:T.bgDeep, border:`1px solid ${T.border}`, borderRadius:10,
+          boxShadow:"0 8px 40px rgba(0,0,0,0.55)", overflow:"hidden",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 14px", borderBottom:`1px solid ${T.border}`, background:T.bgCard }}>
+            <span style={{ fontSize:11, fontWeight:700, color: jobStatus === "running" ? T.accentYellow : T.accentGreen }}>
+              {jobStatus === "running" ? "⏳ Processing…" : "✓ Complete"} — {jobMsg}
+            </span>
+            <button onClick={() => setShowLogsModal(false)} style={{ background:"none", border:"none", color:T.textFaint, cursor:"pointer", fontSize:14, lineHeight:1 }}>✕</button>
+          </div>
+          <div style={{ maxHeight:280, overflowY:"auto", padding:"8px 14px 10px", fontFamily:"monospace", fontSize:10, color:T.textDim, lineHeight:1.7 }}>
+            {jobLogs.length === 0 && <div style={{ color:T.textFaint }}>Waiting for logs…</div>}
+            {jobLogs.map((l, i) => (
+              <div key={i} style={{ color: l.includes("⚠") ? T.accentYellow : l.includes("Saved") || l.includes("done") || l.includes("✓") || l.includes("Uploaded") ? T.accentGreen : T.textDim }}>{l}</div>
+            ))}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+      )}
 
     </div>
   );
