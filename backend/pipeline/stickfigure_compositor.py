@@ -351,6 +351,10 @@ def composite_video(
         for p in prepared:
             inputs += ["-i", p["looped"]]
 
+        # Get base video dimensions for scaling overlay to fill height
+        base_info = get_video_info(base_path)
+        base_h    = base_info["height"]
+
         filter_parts = []
         audio_parts  = []
         audio_labels = []
@@ -362,39 +366,35 @@ def composite_video(
             clip_dur  = p["clip_dur"]
             start_t   = float(ov.get("start_time", 0))
             end_t     = start_t + clip_dur
-            x         = int(ov.get("x", 0))
-            y         = int(ov.get("y", 0))
-            scale     = float(ov.get("scale", 1.0))
             has_alpha = clip_info["has_alpha"]
             mix_sfx   = ov.get("has_sound", True) and mix_overlay_audio
             has_sfx   = p["looped_info"]["has_audio"]
             is_last   = idx == len(prepared) - 1
 
-            clip_w = max(1, int(clip_info["width"]  * scale))
-            clip_h = max(1, int(clip_info["height"] * scale))
-
-            # Build per-clip filter chain
+            # Build per-clip filter chain:
+            #   1. setpts=PTS-STARTPTS  — fix frozen/still-frame bug (resets timestamps)
+            #   2. chromakey            — remove green background (non-alpha clips only)
+            #   3. scale=-1:{base_h}   — fill base video height, keep aspect ratio
             input_label    = f"[{idx + 1}:v]"
             filtered_label = f"[fov{idx}]"
 
-            ov_filters = []
+            ov_filters = ["setpts=PTS-STARTPTS"]
             if not has_alpha:
                 ov_filters.append(
                     f"chromakey=color={chroma_color}"
                     f":similarity={chroma_similarity}:blend={chroma_blend}"
                 )
-            if abs(scale - 1.0) > 0.005:
-                ov_filters.append(f"scale={clip_w}:{clip_h}")
+            # Scale to fill full height of base video, keep aspect ratio
+            ov_filters.append(f"scale=-1:{base_h}")
 
-            if ov_filters:
-                filter_parts.append(f"{input_label}{','.join(ov_filters)}{filtered_label}")
-                ov_label = filtered_label
-            else:
-                ov_label = input_label
+            filter_parts.append(f"{input_label}{','.join(ov_filters)}{filtered_label}")
+            ov_label = filtered_label
 
+            # Center overlay horizontally and vertically
             out_v = "[outv]" if is_last else f"[v{idx}]"
             filter_parts.append(
-                f"{prev_v}{ov_label}overlay=x={x}:y={y}"
+                f"{prev_v}{ov_label}overlay="
+                f"x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2"
                 f":enable='between(t,{start_t},{end_t})'"
                 f":format=auto{out_v}"
             )
