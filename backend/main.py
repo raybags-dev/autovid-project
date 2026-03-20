@@ -3359,6 +3359,26 @@ def composite_status(video_id: str, _u: str = Depends(verify_token)):
     return result
 
 
+@app.post("/videos/{video_id}/composite-finalize")
+def composite_finalize(video_id: str, _u: str = Depends(verify_token)):
+    """
+    Finalize the completed composite: update the video's file_path in the DB
+    to the composited output file so it becomes the new canonical version.
+    Clears the composite job entry afterwards.
+    """
+    with _composite_lock:
+        job = dict(_composite_jobs.get(video_id, {}))
+    if not job or job.get("status") != "done":
+        raise HTTPException(400, "No completed composite job found — run Apply Overlays first")
+    out_path = job.get("output_path")
+    if not out_path or not _Path(out_path).exists():
+        raise HTTPException(400, "Composite output file missing from disk")
+    db.update_video(video_id, file_path=out_path)
+    with _composite_lock:
+        _composite_jobs.pop(video_id, None)
+    return {"status": "saved", "file_path": out_path}
+
+
 @app.post("/videos/{video_id}/auto-composite")
 def auto_composite(
     video_id: str,
