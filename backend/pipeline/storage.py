@@ -132,6 +132,46 @@ def upload_to_storage(local_path: str, video_id: str, cb=None) -> str:
     return public_url
 
 
+CLIP_BUCKET = "stickfigures"
+
+
+def upload_clip_to_storage(local_path: str, filename: str) -> str:
+    """
+    Upload a stick-figure clip to Supabase Storage (stickfigures bucket, public).
+    Creates the bucket if it doesn't exist.
+    Returns the permanent public URL.
+    """
+    import requests as _r
+    from supabase import create_client
+    import config as _cfg
+
+    local_path = Path(local_path)
+    if not local_path.exists():
+        raise FileNotFoundError(f"Clip not found: {local_path}")
+
+    base = _cfg.SUPABASE_URL.rstrip("/")
+    auth_headers = {
+        "Authorization": f"Bearer {_cfg.SUPABASE_SERVICE_KEY}",
+        "x-upsert": "true",
+    }
+
+    # Ensure bucket exists (silently ignore if already exists)
+    try:
+        sb = create_client(_cfg.SUPABASE_URL, _cfg.SUPABASE_SERVICE_KEY)
+        sb.storage.create_bucket(CLIP_BUCKET, options={"public": True})
+    except Exception:
+        pass
+
+    size_mb = local_path.stat().st_size / (1024 * 1024)
+    print(f"☁️  Uploading clip: {filename} ({size_mb:.1f} MB)")
+    upload_url = f"{base}/storage/v1/object/{CLIP_BUCKET}/{filename}"
+    _stream_upload(upload_url, local_path, "video/mp4", auth_headers)
+
+    public_url = f"{base}/storage/v1/object/public/{CLIP_BUCKET}/{filename}"
+    print(f"   ✅ Clip stored: {public_url}")
+    return public_url
+
+
 def upload_narration_to_storage(audio_path: str, video_id: str, cb=None, filename: str = None) -> str:
     """
     Upload the raw narration MP3 to Supabase Storage (narrations bucket).

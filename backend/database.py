@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
     label       TEXT NOT NULL,                 -- human display name
     keywords    TEXT[] DEFAULT '{}',           -- trigger words for auto-match
     file_path   TEXT NOT NULL,                 -- absolute server-side path
+    public_url  TEXT DEFAULT '',               -- Supabase Storage public URL
     duration    FLOAT DEFAULT 0,
     width       INTEGER DEFAULT 0,
     height      INTEGER DEFAULT 0,
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_sfclips_enabled ON stickfigure_clips(enabled);
+ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS public_url TEXT DEFAULT '';
 ─────────────────────────────────────────────────
 """
 import uuid
@@ -338,20 +340,22 @@ def upsert_stickfigure_clip(
     height: int = 0,
     has_alpha: bool = False,
     has_audio: bool = False,
+    public_url: str = "",
 ) -> dict:
     """Insert or update a clip record, keyed on filename."""
     db = get_client()
     row = {
-        "filename":  filename,
-        "label":     label,
-        "keywords":  keywords,
-        "file_path": file_path,
-        "duration":  duration,
-        "width":     width,
-        "height":    height,
-        "has_alpha": has_alpha,
-        "has_audio": has_audio,
-        "enabled":   True,
+        "filename":   filename,
+        "label":      label,
+        "keywords":   keywords,
+        "file_path":  file_path,
+        "duration":   duration,
+        "width":      width,
+        "height":     height,
+        "has_alpha":  has_alpha,
+        "has_audio":  has_audio,
+        "enabled":    True,
+        "public_url": public_url,
     }
     r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
     return r.data[0]
