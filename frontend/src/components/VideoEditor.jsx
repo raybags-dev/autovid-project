@@ -65,6 +65,11 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
   const [saving,     setSaving]     = useState(false);
   const [delConfirm, setDelConfirm] = useState(false);
 
+  // React doesn't reliably pass `muted` to the DOM — set it via ref
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = true;
+  }, []);
+
   const enter = () => {
     if (editing) return;
     setHovered(true);
@@ -165,13 +170,15 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
         position: "relative",
         opacity: clip.enabled === false ? 0.45 : 1,
         cursor: clip.enabled === false ? "not-allowed" : "default",
+        height: 200, minHeight: 200,
+        display: "flex", flexDirection: "column",
       }}
       onMouseEnter={enter}
       onMouseLeave={leave}
     >
-      {/* ── Video thumbnail ── */}
-      <div style={{ width: "100%", aspectRatio: "16/9", background: "#111", position: "relative" }}>
-        <video ref={videoRef} src={clip.preview_url} muted loop playsInline
+      {/* ── Video thumbnail (fixed 100px tall) ── */}
+      <div style={{ width: "100%", height: 100, flexShrink: 0, background: "#111", position: "relative", overflow: "hidden" }}>
+        <video ref={videoRef} src={clip.preview_url} loop playsInline
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         {!hovered && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.35)" }}>
@@ -608,7 +615,7 @@ export default function VideoEditor({ video, onClose, T }) {
   const disabledCount = clips.filter(c => c.enabled === false).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 112px)", minHeight: 500, background: T.bg }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column", background: T.bg }}>
 
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <div style={{
