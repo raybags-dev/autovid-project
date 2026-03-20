@@ -3036,6 +3036,43 @@ _composite_jobs: dict = {}  # video_id → {"status": str, "message": str, "outp
 _composite_lock = _threading.Lock()
 
 
+def _resolve_video_file(file_path: str, video_id: str) -> str:
+    """
+    Return a local filesystem path for a video, downloading from Supabase
+    Storage if the file_path is a remote URL.  Raises HTTPException if the
+    file cannot be obtained.
+    """
+    import urllib.request as _ur
+    import shutil as _sh
+
+    if not file_path:
+        raise HTTPException(400, "Video has no file_path stored in the database")
+
+    # Already a local path that exists?
+    candidate = _Path(file_path)
+    if not candidate.is_absolute():
+        candidate = _cfg.VIDEOS_OUTPUT_DIR / candidate.name
+    if candidate.exists():
+        return str(candidate)
+
+    # file_path is a URL → download to VIDEOS_OUTPUT_DIR
+    if file_path.startswith("http://") or file_path.startswith("https://"):
+        fname    = _Path(file_path.split("?")[0]).name  # strip query params
+        dest     = _cfg.VIDEOS_OUTPUT_DIR / fname
+        if dest.exists():
+            return str(dest)
+        print(f"⬇️  Downloading video for compositor: {file_path}")
+        try:
+            with _ur.urlopen(file_path, timeout=120) as resp, open(dest, "wb") as fh:
+                _sh.copyfileobj(resp, fh)
+            print(f"✅ Downloaded → {dest}")
+            return str(dest)
+        except Exception as e:
+            raise HTTPException(400, f"Could not download video from storage: {e}")
+
+    raise HTTPException(400, "Video file not found on disk and is not a downloadable URL")
+
+
 class OverlayItem(BaseModel):
     clip_path: str          # absolute server path
     start_time: float       # seconds into base video
@@ -3241,19 +3278,7 @@ def start_composite(
     if not video:
         raise HTTPException(404, "Video not found")
 
-    file_path = video.get("file_path", "")
-    # Resolve local file
-    base_path = None
-    if file_path:
-        # Try as absolute or relative to VIDEOS_OUTPUT_DIR
-        candidate = _Path(file_path)
-        if not candidate.is_absolute():
-            candidate = _cfg.VIDEOS_OUTPUT_DIR / _Path(file_path).name
-        if candidate.exists():
-            base_path = str(candidate)
-
-    if not base_path:
-        raise HTTPException(400, "Video file not found on disk — ensure it has been generated")
+    base_path = _resolve_video_file(video.get("file_path", ""), video_id)
 
     # Validate overlay clip paths are inside stickFigureAssets
     for ov in req.overlays:
@@ -3353,17 +3378,7 @@ def auto_composite(
     if not script:
         raise HTTPException(400, "Video has no script — cannot auto-match stick figures")
 
-    file_path = video.get("file_path", "")
-    base_path = None
-    if file_path:
-        candidate = _Path(file_path)
-        if not candidate.is_absolute():
-            candidate = _cfg.VIDEOS_OUTPUT_DIR / _Path(file_path).name
-        if candidate.exists():
-            base_path = str(candidate)
-
-    if not base_path:
-        raise HTTPException(400, "Video file not found on disk")
+    base_path = _resolve_video_file(video.get("file_path", ""), video_id)
 
     duration = float(video.get("duration_seconds") or 60)
     min_gap   = req.min_gap
