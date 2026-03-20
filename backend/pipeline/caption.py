@@ -145,16 +145,16 @@ def generate_srt(whisper_result: dict, output_path: Path, max_chars_per_line: in
 
 CAPTION_STYLE = {
     "FontName": "Arial",
-    "FontSize": 26,                  # Bigger = easier to read
+    "FontSize": 16,                  # Small, unobtrusive
     "PrimaryColour": "&H00FFFFFF",   # Bright white text
     "OutlineColour": "&H00000000",   # Black outline for contrast
     "BackColour": "&H00000000",      # No background box — outline only (cleaner)
     "BorderStyle": 1,                # Outline + shadow only (not box)
-    "Outline": 3,                    # Thicker outline = text pops on any background
+    "Outline": 2,
     "Shadow": 1,
     "Alignment": 2,                  # Bottom center
-    "MarginV": 80,                   # Slightly higher from bottom
-    "Bold": 1,
+    "MarginV": 20,                   # Close to bottom edge
+    "Bold": 0,
 }
 
 SHORT_CAPTION_STYLE = {
