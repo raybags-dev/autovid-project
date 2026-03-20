@@ -706,21 +706,32 @@ function StickFigureSettings({ T }) {
     setSeeding(false);
   };
 
+  const [uploadProgress, setUploadProgress] = React.useState("");
+
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setUploading(true);
-    try {
-      const kws = uploadKw.split(",").map(s => s.trim()).filter(Boolean).join(",");
-      const row = await uploadStickFigure(file, uploadLabel, kws);
-      row.preview_url = `/stickfigures-assets/${row.filename}`;
-      setClips(prev => [row, ...(prev || [])]);
-      setUploadLabel(""); setUploadKw(""); setShowUpload(false);
-    } catch (err) {
-      alert(err?.response?.data?.detail || "Upload failed");
+    const kws = uploadKw.split(",").map(s => s.trim()).filter(Boolean).join(",");
+    const errors = [];
+    for (let i = 0; i < files.length; i++) {
+      setUploadProgress(`${i + 1} / ${files.length}`);
+      try {
+        const label = files.length === 1 ? uploadLabel : "";
+        const row = await uploadStickFigure(files[i], label, kws);
+        setClips(prev => [row, ...(prev || [])]);
+      } catch (err) {
+        errors.push(`${files[i].name}: ${err?.response?.data?.detail || "failed"}`);
+      }
     }
+    setUploadProgress("");
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
+    if (errors.length) {
+      alert(`${files.length - errors.length} uploaded. Errors:\n${errors.join("\n")}`);
+    } else {
+      setUploadLabel(""); setUploadKw(""); setShowUpload(false);
+    }
   };
 
   const enabled  = (clips || []).filter(c => c.enabled !== false).length;
@@ -814,6 +825,7 @@ function StickFigureSettings({ T }) {
               ref={fileRef}
               type="file"
               accept=".mp4,video/mp4"
+              multiple
               onChange={handleUpload}
               disabled={uploading}
               style={{ display: "none" }}
@@ -827,7 +839,7 @@ function StickFigureSettings({ T }) {
                 cursor: uploading ? "not-allowed" : "pointer", fontFamily: "inherit",
                 opacity: uploading ? 0.6 : 1,
               }}
-            >{uploading ? "Uploading…" : "Choose .mp4 file"}</button>
+            >{uploading ? `Uploading ${uploadProgress}…` : "Choose .mp4 file(s)"}</button>
           </div>
         )}
 
