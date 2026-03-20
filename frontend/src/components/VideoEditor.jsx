@@ -102,16 +102,31 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
   const ref = useRef(null);
   const prevActiveRef = useRef(false);
 
-  const isActive = mainCurrentTime >= overlay.startTime &&
-                   mainCurrentTime < overlay.startTime + overlay.duration;
-  const clipTime  = Math.max(0, mainCurrentTime - overlay.startTime);
+  // Active once the main video reaches startTime — stays active until clip is removed.
+  // (Auto-render uses backend timing; preview just needs "start and stay".)
+  const isActive = mainCurrentTime >= overlay.startTime;
 
   // Force muted on mount
   useEffect(() => {
     if (ref.current) { ref.current.muted = true; ref.current.volume = 0; }
   }, []);
 
-  // Sync play/pause/seek whenever active state or playing state changes
+  // last_Ns loop: when clip nears end, seek back N seconds from the end
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !overlay.loopMode.startsWith("last_")) return;
+    const secs = parseFloat(overlay.loopMode.replace("last_", "").replace("s", "")) || 1;
+    const onTimeUpdate = () => {
+      const dur = v.duration;
+      if (dur && v.currentTime >= dur - 0.08) {
+        v.currentTime = Math.max(0, dur - secs);
+      }
+    };
+    v.addEventListener("timeupdate", onTimeUpdate);
+    return () => v.removeEventListener("timeupdate", onTimeUpdate);
+  }, [overlay.id, overlay.loopMode]);
+
+  // Sync play/pause; reset when deactivated (main video seeked before startTime)
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
@@ -121,26 +136,20 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
 
     if (!isActive) {
       if (!v.paused) v.pause();
-      if (prevActiveRef.current) { v.currentTime = 0; }
+      if (prevActiveRef.current) v.currentTime = 0;
       prevActiveRef.current = false;
       return;
     }
 
-    // Just became active — seek to exact clip time first
+    // Just became active — start from beginning
     if (!prevActiveRef.current) {
-      v.currentTime = clipTime;
-    } else {
-      // Correct drift > 0.5 s
-      if (Math.abs(v.currentTime - clipTime) > 0.5) {
-        v.currentTime = clipTime;
-      }
+      v.currentTime = 0;
     }
     prevActiveRef.current = true;
 
     if (isMainPlaying) {
       if (v.paused) {
         v.play().catch(() => {
-          // Retry once — some browsers need the muted flag confirmed
           v.muted = true;
           v.play().catch(() => {});
         });
@@ -148,7 +157,7 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
     } else {
       if (!v.paused) v.pause();
     }
-  }, [isActive, isMainPlaying, Math.floor(mainCurrentTime * 2)]);
+  }, [isActive, isMainPlaying]);
 
   if (!isActive) return null;
 
@@ -1153,14 +1162,12 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
                       </div>
                       <div style={{ fontSize:8, color:T.textFaint }}>{formatTime(ov.startTime)} · {ov.duration}s · {ov.loopMode}</div>
                     </div>
-                    {ov.loopMode !== "none" && (
-                      <button
-                        onClick={e => { e.stopPropagation(); updateOverlay({...ov, loopMode:"none"}); }}
-                        title="Stop loop"
-                        style={{ padding:"1px 5px", borderRadius:3, border:`1px solid ${T.accentYellow}50`, background:`${T.accentYellow}18`, color:T.accentYellow, fontSize:9, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
-                        ⏹
-                      </button>
-                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); removeOverlay(ov.id); }}
+                      title="Stop & remove clip"
+                      style={{ padding:"1px 5px", borderRadius:3, border:`1px solid ${ov.loopMode !== "none" ? T.accentYellow : T.border}50`, background:`${ov.loopMode !== "none" ? T.accentYellow : T.textFaint}18`, color: ov.loopMode !== "none" ? T.accentYellow : T.textFaint, fontSize:9, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
+                      ⏹
+                    </button>
                     <button onClick={e => { e.stopPropagation(); removeOverlay(ov.id); }}
                       style={{ padding:"1px 4px", borderRadius:3, border:"none", background:"transparent", color:T.accentRed, fontSize:10, cursor:"pointer", opacity:0.6, flexShrink:0 }}>✕</button>
                   </div>
