@@ -823,6 +823,15 @@ export default function VideoEditor({ video, onClose, T }) {
               </div>
               <div style={{ display: "flex", gap: 4 }}>
                 <button
+                  onClick={loadClips}
+                  title="Refresh clip list from DB"
+                  style={{
+                    padding: "2px 7px", borderRadius: 5, border: "none",
+                    background: T.bgCard, color: T.textDim,
+                    fontSize: 10, cursor: "pointer",
+                  }}
+                >↺</button>
+                <button
                   onClick={() => setShowUploadForm(v => !v)}
                   title="Upload new clip"
                   style={{
