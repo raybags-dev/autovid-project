@@ -554,6 +554,113 @@ function VideoEditorTab({ videos, initialVideo, onInitialConsumed, T }) {
 }
 
 
+// ── Stick Figure Clip Card (Settings view — hover to preview) ─────────────────
+function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
+  const videoRef = useRef(null);
+  const [hovered, setHovered] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftLabel, setDraftLabel] = useState(clip.label || "");
+  const [draftKw, setDraftKw] = useState((clip.keywords || []).join(", "));
+  const [saving, setSaving] = useState(false);
+
+  const enter = () => {
+    setHovered(true);
+    if (videoRef.current) { videoRef.current.currentTime = 0; videoRef.current.play().catch(() => {}); }
+  };
+  const leave = () => {
+    setHovered(false);
+    if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
+  };
+
+  const saveEdit = async (e) => {
+    e.stopPropagation();
+    setSaving(true);
+    const kws = draftKw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    try {
+      await updateStickFigure(clip.id, { label: draftLabel.trim(), keywords: kws });
+      onUpdated({ ...clip, label: draftLabel.trim(), keywords: kws });
+      setEditing(false);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  const toggleEnabled = async (e) => {
+    e.stopPropagation();
+    try {
+      await updateStickFigure(clip.id, { enabled: !clip.enabled });
+      onUpdated({ ...clip, enabled: !clip.enabled });
+    } catch { /* ignore */ }
+  };
+
+  const doDelete = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Remove "${clip.label || clip.filename}"?`)) return;
+    try {
+      await deleteStickFigure(clip.id, false);
+      onDeleted(clip.id);
+    } catch { /* ignore */ }
+  };
+
+  const label = clip.label || clip.filename.replace(".mp4", "").replace(/_/g, " ");
+
+  if (editing) {
+    return (
+      <div style={{ border: `1px solid ${T.accent}`, borderRadius: 8, padding: 10, background: T.bgCard }} onClick={e => e.stopPropagation()}>
+        <input value={draftLabel} onChange={e => setDraftLabel(e.target.value)} placeholder="Label"
+          style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 7px", color: T.text, fontFamily: "inherit", fontSize: 11, boxSizing: "border-box", marginBottom: 5 }} />
+        <input value={draftKw} onChange={e => setDraftKw(e.target.value)} placeholder="keywords, comma, separated"
+          style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 7px", color: T.text, fontFamily: "inherit", fontSize: 11, boxSizing: "border-box", marginBottom: 6 }} />
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={saveEdit} disabled={saving} style={{ padding: "3px 10px", borderRadius: 5, border: "none", background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button onClick={() => setEditing(false)} style={{ padding: "3px 10px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{ border: `1px solid ${hovered ? T.accent : T.border}`, borderRadius: 8, overflow: "hidden", background: T.bgCard, transition: "border-color 0.15s", position: "relative", opacity: clip.enabled === false ? 0.5 : 1 }}
+      onMouseEnter={enter}
+      onMouseLeave={leave}
+    >
+      <div style={{ width: "100%", aspectRatio: "16/9", background: "#000", position: "relative" }}>
+        <video ref={videoRef} src={clip.preview_url} muted loop playsInline
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {!hovered && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.35)" }}>
+            <span style={{ color: "#fff", fontSize: 18 }}>▶</span>
+          </div>
+        )}
+      </div>
+      <div style={{ padding: "5px 7px 7px" }}>
+        <div style={{ fontSize: 10, color: T.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+        <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>
+          {clip.duration}s · {clip.has_alpha ? "α" : "key"}
+          {clip.keywords?.length > 0 && <span style={{ color: T.textFaint }}> · {clip.keywords.slice(0, 3).join(", ")}{clip.keywords.length > 3 ? "…" : ""}</span>}
+        </div>
+      </div>
+      {hovered && (
+        <div style={{ position: "absolute", top: 4, right: 4, display: "flex", gap: 3 }} onClick={e => e.stopPropagation()}>
+          <button onClick={e => { e.stopPropagation(); setEditing(true); }}
+            style={{ padding: "2px 5px", borderRadius: 4, border: "none", background: "rgba(0,0,0,0.65)", color: "#fff", fontSize: 10, cursor: "pointer" }}>✎</button>
+          <button onClick={toggleEnabled}
+            style={{ padding: "2px 5px", borderRadius: 4, border: "none", background: clip.enabled === false ? "rgba(61,214,140,0.8)" : "rgba(255,92,108,0.8)", color: "#fff", fontSize: 10, cursor: "pointer" }}>
+            {clip.enabled === false ? "On" : "Off"}
+          </button>
+          <button onClick={doDelete}
+            style={{ padding: "2px 5px", borderRadius: 4, border: "none", background: "rgba(180,0,0,0.75)", color: "#fff", fontSize: 10, cursor: "pointer" }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ── Stick Figure Library Settings Panel ───────────────────────────────────────
 function StickFigureSettings({ T }) {
   const [clips, setClips]           = React.useState(null); // null = not loaded yet
@@ -564,9 +671,6 @@ function StickFigureSettings({ T }) {
   const [uploadLabel, setUploadLabel] = React.useState("");
   const [uploadKw, setUploadKw]     = React.useState("");
   const [showUpload, setShowUpload] = React.useState(false);
-  const [editingId, setEditingId]   = React.useState(null);
-  const [draftLabel, setDraftLabel] = React.useState("");
-  const [draftKw, setDraftKw]       = React.useState("");
   const fileRef = React.useRef(null);
 
   const load = () => {
@@ -601,36 +705,6 @@ function StickFigureSettings({ T }) {
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
-  };
-
-  const startEdit = (clip) => {
-    setEditingId(clip.id);
-    setDraftLabel(clip.label || "");
-    setDraftKw((clip.keywords || []).join(", "));
-  };
-
-  const saveEdit = async (id) => {
-    const kws = draftKw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-    try {
-      await updateStickFigure(id, { label: draftLabel.trim(), keywords: kws });
-      setClips(prev => prev.map(c => c.id === id ? { ...c, label: draftLabel.trim(), keywords: kws } : c));
-      setEditingId(null);
-    } catch { /* ignore */ }
-  };
-
-  const toggleEnabled = async (clip) => {
-    try {
-      await updateStickFigure(clip.id, { enabled: !clip.enabled });
-      setClips(prev => prev.map(c => c.id === clip.id ? { ...c, enabled: !c.enabled } : c));
-    } catch { /* ignore */ }
-  };
-
-  const doDelete = async (clip) => {
-    if (!window.confirm(`Remove "${clip.label || clip.filename}" from the catalogue?`)) return;
-    try {
-      await deleteStickFigure(clip.id, false);
-      setClips(prev => prev.filter(c => c.id !== clip.id));
-    } catch { /* ignore */ }
   };
 
   const enabled  = (clips || []).filter(c => c.enabled !== false).length;
@@ -741,90 +815,23 @@ function StickFigureSettings({ T }) {
           </div>
         )}
 
-        {/* Clip list */}
+        {/* Clip card grid */}
         {clips !== null && clips.length > 0 && (
-          <div style={{ maxHeight: 380, overflowY: "auto" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+            gap: 8,
+            maxHeight: 480,
+            overflowY: "auto",
+          }}>
             {clips.map(clip => (
-              <div
+              <SettingsClipCard
                 key={clip.id || clip.filename}
-                style={{
-                  padding: "8px 10px", borderRadius: 7, marginBottom: 4,
-                  background: T.bgSub, border: `1px solid ${T.border}`,
-                  opacity: clip.enabled === false ? 0.5 : 1,
-                }}
-              >
-                {editingId === clip.id ? (
-                  <div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
-                      <input
-                        value={draftLabel}
-                        onChange={e => setDraftLabel(e.target.value)}
-                        placeholder="Label"
-                        style={{
-                          background: T.inputBg, border: `1px solid ${T.accent}60`,
-                          borderRadius: 5, padding: "4px 7px", color: T.text,
-                          fontFamily: "inherit", fontSize: 11,
-                        }}
-                      />
-                      <input
-                        value={draftKw}
-                        onChange={e => setDraftKw(e.target.value)}
-                        placeholder="keywords, comma, separated"
-                        style={{
-                          background: T.inputBg, border: `1px solid ${T.accent}60`,
-                          borderRadius: 5, padding: "4px 7px", color: T.text,
-                          fontFamily: "inherit", fontSize: 11,
-                        }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => saveEdit(clip.id)} style={{
-                        padding: "3px 10px", borderRadius: 5, border: "none",
-                        background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit",
-                      }}>Save</button>
-                      <button onClick={() => setEditingId(null)} style={{
-                        padding: "3px 10px", borderRadius: 5,
-                        border: `1px solid ${T.border}`, background: "transparent",
-                        color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit",
-                      }}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>
-                        {clip.label || clip.filename}
-                      </div>
-                      <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>
-                        {clip.filename} · {clip.duration}s
-                        {clip.keywords?.length > 0 && (
-                          <span style={{ color: T.textFaint }}>
-                            {" · "}{clip.keywords.slice(0, 5).join(", ")}{clip.keywords.length > 5 ? "…" : ""}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      <button onClick={() => startEdit(clip)} style={{
-                        padding: "2px 8px", borderRadius: 4,
-                        border: `1px solid ${T.border}`, background: "transparent",
-                        color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit",
-                      }}>✎</button>
-                      <button onClick={() => toggleEnabled(clip)} style={{
-                        padding: "2px 8px", borderRadius: 4, border: "none",
-                        background: clip.enabled === false ? `${T.accentGreen}30` : `${T.accentRed}20`,
-                        color: clip.enabled === false ? T.accentGreen : T.accentRed,
-                        fontSize: 10, cursor: "pointer", fontFamily: "inherit",
-                      }}>{clip.enabled === false ? "Enable" : "Disable"}</button>
-                      <button onClick={() => doDelete(clip)} style={{
-                        padding: "2px 8px", borderRadius: 4,
-                        border: `1px solid ${T.accentRed}30`, background: "transparent",
-                        color: T.accentRed, fontSize: 10, cursor: "pointer", fontFamily: "inherit",
-                      }}>✕</button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                clip={clip}
+                onUpdated={updated => setClips(prev => prev.map(c => c.id === updated.id ? updated : c))}
+                onDeleted={id => setClips(prev => prev.filter(c => c.id !== id))}
+                T={T}
+              />
             ))}
           </div>
         )}

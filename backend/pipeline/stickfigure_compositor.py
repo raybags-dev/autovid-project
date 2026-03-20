@@ -246,11 +246,13 @@ def _apply_overlay(
         ov_label = "[1:v]"
 
     # Overlay with time enable
-    fmt = "format=auto" if has_alpha else "format=yuv420p"
+    # Always use format=auto — handles both native-alpha and chromakey alpha sources.
+    # Note: FFmpeg's overlay filter uses "yuv420" not "yuv420p" for its format option,
+    # so we rely on auto-selection to avoid codec negotiation errors.
     parts.append(
         f"[0:v]{ov_label}overlay=x={x}:y={y}"
         f":enable='between(t,{start_t},{end_t})'"
-        f":{fmt}[outv]"
+        f":format=auto[outv]"
     )
 
     filter_complex = ";".join(parts)
