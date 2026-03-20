@@ -2,7 +2,7 @@
 AutoVid — FastAPI Backend
 Main application entry point with all API routes.
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -51,6 +51,11 @@ from fastapi.staticfiles import StaticFiles as _SF
 import config as _cfg
 _cfg.VIDEOS_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/local-videos", _SF(directory=str(_cfg.VIDEOS_OUTPUT_DIR), html=False), name="local-videos")
+
+# Serve stick-figure asset clips for in-browser preview
+_STICK_FIGURE_DIR = _cfg.BASE_DIR / "stickFigureAssets"
+_STICK_FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/stickfigures-assets", _SF(directory=str(_STICK_FIGURE_DIR), html=False), name="stickfigures-assets")
 
 # CORS — must be added before any routes
 app.add_middleware(
@@ -2946,6 +2951,516 @@ async def admin_reply_comment(comment_id: str, body: BlogReplyIn, _u=Depends(ver
     }
     res = db_client.table("blog_comments").insert(row).execute()
     return res.data[0]
+
+
+# ── Stick-Figure Video Editor ─────────────────────────────────────────────────
+
+from pathlib import Path as _Path
+
+_STICKFIGURE_DDL = """
+CREATE TABLE IF NOT EXISTS stickfigure_clips (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    filename    TEXT NOT NULL UNIQUE,
+    label       TEXT NOT NULL,
+    keywords    TEXT[] DEFAULT '{}',
+    file_path   TEXT NOT NULL,
+    duration    FLOAT DEFAULT 0,
+    width       INTEGER DEFAULT 0,
+    height      INTEGER DEFAULT 0,
+    has_alpha   BOOLEAN DEFAULT FALSE,
+    has_audio   BOOLEAN DEFAULT FALSE,
+    enabled     BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sfclips_enabled ON stickfigure_clips(enabled);
+"""
+
+@app.post("/admin/migrate/stickfigure-clips")
+def migrate_stickfigure_clips(_u: str = Depends(verify_token)):
+    """
+    One-time migration: create the stickfigure_clips table in Supabase.
+    Safe to call multiple times (uses CREATE TABLE IF NOT EXISTS).
+    """
+    import re as _re
+    import urllib.request as _ur
+    import json as _json
+
+    # Derive project ref from SUPABASE_URL (https://<ref>.supabase.co)
+    match = _re.search(r"https://([^.]+)\.supabase\.co", config.SUPABASE_URL)
+    if not match:
+        raise HTTPException(500, f"Cannot parse project ref from SUPABASE_URL={config.SUPABASE_URL!r}")
+    project_ref = match.group(1)
+
+    url = f"https://api.supabase.com/v1/projects/{project_ref}/database/query"
+
+    # The Management API requires an access token (sbp_...).
+    # Fall back to using the service key which works for the SQL endpoint
+    # exposed directly on the project's REST URL.
+    payload = _json.dumps({"query": _STICKFIGURE_DDL}).encode()
+
+    # Try Management API first
+    req = _ur.Request(url, data=payload,
+                      headers={"Content-Type": "application/json",
+                               "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}"})
+    try:
+        with _ur.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode()
+            return {"ok": True, "method": "management_api", "response": body[:300]}
+    except Exception as mgmt_err:
+        pass  # fall through to direct approach
+
+    # Direct approach: use the supabase-py client with raw HTTP to the SQL endpoint
+    # Supabase exposes /rest/v1/rpc/exec_sql if the function exists; we use
+    # the admin REST endpoint instead which supabase-py v2 exposes.
+    try:
+        _client = db.get_client()
+        # supabase-py v2 exposes the underlying postgrest session
+        # Use it to POST raw SQL via the pg endpoint
+        inner = getattr(_client, "postgrest", None)
+        if inner is None:
+            raise RuntimeError("No postgrest attr on client")
+        # Try calling a helper RPC if user has created one
+        result = _client.rpc("exec_sql", {"sql": _STICKFIGURE_DDL}).execute()
+        return {"ok": True, "method": "rpc", "result": str(result)[:300]}
+    except Exception as rpc_err:
+        pass
+
+    raise HTTPException(
+        501,
+        "Automatic migration unavailable — please run this SQL once in your Supabase SQL Editor:\n\n"
+        + _STICKFIGURE_DDL
+    )
+
+# In-memory job tracking for composite operations
+_composite_jobs: dict = {}  # video_id → {"status": str, "message": str, "output_path": str}
+_composite_lock = _threading.Lock()
+
+
+class OverlayItem(BaseModel):
+    clip_path: str          # absolute server path
+    start_time: float       # seconds into base video
+    duration: Optional[float] = None
+    x: int = 0
+    y: int = 0
+    scale: float = 0.5
+    loop_mode: str = "none"  # none | full | last_1s | last_2s | last_3s
+    has_sound: bool = True
+
+
+class CompositeRequest(BaseModel):
+    overlays: list[OverlayItem]
+    mix_overlay_audio: bool = True
+    chroma_color: str = "0x00FF00"
+    chroma_similarity: float = 0.35
+    chroma_blend: float = 0.05
+    replace_original: bool = False  # if True, overwrite the video file
+
+
+class AutoCompositeRequest(BaseModel):
+    min_gap: float = 8.0
+    max_overlays: int = 8
+    mix_overlay_audio: bool = True
+    replace_original: bool = False
+
+
+@app.get("/stickfigures")
+def list_stickfigures(
+    enabled_only: bool = True,
+    _u: str = Depends(verify_token),
+):
+    """List all stick-figure clips from the DB (with filesystem fallback)."""
+    from pipeline.stickfigure_compositor import list_clips
+    clips = list_clips(enabled_only=enabled_only)
+    for c in clips:
+        c["preview_url"] = f"/stickfigures-assets/{c['filename']}"
+    return {"clips": clips, "total": len(clips)}
+
+
+@app.post("/stickfigures/seed")
+def seed_stickfigures(_u: str = Depends(verify_token)):
+    """
+    Populate the stickfigure_clips table from the files on disk + the built-in
+    keyword map.  Safe to call multiple times — uses upsert on filename.
+    Returns counts of inserted/updated records.
+    """
+    from pipeline.stickfigure_compositor import get_video_info
+    from pipeline.stickfigure_matcher import _SEED_KEYWORDS
+
+    upserted = 0
+    skipped  = 0
+    errors   = []
+
+    for filename, keywords in _SEED_KEYWORDS.items():
+        path = _STICK_FIGURE_DIR / filename
+        if not path.exists():
+            skipped += 1
+            continue
+        try:
+            info  = get_video_info(str(path))
+            label = filename.replace(".mp4", "").replace("_", " ").replace("-", " ").strip()
+            db.upsert_stickfigure_clip(
+                filename  = filename,
+                label     = label,
+                keywords  = [k.lower() for k in keywords],
+                file_path = str(path),
+                duration  = round(info["duration"], 2),
+                width     = info["width"],
+                height    = info["height"],
+                has_alpha = info["has_alpha"],
+                has_audio = info["has_audio"],
+            )
+            upserted += 1
+        except Exception as e:
+            errors.append(f"{filename}: {str(e)[:120]}")
+
+    # Also register any on-disk files NOT in the seed map
+    for path in sorted(_STICK_FIGURE_DIR.glob("*.mp4")):
+        if path.name in _SEED_KEYWORDS:
+            continue
+        try:
+            info  = get_video_info(str(path))
+            label = path.stem.replace("_", " ").replace("-", " ").strip()
+            db.upsert_stickfigure_clip(
+                filename  = path.name,
+                label     = label,
+                keywords  = [],
+                file_path = str(path),
+                duration  = round(info["duration"], 2),
+                width     = info["width"],
+                height    = info["height"],
+                has_alpha = info["has_alpha"],
+                has_audio = info["has_audio"],
+            )
+            upserted += 1
+        except Exception as e:
+            errors.append(f"{path.name}: {str(e)[:120]}")
+
+    return {"upserted": upserted, "skipped": skipped, "errors": errors}
+
+
+class StickFigureUpdate(BaseModel):
+    label:    Optional[str]       = None
+    keywords: Optional[list[str]] = None
+    enabled:  Optional[bool]      = None
+
+
+@app.patch("/stickfigures/{clip_id}")
+def update_stickfigure(clip_id: str, req: StickFigureUpdate, _u: str = Depends(verify_token)):
+    """Update label, keywords, or enabled flag for a clip."""
+    fields = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(400, "Nothing to update")
+    updated = db.update_stickfigure_clip(clip_id, **fields)
+    return updated
+
+
+@app.delete("/stickfigures/{clip_id}")
+def delete_stickfigure(
+    clip_id: str,
+    delete_file: bool = False,
+    _u: str = Depends(verify_token),
+):
+    """Remove a clip from the catalogue. Pass delete_file=true to also delete from disk."""
+    clip = db.get_stickfigure_clip(clip_id)
+    if not clip:
+        raise HTTPException(404, "Clip not found")
+    db.delete_stickfigure_clip(clip_id)
+    if delete_file:
+        try:
+            _Path(clip["file_path"]).unlink(missing_ok=True)
+        except Exception as e:
+            return {"ok": True, "file_deleted": False, "error": str(e)}
+    return {"ok": True, "file_deleted": delete_file}
+
+
+@app.post("/stickfigures/upload")
+async def upload_stickfigure(
+    file: UploadFile = File(...),
+    label: str = "",
+    keywords: str = "",   # comma-separated
+    _u: str = Depends(verify_token),
+):
+    """
+    Upload a new stick-figure clip (.mp4) and register it in the DB.
+    keywords: comma-separated trigger words, e.g. "joy,happy,smile"
+    """
+    from pipeline.stickfigure_compositor import get_video_info
+
+    if not file.filename.lower().endswith(".mp4"):
+        raise HTTPException(400, "Only .mp4 files are accepted")
+
+    # Sanitise filename
+    safe_name = _Path(file.filename).name
+    dest = _STICK_FIGURE_DIR / safe_name
+    if dest.exists():
+        raise HTTPException(409, f"A clip named {safe_name!r} already exists — rename or delete it first")
+
+    # Save the file
+    content = await file.read()
+    with open(dest, "wb") as f:
+        f.write(content)
+
+    # Probe
+    try:
+        info = get_video_info(str(dest))
+    except Exception:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(422, "Could not read video info — is the file a valid MP4?")
+
+    kw_list = [k.strip().lower() for k in keywords.split(",") if k.strip()]
+    display_label = label.strip() or _Path(safe_name).stem.replace("_", " ").replace("-", " ")
+
+    row = db.upsert_stickfigure_clip(
+        filename  = safe_name,
+        label     = display_label,
+        keywords  = kw_list,
+        file_path = str(dest),
+        duration  = round(info["duration"], 2),
+        width     = info["width"],
+        height    = info["height"],
+        has_alpha = info["has_alpha"],
+        has_audio = info["has_audio"],
+    )
+    row["preview_url"] = f"/stickfigures-assets/{safe_name}"
+    return row
+
+
+@app.post("/videos/{video_id}/composite")
+def start_composite(
+    video_id: str,
+    req: CompositeRequest,
+    background_tasks: BackgroundTasks,
+    _u: str = Depends(verify_token),
+):
+    """
+    Start an FFmpeg compositing job that overlays stick-figure clips onto the
+    video identified by video_id.  The job runs in the background; poll
+    GET /videos/{video_id}/composite-status for progress.
+    """
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+
+    file_path = video.get("file_path", "")
+    # Resolve local file
+    base_path = None
+    if file_path:
+        # Try as absolute or relative to VIDEOS_OUTPUT_DIR
+        candidate = _Path(file_path)
+        if not candidate.is_absolute():
+            candidate = _cfg.VIDEOS_OUTPUT_DIR / _Path(file_path).name
+        if candidate.exists():
+            base_path = str(candidate)
+
+    if not base_path:
+        raise HTTPException(400, "Video file not found on disk — ensure it has been generated")
+
+    # Validate overlay clip paths are inside stickFigureAssets
+    for ov in req.overlays:
+        ov_path = _Path(ov.clip_path)
+        try:
+            ov_path.relative_to(_STICK_FIGURE_DIR)
+        except ValueError:
+            raise HTTPException(400, f"Clip path must be inside stickFigureAssets: {ov.clip_path}")
+        if not ov_path.exists():
+            raise HTTPException(400, f"Clip not found: {ov.clip_path}")
+
+    with _composite_lock:
+        if _composite_jobs.get(video_id, {}).get("status") == "running":
+            raise HTTPException(409, "A composite job is already running for this video")
+        _composite_jobs[video_id] = {"status": "running", "message": "Starting…", "output_path": None}
+
+    overlays_data = [ov.model_dump() for ov in req.overlays]
+    mix_audio     = req.mix_overlay_audio
+    chroma_color  = req.chroma_color
+    chroma_sim    = req.chroma_similarity
+    chroma_blend  = req.chroma_blend
+    replace_orig  = req.replace_original
+
+    def _run():
+        from pipeline.stickfigure_compositor import composite_video
+        try:
+            stem    = _Path(base_path).stem
+            out_dir = _cfg.VIDEOS_OUTPUT_DIR
+            out_path = str(out_dir / f"{stem}_composited.mp4")
+
+            _composite_jobs[video_id]["message"] = f"Compositing {len(overlays_data)} overlay(s)…"
+            composite_video(
+                base_path=base_path,
+                overlays=overlays_data,
+                output_path=out_path,
+                mix_overlay_audio=mix_audio,
+                chroma_color=chroma_color,
+                chroma_similarity=chroma_sim,
+                chroma_blend=chroma_blend,
+            )
+
+            final_path = out_path
+            if replace_orig:
+                import shutil
+                shutil.move(out_path, base_path)
+                final_path = base_path
+
+            with _composite_lock:
+                _composite_jobs[video_id] = {
+                    "status": "done",
+                    "message": "Composite complete",
+                    "output_path": final_path,
+                    "file_path": _Path(final_path).name,
+                }
+        except Exception as exc:
+            with _composite_lock:
+                _composite_jobs[video_id] = {
+                    "status": "error",
+                    "message": str(exc)[:500],
+                    "output_path": None,
+                }
+
+    background_tasks.add_task(_run)
+    return {"status": "queued", "video_id": video_id}
+
+
+@app.get("/videos/{video_id}/composite-status")
+def composite_status(video_id: str, _u: str = Depends(verify_token)):
+    """Poll the status of a running or completed composite job."""
+    with _composite_lock:
+        job = _composite_jobs.get(video_id)
+    if not job:
+        return {"status": "idle"}
+    result = dict(job)
+    # Build a preview URL for the output if done
+    if result.get("status") == "done" and result.get("file_path"):
+        result["preview_url"] = f"/local-videos/{result['file_path']}"
+    return result
+
+
+@app.post("/videos/{video_id}/auto-composite")
+def auto_composite(
+    video_id: str,
+    req: AutoCompositeRequest,
+    background_tasks: BackgroundTasks,
+    _u: str = Depends(verify_token),
+):
+    """
+    Auto-insert stick-figure clips into a video based on its script text.
+    Uses keyword matching to select the most appropriate clip per sentence.
+    """
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+
+    script = video.get("script") or video.get("prompt") or ""
+    if not script:
+        raise HTTPException(400, "Video has no script — cannot auto-match stick figures")
+
+    file_path = video.get("file_path", "")
+    base_path = None
+    if file_path:
+        candidate = _Path(file_path)
+        if not candidate.is_absolute():
+            candidate = _cfg.VIDEOS_OUTPUT_DIR / _Path(file_path).name
+        if candidate.exists():
+            base_path = str(candidate)
+
+    if not base_path:
+        raise HTTPException(400, "Video file not found on disk")
+
+    duration = float(video.get("duration_seconds") or 60)
+    min_gap   = req.min_gap
+    max_ov    = req.max_overlays
+    mix_audio = req.mix_overlay_audio
+    replace   = req.replace_original
+
+    with _composite_lock:
+        if _composite_jobs.get(video_id, {}).get("status") == "running":
+            raise HTTPException(409, "A composite job is already running for this video")
+        _composite_jobs[video_id] = {"status": "running", "message": "Matching keywords…", "output_path": None}
+
+    def _run():
+        from pipeline.stickfigure_matcher import match_clips_to_script
+        from pipeline.stickfigure_compositor import composite_video
+        try:
+            overlays = match_clips_to_script(script, duration, min_gap=min_gap, max_overlays=max_ov)
+            if not overlays:
+                with _composite_lock:
+                    _composite_jobs[video_id] = {
+                        "status": "done",
+                        "message": "No keyword matches found — no overlays inserted",
+                        "output_path": base_path,
+                        "file_path": _Path(base_path).name,
+                        "matched": [],
+                    }
+                return
+
+            stem     = _Path(base_path).stem
+            out_path = str(_cfg.VIDEOS_OUTPUT_DIR / f"{stem}_composited.mp4")
+
+            _composite_jobs[video_id]["message"] = f"Compositing {len(overlays)} auto-matched overlay(s)…"
+            composite_video(
+                base_path=base_path,
+                overlays=overlays,
+                output_path=out_path,
+                mix_overlay_audio=mix_audio,
+            )
+
+            final_path = out_path
+            if replace:
+                import shutil
+                shutil.move(out_path, base_path)
+                final_path = base_path
+
+            with _composite_lock:
+                _composite_jobs[video_id] = {
+                    "status": "done",
+                    "message": f"Auto-composite complete — {len(overlays)} clip(s) inserted",
+                    "output_path": final_path,
+                    "file_path": _Path(final_path).name,
+                    "matched": [
+                        {"filename": o["filename"], "start_time": o["start_time"], "score": o["score"]}
+                        for o in overlays
+                    ],
+                }
+        except Exception as exc:
+            with _composite_lock:
+                _composite_jobs[video_id] = {
+                    "status": "error",
+                    "message": str(exc)[:500],
+                    "output_path": None,
+                }
+
+    background_tasks.add_task(_run)
+    return {"status": "queued", "video_id": video_id}
+
+
+@app.post("/videos/{video_id}/auto-composite/preview")
+def preview_auto_composite(
+    video_id: str,
+    req: AutoCompositeRequest,
+    _u: str = Depends(verify_token),
+):
+    """
+    Dry-run of the auto-composite: returns the list of clips that WOULD be
+    inserted without actually running FFmpeg.
+    """
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+
+    script   = video.get("script") or video.get("prompt") or ""
+    duration = float(video.get("duration_seconds") or 60)
+
+    from pipeline.stickfigure_matcher import match_clips_to_script
+    overlays = match_clips_to_script(
+        script, duration,
+        min_gap=req.min_gap,
+        max_overlays=req.max_overlays,
+    )
+    for o in overlays:
+        o["preview_url"] = f"/stickfigures-assets/{o['filename']}"
+    return {"overlays": overlays, "total": len(overlays)}
+
+
+# ── end Stick-Figure Video Editor ─────────────────────────────────────────────
 
 
 if __name__ == "__main__":

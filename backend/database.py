@@ -39,6 +39,25 @@ CREATE TABLE IF NOT EXISTS subscribers (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ─────────────────────────────────────────────────
+
+-- Stick-Figure Clip Catalogue (run once in Supabase SQL Editor)
+─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS stickfigure_clips (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    filename    TEXT NOT NULL UNIQUE,          -- e.g. "climbing.mp4"
+    label       TEXT NOT NULL,                 -- human display name
+    keywords    TEXT[] DEFAULT '{}',           -- trigger words for auto-match
+    file_path   TEXT NOT NULL,                 -- absolute server-side path
+    duration    FLOAT DEFAULT 0,
+    width       INTEGER DEFAULT 0,
+    height      INTEGER DEFAULT 0,
+    has_alpha   BOOLEAN DEFAULT FALSE,
+    has_audio   BOOLEAN DEFAULT FALSE,
+    enabled     BOOLEAN DEFAULT TRUE,          -- can be toggled off without deleting
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sfclips_enabled ON stickfigure_clips(enabled);
+─────────────────────────────────────────────────
 """
 import uuid
 from datetime import datetime, timezone
@@ -289,6 +308,65 @@ def list_archived_videos(limit: int = 200) -> list[dict]:
                 .limit(limit)
                 .execute())
     return result.data or []
+
+
+# ── Danger Zone ────────────────────────────────────────────────────────────────
+
+# ── Stick-Figure Clip Catalogue ───────────────────────────────────────────────
+
+def list_stickfigure_clips(enabled_only: bool = True) -> list[dict]:
+    db = get_client()
+    q = db.table("stickfigure_clips").select("*").order("label")
+    if enabled_only:
+        q = q.eq("enabled", True)
+    return q.execute().data or []
+
+
+def get_stickfigure_clip(clip_id: str) -> dict | None:
+    db = get_client()
+    r = db.table("stickfigure_clips").select("*").eq("id", clip_id).execute()
+    return r.data[0] if r.data else None
+
+
+def upsert_stickfigure_clip(
+    filename: str,
+    label: str,
+    keywords: list[str],
+    file_path: str,
+    duration: float = 0,
+    width: int = 0,
+    height: int = 0,
+    has_alpha: bool = False,
+    has_audio: bool = False,
+) -> dict:
+    """Insert or update a clip record, keyed on filename."""
+    db = get_client()
+    row = {
+        "filename":  filename,
+        "label":     label,
+        "keywords":  keywords,
+        "file_path": file_path,
+        "duration":  duration,
+        "width":     width,
+        "height":    height,
+        "has_alpha": has_alpha,
+        "has_audio": has_audio,
+        "enabled":   True,
+    }
+    r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
+    return r.data[0]
+
+
+def update_stickfigure_clip(clip_id: str, **fields) -> dict:
+    db = get_client()
+    r = db.table("stickfigure_clips").update(fields).eq("id", clip_id).execute()
+    return r.data[0] if r.data else {}
+
+
+def delete_stickfigure_clip(clip_id: str) -> bool:
+    db = get_client()
+    db.table("stickfigure_clips").delete().eq("id", clip_id).execute()
+    return True
 
 
 # ── Danger Zone ────────────────────────────────────────────────────────────────
