@@ -49,58 +49,147 @@ function clipSrc(clip) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Overlay video — shown on top of the main video during playback
+// Clip preview modal — plays a clip in a floating modal; main video is paused
+// ─────────────────────────────────────────────────────────────────────────────
+function ClipPreviewModal({ clip, onClose }) {
+  const videoRef = useRef(null);
+
+  // Mute via ref (React prop alone is unreliable for initial muted state)
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = false;
+    v.volume = 0.8;
+    v.play().catch(() => {});
+  }, []);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 19999,
+        background: "rgba(0,0,0,0.72)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#1a1d26", borderRadius: 14, padding: 18,
+          width: "min(520px, 90vw)", boxShadow: "0 24px 64px rgba(0,0,0,0.7)",
+          display: "flex", flexDirection: "column", gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "80%" }}>
+            {clip.label || clip.filename.replace(".mp4","").replace(/_/g," ")}
+          </span>
+          <button
+            onClick={onClose}
+            style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.1)", color: "#e2e8f0", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >✕</button>
+        </div>
+        <video
+          ref={videoRef}
+          src={clipSrc(clip)}
+          controls
+          playsInline
+          style={{ width: "100%", borderRadius: 8, background: "#000", maxHeight: "60vh" }}
+        />
+        <div style={{ fontSize: 10, color: "#64748b", textAlign: "center" }}>
+          Click outside or ✕ to close · Main video resumes on close
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Overlay video — shown centred on the main video during playback preview
+// Centred at 80 % width / full height of the parent container.
 // ─────────────────────────────────────────────────────────────────────────────
 function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
   const ref = useRef(null);
+  const prevActiveRef = useRef(false);
+
   const isActive = mainCurrentTime >= overlay.startTime &&
                    mainCurrentTime < overlay.startTime + overlay.duration;
-  const clipTime = mainCurrentTime - overlay.startTime;
+  const clipTime  = Math.max(0, mainCurrentTime - overlay.startTime);
 
+  // Force muted on mount
+  useEffect(() => {
+    if (ref.current) { ref.current.muted = true; ref.current.volume = 0; }
+  }, []);
+
+  // Sync play/pause/seek whenever active state or playing state changes
   useEffect(() => {
     const v = ref.current;
-    if (!v || !isActive) return;
-    v.muted = true;
-    // Resync if drift > 0.4 s
-    if (Math.abs(v.currentTime - clipTime) > 0.4) {
-      v.currentTime = Math.max(0, clipTime);
+    if (!v) return;
+
+    v.muted  = true;
+    v.volume = 0;
+
+    if (!isActive) {
+      if (!v.paused) v.pause();
+      if (prevActiveRef.current) { v.currentTime = 0; }
+      prevActiveRef.current = false;
+      return;
     }
-    if (isMainPlaying && v.paused) {
-      v.play().catch(() => {});
-    } else if (!isMainPlaying && !v.paused) {
-      v.pause();
+
+    // Just became active — seek to exact clip time first
+    if (!prevActiveRef.current) {
+      v.currentTime = clipTime;
+    } else {
+      // Correct drift > 0.5 s
+      if (Math.abs(v.currentTime - clipTime) > 0.5) {
+        v.currentTime = clipTime;
+      }
     }
-  });
+    prevActiveRef.current = true;
+
+    if (isMainPlaying) {
+      if (v.paused) {
+        v.play().catch(() => {
+          // Retry once — some browsers need the muted flag confirmed
+          v.muted = true;
+          v.play().catch(() => {});
+        });
+      }
+    } else {
+      if (!v.paused) v.pause();
+    }
+  }, [isActive, isMainPlaying, Math.floor(mainCurrentTime * 2)]);
 
   if (!isActive) return null;
 
   return (
     <video
       ref={ref}
+      key={overlay.id}
       src={overlay.previewUrl}
       muted
       playsInline
+      preload="auto"
       loop={overlay.loopMode === "full"}
       style={{
         position: "absolute",
-        left:  `${Math.min((overlay.x / 1920) * 100, 85)}%`,
-        top:   `${Math.min((overlay.y / 1080) * 100, 80)}%`,
-        width: `${Math.max(8, overlay.scale * 22)}%`,
+        top: 0,
+        left: "10%",
+        width: "80%",
+        height: "100%",
+        objectFit: "contain",
         pointerEvents: "none",
         zIndex: 5,
-        opacity: 0.9,
-        borderRadius: 4,
-        boxShadow: "0 0 0 2px rgba(255,255,255,0.4)",
-        background: "transparent",
+        opacity: 0.88,
       }}
     />
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ClipCard — shows clip info + loop mode; clicking Play previews in main area
+// ClipCard — shows clip info + loop mode; ▶ opens a preview modal
 // ─────────────────────────────────────────────────────────────────────────────
-function ClipCard({ clip, onAdd, onPreview, onUpdated, onDeleted, isPreviewActive, T }) {
+function ClipCard({ clip, onAdd, onPreview, onUpdated, onDeleted, T }) {
   const [loopMode,   setLoopMode]   = useState("none");
   const [editing,    setEditing]    = useState(false);
   const [hovered,    setHovered]    = useState(false);
@@ -174,7 +263,7 @@ function ClipCard({ clip, onAdd, onPreview, onUpdated, onDeleted, isPreviewActiv
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        border:`1px solid ${isPreviewActive ? T.accentGreen : hovered ? T.accent : T.border}`,
+        border:`1px solid ${hovered ? T.accent : T.border}`,
         borderRadius:8, background:T.bgCard, transition:"border-color 0.15s",
         opacity: clip.enabled === false ? 0.45 : 1,
         padding: "8px",
@@ -184,26 +273,23 @@ function ClipCard({ clip, onAdd, onPreview, onUpdated, onDeleted, isPreviewActiv
       {/* Label row */}
       <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6 }}>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:10, color: isPreviewActive ? T.accentGreen : T.text, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-            {isPreviewActive ? "▶ " : ""}{label}
+          <div style={{ fontSize:10, color:T.text, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            {label}
           </div>
           <div style={{ fontSize:9, color:T.textDim, marginTop:1 }}>
             {clip.duration ? `${clip.duration}s` : "?"} · {clip.has_alpha ? "α-ch" : "chroma"}
           </div>
         </div>
-        {/* Preview in main area button */}
+        {/* ▶ opens modal preview */}
         <button
-          onClick={e => { e.stopPropagation(); onPreview(isPreviewActive ? null : clip); }}
-          title={isPreviewActive ? "Stop previewing" : "Preview this clip in the main video area"}
+          onClick={e => { e.stopPropagation(); onPreview(clip); }}
+          title="Preview this clip"
           style={{
             width:28, height:28, borderRadius:"50%", border:"none", flexShrink:0,
-            background: isPreviewActive ? T.accentGreen : `${T.accent}30`,
-            color: isPreviewActive ? "#fff" : T.accent,
+            background:`${T.accent}30`, color:T.accent,
             fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
           }}
-        >
-          {isPreviewActive ? "⏹" : "▶"}
-        </button>
+        >▶</button>
         {hovered && clip.id && (
           <button onClick={e => { e.stopPropagation(); setEditing(true); }}
             style={{ width:24, height:24, borderRadius:4, border:"none", background:`${T.border}80`, color:T.textDim, fontSize:10, cursor:"pointer", flexShrink:0 }}>✎</button>
@@ -388,8 +474,8 @@ export default function VideoEditor({ video, onClose, T }) {
   const [overlays,   setOverlays]   = useState([]);
   const [selectedId, setSelectedId] = useState(null);
 
-  // Clip being previewed in the main video area
-  const [previewClip, setPreviewClip] = useState(null);
+  // Clip preview modal
+  const [modalClip, setModalClip] = useState(null);
 
   // Main video playback tracking (for real-time overlay preview)
   const [mainCurrentTime, setMainCurrentTime] = useState(0);
@@ -412,7 +498,6 @@ export default function VideoEditor({ video, onClose, T }) {
 
   const pollRef      = useRef(null);
   const mainVideoRef = useRef(null);
-  const previewVideoRef = useRef(null);
   const [videoDuration, setVideoDuration] = useState(video?.duration_seconds || 60);
 
   const loadClips = useCallback(() => {
@@ -425,13 +510,20 @@ export default function VideoEditor({ video, onClose, T }) {
 
   useEffect(() => { loadClips(); }, [loadClips]);
 
-  // Fix muted on preview video
-  useEffect(() => {
-    if (previewVideoRef.current) {
-      previewVideoRef.current.muted = true;
-      previewVideoRef.current.volume = 0;
+  // Open modal: pause main video. Close modal: resume if it was playing.
+  const openModal = useCallback((clip) => {
+    if (mainVideoRef.current && !mainVideoRef.current.paused) {
+      mainVideoRef.current.pause();
     }
-  }, [previewClip]);
+    setModalClip(clip);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalClip(null);
+    if (mainVideoRef.current) {
+      mainVideoRef.current.play().catch(() => {});
+    }
+  }, []);
 
   // Poll composite job
   useEffect(() => {
@@ -503,8 +595,7 @@ export default function VideoEditor({ video, onClose, T }) {
     };
     setOverlays(prev => [...prev, newOv]);
     setSelectedId(newOv.id);
-    // Clear clip preview and seek main video
-    setPreviewClip(null);
+    setModalClip(null); // close preview modal if open
     if (v) {
       v.currentTime = newOv.startTime;
       if (v.paused) v.play().catch(() => {});
@@ -532,7 +623,7 @@ export default function VideoEditor({ video, onClose, T }) {
   const handleApply = async () => {
     if (overlays.length === 0 || jobStatus === "running") return;
     setJobStatus("running"); setJobMsg("Starting composite…");
-    setResultUrl(null); setFinalized(false); setPreviewClip(null);
+    setResultUrl(null); setFinalized(false); setModalClip(null);
     try {
       await startComposite(video.id, buildPayload(), {
         mixAudio, chromaColor: chromaColor.replace("#","0x"), chromaSimilarity: chromaSim,
@@ -607,8 +698,7 @@ export default function VideoEditor({ video, onClose, T }) {
   };
 
   const compositeReady = jobStatus === "done" && resultUrl;
-  // When composite is done, show the composited result; when previewing a clip show the clip; otherwise show original
-  const mainVideoUrl = previewClip ? clipSrc(previewClip) : (resultUrl || getVideoUrl());
+  const mainVideoUrl = resultUrl || getVideoUrl();
   const disabledCount = clips.filter(c => c.enabled === false).length;
 
   const downloadFilename = resultUrl
@@ -630,9 +720,9 @@ export default function VideoEditor({ video, onClose, T }) {
           <span style={{ fontSize:11, color:T.textDim, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
             {video?.title || video?.prompt?.slice(0,60) || video?.id}
           </span>
-          {previewClip && (
-            <span style={{ fontSize:11, color:T.accentGreen, background:`${T.accentGreen}18`, padding:"2px 8px", borderRadius:10, whiteSpace:"nowrap" }}>
-              ▶ Previewing: {previewClip.label || previewClip.filename.replace(".mp4","")}
+          {modalClip && (
+            <span style={{ fontSize:11, color:T.accentYellow, background:`${T.accentYellow}18`, padding:"2px 8px", borderRadius:10, whiteSpace:"nowrap" }}>
+              ⏸ Paused · previewing clip
             </span>
           )}
         </div>
@@ -746,10 +836,9 @@ export default function VideoEditor({ video, onClose, T }) {
                   key={c.id || c.filename}
                   clip={c}
                   onAdd={addClip}
-                  onPreview={clip => setPreviewClip(clip)}
+                  onPreview={openModal}
                   onUpdated={u => setClips(prev => prev.map(x => x.id === u.id ? u : x))}
                   onDeleted={id => setClips(prev => prev.filter(x => x.id !== id))}
-                  isPreviewActive={previewClip?.filename === c.filename}
                   T={T}
                 />
               ))
@@ -769,19 +858,18 @@ export default function VideoEditor({ video, onClose, T }) {
             {mainVideoUrl ? (
               <>
                 <video
-                  ref={previewClip ? previewVideoRef : mainVideoRef}
+                  ref={mainVideoRef}
                   key={mainVideoUrl}
                   src={mainVideoUrl}
                   controls
-                  muted={!!previewClip}
                   style={{ maxWidth:"100%", maxHeight:"100%", outline:"none" }}
-                  onLoadedMetadata={e => { if (!previewClip) setVideoDuration(e.target.duration); }}
-                  onTimeUpdate={e => { if (!previewClip) setMainCurrentTime(e.target.currentTime); }}
-                  onPlay={() => { if (!previewClip) setIsMainPlaying(true); }}
-                  onPause={() => { if (!previewClip) setIsMainPlaying(false); }}
+                  onLoadedMetadata={e => setVideoDuration(e.target.duration)}
+                  onTimeUpdate={e => setMainCurrentTime(e.target.currentTime)}
+                  onPlay={() => setIsMainPlaying(true)}
+                  onPause={() => setIsMainPlaying(false)}
                 />
-                {/* Real-time overlay preview videos */}
-                {!previewClip && !resultUrl && overlays.map(ov => (
+                {/* Real-time overlay preview videos (hidden when showing composite result) */}
+                {!resultUrl && overlays.map(ov => (
                   <OverlayVideo
                     key={ov.id}
                     overlay={ov}
@@ -789,27 +877,12 @@ export default function VideoEditor({ video, onClose, T }) {
                     isMainPlaying={isMainPlaying}
                   />
                 ))}
-                {/* Preview mode indicator */}
-                {previewClip && (
-                  <button
-                    onClick={() => setPreviewClip(null)}
-                    style={{
-                      position:"absolute", top:10, left:10,
-                      padding:"5px 12px", borderRadius:6, border:"none",
-                      background:"rgba(0,0,0,0.7)", color:"#fff", fontSize:11,
-                      cursor:"pointer", zIndex:10,
-                    }}
-                  >
-                    ✕ Stop Preview
-                  </button>
-                )}
                 {/* Overlay count badge */}
-                {!previewClip && overlays.length > 0 && (
+                {overlays.length > 0 && !resultUrl && (
                   <div style={{ position:"absolute", top:10, right:10, background:`${T.accent}cc`, color:"#fff", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:10 }}>
                     {overlays.length} overlay{overlays.length !== 1 ? "s" : ""} queued
                   </div>
                 )}
-                {/* Composite ready indicator */}
                 {resultUrl && !finalized && (
                   <div style={{ position:"absolute", top:10, right:10, background:`${T.accentGreen}cc`, color:"#fff", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:10 }}>
                     ✓ Composite preview
@@ -1022,6 +1095,10 @@ export default function VideoEditor({ video, onClose, T }) {
         </div>
 
       </div>
+
+      {/* ── Clip preview modal ── */}
+      {modalClip && <ClipPreviewModal clip={modalClip} onClose={closeModal} />}
+
     </div>
   );
 }
