@@ -52,17 +52,6 @@ function clipSrc(clip) {
 // Clip preview modal — plays a clip in a floating modal; main video is paused
 // ─────────────────────────────────────────────────────────────────────────────
 function ClipPreviewModal({ clip, onClose }) {
-  const videoRef = useRef(null);
-
-  // Mute via ref (React prop alone is unreliable for initial muted state)
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = false;
-    v.volume = 0.8;
-    v.play().catch(() => {});
-  }, []);
-
   return (
     <div
       onClick={onClose}
@@ -90,8 +79,9 @@ function ClipPreviewModal({ clip, onClose }) {
           >✕</button>
         </div>
         <video
-          ref={videoRef}
+          key={clipSrc(clip)}
           src={clipSrc(clip)}
+          autoPlay
           controls
           playsInline
           style={{ width: "100%", borderRadius: 8, background: "#000", maxHeight: "60vh" }}
