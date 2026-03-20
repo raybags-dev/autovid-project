@@ -191,6 +191,11 @@ export const getCompositeStatus = async (videoId) => {
   return data;
 };
 
+export const finalizeComposite = async (videoId) => {
+  const { data } = await api.post(`/videos/${videoId}/composite-finalize`);
+  return data;
+};
+
 export const startAutoComposite = async (videoId, options = {}) => {
   const { data } = await api.post(`/videos/${videoId}/auto-composite`, {
     min_gap: options.minGap ?? 8,
