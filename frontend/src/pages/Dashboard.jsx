@@ -438,7 +438,15 @@ function VideoEditorTab({ videos, initialVideo, onInitialConsumed, T }) {
     }
   }, [initialVideo]);
 
-  const eligible = videos.filter(v => v.file_path);
+  // Exclude shorts (portrait resolution like 1080x1920) and videos without a file
+  const eligible = videos.filter(v => {
+    if (!v.file_path) return false;
+    if (v.resolution) {
+      const [w, h] = v.resolution.split("x").map(Number);
+      if (w > 0 && h > 0 && h > w) return false; // portrait = short
+    }
+    return true;
+  });
 
   const filtered = eligible.filter(v => {
     if (!search) return true;
@@ -450,16 +458,14 @@ function VideoEditorTab({ videos, initialVideo, onInitialConsumed, T }) {
   });
 
   if (selectedVideo) {
-    // Negative margin cancels the 24px padding of the .content-area container
-    // so the VideoEditor can fill the full available viewport space.
+    // VideoEditor uses position:fixed so it covers the full viewport including
+    // the sidebar. No wrapper needed.
     return (
-      <div style={{ margin: "-24px" }}>
-        <VideoEditor
-          video={selectedVideo}
-          onClose={() => setSelectedVideo(null)}
-          T={T}
-        />
-      </div>
+      <VideoEditor
+        video={selectedVideo}
+        onClose={() => setSelectedVideo(null)}
+        T={T}
+      />
     );
   }
 
@@ -566,6 +572,11 @@ function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
   const [draftLabel, setDraftLabel] = useState(clip.label || "");
   const [draftKw, setDraftKw] = useState((clip.keywords || []).join(", "));
   const [saving, setSaving] = useState(false);
+
+  // React doesn't reliably pass `muted` to the DOM — set via ref
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = true;
+  }, []);
 
   const enter = () => {
     setHovered(true);
