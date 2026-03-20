@@ -450,12 +450,16 @@ function VideoEditorTab({ videos, initialVideo, onInitialConsumed, T }) {
   });
 
   if (selectedVideo) {
+    // Negative margin cancels the 24px padding of the .content-area container
+    // so the VideoEditor can fill the full available viewport space.
     return (
-      <VideoEditor
-        video={selectedVideo}
-        onClose={() => setSelectedVideo(null)}
-        T={T}
-      />
+      <div style={{ margin: "-24px" }}>
+        <VideoEditor
+          video={selectedVideo}
+          onClose={() => setSelectedVideo(null)}
+          T={T}
+        />
+      </div>
     );
   }
 
