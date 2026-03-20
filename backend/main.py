@@ -3331,7 +3331,9 @@ def start_composite(
 
     base_path = _resolve_video_file(video.get("file_path", ""), video_id)
 
-    # Validate overlay clip paths are inside stickFigureAssets
+    # Validate overlay clip paths — skip missing files with a warning instead of hard-failing
+    valid_overlays = []
+    skipped = []
     for ov in req.overlays:
         ov_path = _Path(ov.clip_path)
         try:
@@ -3339,7 +3341,11 @@ def start_composite(
         except ValueError:
             raise HTTPException(400, f"Clip path must be inside stickFigureAssets: {ov.clip_path}")
         if not ov_path.exists():
-            raise HTTPException(400, f"Clip not found: {ov.clip_path}")
+            print(f"⚠️  Clip not found (skipping): {ov.clip_path}")
+            skipped.append(_Path(ov.clip_path).name)
+        else:
+            valid_overlays.append(ov)
+    req = req.model_copy(update={"overlays": valid_overlays})
 
     with _composite_lock:
         if _composite_jobs.get(video_id, {}).get("status") == "running":
@@ -3374,6 +3380,8 @@ def start_composite(
             out_path = str(out_dir / f"{stem}_composited.mp4")
 
             _log(f"Base video: {_Path(base_path).name}")
+            if skipped:
+                _log(f"⚠ {len(skipped)} clip(s) skipped (file not on server): {', '.join(skipped)}")
             _log(f"Overlays: {len(overlays_data)} clip(s) queued")
             _log(f"FFmpeg compositing started — single pass for all {len(overlays_data)} overlay(s)…")
             _composite_jobs[video_id]["message"] = f"Compositing {len(overlays_data)} overlay(s)…"
@@ -3424,7 +3432,7 @@ def start_composite(
                 db.update_video(new_video_id,
                     title=new_title,
                     file_path=supabase_url,
-                    status="done",
+                    status="ready",
                     duration_seconds=orig_duration,
                     description=f"Composited version of: {orig_title}",
                 )
@@ -3597,7 +3605,7 @@ def auto_composite(
                 db.update_video(new_video_id,
                     title=new_title,
                     file_path=supabase_url,
-                    status="done",
+                    status="ready",
                     duration_seconds=orig_duration,
                     description=f"Composited version of: {orig_title}",
                 )
