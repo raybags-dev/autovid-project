@@ -2964,6 +2964,7 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
     label       TEXT NOT NULL,
     keywords    TEXT[] DEFAULT '{}',
     file_path   TEXT NOT NULL,
+    public_url  TEXT DEFAULT '',
     duration    FLOAT DEFAULT 0,
     width       INTEGER DEFAULT 0,
     height      INTEGER DEFAULT 0,
@@ -2973,6 +2974,7 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_sfclips_enabled ON stickfigure_clips(enabled);
+ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS public_url TEXT DEFAULT '';
 """
 
 @app.post("/admin/migrate/stickfigure-clips")
@@ -3109,7 +3111,8 @@ def list_stickfigures(
     from pipeline.stickfigure_compositor import list_clips
     clips = list_clips(enabled_only=enabled_only)
     for c in clips:
-        c["preview_url"] = f"/stickfigures-assets/{c['filename']}"
+        # Prefer the Supabase public URL; fall back to nginx-proxied local path
+        c["preview_url"] = c.get("public_url") or f"/stickfigures-assets/{c['filename']}"
     return {"clips": clips, "total": len(clips)}
 
 
@@ -3127,6 +3130,8 @@ def seed_stickfigures(_u: str = Depends(verify_token)):
     skipped  = 0
     errors   = []
 
+    from pipeline.storage import upload_clip_to_storage
+
     for filename, keywords in _SEED_KEYWORDS.items():
         path = _STICK_FIGURE_DIR / filename
         if not path.exists():
@@ -3135,16 +3140,22 @@ def seed_stickfigures(_u: str = Depends(verify_token)):
         try:
             info  = get_video_info(str(path))
             label = filename.replace(".mp4", "").replace("_", " ").replace("-", " ").strip()
+            try:
+                public_url = upload_clip_to_storage(str(path), filename)
+            except Exception as e:
+                public_url = ""
+                errors.append(f"storage/{filename}: {str(e)[:80]}")
             db.upsert_stickfigure_clip(
-                filename  = filename,
-                label     = label,
-                keywords  = [k.lower() for k in keywords],
-                file_path = str(path),
-                duration  = round(info["duration"], 2),
-                width     = info["width"],
-                height    = info["height"],
-                has_alpha = info["has_alpha"],
-                has_audio = info["has_audio"],
+                filename   = filename,
+                label      = label,
+                keywords   = [k.lower() for k in keywords],
+                file_path  = str(path),
+                duration   = round(info["duration"], 2),
+                width      = info["width"],
+                height     = info["height"],
+                has_alpha  = info["has_alpha"],
+                has_audio  = info["has_audio"],
+                public_url = public_url,
             )
             upserted += 1
         except Exception as e:
@@ -3157,22 +3168,55 @@ def seed_stickfigures(_u: str = Depends(verify_token)):
         try:
             info  = get_video_info(str(path))
             label = path.stem.replace("_", " ").replace("-", " ").strip()
+            try:
+                public_url = upload_clip_to_storage(str(path), path.name)
+            except Exception as e:
+                public_url = ""
+                errors.append(f"storage/{path.name}: {str(e)[:80]}")
             db.upsert_stickfigure_clip(
-                filename  = path.name,
-                label     = label,
-                keywords  = [],
-                file_path = str(path),
-                duration  = round(info["duration"], 2),
-                width     = info["width"],
-                height    = info["height"],
-                has_alpha = info["has_alpha"],
-                has_audio = info["has_audio"],
+                filename   = path.name,
+                label      = label,
+                keywords   = [],
+                file_path  = str(path),
+                duration   = round(info["duration"], 2),
+                width      = info["width"],
+                height     = info["height"],
+                has_alpha  = info["has_alpha"],
+                has_audio  = info["has_audio"],
+                public_url = public_url,
             )
             upserted += 1
         except Exception as e:
             errors.append(f"{path.name}: {str(e)[:120]}")
 
     return {"upserted": upserted, "skipped": skipped, "errors": errors}
+
+
+@app.post("/stickfigures/sync-storage")
+def sync_stickfigures_storage(_u: str = Depends(verify_token)):
+    """
+    Upload all stick-figure clips (that don't yet have a Supabase public_url)
+    to the 'stickfigures' storage bucket and save the URL back to the DB.
+    Safe to call multiple times — skips clips already uploaded.
+    """
+    from pipeline.storage import upload_clip_to_storage
+    clips = db.list_stickfigure_clips(enabled_only=False)
+    uploaded, skipped, errors = 0, 0, []
+    for clip in clips:
+        if clip.get("public_url"):
+            skipped += 1
+            continue
+        local = _Path(clip["file_path"])
+        if not local.exists():
+            errors.append(f"{clip['filename']}: file not found at {clip['file_path']}")
+            continue
+        try:
+            public_url = upload_clip_to_storage(str(local), clip["filename"])
+            db.update_stickfigure_clip(clip["id"], public_url=public_url)
+            uploaded += 1
+        except Exception as e:
+            errors.append(f"{clip['filename']}: {str(e)[:120]}")
+    return {"uploaded": uploaded, "skipped_already_uploaded": skipped, "errors": errors}
 
 
 class StickFigureUpdate(BaseModel):
@@ -3247,18 +3291,26 @@ async def upload_stickfigure(
     kw_list = [k.strip().lower() for k in keywords.split(",") if k.strip()]
     display_label = label.strip() or _Path(safe_name).stem.replace("_", " ").replace("-", " ")
 
+    try:
+        from pipeline.storage import upload_clip_to_storage
+        public_url = upload_clip_to_storage(str(dest), safe_name)
+    except Exception as _ue:
+        public_url = ""
+        print(f"⚠️  Clip storage upload failed: {_ue}")
+
     row = db.upsert_stickfigure_clip(
-        filename  = safe_name,
-        label     = display_label,
-        keywords  = kw_list,
-        file_path = str(dest),
-        duration  = round(info["duration"], 2),
-        width     = info["width"],
-        height    = info["height"],
-        has_alpha = info["has_alpha"],
-        has_audio = info["has_audio"],
+        filename   = safe_name,
+        label      = display_label,
+        keywords   = kw_list,
+        file_path  = str(dest),
+        duration   = round(info["duration"], 2),
+        width      = info["width"],
+        height     = info["height"],
+        has_alpha  = info["has_alpha"],
+        has_audio  = info["has_audio"],
+        public_url = public_url,
     )
-    row["preview_url"] = f"/stickfigures-assets/{safe_name}"
+    row["preview_url"] = public_url or f"/stickfigures-assets/{safe_name}"
     return row
 
 
