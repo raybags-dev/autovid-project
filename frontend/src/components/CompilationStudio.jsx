@@ -48,7 +48,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
   const pollRef = useRef(null);
 
   const readyVideos = videos.filter(
-    (v) => ["ready", "posted", "failed"].includes(v.status) && v.file_path,
+    (v) =>
+      ["ready", "posted", "failed"].includes(v.status) &&
+      v.file_path &&
+      !v.file_path.toLowerCase().endsWith(".mp3") &&
+      !(v.labels || []).includes("mp3") &&
+      v.resolution !== "podcast",
   );
 
   useEffect(() => {

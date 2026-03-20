@@ -340,20 +340,22 @@ def upsert_stickfigure_clip(
     height: int = 0,
     has_alpha: bool = False,
     has_audio: bool = False,
+    public_url: str = "",
 ) -> dict:
     """Insert or update a clip record, keyed on filename."""
     db = get_client()
     row = {
-        "filename":  filename,
-        "label":     label,
-        "keywords":  keywords,
-        "file_path": file_path,
-        "duration":  duration,
-        "width":     width,
-        "height":    height,
-        "has_alpha": has_alpha,
-        "has_audio": has_audio,
-        "enabled":   True,
+        "filename":   filename,
+        "label":      label,
+        "keywords":   keywords,
+        "file_path":  file_path,
+        "duration":   duration,
+        "width":      width,
+        "height":     height,
+        "has_alpha":  has_alpha,
+        "has_audio":  has_audio,
+        "enabled":    True,
+        "public_url": public_url,
     }
     r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
     return r.data[0]
