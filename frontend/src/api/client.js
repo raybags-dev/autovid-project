@@ -156,7 +156,6 @@ export const uploadStickFigure = async (file, label = "", keywords = "") => {
   form.append("label", label);
   form.append("keywords", keywords);
   const { data } = await api.post("/stickfigures/upload", form, {
-    headers: { "Content-Type": "multipart/form-data" },
     timeout: 120000,
   });
   return data;
