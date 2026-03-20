@@ -471,11 +471,15 @@ export default function VideoEditor({ video, onClose, T }) {
   const [mainCurrentTime, setMainCurrentTime] = useState(0);
   const [isMainPlaying,   setIsMainPlaying]   = useState(false);
 
-  const [jobStatus,  setJobStatus]  = useState(null);
-  const [jobMsg,     setJobMsg]     = useState("");
-  const [resultUrl,  setResultUrl]  = useState(null);
-  const [finalizing, setFinalizing] = useState(false);
-  const [finalized,  setFinalized]  = useState(false);
+  const [jobStatus,    setJobStatus]    = useState(null);
+  const [jobMsg,       setJobMsg]       = useState("");
+  const [resultUrl,    setResultUrl]    = useState(null);
+  const [finalizing,   setFinalizing]   = useState(false);
+  const [finalized,    setFinalized]    = useState(false);
+  const [jobLogs,      setJobLogs]      = useState([]);
+  const [showLogs,     setShowLogs]     = useState(false);
+  const [newVideoId,   setNewVideoId]   = useState(null);
+  const logsEndRef = useRef(null);
 
   const [autoPreview,      setAutoPreview]      = useState(null);
   const [autoLoading,      setAutoLoading]      = useState(false);
@@ -515,16 +519,24 @@ export default function VideoEditor({ video, onClose, T }) {
     }
   }, []);
 
+  // Auto-scroll logs to bottom
+  useEffect(() => {
+    if (showLogs && logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [jobLogs, showLogs]);
+
   // Poll composite job
   useEffect(() => {
     if (jobStatus !== "running") { clearInterval(pollRef.current); return; }
+    setShowLogs(true);
     pollRef.current = setInterval(async () => {
       try {
         const s = await getCompositeStatus(video.id);
+        if (s.logs?.length) setJobLogs(s.logs);
         if (s.status === "done") {
           setJobStatus("done");
-          setJobMsg("Composite ready — choose an action");
+          setJobMsg(s.new_video_id ? "✓ Composite saved as new video" : "Composite ready");
           setResultUrl(s.preview_url || null);
+          if (s.new_video_id) setNewVideoId(s.new_video_id);
           clearInterval(pollRef.current);
         } else if (s.status === "error") {
           setJobStatus("error");
@@ -637,7 +649,7 @@ export default function VideoEditor({ video, onClose, T }) {
     setFinalizing(false);
   };
 
-  const handleDiscard = () => { setResultUrl(null); setJobStatus(null); setJobMsg(""); setFinalized(false); };
+  const handleDiscard = () => { setResultUrl(null); setJobStatus(null); setJobMsg(""); setFinalized(false); setJobLogs([]); setNewVideoId(null); setShowLogs(false); };
 
   const handleAutoPreview = async () => {
     setAutoLoading(true); setAutoPreview(null); setZeroMatchConfirm(false);
@@ -718,23 +730,28 @@ export default function VideoEditor({ video, onClose, T }) {
         </div>
 
         <div style={{ display:"flex", gap:7, alignItems:"center", flexShrink:0, flexWrap:"wrap" }}>
-          {jobStatus === "running" && <span style={{ fontSize:11, color:T.accentYellow }}>⏳ {jobMsg}</span>}
-          {jobStatus === "error"   && <span style={{ fontSize:11, color:T.accentRed, maxWidth:260, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>✕ {jobMsg}</span>}
+          {jobStatus === "running" && (
+            <button onClick={() => setShowLogs(v => !v)} style={{ background:"transparent", border:"none", cursor:"pointer", padding:0 }}>
+              <span style={{ fontSize:11, color:T.accentYellow }}>⏳ {jobMsg} {showLogs ? "▲" : "▼"}</span>
+            </button>
+          )}
+          {jobStatus === "error" && <span style={{ fontSize:11, color:T.accentRed, maxWidth:260, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>✕ {jobMsg}</span>}
 
-          {compositeReady && !finalized && (
+          {compositeReady && newVideoId && (
+            <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>💾 Saved as new video</span>
+          )}
+          {compositeReady && !newVideoId && !finalized && (
             <>
               <button onClick={handleFinalize} disabled={finalizing}
                 style={{ padding:"5px 12px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:700, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit" }}>
-                {finalizing ? "Saving…" : "💾 Save & Replace Original"}
+                {finalizing ? "Saving…" : "💾 Replace Original"}
               </button>
-              <a href={resultUrl} download={downloadFilename}
-                style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                📥 Download .mp4
-              </a>
-              <button onClick={handleDiscard}
-                style={{ padding:"5px 10px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:"transparent", color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-                🗑 Discard (Keep Original)
-              </button>
+              {resultUrl && (
+                <a href={resultUrl} download={downloadFilename}
+                  style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  📥 Download
+                </a>
+              )}
             </>
           )}
           {finalized && <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>💾 Saved</span>}
@@ -891,24 +908,53 @@ export default function VideoEditor({ video, onClose, T }) {
             borderTop:`1px solid ${T.border}`,
           }}>
 
-            {/* Save bar — always shown when composite is ready */}
+            {/* Live logs panel — shown when running or after, collapsible */}
+            {(jobStatus === "running" || (jobLogs.length > 0 && jobStatus !== null)) && (
+              <div style={{ flexShrink:0, borderBottom:`1px solid ${T.border}`, background:T.bgDeep }}>
+                <button
+                  onClick={() => setShowLogs(v => !v)}
+                  style={{ width:"100%", padding:"5px 14px", display:"flex", alignItems:"center", gap:8, background:"transparent", border:"none", cursor:"pointer", color:T.textDim, fontSize:10, fontFamily:"inherit", textAlign:"left" }}
+                >
+                  <span style={{ fontFamily:"monospace", fontSize:11, color: jobStatus === "running" ? T.accentYellow : T.accentGreen }}>
+                    {jobStatus === "running" ? "⏳" : "✓"} {jobMsg}
+                  </span>
+                  <span style={{ marginLeft:"auto", fontSize:10, color:T.textFaint }}>{showLogs ? "▲ hide logs" : "▼ show logs"}</span>
+                </button>
+                {showLogs && (
+                  <div style={{ maxHeight:120, overflowY:"auto", padding:"4px 14px 8px", fontFamily:"monospace", fontSize:10, color:T.textDim, lineHeight:1.6 }}>
+                    {jobLogs.map((l, i) => (
+                      <div key={i} style={{ color: l.includes("⚠") ? T.accentYellow : l.includes("Saved") || l.includes("done") || l.includes("Uploaded") ? T.accentGreen : T.textDim }}>{l}</div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Save bar — shown when composite is ready */}
             {compositeReady && (
               <div style={{
                 display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
                 padding:"8px 14px",
-                background: finalized ? `${T.accentGreen}14` : `${T.accentGreen}0e`,
+                background:`${T.accentGreen}0e`,
                 borderBottom:`1px solid ${T.accentGreen}40`,
                 flexShrink:0,
               }}>
-                {finalized ? (
+                {newVideoId ? (
                   <>
-                    <span style={{ fontSize:11, color:T.accentGreen, fontWeight:600 }}>💾 Saved — original replaced.</span>
-                    <a href={resultUrl} download={downloadFilename}
-                      style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit" }}>
-                      📥 Download Local Copy
-                    </a>
-                    <button onClick={handleDiscard} style={{ marginLeft:"auto", padding:"4px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
-                      Start New Edit
+                    <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>💾 Saved as new video in your dashboard</span>
+                    {resultUrl && (
+                      <a href={resultUrl} download={downloadFilename}
+                        style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                        📥 Download .mp4
+                      </a>
+                    )}
+                    <button onClick={onClose}
+                      style={{ padding:"5px 12px", borderRadius:6, border:"none", background:T.accent, color:"#fff", fontSize:11, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>
+                      ← Go to Dashboard
+                    </button>
+                    <button onClick={handleDiscard} style={{ marginLeft:"auto", padding:"5px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+                      New Edit
                     </button>
                   </>
                 ) : (
@@ -918,13 +964,15 @@ export default function VideoEditor({ video, onClose, T }) {
                       style={{ padding:"6px 14px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:600, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit", opacity:finalizing?0.6:1 }}>
                       {finalizing ? "Saving…" : "💾 Save & Replace Original"}
                     </button>
-                    <a href={resultUrl} download={downloadFilename}
-                      style={{ padding:"6px 14px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                      📥 Download to Computer
-                    </a>
+                    {resultUrl && (
+                      <a href={resultUrl} download={downloadFilename}
+                        style={{ padding:"6px 14px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                        📥 Download .mp4
+                      </a>
+                    )}
                     <button onClick={handleDiscard}
                       style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:`${T.accentRed}12`, color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-                      🗑 Discard (Keep Original)
+                      🗑 Discard
                     </button>
                   </>
                 )}

@@ -3345,7 +3345,7 @@ def start_composite(
     with _composite_lock:
         if _composite_jobs.get(video_id, {}).get("status") == "running":
             raise HTTPException(409, "A composite job is already running for this video")
-        _composite_jobs[video_id] = {"status": "running", "message": "Starting…", "output_path": None}
+        _composite_jobs[video_id] = {"status": "running", "message": "Starting…", "output_path": None, "logs": []}
 
     overlays_data = [ov.model_dump() for ov in req.overlays]
     mix_audio     = req.mix_overlay_audio
@@ -3353,15 +3353,41 @@ def start_composite(
     chroma_sim    = req.chroma_similarity
     chroma_blend  = req.chroma_blend
     replace_orig  = req.replace_original
+    orig_title    = video.get("title") or video.get("prompt", "")[:60] or "Video"
+    orig_prompt   = video.get("prompt") or ""
+    orig_duration = video.get("duration_seconds") or 0
+
+    def _log(msg):
+        import datetime
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        line = f"[{ts}] {msg}"
+        with _composite_lock:
+            _composite_jobs[video_id].setdefault("logs", []).append(line)
+        print(f"[composite/{video_id[:8]}] {msg}")
 
     def _run():
+        import time
+        import threading
         from pipeline.stickfigure_compositor import composite_video
         try:
             stem    = _Path(base_path).stem
             out_dir = _cfg.VIDEOS_OUTPUT_DIR
             out_path = str(out_dir / f"{stem}_composited.mp4")
 
+            _log(f"Base video: {_Path(base_path).name}")
+            _log(f"Overlays: {len(overlays_data)} clip(s) queued")
+            _log("FFmpeg compositing started — this may take 1–4 min per overlay…")
             _composite_jobs[video_id]["message"] = f"Compositing {len(overlays_data)} overlay(s)…"
+
+            # Heartbeat thread so the UI knows we're still alive
+            _started = time.time()
+            _stop_hb = threading.Event()
+            def _heartbeat():
+                while not _stop_hb.wait(20):
+                    elapsed = int(time.time() - _started)
+                    _log(f"Still compositing… {elapsed}s elapsed")
+            threading.Thread(target=_heartbeat, daemon=True).start()
+
             composite_video(
                 base_path=base_path,
                 overlays=overlays_data,
@@ -3371,6 +3397,9 @@ def start_composite(
                 chroma_similarity=chroma_sim,
                 chroma_blend=chroma_blend,
             )
+            _stop_hb.set()
+            elapsed = round(time.time() - _started, 1)
+            _log(f"FFmpeg done in {elapsed}s — output: {_Path(out_path).name}")
 
             final_path = out_path
             if replace_orig:
@@ -3378,12 +3407,40 @@ def start_composite(
                 shutil.move(out_path, base_path)
                 final_path = base_path
 
+            # Upload to Supabase and save as a new video record
+            new_video_id = None
+            supabase_url = None
+            try:
+                from pipeline.storage import upload_to_storage
+                import uuid as _uuid
+                new_video_id = str(_uuid.uuid4())
+                _log("Uploading composite to Supabase storage…")
+                supabase_url = upload_to_storage(final_path, new_video_id)
+                _log(f"Uploaded: {supabase_url.split('/')[-1]}")
+
+                new_title = f"{orig_title} (Composited)"
+                _log(f"Saving to DB as \"{new_title}\"…")
+                new_vid = db.create_video(prompt=orig_prompt or f"[Composited] {orig_title}")
+                new_video_id = new_vid["id"]
+                db.update_video(new_video_id,
+                    title=new_title,
+                    file_path=supabase_url,
+                    status="done",
+                    duration_seconds=orig_duration,
+                    description=f"Composited version of: {orig_title}",
+                )
+                _log(f"Saved as new video: {new_video_id[:8]}…")
+            except Exception as save_exc:
+                _log(f"⚠ Auto-save failed: {save_exc}")
+
             with _composite_lock:
                 _composite_jobs[video_id] = {
                     "status": "done",
-                    "message": "Composite complete",
+                    "message": "Composite complete — saved as new video",
                     "output_path": final_path,
                     "file_path": _Path(final_path).name,
+                    "new_video_id": new_video_id,
+                    "logs": _composite_jobs[video_id].get("logs", []),
                 }
         except Exception as exc:
             with _composite_lock:
@@ -3391,6 +3448,7 @@ def start_composite(
                     "status": "error",
                     "message": str(exc)[:500],
                     "output_path": None,
+                    "logs": _composite_jobs[video_id].get("logs", []),
                 }
 
     background_tasks.add_task(_run)
@@ -3403,11 +3461,12 @@ def composite_status(video_id: str, _u: str = Depends(verify_token)):
     with _composite_lock:
         job = _composite_jobs.get(video_id)
     if not job:
-        return {"status": "idle"}
+        return {"status": "idle", "logs": []}
     result = dict(job)
-    # Build a preview URL for the output if done
     if result.get("status") == "done" and result.get("file_path"):
         result["preview_url"] = f"/local-videos/{result['file_path']}"
+    if "logs" not in result:
+        result["logs"] = []
     return result
 
 
@@ -3458,37 +3517,66 @@ def auto_composite(
     mix_audio = req.mix_overlay_audio
     replace   = req.replace_original
 
+    orig_title    = video.get("title") or video.get("prompt", "")[:60] or "Video"
+    orig_prompt   = video.get("prompt") or ""
+    orig_duration = video.get("duration_seconds") or 0
+
     with _composite_lock:
         if _composite_jobs.get(video_id, {}).get("status") == "running":
             raise HTTPException(409, "A composite job is already running for this video")
-        _composite_jobs[video_id] = {"status": "running", "message": "Matching keywords…", "output_path": None}
+        _composite_jobs[video_id] = {"status": "running", "message": "Matching keywords…", "output_path": None, "logs": []}
+
+    def _log(msg):
+        import datetime
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        line = f"[{ts}] {msg}"
+        with _composite_lock:
+            _composite_jobs[video_id].setdefault("logs", []).append(line)
+        print(f"[auto-composite/{video_id[:8]}] {msg}")
 
     def _run():
+        import time, threading
         from pipeline.stickfigure_matcher import match_clips_to_script
         from pipeline.stickfigure_compositor import composite_video
         try:
+            _log("Matching clip keywords to script…")
             overlays = match_clips_to_script(script, duration, min_gap=min_gap, max_overlays=max_ov)
             if not overlays:
+                _log("No keyword matches found — no overlays inserted")
                 with _composite_lock:
-                    _composite_jobs[video_id] = {
+                    _composite_jobs[video_id].update({
                         "status": "done",
                         "message": "No keyword matches found — no overlays inserted",
                         "output_path": base_path,
                         "file_path": _Path(base_path).name,
                         "matched": [],
-                    }
+                    })
                 return
 
+            _log(f"Matched {len(overlays)} clip(s)")
             stem     = _Path(base_path).stem
             out_path = str(_cfg.VIDEOS_OUTPUT_DIR / f"{stem}_composited.mp4")
 
+            _log(f"FFmpeg compositing {len(overlays)} overlay(s) — may take 1–4 min per overlay…")
             _composite_jobs[video_id]["message"] = f"Compositing {len(overlays)} auto-matched overlay(s)…"
+
+            _started = time.time()
+            _stop_hb = threading.Event()
+            def _heartbeat():
+                while not _stop_hb.wait(20):
+                    elapsed = int(time.time() - _started)
+                    _log(f"Still compositing… {elapsed}s elapsed")
+            threading.Thread(target=_heartbeat, daemon=True).start()
+
             composite_video(
                 base_path=base_path,
                 overlays=overlays,
                 output_path=out_path,
                 mix_overlay_audio=mix_audio,
             )
+            _stop_hb.set()
+            elapsed = round(time.time() - _started, 1)
+            _log(f"FFmpeg done in {elapsed}s")
 
             final_path = out_path
             if replace:
@@ -3496,24 +3584,47 @@ def auto_composite(
                 shutil.move(out_path, base_path)
                 final_path = base_path
 
+            new_video_id = None
+            try:
+                from pipeline.storage import upload_to_storage
+                import uuid as _uuid
+                new_video_id = str(_uuid.uuid4())
+                _log("Uploading to Supabase storage…")
+                supabase_url = upload_to_storage(final_path, new_video_id)
+                new_title = f"{orig_title} (Composited)"
+                _log(f"Saving as \"{new_title}\"…")
+                new_vid = db.create_video(prompt=orig_prompt or f"[Composited] {orig_title}")
+                new_video_id = new_vid["id"]
+                db.update_video(new_video_id,
+                    title=new_title,
+                    file_path=supabase_url,
+                    status="done",
+                    duration_seconds=orig_duration,
+                    description=f"Composited version of: {orig_title}",
+                )
+                _log(f"Saved as new video: {new_video_id[:8]}…")
+            except Exception as save_exc:
+                _log(f"⚠ Auto-save failed: {save_exc}")
+
             with _composite_lock:
-                _composite_jobs[video_id] = {
+                _composite_jobs[video_id].update({
                     "status": "done",
                     "message": f"Auto-composite complete — {len(overlays)} clip(s) inserted",
                     "output_path": final_path,
                     "file_path": _Path(final_path).name,
+                    "new_video_id": new_video_id,
                     "matched": [
                         {"filename": o["filename"], "start_time": o["start_time"], "score": o["score"]}
                         for o in overlays
                     ],
-                }
+                })
         except Exception as exc:
             with _composite_lock:
-                _composite_jobs[video_id] = {
+                _composite_jobs[video_id].update({
                     "status": "error",
                     "message": str(exc)[:500],
                     "output_path": None,
-                }
+                })
 
     background_tasks.add_task(_run)
     return {"status": "queued", "video_id": video_id}
