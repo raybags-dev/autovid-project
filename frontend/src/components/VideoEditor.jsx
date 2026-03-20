@@ -596,6 +596,8 @@ export default function VideoEditor({ video, onClose, T }) {
 
   const getVideoUrl = () => {
     if (!video.file_path) return null;
+    // file_path is either a Supabase Storage URL or a local filename
+    if (video.file_path.startsWith("http")) return video.file_path;
     const fname = video.file_path.split("/").pop();
     return `/local-videos/${fname}`;
   };
