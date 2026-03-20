@@ -304,6 +304,8 @@ def composite_video(
 ) -> str:
     """
     Overlay zero or more stick-figure clips onto a base video.
+    All overlays are composited in a SINGLE FFmpeg pass — O(1) regardless of
+    overlay count.  Previously was O(N) passes which caused 40+ min runtimes.
 
     Each overlay dict accepts:
         clip_path   str    absolute path to stick-figure clip
@@ -322,23 +324,122 @@ def composite_video(
         shutil.copy2(base_path, output_path)
         return output_path
 
-    # Sort by start_time so sequential chaining makes sense
     overlays = sorted(overlays, key=lambda o: float(o.get("start_time", 0)))
 
     with tempfile.TemporaryDirectory(prefix="sfcomp_") as tmp_dir:
-        current = base_path
+        # ── Step 1: pre-build any looped clip files (fast, small temp files) ──
+        prepared = []
         for idx, ov in enumerate(overlays):
-            is_last = idx == len(overlays) - 1
-            dest = output_path if is_last else os.path.join(tmp_dir, f"stage_{idx}.mp4")
-            print(f"🎬 Applying overlay {idx+1}/{len(overlays)}: {Path(ov['clip_path']).name}")
-            _apply_overlay(
-                current, ov, dest, tmp_dir,
-                chroma_color=chroma_color,
-                chroma_similarity=chroma_similarity,
-                chroma_blend=chroma_blend,
-                mix_audio=mix_overlay_audio,
+            clip_path = ov["clip_path"]
+            loop_mode = ov.get("loop_mode", "none")
+            clip_info = get_video_info(clip_path)
+            clip_dur  = float(ov.get("duration") or clip_info["duration"])
+            looped    = _build_looped_clip(clip_path, clip_dur, loop_mode, tmp_dir, clip_info)
+            looped_info = get_video_info(looped)
+            prepared.append({
+                "ov":          ov,
+                "looped":      looped,
+                "clip_info":   clip_info,
+                "looped_info": looped_info,
+                "clip_dur":    clip_dur,
+            })
+            print(f"🎬 Prepared overlay {idx+1}/{len(overlays)}: {Path(clip_path).name}")
+
+        # ── Step 2: single FFmpeg call with all overlays in filter_complex ────
+        # Inputs: [0] = base video, [1..N] = overlay clips
+        inputs = ["-i", base_path]
+        for p in prepared:
+            inputs += ["-i", p["looped"]]
+
+        filter_parts = []
+        audio_parts  = []
+        audio_labels = []
+
+        prev_v = "[0:v]"
+        for idx, p in enumerate(prepared):
+            ov        = p["ov"]
+            clip_info = p["clip_info"]
+            clip_dur  = p["clip_dur"]
+            start_t   = float(ov.get("start_time", 0))
+            end_t     = start_t + clip_dur
+            x         = int(ov.get("x", 0))
+            y         = int(ov.get("y", 0))
+            scale     = float(ov.get("scale", 1.0))
+            has_alpha = clip_info["has_alpha"]
+            mix_sfx   = ov.get("has_sound", True) and mix_overlay_audio
+            has_sfx   = p["looped_info"]["has_audio"]
+            is_last   = idx == len(prepared) - 1
+
+            clip_w = max(1, int(clip_info["width"]  * scale))
+            clip_h = max(1, int(clip_info["height"] * scale))
+
+            # Build per-clip filter chain
+            input_label    = f"[{idx + 1}:v]"
+            filtered_label = f"[fov{idx}]"
+
+            ov_filters = []
+            if not has_alpha:
+                ov_filters.append(
+                    f"chromakey=color={chroma_color}"
+                    f":similarity={chroma_similarity}:blend={chroma_blend}"
+                )
+            if abs(scale - 1.0) > 0.005:
+                ov_filters.append(f"scale={clip_w}:{clip_h}")
+
+            if ov_filters:
+                filter_parts.append(f"{input_label}{','.join(ov_filters)}{filtered_label}")
+                ov_label = filtered_label
+            else:
+                ov_label = input_label
+
+            out_v = "[outv]" if is_last else f"[v{idx}]"
+            filter_parts.append(
+                f"{prev_v}{ov_label}overlay=x={x}:y={y}"
+                f":enable='between(t,{start_t},{end_t})'"
+                f":format=auto{out_v}"
             )
-            current = dest
+            prev_v = out_v
+
+            # Per-clip audio
+            if mix_sfx and has_sfx:
+                delay_ms = int(start_t * 1000)
+                a_label  = f"[a{idx}]"
+                audio_parts.append(
+                    f"[{idx + 1}:a]atrim=0:{clip_dur},asetpts=PTS-STARTPTS,"
+                    f"adelay={delay_ms}|{delay_ms}{a_label}"
+                )
+                audio_labels.append(a_label)
+
+        # Mix all audio streams in one amix
+        if audio_labels:
+            all_audio = "[0:a]" + "".join(audio_labels)
+            audio_parts.append(
+                f"{all_audio}amix=inputs={1 + len(audio_labels)}:normalize=0[outa]"
+            )
+            audio_map = ["-map", "[outa]"]
+        else:
+            audio_map = ["-map", "0:a?"]
+
+        filter_complex = ";".join(filter_parts + audio_parts)
+
+        cmd = (
+            ["ffmpeg", "-y"]
+            + inputs
+            + ["-filter_complex", filter_complex]
+            + ["-map", "[outv]"]
+            + audio_map
+            + ["-c:v", "libx264", "-preset", "fast", "-crf", "18"]
+            + ["-c:a", "aac", "-b:a", "192k"]
+            + ["-movflags", "+faststart"]
+            + [str(output_path)]
+        )
+
+        print(f"🚀 Running single-pass FFmpeg composite ({len(prepared)} overlays)…")
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(
+                f"FFmpeg composite failed:\n{r.stderr[-4000:]}"
+            )
 
     print(f"✅ Composite complete → {output_path}")
     return output_path

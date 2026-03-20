@@ -3375,7 +3375,7 @@ def start_composite(
 
             _log(f"Base video: {_Path(base_path).name}")
             _log(f"Overlays: {len(overlays_data)} clip(s) queued")
-            _log("FFmpeg compositing started — this may take 1–4 min per overlay…")
+            _log(f"FFmpeg compositing started — single pass for all {len(overlays_data)} overlay(s)…")
             _composite_jobs[video_id]["message"] = f"Compositing {len(overlays_data)} overlay(s)…"
 
             # Heartbeat thread so the UI knows we're still alive
@@ -3556,7 +3556,7 @@ def auto_composite(
             stem     = _Path(base_path).stem
             out_path = str(_cfg.VIDEOS_OUTPUT_DIR / f"{stem}_composited.mp4")
 
-            _log(f"FFmpeg compositing {len(overlays)} overlay(s) — may take 1–4 min per overlay…")
+            _log(f"FFmpeg compositing {len(overlays)} overlay(s) — single pass…")
             _composite_jobs[video_id]["message"] = f"Compositing {len(overlays)} auto-matched overlay(s)…"
 
             _started = time.time()
