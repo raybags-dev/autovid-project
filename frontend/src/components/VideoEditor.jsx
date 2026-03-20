@@ -2,19 +2,6 @@
  * VideoEditor — Stick-Figure Compositor UI
  *
  * Full-screen overlay (position:fixed) covering the dashboard sidebar.
- *
- * Workflow:
- *  1. Browse clip library (left panel) → click ▶ to preview, pick loop mode,
- *     then "Add to Timeline"
- *  2. Selected overlays appear on the timeline and in the right controls panel
- *  3. Click "Apply Overlays" to run the FFmpeg composite (preview without saving)
- *  4. Review the result in the video player; then:
- *       • "Save & Replace Original" — finalizes (updates DB file_path)
- *       • "Download Copy" — download without touching the original
- *       • "Discard" — throw away the composite and start over
- *  5. "⚡ Auto-Insert & Render" previews keyword matches first; warns if none found
- *  6. Navigating back with pending overlays or an unsaved composite triggers a
- *     confirm dialog
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -54,6 +41,11 @@ function formatTime(s) {
 let _oidCounter = 0;
 function newId() { return `ov_${++_oidCounter}_${Date.now()}`; }
 
+// Build the correct preview URL for a clip — preview_url may not be set by the API
+function clipSrc(clip) {
+  return clip.preview_url || `/stickfigures-assets/${clip.filename}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ClipCard — explicit play button + loop mode selector
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,27 +60,41 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
   const [saving,     setSaving]     = useState(false);
   const [delConfirm, setDelConfirm] = useState(false);
 
-  // React doesn't reliably pass `muted` to the DOM
-  useEffect(() => { if (videoRef.current) videoRef.current.muted = true; }, []);
+  // React doesn't reliably set the `muted` DOM attribute via props
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = true;
+      videoRef.current.volume = 0;
+    }
+  }, []);
 
   const togglePlay = (e) => {
     e.stopPropagation();
-    if (!videoRef.current) return;
+    const v = videoRef.current;
+    if (!v) return;
     if (playing) {
-      videoRef.current.pause();
+      v.pause();
       setPlaying(false);
     } else {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play()
-        .then(() => setPlaying(true))
-        .catch(() => {});
+      v.muted = true;
+      v.volume = 0;
+      v.currentTime = 0;
+      const p = v.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => setPlaying(true)).catch(() => {
+          // Retry once with explicit muted
+          v.muted = true;
+          v.play().then(() => setPlaying(true)).catch(() => {});
+        });
+      } else {
+        setPlaying(true);
+      }
     }
   };
 
   const handleAdd = (e) => {
     e.stopPropagation();
     if (clip.enabled === false) return;
-    // Pause preview when added
     if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
     setPlaying(false);
     onAdd(clip, loopMode);
@@ -125,6 +131,7 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
   };
 
   const label = clip.label || clip.filename.replace(".mp4","").replace(/_/g," ");
+  const src = clipSrc(clip);
 
   if (editing) {
     return (
@@ -151,7 +158,7 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
           ) : (
             <>
               <button onClick={doDelete}
-                style={{ marginLeft:"auto", padding:"3px 10px", borderRadius:5, border:"none", background:T.accentRed, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Confirm</button>
+                style={{ marginLeft:"auto", padding:"3px 10px", borderRadius:5, border:"none", background:T.accentRed, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Confirm Delete</button>
               <button onClick={() => setDelConfirm(false)}
                 style={{ padding:"3px 8px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
             </>
@@ -174,48 +181,45 @@ function ClipCard({ clip, onAdd, onUpdated, onDeleted, T }) {
         cursor: clip.enabled === false ? "not-allowed" : "default",
         height:200, minHeight:200,
         display:"flex", flexDirection:"column",
+        flexShrink:0,
       }}
     >
-      {/* ── Video preview (100px) ── */}
+      {/* ── Video preview (fixed 100px) ── */}
       <div style={{ height:100, flexShrink:0, background:"#111", position:"relative", overflow:"hidden" }}>
-        <video ref={videoRef} src={clip.preview_url} loop playsInline
-          style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+        <video
+          ref={videoRef}
+          src={src}
+          loop
+          playsInline
+          muted
+          preload="metadata"
+          style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+          onEnded={() => setPlaying(false)}
+        />
 
-        {/* Centered play/pause button — always visible */}
+        {/* Centered play/pause overlay — always visible */}
         <div
           onClick={togglePlay}
           style={{
             position:"absolute", inset:0,
             display:"flex", alignItems:"center", justifyContent:"center",
-            background: playing ? "transparent" : "rgba(0,0,0,0.38)",
-            cursor:"pointer", transition:"background 0.15s",
+            background: playing ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.45)",
+            cursor:"pointer",
           }}
         >
-          {!playing && (
-            <div style={{
-              width:34, height:34, borderRadius:"50%",
-              background:"rgba(255,255,255,0.18)",
-              border:"2px solid rgba(255,255,255,0.6)",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              backdropFilter:"blur(2px)",
-            }}>
-              <span style={{ color:"#fff", fontSize:14, marginLeft:3 }}>▶</span>
-            </div>
-          )}
-          {playing && (
-            <div style={{
-              width:34, height:34, borderRadius:"50%",
-              background:"rgba(255,255,255,0.12)",
-              border:"2px solid rgba(255,255,255,0.4)",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              backdropFilter:"blur(2px)",
-            }}>
-              <span style={{ color:"#fff", fontSize:12 }}>⏸</span>
-            </div>
-          )}
+          <div style={{
+            width:36, height:36, borderRadius:"50%",
+            background:"rgba(255,255,255,0.2)",
+            border:"2px solid rgba(255,255,255,0.7)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+          }}>
+            <span style={{ color:"#fff", fontSize:14, marginLeft: playing ? 0 : 3 }}>
+              {playing ? "⏸" : "▶"}
+            </span>
+          </div>
         </div>
 
-        {/* Edit / enable buttons on hover */}
+        {/* Edit / enable buttons — visible on hover */}
         {hovered && clip.id && (
           <div style={{ position:"absolute", top:4, right:4, display:"flex", gap:3, zIndex:2 }}
             onClick={e => e.stopPropagation()}>
@@ -280,13 +284,11 @@ function Timeline({ overlays, videoDuration, selectedId, onSelect, T }) {
       <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.08em", marginBottom:4, textTransform:"uppercase" }}>
         Timeline — {formatTime(videoDuration)} · {overlays.length} overlay{overlays.length !== 1 ? "s" : ""}
       </div>
-      {/* Base track with tick marks */}
       <div style={{ position:"relative", height:18, background:T.bgDeep, borderRadius:4, border:`1px solid ${T.border}`, marginBottom:5 }}>
         {videoDuration > 0 && Array.from({ length:Math.floor(videoDuration / 10) }).map((_, i) => (
           <div key={i} style={{ position:"absolute", left:`${((i+1)*10/videoDuration)*100}%`, top:0, bottom:0, width:1, background:T.border, opacity:0.5 }} />
         ))}
       </div>
-      {/* Overlay tracks */}
       {overlays.map((ov, idx) => {
         const color = OVERLAY_COLORS[idx % OVERLAY_COLORS.length];
         const left  = videoDuration ? (ov.startTime / videoDuration) * 100 : 0;
@@ -348,7 +350,6 @@ function OverlayControls({ overlay, onChange, onRemove, onDuplicate, videoDurati
       <div style={{ fontSize:11, color:T.text, fontWeight:700, marginBottom:8, wordBreak:"break-word" }}>
         {overlay.filename.replace(".mp4","").replace(/_/g," ")}
       </div>
-
       {slider("Start", overlay.startTime, 0, Math.max(videoDuration-1,1), 0.1,
         v => onChange({...overlay, startTime:v}), formatTime)}
       {slider("Duration", overlay.duration, 0.5, 30, 0.5,
@@ -360,7 +361,6 @@ function OverlayControls({ overlay, onChange, onRemove, onDuplicate, videoDurati
       {slider("Scale", overlay.scale, 0.1, 2.0, 0.05,
         v => onChange({...overlay, scale:v}), v => `${Math.round(v*100)}%`)}
 
-      {/* Loop mode */}
       <div style={{ marginBottom:9 }}>
         <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.08em", marginBottom:4, textTransform:"uppercase" }}>Loop mode</div>
         <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
@@ -379,7 +379,6 @@ function OverlayControls({ overlay, onChange, onRemove, onDuplicate, videoDurati
         </div>
       </div>
 
-      {/* Audio */}
       <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", marginBottom:10 }}>
         <input type="checkbox" checked={overlay.hasSound}
           onChange={e => onChange({...overlay, hasSound:e.target.checked})}
@@ -425,6 +424,76 @@ function ConfirmBanner({ message, confirmLabel, cancelLabel, onConfirm, onCancel
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Save action bar — shown in top bar AND inline so it's never hidden
+// ─────────────────────────────────────────────────────────────────────────────
+function SaveBar({ resultUrl, finalized, finalizing, onFinalize, onDiscard, T }) {
+  const downloadFilename = (() => {
+    if (!resultUrl) return "composite.mp4";
+    const parts = resultUrl.split("/");
+    const last = parts[parts.length - 1];
+    return last.endsWith(".mp4") ? last : "composite.mp4";
+  })();
+
+  if (finalized) {
+    return (
+      <div style={{
+        display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
+        padding:"7px 14px", background:`${T.accentGreen}14`,
+        borderTop:`1px solid ${T.accentGreen}40`, flexShrink:0,
+      }}>
+        <span style={{ fontSize:11, color:T.accentGreen, fontWeight:600 }}>💾 Saved — original replaced.</span>
+        {resultUrl && (
+          <a
+            href={resultUrl}
+            download={downloadFilename}
+            style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit" }}
+          >
+            📥 Download Local Copy
+          </a>
+        )}
+        <button onClick={onDiscard}
+          style={{ marginLeft:"auto", padding:"4px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+          Start New Edit
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
+      padding:"8px 14px", background:`${T.accentGreen}0e`,
+      borderTop:`1px solid ${T.accentGreen}40`, flexShrink:0,
+    }}>
+      <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>✓ Composite ready:</span>
+
+      {/* Save & Replace Original */}
+      <button onClick={onFinalize} disabled={finalizing}
+        style={{ padding:"6px 14px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:600, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit", opacity:finalizing?0.6:1 }}>
+        {finalizing ? "Saving…" : "💾 Save & Replace Original"}
+      </button>
+
+      {/* Download local — no target="_blank" so the browser downloads the file, not the SPA */}
+      {resultUrl && (
+        <a
+          href={resultUrl}
+          download={downloadFilename}
+          style={{ padding:"6px 14px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}
+        >
+          📥 Download to Computer
+        </a>
+      )}
+
+      {/* Discard — clearly shows original is safe */}
+      <button onClick={onDiscard}
+        style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:`${T.accentRed}12`, color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+        🗑 Discard (Keep Original)
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main VideoEditor
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VideoEditor({ video, onClose, T }) {
@@ -448,16 +517,15 @@ export default function VideoEditor({ video, onClose, T }) {
   const [selectedId, setSelectedId] = useState(null);
 
   // ── Composite job ─────────────────────────────────────────────────────────
-  const [jobStatus, setJobStatus]  = useState(null); // null|"running"|"done"|"error"
-  const [jobMsg,    setJobMsg]     = useState("");
-  const [resultUrl, setResultUrl]  = useState(null);
+  const [jobStatus,  setJobStatus]  = useState(null);
+  const [jobMsg,     setJobMsg]     = useState("");
+  const [resultUrl,  setResultUrl]  = useState(null);
   const [finalizing, setFinalizing] = useState(false);
-  const [finalized,  setFinalized]  = useState(false); // saved to DB
+  const [finalized,  setFinalized]  = useState(false);
 
   // ── Auto-composite ────────────────────────────────────────────────────────
-  const [autoPreview, setAutoPreview]  = useState(null);
-  const [autoLoading, setAutoLoading]  = useState(false);
-  // Warn when auto-insert found 0 matches
+  const [autoPreview,     setAutoPreview]     = useState(null);
+  const [autoLoading,     setAutoLoading]     = useState(false);
   const [zeroMatchConfirm, setZeroMatchConfirm] = useState(false);
 
   // ── Back-navigation safety ────────────────────────────────────────────────
@@ -469,7 +537,7 @@ export default function VideoEditor({ video, onClose, T }) {
   const [mixAudio,    setMixAudio]    = useState(true);
 
   const pollRef  = useRef(null);
-  const videoRef = useRef(null);
+  const mainVideoRef = useRef(null);
   const [videoDuration, setVideoDuration] = useState(video?.duration_seconds || 60);
 
   // ── Load clips ────────────────────────────────────────────────────────────
@@ -491,7 +559,7 @@ export default function VideoEditor({ video, onClose, T }) {
         const s = await getCompositeStatus(video.id);
         if (s.status === "done") {
           setJobStatus("done");
-          setJobMsg("Composite ready — review the result below");
+          setJobMsg("Composite ready — choose an action below");
           setResultUrl(s.preview_url || null);
           clearInterval(pollRef.current);
         } else if (s.status === "error") {
@@ -541,24 +609,35 @@ export default function VideoEditor({ video, onClose, T }) {
            (c.keywords || []).some(k => k.includes(q));
   });
 
-  // ── Add clip to timeline ──────────────────────────────────────────────────
+  // ── Add clip to timeline + seek main video ────────────────────────────────
   const addClip = useCallback((clip, loopMode = "none") => {
-    const startT = videoRef.current
-      ? Math.min(videoRef.current.currentTime, Math.max(0, videoDuration - 1))
+    const v = mainVideoRef.current;
+    const startT = v
+      ? Math.min(v.currentTime, Math.max(0, videoDuration - 1))
       : 0;
+
     const newOv = {
       id:         newId(),
       filename:   clip.filename,
       clipPath:   clip.path,
-      previewUrl: clip.preview_url,
+      previewUrl: clipSrc(clip),
       startTime:  parseFloat(startT.toFixed(1)),
       duration:   clip.duration || 5,
       x: 80, y: 80, scale: 0.5,
       loopMode,
       hasSound: clip.has_audio,
     };
+
     setOverlays(prev => [...prev, newOv]);
     setSelectedId(newOv.id);
+
+    // Seek main video to clip start time so the user can see the context
+    if (v) {
+      v.currentTime = newOv.startTime;
+      if (v.paused) {
+        v.play().catch(() => {});
+      }
+    }
   }, [videoDuration]);
 
   const selectedOverlay = overlays.find(o => o.id === selectedId) || null;
@@ -580,7 +659,7 @@ export default function VideoEditor({ video, onClose, T }) {
     has_sound:  ov.hasSound,
   }));
 
-  // ── Apply overlays (preview composite, no save) ───────────────────────────
+  // ── Apply overlays ────────────────────────────────────────────────────────
   const handleApply = async () => {
     if (overlays.length === 0 || jobStatus === "running") return;
     setJobStatus("running"); setJobMsg("Starting composite…");
@@ -615,7 +694,7 @@ export default function VideoEditor({ video, onClose, T }) {
     setResultUrl(null); setJobStatus(null); setJobMsg(""); setFinalized(false);
   };
 
-  // ── Auto-insert flow ──────────────────────────────────────────────────────
+  // ── Auto-insert ───────────────────────────────────────────────────────────
   const handleAutoPreview = async () => {
     setAutoLoading(true); setAutoPreview(null); setZeroMatchConfirm(false);
     try {
@@ -626,7 +705,6 @@ export default function VideoEditor({ video, onClose, T }) {
   };
 
   const handleAutoApply = async () => {
-    // Preview first so we can warn if no matches
     setAutoLoading(true); setZeroMatchConfirm(false);
     try {
       const res = await previewAutoComposite(video.id, { minGap:8, maxOverlays:8, mixAudio });
@@ -634,10 +712,9 @@ export default function VideoEditor({ video, onClose, T }) {
       setAutoLoading(false);
       if (matches.length === 0) {
         setAutoPreview([]);
-        setZeroMatchConfirm(true); // show the "no matches" warning
+        setZeroMatchConfirm(true);
         return;
       }
-      // Proceed with full composite
       setAutoPreview(null);
       setJobStatus("running"); setJobMsg("Running auto-composite…");
       setResultUrl(null); setFinalized(false);
@@ -668,7 +745,7 @@ export default function VideoEditor({ video, onClose, T }) {
 
   // ── Back navigation ───────────────────────────────────────────────────────
   const tryClose = () => {
-    const hasUnsaved = (overlays.length > 0 || (jobStatus === "done" && !finalized));
+    const hasUnsaved = overlays.length > 0 || (jobStatus === "done" && !finalized);
     if (hasUnsaved) { setBackConfirm(true); return; }
     onClose();
   };
@@ -679,9 +756,11 @@ export default function VideoEditor({ video, onClose, T }) {
     if (video.file_path.startsWith("http")) return video.file_path;
     return `/local-videos/${video.file_path.split("/").pop()}`;
   };
-  const videoUrl = resultUrl || getVideoUrl();
 
+  // When composite is done, show the result; otherwise show original
+  const videoUrl = resultUrl || getVideoUrl();
   const disabledCount = clips.filter(c => c.enabled === false).length;
+  const compositeReady = jobStatus === "done" && resultUrl;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -690,20 +769,51 @@ export default function VideoEditor({ video, onClose, T }) {
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div style={{
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        padding:"10px 16px", background:T.topBar,
-        borderBottom:`1px solid ${T.border}`, flexShrink:0,
+        padding:"8px 16px", background:T.topBar,
+        borderBottom:`1px solid ${T.border}`, flexShrink:0, gap:8, flexWrap:"wrap",
       }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontWeight:700, fontSize:13, color:T.text }}>✂ Video Editor</span>
-          <span style={{ fontSize:11, color:T.textDim, maxWidth:400, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0, flex:1 }}>
+          <span style={{ fontWeight:700, fontSize:13, color:T.text, flexShrink:0 }}>✂ Video Editor</span>
+          <span style={{ fontSize:11, color:T.textDim, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
             {video?.title || video?.prompt?.slice(0,60) || video?.id}
           </span>
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          {jobStatus === "running" && <span style={{ fontSize:11, color:T.accentYellow }}>⏳ {jobMsg}</span>}
-          {jobStatus === "error"   && <span style={{ fontSize:11, color:T.accentRed, maxWidth:300, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>✕ {jobMsg}</span>}
-          {jobStatus === "done" && !finalized && <span style={{ fontSize:11, color:T.accentGreen }}>✓ Composite ready</span>}
-          {finalized && <span style={{ fontSize:11, color:T.accentGreen }}>💾 Saved</span>}
+
+        {/* Status + action buttons always visible in top bar */}
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0, flexWrap:"wrap" }}>
+          {jobStatus === "running" && (
+            <span style={{ fontSize:11, color:T.accentYellow }}>⏳ {jobMsg}</span>
+          )}
+          {jobStatus === "error" && (
+            <span style={{ fontSize:11, color:T.accentRed, maxWidth:280, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>✕ {jobMsg}</span>
+          )}
+
+          {/* Save / Download always in top bar when composite is ready */}
+          {compositeReady && !finalized && (
+            <>
+              <button onClick={handleFinalize} disabled={finalizing}
+                style={{ padding:"5px 12px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:700, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit" }}>
+                {finalizing ? "Saving…" : "💾 Save & Replace"}
+              </button>
+              {resultUrl && (
+                <a
+                  href={resultUrl}
+                  download={resultUrl.split("/").pop() || "composite.mp4"}
+                  style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                >
+                  📥 Download
+                </a>
+              )}
+              <button onClick={handleDiscard}
+                style={{ padding:"5px 10px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:"transparent", color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+                Discard
+              </button>
+            </>
+          )}
+          {finalized && (
+            <span style={{ fontSize:11, color:T.accentGreen, fontWeight:700 }}>💾 Saved</span>
+          )}
+
           <button onClick={tryClose}
             style={{ padding:"5px 14px", borderRadius:6, border:`1px solid ${T.border}`, background:T.bgCard, color:T.textMid, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
             ← Back
@@ -747,7 +857,7 @@ export default function VideoEditor({ video, onClose, T }) {
               <div style={{ display:"flex", gap:4 }}>
                 <button onClick={loadClips} title="Refresh from DB"
                   style={{ padding:"2px 6px", borderRadius:4, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:11, cursor:"pointer" }}>↺</button>
-                <button onClick={handleSeed} disabled={seeding} title="Load all 84 built-in clips"
+                <button onClick={handleSeed} disabled={seeding} title="Load all built-in clips"
                   style={{ padding:"2px 7px", borderRadius:4, border:"none", background:seeding ? T.bgCard : `${T.accent}20`, color:T.accent, fontSize:10, cursor:seeding ? "not-allowed" : "pointer" }}>
                   {seeding ? "…" : "Seed"}
                 </button>
@@ -794,7 +904,7 @@ export default function VideoEditor({ video, onClose, T }) {
             ) : filteredClips.length === 0 ? (
               <div style={{ fontSize:10, color:T.textDim, padding:10, textAlign:"center", lineHeight:1.6 }}>
                 {clips.length === 0
-                  ? <><strong>No clips in DB.</strong><br />Click <strong>Seed</strong> to load 84 built-in clips.</>
+                  ? <><strong>No clips in DB.</strong><br />Click <strong>Seed</strong> to load built-in clips.</>
                   : "No clips match your search."}
               </div>
             ) : (
@@ -808,19 +918,27 @@ export default function VideoEditor({ video, onClose, T }) {
           </div>
         </div>
 
-        {/* ── CENTRE: Video + Timeline + Actions ───────────────────────── */}
+        {/* ── CENTRE: Video + scrollable bottom panel ───────────────────── */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:T.bg, minWidth:0 }}>
 
-          {/* Video player */}
-          <div style={{ flex:1, background:"#000", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", minHeight:180, position:"relative" }}>
+          {/* Video player — flexible, takes remaining height */}
+          <div style={{
+            flex:1, background:"#000",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            overflow:"hidden", minHeight:160, position:"relative",
+          }}>
             {videoUrl ? (
-              <video ref={videoRef} src={videoUrl} controls
+              <video
+                ref={mainVideoRef}
+                key={videoUrl}
+                src={videoUrl}
+                controls
                 style={{ maxWidth:"100%", maxHeight:"100%", outline:"none" }}
-                onLoadedMetadata={e => setVideoDuration(e.target.duration)} />
+                onLoadedMetadata={e => setVideoDuration(e.target.duration)}
+              />
             ) : (
               <div style={{ color:T.textDim, fontSize:12 }}>No video file available for this entry.</div>
             )}
-            {/* Overlay count badge */}
             {overlays.length > 0 && (
               <div style={{ position:"absolute", top:10, right:10, background:`${T.accent}cc`, color:"#fff", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:10 }}>
                 {overlays.length} overlay{overlays.length !== 1 ? "s" : ""} queued
@@ -828,156 +946,151 @@ export default function VideoEditor({ video, onClose, T }) {
             )}
           </div>
 
-          {/* Timeline */}
-          <div style={{ padding:"10px 14px", borderTop:`1px solid ${T.border}`, background:T.bgSub, flexShrink:0 }}>
-            <Timeline overlays={overlays} videoDuration={videoDuration}
-              selectedId={selectedId} onSelect={setSelectedId} T={T} />
-          </div>
+          {/* ── Scrollable bottom panel — everything below the video ── */}
+          <div style={{
+            flexShrink:0,
+            overflowY:"auto",
+            maxHeight:"48vh",
+            display:"flex",
+            flexDirection:"column",
+            borderTop:`1px solid ${T.border}`,
+          }}>
 
-          {/* Zero-match warning */}
-          {zeroMatchConfirm && (
-            <div style={{ padding:"6px 14px", flexShrink:0 }}>
-              <ConfirmBanner
-                message="No keyword matches found in the script — no stick-figure clips would be inserted. Proceed anyway (composite will copy the video unchanged), or manually add clips from the library."
-                confirmLabel="Proceed anyway"
-                cancelLabel="Cancel"
-                onConfirm={async () => {
-                  setZeroMatchConfirm(false);
-                  setJobStatus("running"); setJobMsg("Running auto-composite (no matches)…");
-                  setResultUrl(null); setFinalized(false);
-                  try { await startAutoComposite(video.id, { minGap:8, maxOverlays:8, mixAudio }); }
-                  catch (err) { setJobStatus("error"); setJobMsg(err?.response?.data?.detail || "Failed"); }
-                }}
-                onCancel={() => setZeroMatchConfirm(false)}
-                color={T.accentYellow}
+            {/* Save bar (inline, in addition to top-bar buttons) */}
+            {compositeReady && (
+              <SaveBar
+                resultUrl={resultUrl}
+                finalized={finalized}
+                finalizing={finalizing}
+                onFinalize={handleFinalize}
+                onDiscard={handleDiscard}
                 T={T}
               />
-            </div>
-          )}
-
-          {/* Post-composite: Save / Download / Discard */}
-          {jobStatus === "done" && resultUrl && !finalized && (
-            <div style={{
-              padding:"10px 14px", borderTop:`1px solid ${T.border}`,
-              background:`${T.accentGreen}10`, flexShrink:0,
-              display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
-            }}>
-              <span style={{ fontSize:11, color:T.accentGreen, fontWeight:600 }}>✓ Composite ready — choose an action:</span>
-              <button onClick={handleFinalize} disabled={finalizing}
-                style={{ padding:"5px 14px", borderRadius:6, border:"none", background:T.accentGreen, color:"#fff", fontSize:11, fontWeight:600, cursor:finalizing?"not-allowed":"pointer", fontFamily:"inherit", opacity:finalizing?0.6:1 }}>
-                {finalizing ? "Saving…" : "💾 Save & Replace Original"}
-              </button>
-              <a href={resultUrl} download target="_blank" rel="noopener noreferrer"
-                style={{ padding:"5px 14px", borderRadius:6, border:`1px solid ${T.accentGreen}60`, background:"transparent", color:T.accentGreen, fontSize:11, textDecoration:"none", fontFamily:"inherit" }}>
-                📥 Download Copy
-              </a>
-              <button onClick={handleDiscard}
-                style={{ padding:"5px 12px", borderRadius:6, border:`1px solid ${T.accentRed}40`, background:`${T.accentRed}12`, color:T.accentRed, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
-                🗑 Discard
-              </button>
-            </div>
-          )}
-
-          {jobStatus === "done" && finalized && (
-            <div style={{ padding:"8px 14px", borderTop:`1px solid ${T.border}`, background:`${T.accentGreen}10`, flexShrink:0, display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:11, color:T.accentGreen }}>💾 Saved — this is now the canonical version.</span>
-              <a href={resultUrl} download target="_blank" rel="noopener noreferrer"
-                style={{ fontSize:11, color:T.accent, textDecoration:"none" }}>📥 Download</a>
-              <button onClick={handleDiscard}
-                style={{ marginLeft:"auto", padding:"4px 10px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
-                New Edit
-              </button>
-            </div>
-          )}
-
-          {/* Action bar */}
-          <div style={{
-            padding:"8px 14px", borderTop:`1px solid ${T.border}`,
-            background:T.bgSub, display:"flex", gap:7, flexWrap:"wrap",
-            alignItems:"center", flexShrink:0,
-          }}>
-            <button onClick={handleApply}
-              disabled={overlays.length === 0 || jobStatus === "running"}
-              title={overlays.length === 0 ? "Add overlays first" : "Run FFmpeg composite (preview — not saved yet)"}
-              style={{
-                padding:"6px 14px", borderRadius:6, border:"none",
-                fontFamily:"inherit", fontSize:11, fontWeight:600, cursor: overlays.length === 0 || jobStatus === "running" ? "not-allowed" : "pointer",
-                background: overlays.length === 0 || jobStatus === "running" ? T.bgCard : T.accent,
-                color: overlays.length === 0 || jobStatus === "running" ? T.textFaint : "#fff",
-              }}>
-              🎬 Apply Overlays ({overlays.length})
-            </button>
-
-            <button onClick={handleAutoPreview} disabled={autoLoading || jobStatus === "running"}
-              style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.border}`, cursor:autoLoading?"not-allowed":"pointer", fontFamily:"inherit", fontSize:11, background:T.bgCard, color:T.textMid, opacity:autoLoading?0.5:1 }}>
-              {autoLoading ? "Matching…" : "🔍 Auto-Preview"}
-            </button>
-
-            <button onClick={handleAutoApply} disabled={autoLoading || jobStatus === "running"}
-              title="Auto-match script keywords to clips, then composite"
-              style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.border}`, cursor:autoLoading||jobStatus==="running"?"not-allowed":"pointer", fontFamily:"inherit", fontSize:11, background:T.bgCard, color:T.textMid, opacity:autoLoading||jobStatus==="running"?0.5:1 }}>
-              ⚡ Auto-Insert & Render
-            </button>
-
-            {overlays.length > 0 && (
-              <button onClick={() => { setOverlays([]); setSelectedId(null); }}
-                style={{ padding:"6px 10px", borderRadius:6, border:`1px solid ${T.accentRed}40`, cursor:"pointer", fontFamily:"inherit", fontSize:11, background:"transparent", color:T.accentRed }}>
-                Clear All
-              </button>
             )}
 
-            {/* Chroma + audio settings */}
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto", flexWrap:"wrap" }}>
-              <span style={{ fontSize:10, color:T.textFaint }}>Chroma key</span>
-              <input type="color" value={chromaColor} onChange={e => setChromaColor(e.target.value)}
-                style={{ width:26, height:22, border:"none", borderRadius:3, cursor:"pointer", padding:0 }} />
-              <span style={{ fontSize:10, color:T.textFaint }}>Sim</span>
-              <input type="range" min="0.1" max="0.6" step="0.01" value={chromaSim}
-                onChange={e => setChromaSim(Number(e.target.value))}
-                style={{ width:60, accentColor:T.accent }} />
-              <span style={{ fontSize:9, color:T.textDim }}>{chromaSim.toFixed(2)}</span>
-              <label style={{ display:"flex", alignItems:"center", gap:4, cursor:"pointer" }}>
-                <input type="checkbox" checked={mixAudio} onChange={e => setMixAudio(e.target.checked)} style={{ accentColor:T.accent }} />
-                <span style={{ fontSize:10, color:T.textFaint }}>Mix SFX</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Auto-preview results */}
-          {autoPreview !== null && (
-            <div style={{ padding:"8px 14px", borderTop:`1px solid ${T.border}`, background:T.bgCard, flexShrink:0, maxHeight:130, overflowY:"auto" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
-                <span style={{ fontSize:9, color:T.textFaint, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                  Auto-match — {autoPreview.length} clip{autoPreview.length !== 1 ? "s" : ""} found
-                </span>
-                <div style={{ display:"flex", gap:5 }}>
-                  {autoPreview.length > 0 && (
-                    <button onClick={importAutoPreview}
-                      style={{ padding:"3px 10px", borderRadius:5, border:"none", background:T.accent, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
-                      Import to Timeline
-                    </button>
-                  )}
-                  <button onClick={() => setAutoPreview(null)}
-                    style={{ padding:"3px 8px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
-                </div>
+            {/* Zero-match warning */}
+            {zeroMatchConfirm && (
+              <div style={{ padding:"8px 14px", flexShrink:0, borderTop:`1px solid ${T.border}` }}>
+                <ConfirmBanner
+                  message="⚠ No keyword matches found — no stick-figure clips would be inserted. Proceed anyway (composite will copy the video unchanged), or manually add clips from the library."
+                  confirmLabel="Proceed anyway"
+                  cancelLabel="Cancel"
+                  onConfirm={async () => {
+                    setZeroMatchConfirm(false);
+                    setJobStatus("running"); setJobMsg("Running auto-composite (no matches)…");
+                    setResultUrl(null); setFinalized(false);
+                    try { await startAutoComposite(video.id, { minGap:8, maxOverlays:8, mixAudio }); }
+                    catch (err) { setJobStatus("error"); setJobMsg(err?.response?.data?.detail || "Failed"); }
+                  }}
+                  onCancel={() => setZeroMatchConfirm(false)}
+                  color={T.accentYellow}
+                  T={T}
+                />
               </div>
-              {autoPreview.length === 0 ? (
-                <div style={{ fontSize:11, color:T.accentYellow }}>⚠ No keyword matches found. Try adding clips manually from the library.</div>
-              ) : (
-                <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                  {autoPreview.map((ap, i) => (
-                    <div key={i} style={{ padding:"3px 9px", borderRadius:5, fontSize:10, background:`${OVERLAY_COLORS[i%OVERLAY_COLORS.length]}22`, border:`1px solid ${OVERLAY_COLORS[i%OVERLAY_COLORS.length]}55`, color:T.textMid }}>
-                      <strong>{formatTime(ap.start_time)}</strong> · {ap.filename.replace(".mp4","").replace(/_/g," ")}
-                    </div>
-                  ))}
-                </div>
-              )}
+            )}
+
+            {/* Timeline */}
+            <div style={{ padding:"10px 14px", background:T.bgSub, flexShrink:0 }}>
+              <Timeline overlays={overlays} videoDuration={videoDuration}
+                selectedId={selectedId} onSelect={setSelectedId} T={T} />
             </div>
-          )}
+
+            {/* Action bar */}
+            <div style={{
+              padding:"8px 14px", borderTop:`1px solid ${T.border}`,
+              background:T.bgSub, display:"flex", gap:7, flexWrap:"wrap",
+              alignItems:"center", flexShrink:0,
+            }}>
+              <button onClick={handleApply}
+                disabled={overlays.length === 0 || jobStatus === "running"}
+                title={overlays.length === 0 ? "Add overlays first" : "Run FFmpeg composite (preview — not saved yet)"}
+                style={{
+                  padding:"6px 14px", borderRadius:6, border:"none",
+                  fontFamily:"inherit", fontSize:11, fontWeight:600,
+                  cursor: overlays.length === 0 || jobStatus === "running" ? "not-allowed" : "pointer",
+                  background: overlays.length === 0 || jobStatus === "running" ? T.bgCard : T.accent,
+                  color: overlays.length === 0 || jobStatus === "running" ? T.textFaint : "#fff",
+                }}>
+                🎬 Apply Overlays ({overlays.length})
+              </button>
+
+              <button onClick={handleAutoPreview} disabled={autoLoading || jobStatus === "running"}
+                style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.border}`, cursor:autoLoading?"not-allowed":"pointer", fontFamily:"inherit", fontSize:11, background:T.bgCard, color:T.textMid, opacity:autoLoading?0.5:1 }}>
+                {autoLoading ? "Matching…" : "🔍 Auto-Preview"}
+              </button>
+
+              <button onClick={handleAutoApply} disabled={autoLoading || jobStatus === "running"}
+                title="Auto-match script keywords to clips, then composite"
+                style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.border}`, cursor:autoLoading||jobStatus==="running"?"not-allowed":"pointer", fontFamily:"inherit", fontSize:11, background:T.bgCard, color:T.textMid, opacity:autoLoading||jobStatus==="running"?0.5:1 }}>
+                ⚡ Auto-Insert & Render
+              </button>
+
+              {overlays.length > 0 && (
+                <button onClick={() => { setOverlays([]); setSelectedId(null); }}
+                  style={{ padding:"6px 10px", borderRadius:6, border:`1px solid ${T.accentRed}40`, cursor:"pointer", fontFamily:"inherit", fontSize:11, background:"transparent", color:T.accentRed }}>
+                  Clear All
+                </button>
+              )}
+
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto", flexWrap:"wrap" }}>
+                <span style={{ fontSize:10, color:T.textFaint }}>Chroma key</span>
+                <input type="color" value={chromaColor} onChange={e => setChromaColor(e.target.value)}
+                  style={{ width:26, height:22, border:"none", borderRadius:3, cursor:"pointer", padding:0 }} />
+                <span style={{ fontSize:10, color:T.textFaint }}>Sim</span>
+                <input type="range" min="0.1" max="0.6" step="0.01" value={chromaSim}
+                  onChange={e => setChromaSim(Number(e.target.value))}
+                  style={{ width:60, accentColor:T.accent }} />
+                <span style={{ fontSize:9, color:T.textDim }}>{chromaSim.toFixed(2)}</span>
+                <label style={{ display:"flex", alignItems:"center", gap:4, cursor:"pointer" }}>
+                  <input type="checkbox" checked={mixAudio} onChange={e => setMixAudio(e.target.checked)} style={{ accentColor:T.accent }} />
+                  <span style={{ fontSize:10, color:T.textFaint }}>Mix SFX</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Auto-preview results */}
+            {autoPreview !== null && (
+              <div style={{ padding:"8px 14px", borderTop:`1px solid ${T.border}`, background:T.bgCard, flexShrink:0 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <span style={{ fontSize:9, color:T.textFaint, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                    Auto-match — {autoPreview.length} clip{autoPreview.length !== 1 ? "s" : ""} found
+                  </span>
+                  <div style={{ display:"flex", gap:5 }}>
+                    {autoPreview.length > 0 && (
+                      <button onClick={importAutoPreview}
+                        style={{ padding:"3px 10px", borderRadius:5, border:"none", background:T.accent, color:"#fff", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+                        Import to Timeline
+                      </button>
+                    )}
+                    <button onClick={() => setAutoPreview(null)}
+                      style={{ padding:"3px 8px", borderRadius:5, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                  </div>
+                </div>
+                {autoPreview.length === 0 ? (
+                  <div style={{ fontSize:11, color:T.accentYellow, padding:"4px 0" }}>
+                    ⚠ No keyword matches found. Try adding clips manually from the library.
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                    {autoPreview.map((ap, i) => (
+                      <div key={i} style={{ padding:"3px 9px", borderRadius:5, fontSize:10, background:`${OVERLAY_COLORS[i%OVERLAY_COLORS.length]}22`, border:`1px solid ${OVERLAY_COLORS[i%OVERLAY_COLORS.length]}55`, color:T.textMid }}>
+                        <strong>{formatTime(ap.start_time)}</strong> · {ap.filename.replace(".mp4","").replace(/_/g," ")}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>{/* end scrollable bottom panel */}
         </div>
 
         {/* ── RIGHT: Overlay Controls ───────────────────────────────────── */}
-        <div style={{ width:230, flexShrink:0, borderLeft:`1px solid ${T.border}`, background:T.bgSub, overflowY:"auto", padding:12 }}>
+        <div style={{
+          width:230, flexShrink:0,
+          borderLeft:`1px solid ${T.border}`,
+          background:T.bgSub, overflowY:"auto", padding:12,
+        }}>
           <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8, fontWeight:700 }}>
             Overlay Controls
           </div>
@@ -991,7 +1104,6 @@ export default function VideoEditor({ video, onClose, T }) {
             T={T}
           />
 
-          {/* Overlay list */}
           {overlays.length > 0 && (
             <div style={{ marginTop:14, borderTop:`1px solid ${T.border}`, paddingTop:10 }}>
               <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6, fontWeight:700 }}>
@@ -1023,6 +1135,7 @@ export default function VideoEditor({ video, onClose, T }) {
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
