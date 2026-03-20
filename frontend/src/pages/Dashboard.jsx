@@ -707,30 +707,32 @@ function StickFigureSettings({ T }) {
   };
 
   const [uploadProgress, setUploadProgress] = React.useState("");
+  const [uploadLog, setUploadLog] = React.useState([]); // [{msg, ok}]
 
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploading(true);
+    setUploadLog([]);
     const kws = uploadKw.split(",").map(s => s.trim()).filter(Boolean).join(",");
-    const errors = [];
+    let ok = 0;
     for (let i = 0; i < files.length; i++) {
       setUploadProgress(`${i + 1} / ${files.length}`);
       try {
         const label = files.length === 1 ? uploadLabel : "";
         const row = await uploadStickFigure(files[i], label, kws);
         setClips(prev => [row, ...(prev || [])]);
+        setUploadLog(prev => [...prev, { msg: `✓ ${files[i].name}`, ok: true }]);
+        ok++;
       } catch (err) {
-        errors.push(`${files[i].name}: ${err?.response?.data?.detail || "failed"}`);
+        setUploadLog(prev => [...prev, { msg: `✕ ${files[i].name}: ${err?.response?.data?.detail || err?.message || "failed"}`, ok: false }]);
       }
     }
     setUploadProgress("");
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
-    if (errors.length) {
-      alert(`${files.length - errors.length} uploaded. Errors:\n${errors.join("\n")}`);
-    } else {
-      setUploadLabel(""); setUploadKw(""); setShowUpload(false);
+    if (ok === files.length) {
+      setUploadLabel(""); setUploadKw("");
     }
   };
 
@@ -840,6 +842,14 @@ function StickFigureSettings({ T }) {
                 opacity: uploading ? 0.6 : 1,
               }}
             >{uploading ? `Uploading ${uploadProgress}…` : "Choose .mp4 file(s)"}</button>
+
+            {uploadLog.length > 0 && (
+              <div style={{ marginTop: 8, padding: "6px 10px", background: T.bgDeep, borderRadius: 6, border: `1px solid ${T.border}`, fontFamily: "monospace", fontSize: 10, lineHeight: 1.7, maxHeight: 120, overflowY: "auto" }}>
+                {uploadLog.map((l, i) => (
+                  <div key={i} style={{ color: l.ok ? "#3dd68c" : "#ff5c6c" }}>{l.msg}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

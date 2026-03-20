@@ -563,31 +563,32 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
     setSeeding(false);
   };
 
-  const [uploadProgress, setUploadProgress] = useState(""); // e.g. "2 / 5"
+  const [uploadProgress, setUploadProgress] = useState("");
+  const [uploadLog,      setUploadLog]      = useState([]); // [{msg, ok}]
 
   const handleUploadFile = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploading(true);
+    setUploadLog([]);
     const kws = uploadKw.split(",").map(s => s.trim()).filter(Boolean).join(",");
-    const errors = [];
+    let ok = 0;
     for (let i = 0; i < files.length; i++) {
       setUploadProgress(`${i + 1} / ${files.length}`);
       try {
-        // For multi-file uploads label is left empty so the backend derives it from the filename
         const label = files.length === 1 ? uploadLabel : "";
         const row = await uploadStickFigure(files[i], label, kws);
         setClips(prev => [row, ...prev]);
+        setUploadLog(prev => [...prev, { msg: `✓ ${files[i].name}`, ok: true }]);
+        ok++;
       } catch (err) {
-        errors.push(`${files[i].name}: ${err?.response?.data?.detail || "failed"}`);
+        setUploadLog(prev => [...prev, { msg: `✕ ${files[i].name}: ${err?.response?.data?.detail || err?.message || "failed"}`, ok: false }]);
       }
     }
     setUploadProgress("");
     setUploading(false);
     if (uploadRef.current) uploadRef.current.value = "";
-    if (errors.length) {
-      alert(`${files.length - errors.length} uploaded. Errors:\n${errors.join("\n")}`);
-    } else {
+    if (ok === files.length) {
       setUploadLabel(""); setUploadKw(""); setShowUploadForm(false);
     }
   };
@@ -843,6 +844,13 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
                   style={{ width:"100%", padding:"4px 0", borderRadius:4, border:"none", background:T.accent, color:"#fff", fontSize:10, cursor:uploading?"not-allowed":"pointer", fontFamily:"inherit", opacity:uploading?0.6:1 }}>
                   {uploading ? `Uploading ${uploadProgress}…` : "Choose .mp4 (multi-select OK)"}
                 </button>
+                {uploadLog.length > 0 && (
+                  <div style={{ marginTop:6, padding:"5px 8px", background:T.bgCard, borderRadius:5, border:`1px solid ${T.border}`, fontFamily:"monospace", fontSize:9, lineHeight:1.7, maxHeight:90, overflowY:"auto" }}>
+                    {uploadLog.map((l, i) => (
+                      <div key={i} style={{ color: l.ok ? T.accentGreen : T.accentRed }}>{l.msg}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

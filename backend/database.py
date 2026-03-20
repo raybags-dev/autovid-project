@@ -345,18 +345,20 @@ def upsert_stickfigure_clip(
     """Insert or update a clip record, keyed on filename."""
     db = get_client()
     row = {
-        "filename":   filename,
-        "label":      label,
-        "keywords":   keywords,
-        "file_path":  file_path,
-        "duration":   duration,
-        "width":      width,
-        "height":     height,
-        "has_alpha":  has_alpha,
-        "has_audio":  has_audio,
-        "enabled":    True,
-        "public_url": public_url,
+        "filename":  filename,
+        "label":     label,
+        "keywords":  keywords,
+        "file_path": file_path,
+        "duration":  duration,
+        "width":     width,
+        "height":    height,
+        "has_alpha": has_alpha,
+        "has_audio": has_audio,
+        "enabled":   True,
     }
+    # Only include public_url when non-empty so that missing column doesn't break inserts
+    if public_url:
+        row["public_url"] = public_url
     r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
     return r.data[0]
 
