@@ -55,10 +55,16 @@ import api, {
   archiveVideo,
   unarchiveVideo,
   listArchivedVideos,
+  listStickFigures,
+  seedStickFigures,
+  uploadStickFigure,
+  updateStickFigure,
+  deleteStickFigure,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
 import DangerZone from "../components/DangerZone";
+import VideoEditor from "../components/VideoEditor";
 import {
   ShortsModal,
   UploadModal,
@@ -419,6 +425,421 @@ function LegalNavDropdown({ T }) {
   );
 }
 
+// ── Video Editor Tab ──────────────────────────────────────────────────────────
+function VideoEditorTab({ videos, initialVideo, onInitialConsumed, T }) {
+  const [selectedVideo, setSelectedVideo] = React.useState(initialVideo || null);
+  const [search, setSearch] = React.useState("");
+
+  // If a video was pre-selected from the detail modal, consume it once
+  React.useEffect(() => {
+    if (initialVideo) {
+      setSelectedVideo(initialVideo);
+      onInitialConsumed?.();
+    }
+  }, [initialVideo]);
+
+  const eligible = videos.filter(v => v.file_path);
+
+  const filtered = eligible.filter(v => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (v.title || "").toLowerCase().includes(q) ||
+      (v.prompt || "").toLowerCase().includes(q)
+    );
+  });
+
+  if (selectedVideo) {
+    return (
+      <VideoEditor
+        video={selectedVideo}
+        onClose={() => setSelectedVideo(null)}
+        T={T}
+      />
+    );
+  }
+
+  return (
+    <div style={{ padding: "24px 0" }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: T.text, fontFamily: "'Syne',sans-serif", marginBottom: 6 }}>
+          ✂ Video Editor
+        </div>
+        <div style={{ fontSize: 12, color: T.textDim }}>
+          Select a video to open the stick-figure compositor.
+        </div>
+      </div>
+
+      {eligible.length === 0 ? (
+        <div style={{
+          padding: 28, background: T.bgCard, borderRadius: 10,
+          border: `1px solid ${T.border}`, textAlign: "center",
+          color: T.textFaint, fontSize: 12,
+        }}>
+          No processed videos with a local file yet. Generate a video first.
+        </div>
+      ) : (
+        <>
+          <input
+            type="text"
+            placeholder="Search videos…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: "100%", maxWidth: 400, background: T.inputBg,
+              border: `1px solid ${T.border}`, borderRadius: 8,
+              padding: "8px 12px", color: T.text, fontFamily: "inherit",
+              fontSize: 12, outline: "none", marginBottom: 16, boxSizing: "border-box",
+            }}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+            {filtered.map(v => {
+              const fname = (v.file_path || "").split("/").pop();
+              const thumb = v.thumbnail_url || null;
+              return (
+                <div
+                  key={v.id}
+                  onClick={() => setSelectedVideo(v)}
+                  style={{
+                    background: T.bgCard, border: `1px solid ${T.border}`,
+                    borderRadius: 10, overflow: "hidden", cursor: "pointer",
+                    transition: "border-color 0.15s, transform 0.1s",
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = T.accent;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.transform = "none";
+                  }}
+                >
+                  <div style={{ width: "100%", aspectRatio: "16/9", background: "#000", position: "relative" }}>
+                    {thumb ? (
+                      <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: T.textFaint, fontSize: 22 }}>
+                        🎬
+                      </div>
+                    )}
+                    <div style={{
+                      position: "absolute", inset: 0, display: "flex",
+                      alignItems: "center", justifyContent: "center",
+                      background: "rgba(0,0,0,0.3)", opacity: 0,
+                      transition: "opacity 0.15s",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                    onMouseLeave={e => e.currentTarget.style.opacity = 0}
+                    >
+                      <span style={{ color: "#fff", fontSize: 28 }}>✂</span>
+                    </div>
+                  </div>
+                  <div style={{ padding: "10px 12px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {v.title || v.prompt?.slice(0, 50) || "Untitled"}
+                    </div>
+                    <div style={{ fontSize: 10, color: T.textFaint }}>
+                      {v.duration_seconds ? `${Math.floor(v.duration_seconds / 60)}:${String(v.duration_seconds % 60).padStart(2, "0")}` : "—"}
+                      {" · "}{v.resolution || "—"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+// ── Stick Figure Library Settings Panel ───────────────────────────────────────
+function StickFigureSettings({ T }) {
+  const [clips, setClips]           = React.useState(null); // null = not loaded yet
+  const [loading, setLoading]       = React.useState(false);
+  const [seeding, setSeeding]       = React.useState(false);
+  const [seedResult, setSeedResult] = React.useState(null);
+  const [uploading, setUploading]   = React.useState(false);
+  const [uploadLabel, setUploadLabel] = React.useState("");
+  const [uploadKw, setUploadKw]     = React.useState("");
+  const [showUpload, setShowUpload] = React.useState(false);
+  const [editingId, setEditingId]   = React.useState(null);
+  const [draftLabel, setDraftLabel] = React.useState("");
+  const [draftKw, setDraftKw]       = React.useState("");
+  const fileRef = React.useRef(null);
+
+  const load = () => {
+    setLoading(true);
+    listStickFigures(false)
+      .then(d => setClips(d.clips || []))
+      .catch(() => setClips([]))
+      .finally(() => setLoading(false));
+  };
+
+  const handleSeed = async () => {
+    setSeeding(true); setSeedResult(null);
+    try {
+      const r = await seedStickFigures();
+      setSeedResult(r); load();
+    } catch { setSeedResult({ error: "Seed failed" }); }
+    setSeeding(false);
+  };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const kws = uploadKw.split(",").map(s => s.trim()).filter(Boolean).join(",");
+      const row = await uploadStickFigure(file, uploadLabel, kws);
+      row.preview_url = `/stickfigures-assets/${row.filename}`;
+      setClips(prev => [row, ...(prev || [])]);
+      setUploadLabel(""); setUploadKw(""); setShowUpload(false);
+    } catch (err) {
+      alert(err?.response?.data?.detail || "Upload failed");
+    }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const startEdit = (clip) => {
+    setEditingId(clip.id);
+    setDraftLabel(clip.label || "");
+    setDraftKw((clip.keywords || []).join(", "));
+  };
+
+  const saveEdit = async (id) => {
+    const kws = draftKw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    try {
+      await updateStickFigure(id, { label: draftLabel.trim(), keywords: kws });
+      setClips(prev => prev.map(c => c.id === id ? { ...c, label: draftLabel.trim(), keywords: kws } : c));
+      setEditingId(null);
+    } catch { /* ignore */ }
+  };
+
+  const toggleEnabled = async (clip) => {
+    try {
+      await updateStickFigure(clip.id, { enabled: !clip.enabled });
+      setClips(prev => prev.map(c => c.id === clip.id ? { ...c, enabled: !c.enabled } : c));
+    } catch { /* ignore */ }
+  };
+
+  const doDelete = async (clip) => {
+    if (!window.confirm(`Remove "${clip.label || clip.filename}" from the catalogue?`)) return;
+    try {
+      await deleteStickFigure(clip.id, false);
+      setClips(prev => prev.filter(c => c.id !== clip.id));
+    } catch { /* ignore */ }
+  };
+
+  const enabled  = (clips || []).filter(c => c.enabled !== false).length;
+  const disabled = (clips || []).filter(c => c.enabled === false).length;
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>
+        STICK FIGURE LIBRARY
+      </div>
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>🎭 Clip Catalogue</div>
+            <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+              {clips === null
+                ? "Not loaded yet"
+                : `${clips.length} clips total · ${enabled} enabled · ${disabled} disabled`}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {clips === null && (
+              <button
+                onClick={load}
+                disabled={loading}
+                style={{
+                  padding: "5px 12px", borderRadius: 6, border: `1px solid ${T.border}`,
+                  background: T.bgSub, color: T.textMid, fontSize: 11,
+                  cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit",
+                }}
+              >{loading ? "Loading…" : "Load"}</button>
+            )}
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              style={{
+                padding: "5px 12px", borderRadius: 6, border: `1px solid ${T.accent}40`,
+                background: `${T.accent}12`, color: T.accent, fontSize: 11,
+                cursor: seeding ? "not-allowed" : "pointer", fontFamily: "inherit",
+              }}
+            >{seeding ? "Seeding…" : "Seed from disk"}</button>
+            <button
+              onClick={() => setShowUpload(v => !v)}
+              style={{
+                padding: "5px 12px", borderRadius: 6, border: "none",
+                background: showUpload ? T.accent : T.accentGreen,
+                color: "#fff", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >{showUpload ? "Cancel" : "+ Upload"}</button>
+          </div>
+        </div>
+
+        {seedResult && (
+          <div style={{ fontSize: 11, color: seedResult.error ? T.accentRed : T.accentGreen, marginBottom: 10 }}>
+            {seedResult.error || `✓ ${seedResult.upserted} clips seeded${seedResult.skipped > 0 ? `, ${seedResult.skipped} skipped` : ""}`}
+          </div>
+        )}
+
+        {/* Upload form */}
+        {showUpload && (
+          <div style={{ padding: 12, background: T.bgSub, borderRadius: 8, marginBottom: 12, border: `1px solid ${T.border}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 3 }}>DISPLAY LABEL</div>
+                <input
+                  value={uploadLabel}
+                  onChange={e => setUploadLabel(e.target.value)}
+                  placeholder="e.g. Running away"
+                  style={{
+                    width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+                    borderRadius: 5, padding: "5px 8px", color: T.text,
+                    fontFamily: "inherit", fontSize: 11, boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 3 }}>KEYWORDS (comma-separated)</div>
+                <input
+                  value={uploadKw}
+                  onChange={e => setUploadKw(e.target.value)}
+                  placeholder="run, danger, flee"
+                  style={{
+                    width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+                    borderRadius: 5, padding: "5px 8px", color: T.text,
+                    fontFamily: "inherit", fontSize: 11, boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".mp4,video/mp4"
+              onChange={handleUpload}
+              disabled={uploading}
+              style={{ display: "none" }}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              style={{
+                padding: "6px 16px", borderRadius: 6, border: "none",
+                background: T.accent, color: "#fff", fontSize: 11,
+                cursor: uploading ? "not-allowed" : "pointer", fontFamily: "inherit",
+                opacity: uploading ? 0.6 : 1,
+              }}
+            >{uploading ? "Uploading…" : "Choose .mp4 file"}</button>
+          </div>
+        )}
+
+        {/* Clip list */}
+        {clips !== null && clips.length > 0 && (
+          <div style={{ maxHeight: 380, overflowY: "auto" }}>
+            {clips.map(clip => (
+              <div
+                key={clip.id || clip.filename}
+                style={{
+                  padding: "8px 10px", borderRadius: 7, marginBottom: 4,
+                  background: T.bgSub, border: `1px solid ${T.border}`,
+                  opacity: clip.enabled === false ? 0.5 : 1,
+                }}
+              >
+                {editingId === clip.id ? (
+                  <div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
+                      <input
+                        value={draftLabel}
+                        onChange={e => setDraftLabel(e.target.value)}
+                        placeholder="Label"
+                        style={{
+                          background: T.inputBg, border: `1px solid ${T.accent}60`,
+                          borderRadius: 5, padding: "4px 7px", color: T.text,
+                          fontFamily: "inherit", fontSize: 11,
+                        }}
+                      />
+                      <input
+                        value={draftKw}
+                        onChange={e => setDraftKw(e.target.value)}
+                        placeholder="keywords, comma, separated"
+                        style={{
+                          background: T.inputBg, border: `1px solid ${T.accent}60`,
+                          borderRadius: 5, padding: "4px 7px", color: T.text,
+                          fontFamily: "inherit", fontSize: 11,
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => saveEdit(clip.id)} style={{
+                        padding: "3px 10px", borderRadius: 5, border: "none",
+                        background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit",
+                      }}>Save</button>
+                      <button onClick={() => setEditingId(null)} style={{
+                        padding: "3px 10px", borderRadius: 5,
+                        border: `1px solid ${T.border}`, background: "transparent",
+                        color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit",
+                      }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>
+                        {clip.label || clip.filename}
+                      </div>
+                      <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>
+                        {clip.filename} · {clip.duration}s
+                        {clip.keywords?.length > 0 && (
+                          <span style={{ color: T.textFaint }}>
+                            {" · "}{clip.keywords.slice(0, 5).join(", ")}{clip.keywords.length > 5 ? "…" : ""}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button onClick={() => startEdit(clip)} style={{
+                        padding: "2px 8px", borderRadius: 4,
+                        border: `1px solid ${T.border}`, background: "transparent",
+                        color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit",
+                      }}>✎</button>
+                      <button onClick={() => toggleEnabled(clip)} style={{
+                        padding: "2px 8px", borderRadius: 4, border: "none",
+                        background: clip.enabled === false ? `${T.accentGreen}30` : `${T.accentRed}20`,
+                        color: clip.enabled === false ? T.accentGreen : T.accentRed,
+                        fontSize: 10, cursor: "pointer", fontFamily: "inherit",
+                      }}>{clip.enabled === false ? "Enable" : "Disable"}</button>
+                      <button onClick={() => doDelete(clip)} style={{
+                        padding: "2px 8px", borderRadius: 4,
+                        border: `1px solid ${T.accentRed}30`, background: "transparent",
+                        color: T.accentRed, fontSize: 10, cursor: "pointer", fontFamily: "inherit",
+                      }}>✕</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {clips !== null && clips.length === 0 && (
+          <div style={{ fontSize: 11, color: T.textFaint, textAlign: "center", padding: "16px 0" }}>
+            No clips in the DB yet — click "Seed from disk" to load the 84 built-in clips.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -436,6 +857,7 @@ export default function Dashboard() {
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [preview, setPreview] = useState(null); // video being previewed
+  const [editorVideo, setEditorVideo] = useState(null); // video open in VideoEditor
   const [tab, setTab] = useState("videos");
   const [tabLoading, setTabLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
@@ -2058,6 +2480,7 @@ export default function Dashboard() {
               { id: "analytics", icon: "◈", label: "Analytics" },
               { id: "compilations", icon: "🎬", label: "Compilations" },
               { id: "reviews", icon: "◈", label: "Reviews", count: pendingReviewCount },
+              { id: "editor", icon: "✂", label: "Video Editor" },
               { id: "settings", icon: "◎", label: "Settings" },
             ].map((n) => (
               <div
@@ -2303,6 +2726,8 @@ export default function Dashboard() {
                 ? "Analytics"
                 : tab === "reviews"
                 ? "Reviews"
+                : tab === "editor"
+                ? "Video Editor"
                 : "Settings"}
             </div>
             <div
@@ -9219,6 +9644,9 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {/* ── Stick Figure Library ── */}
+                <StickFigureSettings T={T} />
+
                 </div>{/* end LEFT COLUMN */}
 
                 {/* ── RIGHT COLUMN: Configuration ── */}
@@ -9500,6 +9928,16 @@ export default function Dashboard() {
                 </div>{/* end RIGHT COLUMN */}
 
               </div>
+            )}
+
+            {/* ── VIDEO EDITOR TAB ──────────────────────────────────────────────── */}
+            {tab === "editor" && (
+              <VideoEditorTab
+                videos={videos}
+                initialVideo={editorVideo}
+                onInitialConsumed={() => setEditorVideo(null)}
+                T={T}
+              />
             )}
 
             {tab === "reviews" && (
@@ -10147,6 +10585,21 @@ export default function Dashboard() {
                       ▶ PREVIEW
                     </button>
                   )}
+                  <button
+                    className="btn-sm"
+                    onClick={() => {
+                      setSelected(null);
+                      setEditorVideo(selected);
+                      switchTab("editor");
+                    }}
+                    style={{
+                      color: T.accentGreen,
+                      borderColor: `${T.accentGreen}40`,
+                      background: `${T.accentGreen}0d`,
+                    }}
+                  >
+                    ✂ EDIT
+                  </button>
                   <div
                     onClick={() => setSelected(null)}
                     style={{

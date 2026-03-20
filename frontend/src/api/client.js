@@ -139,6 +139,78 @@ export const triggerAutoComment = async () => {
 
 export default api;
 
+// ── Stick-Figure Video Editor ──────────────────────────────────────────────
+export const listStickFigures = async (enabledOnly = true) => {
+  const { data } = await api.get("/stickfigures", { params: { enabled_only: enabledOnly } });
+  return data;
+};
+
+export const seedStickFigures = async () => {
+  const { data } = await api.post("/stickfigures/seed");
+  return data;
+};
+
+export const uploadStickFigure = async (file, label = "", keywords = "") => {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("label", label);
+  form.append("keywords", keywords);
+  const { data } = await api.post("/stickfigures/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 120000,
+  });
+  return data;
+};
+
+export const updateStickFigure = async (id, fields) => {
+  const { data } = await api.patch(`/stickfigures/${id}`, fields);
+  return data;
+};
+
+export const deleteStickFigure = async (id, deleteFile = false) => {
+  const { data } = await api.delete(`/stickfigures/${id}`, {
+    params: { delete_file: deleteFile },
+  });
+  return data;
+};
+
+export const startComposite = async (videoId, overlays, options = {}) => {
+  const { data } = await api.post(`/videos/${videoId}/composite`, {
+    overlays,
+    mix_overlay_audio: options.mixAudio ?? true,
+    chroma_color: options.chromaColor ?? "0x00FF00",
+    chroma_similarity: options.chromaSimilarity ?? 0.35,
+    chroma_blend: options.chromaBlend ?? 0.05,
+    replace_original: options.replaceOriginal ?? false,
+  });
+  return data;
+};
+
+export const getCompositeStatus = async (videoId) => {
+  const { data } = await api.get(`/videos/${videoId}/composite-status`);
+  return data;
+};
+
+export const startAutoComposite = async (videoId, options = {}) => {
+  const { data } = await api.post(`/videos/${videoId}/auto-composite`, {
+    min_gap: options.minGap ?? 8,
+    max_overlays: options.maxOverlays ?? 8,
+    mix_overlay_audio: options.mixAudio ?? true,
+    replace_original: options.replaceOriginal ?? false,
+  });
+  return data;
+};
+
+export const previewAutoComposite = async (videoId, options = {}) => {
+  const { data } = await api.post(`/videos/${videoId}/auto-composite/preview`, {
+    min_gap: options.minGap ?? 8,
+    max_overlays: options.maxOverlays ?? 8,
+    mix_overlay_audio: options.mixAudio ?? true,
+    replace_original: false,
+  });
+  return data;
+};
+
 // ── YouTube upload with metadata ───────────────────────────────────────────
 export const uploadVideoWithMeta = async (
   id,
