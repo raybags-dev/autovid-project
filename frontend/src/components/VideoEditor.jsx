@@ -102,23 +102,29 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
   const ref = useRef(null);
   const prevActiveRef = useRef(false);
 
-  // Active once the main video reaches startTime — stays active until clip is removed.
-  // (Auto-render uses backend timing; preview just needs "start and stay".)
-  const isActive = mainCurrentTime >= overlay.startTime;
+  const isLooping = overlay.loopMode !== "none";
+
+  // Looping clips stay on screen from startTime onwards.
+  // Non-looping clips play only within their time window.
+  // preview_hidden lets the user mute a clip from preview without removing it from the timeline.
+  const isActive =
+    !overlay.preview_hidden &&
+    mainCurrentTime >= overlay.startTime &&
+    (isLooping || mainCurrentTime < overlay.startTime + overlay.duration);
 
   // Force muted on mount
   useEffect(() => {
     if (ref.current) { ref.current.muted = true; ref.current.volume = 0; }
   }, []);
 
-  // last_Ns loop: when clip nears end, seek back N seconds from the end
+  // last_Ns loop: timeupdate handler seeks back N seconds before natural end
   useEffect(() => {
     const v = ref.current;
     if (!v || !overlay.loopMode.startsWith("last_")) return;
     const secs = parseFloat(overlay.loopMode.replace("last_", "").replace("s", "")) || 1;
     const onTimeUpdate = () => {
       const dur = v.duration;
-      if (dur && v.currentTime >= dur - 0.08) {
+      if (dur > 0 && v.currentTime >= dur - 0.1) {
         v.currentTime = Math.max(0, dur - secs);
       }
     };
@@ -126,7 +132,7 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
     return () => v.removeEventListener("timeupdate", onTimeUpdate);
   }, [overlay.id, overlay.loopMode]);
 
-  // Sync play/pause; reset when deactivated (main video seeked before startTime)
+  // Sync play/pause; reset when deactivated (scrubbed before startTime or preview_hidden)
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
@@ -141,7 +147,7 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
       return;
     }
 
-    // Just became active — start from beginning
+    // First frame of being active — start clip from the beginning
     if (!prevActiveRef.current) {
       v.currentTime = 0;
     }
@@ -161,6 +167,9 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
 
   if (!isActive) return null;
 
+  // "full" loops natively; "last_Ns" is handled by timeupdate — no loop attr needed
+  const useNativeLoop = overlay.loopMode === "full";
+
   return (
     <video
       ref={ref}
@@ -169,17 +178,12 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
       muted
       playsInline
       preload="auto"
-      loop={overlay.loopMode === "full"}
+      loop={useNativeLoop}
       style={{
         position: "absolute",
-        top: 0,
-        left: "10%",
-        width: "80%",
-        height: "100%",
-        objectFit: "contain",
-        pointerEvents: "none",
-        zIndex: 5,
-        opacity: 0.88,
+        top: 0, left: "10%", width: "80%", height: "100%",
+        objectFit: "contain", pointerEvents: "none",
+        zIndex: 5, opacity: 0.88,
       }}
     />
   );
@@ -491,6 +495,8 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
   const [newVideoId,   setNewVideoId]   = useState(null);
   const logsEndRef = useRef(null);
 
+  const [recentlyAdded,    setRecentlyAdded]    = useState(null); // overlay id flashed green on add
+
   const [autoPreview,      setAutoPreview]      = useState(null);
   const [autoLoading,      setAutoLoading]      = useState(false);
   const [zeroMatchConfirm, setZeroMatchConfirm] = useState(false);
@@ -611,24 +617,29 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
            (c.keywords || []).some(k => k.includes(q));
   });
 
-  // Add clip → seek main video to that time and play
+  // Add clip at current playback position
   const addClip = useCallback((clip, loopMode = "none") => {
     const v = mainVideoRef.current;
     const startT = v ? Math.min(v.currentTime, Math.max(0, videoDuration - 1)) : 0;
     const newOv = {
-      id:         newId(),
-      filename:   clip.filename,
-      clipPath:   clip.path,
-      previewUrl: clipSrc(clip),
-      startTime:  parseFloat(startT.toFixed(1)),
-      duration:   clip.duration || 5,
+      id:             newId(),
+      filename:       clip.filename,
+      clipPath:       clip.path,
+      previewUrl:     clipSrc(clip),
+      startTime:      parseFloat(startT.toFixed(1)),
+      duration:       clip.duration || 5,
       x: 80, y: 80, scale: 0.5,
       loopMode,
-      hasSound: clip.has_audio,
+      hasSound:       clip.has_audio,
+      preview_hidden: false, // visible in preview immediately
     };
     setOverlays(prev => [...prev, newOv]);
     setSelectedId(newOv.id);
-    setModalClip(null); // close preview modal if open
+    setModalClip(null);
+    // Flash green in the right panel for 1.5 s
+    setRecentlyAdded(newOv.id);
+    setTimeout(() => setRecentlyAdded(id => id === newOv.id ? null : id), 1500);
+    // Seek to startTime so the clip is immediately visible
     if (v) {
       v.currentTime = newOv.startTime;
       if (v.paused) v.play().catch(() => {});
@@ -1053,21 +1064,23 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
               background:T.bgSub, display:"flex", gap:7, flexWrap:"wrap",
               alignItems:"center", flexShrink:0,
             }}>
+              {/* Primary: render & save */}
               <button onClick={handleApply}
                 disabled={overlays.length === 0 || jobStatus === "running"}
-                title={overlays.length === 0 ? "Add overlays first" : "Run FFmpeg composite"}
+                title={overlays.length === 0 ? "Add clips first then save" : "Render all clips into the video and save as a new video in your dashboard"}
                 style={{
-                  padding:"6px 14px", borderRadius:6, border:"none", fontFamily:"inherit", fontSize:11, fontWeight:600,
+                  padding:"6px 16px", borderRadius:6, border:"none", fontFamily:"inherit", fontSize:11, fontWeight:700,
                   cursor: overlays.length === 0 || jobStatus === "running" ? "not-allowed" : "pointer",
-                  background: overlays.length === 0 || jobStatus === "running" ? T.bgCard : T.accent,
+                  background: overlays.length === 0 || jobStatus === "running" ? T.bgCard : T.accentGreen,
                   color: overlays.length === 0 || jobStatus === "running" ? T.textFaint : "#fff",
                 }}>
-                🎬 Apply Overlays ({overlays.length})
+                {jobStatus === "running" ? "⏳ Rendering…" : `💾 Save to DB (${overlays.length} clip${overlays.length !== 1 ? "s" : ""})`}
               </button>
 
+              {/* Secondary: auto-match */}
               <button onClick={handleAutoPreview} disabled={autoLoading || jobStatus === "running"}
                 style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${T.border}`, cursor:autoLoading?"not-allowed":"pointer", fontFamily:"inherit", fontSize:11, background:T.bgCard, color:T.textMid, opacity:autoLoading?0.5:1 }}>
-                {autoLoading ? "Matching…" : "🔍 Auto-Preview"}
+                {autoLoading ? "Matching…" : "🔍 Auto-Match"}
               </button>
 
               <button onClick={handleAutoApply} disabled={autoLoading || jobStatus === "running"}
@@ -1148,28 +1161,44 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
           {overlays.length > 0 && (
             <div style={{ marginTop:14, borderTop:`1px solid ${T.border}`, paddingTop:10 }}>
               <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6, fontWeight:700 }}>
-                All Overlays ({overlays.length})
+                Clips in Timeline ({overlays.length})
               </div>
               {overlays.map((ov, idx) => {
                 const color = OVERLAY_COLORS[idx % OVERLAY_COLORS.length];
+                const justAdded = recentlyAdded === ov.id;
+                const isHidden  = ov.preview_hidden;
                 return (
                   <div key={ov.id} onClick={() => setSelectedId(ov.id)}
-                    style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 6px", borderRadius:5, background:selectedId===ov.id?`${color}22`:"transparent", border:`1px solid ${selectedId===ov.id?color:"transparent"}`, cursor:"pointer", marginBottom:2 }}>
-                    <div style={{ width:7, height:7, borderRadius:"50%", background:color, flexShrink:0 }} />
+                    style={{
+                      display:"flex", alignItems:"center", gap:5, padding:"5px 6px", borderRadius:5, marginBottom:3,
+                      background: justAdded ? `${T.accentGreen}30` : selectedId===ov.id ? `${color}22` : "transparent",
+                      border:`1px solid ${justAdded ? T.accentGreen : selectedId===ov.id ? color : T.border + "40"}`,
+                      cursor:"pointer", opacity: isHidden ? 0.45 : 1,
+                      transition:"background 0.3s, border-color 0.3s",
+                    }}>
+                    {/* Colour dot — dimmed when hidden */}
+                    <div style={{ width:7, height:7, borderRadius:"50%", background: isHidden ? T.textFaint : color, flexShrink:0 }} />
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:9, color:T.textMid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      <div style={{ fontSize:9, color: isHidden ? T.textFaint : T.textMid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                         {ov.filename.replace(".mp4","").replace(/_/g," ")}
                       </div>
-                      <div style={{ fontSize:8, color:T.textFaint }}>{formatTime(ov.startTime)} · {ov.duration}s · {ov.loopMode}</div>
+                      <div style={{ fontSize:8, color:T.textFaint }}>
+                        @{formatTime(ov.startTime)} · {ov.duration}s
+                        {ov.loopMode !== "none" && <span style={{ color:T.accentYellow }}> · {ov.loopMode}</span>}
+                        {isHidden && <span style={{ color:T.textFaint }}> · hidden</span>}
+                      </div>
                     </div>
+                    {/* ⏸/▶ — toggle preview visibility (keeps clip in timeline for render) */}
                     <button
-                      onClick={e => { e.stopPropagation(); removeOverlay(ov.id); }}
-                      title="Stop & remove clip"
-                      style={{ padding:"1px 5px", borderRadius:3, border:`1px solid ${ov.loopMode !== "none" ? T.accentYellow : T.border}50`, background:`${ov.loopMode !== "none" ? T.accentYellow : T.textFaint}18`, color: ov.loopMode !== "none" ? T.accentYellow : T.textFaint, fontSize:9, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
-                      ⏹
+                      onClick={e => { e.stopPropagation(); updateOverlay({...ov, preview_hidden: !isHidden}); }}
+                      title={isHidden ? "Show in preview" : "Hide from preview (keeps in render)"}
+                      style={{ padding:"1px 5px", borderRadius:3, border:`1px solid ${T.border}50`, background:"transparent", color: isHidden ? T.accentGreen : T.textFaint, fontSize:10, cursor:"pointer", flexShrink:0 }}>
+                      {isHidden ? "▶" : "⏸"}
                     </button>
+                    {/* ✕ — remove from timeline entirely */}
                     <button onClick={e => { e.stopPropagation(); removeOverlay(ov.id); }}
-                      style={{ padding:"1px 4px", borderRadius:3, border:"none", background:"transparent", color:T.accentRed, fontSize:10, cursor:"pointer", opacity:0.6, flexShrink:0 }}>✕</button>
+                      title="Remove from timeline"
+                      style={{ padding:"1px 5px", borderRadius:3, border:"none", background:"transparent", color:T.accentRed, fontSize:11, cursor:"pointer", flexShrink:0 }}>✕</button>
                   </div>
                 );
               })}
