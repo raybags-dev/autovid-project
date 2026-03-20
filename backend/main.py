@@ -3161,7 +3161,6 @@ def seed_stickfigures(_u: str = Depends(verify_token)):
                 height     = info["height"],
                 has_alpha  = info["has_alpha"],
                 has_audio  = info["has_audio"],
-                public_url = clip_public_url,
             )
             upserted += 1
         except Exception as e:
@@ -3189,7 +3188,6 @@ def seed_stickfigures(_u: str = Depends(verify_token)):
                 height     = info["height"],
                 has_alpha  = info["has_alpha"],
                 has_audio  = info["has_audio"],
-                public_url = clip_public_url,
             )
             upserted += 1
         except Exception as e:
@@ -3310,7 +3308,6 @@ async def upload_stickfigure(
         height     = info["height"],
         has_alpha  = info["has_alpha"],
         has_audio  = info["has_audio"],
-        public_url = public_url,
     )
     row["preview_url"] = public_url or f"/stickfigures-assets/{safe_name}"
     return row

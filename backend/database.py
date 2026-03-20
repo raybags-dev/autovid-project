@@ -340,7 +340,6 @@ def upsert_stickfigure_clip(
     height: int = 0,
     has_alpha: bool = False,
     has_audio: bool = False,
-    public_url: str = "",
 ) -> dict:
     """Insert or update a clip record, keyed on filename."""
     db = get_client()
@@ -356,9 +355,6 @@ def upsert_stickfigure_clip(
         "has_audio": has_audio,
         "enabled":   True,
     }
-    # Only include public_url when non-empty so that missing column doesn't break inserts
-    if public_url:
-        row["public_url"] = public_url
     r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
     return r.data[0]
 
