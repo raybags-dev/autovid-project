@@ -398,10 +398,11 @@ def composite_video(
             input_label    = f"[{idx + 1}:v]"
             filtered_label = f"[fov{idx}]"
 
-            # setpts=PTS-STARTPTS resets overlay to t=0; enable gates when it appears on the timeline.
-            # FFmpeg does not consume the overlay stream while enable=0, so the clip starts fresh
-            # at its start_t. This is Approach B (clean + stable per FFmpeg docs).
-            ov_filters = ["setpts=PTS-STARTPTS", "fps=30"]
+            # trim bounds the overlay to its exact duration so the stream doesn't run out of frames
+            # unexpectedly. setpts resets to t=0 after trim. enable gates visibility on the timeline.
+            # NO shortest=1 — that terminates the entire video stream when the overlay ends.
+            looped_dur = float(p["looped_info"]["duration"])
+            ov_filters = [f"trim=start=0:end={looped_dur:.3f}", "setpts=PTS-STARTPTS", "fps=30"]
             if not has_alpha:
                 ov_filters.append(
                     f"chromakey=color={chroma_color}"
@@ -418,7 +419,6 @@ def composite_video(
                 f"{prev_v}{ov_label}overlay="
                 f"x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2"
                 f":enable='between(t,{start_t},{end_t})'"
-                f":shortest=1"
                 f"{out_v}"
             )
             prev_v = out_v
