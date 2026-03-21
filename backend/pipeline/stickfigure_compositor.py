@@ -388,8 +388,6 @@ def composite_video(
             clip_natural_dur = p["clip_natural_dur"]
             loop_mode        = p["loop_mode"]
             start_t          = float(ov.get("start_time", 0))
-            # end_t: loop fills rest of video; no-loop ends at natural clip duration
-            end_t            = base_duration if loop_mode != "none" else start_t + clip_natural_dur
             has_alpha        = clip_info["has_alpha"]
             mix_sfx          = ov.get("has_sound", True) and mix_overlay_audio
             has_sfx          = p["looped_info"]["has_audio"]
@@ -398,11 +396,19 @@ def composite_video(
             input_label    = f"[{idx + 1}:v]"
             filtered_label = f"[fov{idx}]"
 
-            # trim bounds the overlay to its exact duration so the stream doesn't run out of frames
-            # unexpectedly. setpts resets to t=0 after trim. enable gates visibility on the timeline.
-            # NO shortest=1 — that terminates the entire video stream when the overlay ends.
+            # trim  — bound the stream so FFmpeg never stalls waiting for more frames
+            # setpts — shift PTS to start_t: clip 2's frames get PTS 30–35s (not 0–5s).
+            #          FFmpeg finds each clip's first frame exactly when the base timeline
+            #          reaches start_t — no early consumption, no frozen stills.
+            # NO enable — enable is only a visibility mask, NOT a scheduling gate.
+            #             It does not pause stream consumption; removing it avoids mismatch.
+            # NO shortest=1 — that terminates the entire output stream when overlay ends.
             looped_dur = float(p["looped_info"]["duration"])
-            ov_filters = [f"trim=start=0:end={looped_dur:.3f}", "setpts=PTS-STARTPTS", "fps=30"]
+            ov_filters = [
+                f"trim=start=0:end={looped_dur:.3f}",
+                f"setpts=PTS-STARTPTS+{start_t}/TB",
+                "fps=30",
+            ]
             if not has_alpha:
                 ov_filters.append(
                     f"chromakey=color={chroma_color}"
@@ -418,7 +424,6 @@ def composite_video(
             filter_parts.append(
                 f"{prev_v}{ov_label}overlay="
                 f"x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2"
-                f":enable='between(t,{start_t},{end_t})'"
                 f"{out_v}"
             )
             prev_v = out_v
