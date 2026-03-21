@@ -400,10 +400,14 @@ def composite_video(
             # setpts — shift PTS to start_t: clip 2's frames get PTS 30–35s (not 0–5s).
             #          FFmpeg finds each clip's first frame exactly when the base timeline
             #          reaches start_t — no early consumption, no frozen stills.
-            # NO enable — enable is only a visibility mask, NOT a scheduling gate.
-            #             It does not pause stream consumption; removing it avoids mismatch.
+            # enable — visibility gate: hides the overlay outside the clip window.
+            #          Without it, the overlay filter shows clip 2's first frame from t=0
+            #          (because there's no earlier frame to replace it), producing a
+            #          frozen still until start_t.  PTS shift handles consumption timing;
+            #          enable handles when the composite is actually visible.
             # NO shortest=1 — that terminates the entire output stream when overlay ends.
             looped_dur = float(p["looped_info"]["duration"])
+            end_t = base_duration if loop_mode != "none" else start_t + clip_natural_dur
             ov_filters = [
                 f"trim=start=0:end={looped_dur:.3f}",
                 f"setpts=PTS-STARTPTS+{start_t}/TB",
@@ -424,6 +428,7 @@ def composite_video(
             filter_parts.append(
                 f"{prev_v}{ov_label}overlay="
                 f"x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2"
+                f":enable='between(t,{start_t:.3f},{end_t:.3f})'"
                 f"{out_v}"
             )
             prev_v = out_v
