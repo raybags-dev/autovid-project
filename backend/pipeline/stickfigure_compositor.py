@@ -378,25 +378,31 @@ def composite_video(
             input_label    = f"[{idx + 1}:v]"
             filtered_label = f"[fov{idx}]"
 
+            # Pre-process each overlay stream independently:
+            #   setpts=PTS-STARTPTS   — reset timestamps so frames advance correctly
+            #   chromakey             — key out green background (non-alpha clips only)
+            #   scale=-1:{base_h}     — fill base video height, keep aspect ratio
+            #   format=yuva420p       — ensure alpha channel is preserved through chain
             ov_filters = ["setpts=PTS-STARTPTS"]
             if not has_alpha:
                 ov_filters.append(
                     f"chromakey=color={chroma_color}"
                     f":similarity={chroma_similarity}:blend={chroma_blend}"
                 )
-            # Scale to fill full height of base video, keep aspect ratio
             ov_filters.append(f"scale=-1:{base_h}")
+            ov_filters.append("format=yuva420p")
 
             filter_parts.append(f"{input_label}{','.join(ov_filters)}{filtered_label}")
             ov_label = filtered_label
 
-            # Center overlay horizontally and vertically
+            # Chain overlay onto previous output — centered, time-windowed
+            # No format= here; format negotiation handled by the pre-process step above
             out_v = "[outv]" if is_last else f"[v{idx}]"
             filter_parts.append(
                 f"{prev_v}{ov_label}overlay="
                 f"x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2"
                 f":enable='between(t,{start_t},{end_t})'"
-                f":format=auto{out_v}"
+                f"{out_v}"
             )
             prev_v = out_v
 
