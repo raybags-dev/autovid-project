@@ -328,20 +328,31 @@ def composite_video(
 
     with tempfile.TemporaryDirectory(prefix="sfcomp_") as tmp_dir:
         # ── Step 1: pre-build any looped clip files (fast, small temp files) ──
+        base_info     = get_video_info(base_path)
+        base_h        = base_info["height"]
+        base_duration = float(base_info["duration"])
+
         prepared = []
         for idx, ov in enumerate(overlays):
-            clip_path = ov["clip_path"]
-            loop_mode = ov.get("loop_mode", "none")
-            clip_info = get_video_info(clip_path)
-            clip_dur  = float(ov.get("duration") or clip_info["duration"])
-            looped    = _build_looped_clip(clip_path, clip_dur, loop_mode, tmp_dir, clip_info)
+            clip_path        = ov["clip_path"]
+            loop_mode        = ov.get("loop_mode", "none")
+            clip_info        = get_video_info(clip_path)
+            clip_natural_dur = float(ov.get("duration") or clip_info["duration"])
+            start_t          = float(ov.get("start_time", 0))
+            # For loop/repeat: build a clip long enough to cover the rest of the base video
+            if loop_mode != "none":
+                target_dur = max(clip_natural_dur, base_duration - start_t)
+            else:
+                target_dur = clip_natural_dur  # freeze handled by tpad in filter chain
+            looped      = _build_looped_clip(clip_path, target_dur, loop_mode, tmp_dir, clip_info)
             looped_info = get_video_info(looped)
             prepared.append({
-                "ov":          ov,
-                "looped":      looped,
-                "clip_info":   clip_info,
-                "looped_info": looped_info,
-                "clip_dur":    clip_dur,
+                "ov":               ov,
+                "looped":           looped,
+                "clip_info":        clip_info,
+                "looped_info":      looped_info,
+                "clip_natural_dur": clip_natural_dur,
+                "loop_mode":        loop_mode,
             })
             print(f"🎬 Prepared overlay {idx+1}/{len(overlays)}: {Path(clip_path).name}")
 
@@ -351,38 +362,27 @@ def composite_video(
         for p in prepared:
             inputs += ["-i", p["looped"]]
 
-        # Get base video dimensions for scaling overlay to fill height
-        base_info = get_video_info(base_path)
-        base_h    = base_info["height"]
-
         filter_parts = []
         audio_parts  = []
         audio_labels = []
 
         prev_v = "[0:v]"
         for idx, p in enumerate(prepared):
-            ov        = p["ov"]
-            clip_info = p["clip_info"]
-            clip_dur  = p["clip_dur"]
-            start_t   = float(ov.get("start_time", 0))
-            end_t     = start_t + clip_dur
-            has_alpha = clip_info["has_alpha"]
-            mix_sfx   = ov.get("has_sound", True) and mix_overlay_audio
-            has_sfx   = p["looped_info"]["has_audio"]
-            is_last   = idx == len(prepared) - 1
+            ov               = p["ov"]
+            clip_info        = p["clip_info"]
+            clip_natural_dur = p["clip_natural_dur"]
+            loop_mode        = p["loop_mode"]
+            start_t          = float(ov.get("start_time", 0))
+            # Overlay stays visible until the base video ends (loop fills it; freeze holds last frame)
+            end_t            = base_duration
+            has_alpha        = clip_info["has_alpha"]
+            mix_sfx          = ov.get("has_sound", True) and mix_overlay_audio
+            has_sfx          = p["looped_info"]["has_audio"]
+            is_last          = idx == len(prepared) - 1
 
-            # Build per-clip filter chain:
-            #   1. setpts=PTS-STARTPTS  — fix frozen/still-frame bug (resets timestamps)
-            #   2. chromakey            — remove green background (non-alpha clips only)
-            #   3. scale=-1:{base_h}   — fill base video height, keep aspect ratio
             input_label    = f"[{idx + 1}:v]"
             filtered_label = f"[fov{idx}]"
 
-            # Pre-process each overlay stream independently:
-            #   setpts=PTS-STARTPTS   — reset timestamps so frames advance correctly
-            #   chromakey             — key out green background (non-alpha clips only)
-            #   scale=-1:{base_h}     — fill base video height, keep aspect ratio
-            #   format=yuva420p       — ensure alpha channel is preserved through chain
             ov_filters = [f"setpts=PTS-STARTPTS+{start_t}/TB", "fps=30"]
             if not has_alpha:
                 ov_filters.append(
@@ -391,12 +391,15 @@ def composite_video(
                 )
             ov_filters.append(f"scale=-1:{base_h}")
             ov_filters.append("format=yuva420p")
+            # For "none" mode: freeze last frame for the rest of the base video
+            if loop_mode == "none":
+                freeze_dur = base_duration - start_t - clip_natural_dur
+                if freeze_dur > 0:
+                    ov_filters.append(f"tpad=stop_mode=clone:stop_duration={freeze_dur:.3f}")
 
             filter_parts.append(f"{input_label}{','.join(ov_filters)}{filtered_label}")
             ov_label = filtered_label
 
-            # Chain overlay onto previous output — centered, time-windowed
-            # No format= here; format negotiation handled by the pre-process step above
             out_v = "[outv]" if is_last else f"[v{idx}]"
             filter_parts.append(
                 f"{prev_v}{ov_label}overlay="
@@ -406,12 +409,12 @@ def composite_video(
             )
             prev_v = out_v
 
-            # Per-clip audio
+            # Per-clip audio — trim to natural clip duration only
             if mix_sfx and has_sfx:
                 delay_ms = int(start_t * 1000)
                 a_label  = f"[a{idx}]"
                 audio_parts.append(
-                    f"[{idx + 1}:a]atrim=0:{clip_dur},asetpts=PTS-STARTPTS,"
+                    f"[{idx + 1}:a]atrim=0:{clip_natural_dur},asetpts=PTS-STARTPTS,"
                     f"adelay={delay_ms}|{delay_ms}{a_label}"
                 )
                 audio_labels.append(a_label)
