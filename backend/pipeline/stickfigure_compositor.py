@@ -383,7 +383,7 @@ def composite_video(
             #   chromakey             — key out green background (non-alpha clips only)
             #   scale=-1:{base_h}     — fill base video height, keep aspect ratio
             #   format=yuva420p       — ensure alpha channel is preserved through chain
-            ov_filters = ["setpts=PTS-STARTPTS"]
+            ov_filters = ["setpts=PTS-STARTPTS", "fps=30"]
             if not has_alpha:
                 ov_filters.append(
                     f"chromakey=color={chroma_color}"
