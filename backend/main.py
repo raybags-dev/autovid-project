@@ -3111,7 +3111,14 @@ def list_stickfigures(
     from pipeline.stickfigure_compositor import list_clips
     clips = list_clips(enabled_only=enabled_only)
     supabase_base = (config.SUPABASE_URL or "").rstrip("/")
+    valid = []
     for c in clips:
+        # Only expose MP4 files
+        if not c.get("filename", "").lower().endswith(".mp4"):
+            continue
+        # Only expose clips whose file actually exists on disk
+        if not _Path(c.get("file_path", "")).exists():
+            continue
         # Prefer the stored public_url from DB, then construct from SUPABASE_URL, then local fallback.
         if c.get("public_url"):
             c["preview_url"] = c["public_url"]
@@ -3119,7 +3126,8 @@ def list_stickfigures(
             c["preview_url"] = f"{supabase_base}/storage/v1/object/public/stickfigures/{c['filename']}"
         else:
             c["preview_url"] = f"/stickfigures-assets/{c['filename']}"
-    return {"clips": clips, "total": len(clips)}
+        valid.append(c)
+    return {"clips": valid, "total": len(valid)}
 
 
 @app.post("/stickfigures/seed")
@@ -3331,18 +3339,24 @@ def start_composite(
 
     base_path = _resolve_video_file(video.get("file_path", ""), video_id)
 
-    # Validate overlay clip paths — skip missing files with a warning instead of hard-failing
+    # Validate overlay clip paths — deduplicate, skip missing files
     valid_overlays = []
     skipped = []
+    seen_paths: set[str] = set()
     for ov in req.overlays:
         ov_path = _Path(ov.clip_path)
         try:
             ov_path.relative_to(_STICK_FIGURE_DIR)
         except ValueError:
             raise HTTPException(400, f"Clip path must be inside stickFigureAssets: {ov.clip_path}")
+        norm = str(ov_path.resolve())
+        if norm in seen_paths:
+            print(f"⚠️  Duplicate clip skipped: {ov.clip_path}")
+            continue
+        seen_paths.add(norm)
         if not ov_path.exists():
             print(f"⚠️  Clip not found (skipping): {ov.clip_path}")
-            skipped.append(_Path(ov.clip_path).name)
+            skipped.append(ov_path.name)
         else:
             valid_overlays.append(ov)
     req = req.model_copy(update={"overlays": valid_overlays})

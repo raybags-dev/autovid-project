@@ -610,6 +610,8 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
 
   const filteredClips = clips.filter(c => {
     if (!showDisabled && c.enabled === false) return false;
+    // Only show MP4 files in the editor
+    if (!c.filename.toLowerCase().endsWith(".mp4")) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return c.filename.toLowerCase().includes(q) ||
@@ -617,7 +619,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
            (c.keywords || []).some(k => k.includes(q));
   });
 
-  // Add clip at current playback position
+  // Add clip — replaces any existing overlay (one clip on screen at a time)
   const addClip = useCallback((clip, loopMode = "none") => {
     const v = mainVideoRef.current;
     const startT = v ? Math.min(v.currentTime, Math.max(0, videoDuration - 1)) : 0;
@@ -633,7 +635,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
       hasSound:       clip.has_audio,
       preview_hidden: false, // visible in preview immediately
     };
-    setOverlays(prev => [...prev, newOv]);
+    setOverlays([newOv]); // replace — only one clip active at a time
     setSelectedId(newOv.id);
     setModalClip(null);
     // Flash green in the right panel for 1.5 s
