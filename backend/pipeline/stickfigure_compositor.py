@@ -332,6 +332,21 @@ def composite_video(
         base_h        = base_info["height"]
         base_duration = float(base_info["duration"])
 
+        # Non-overlap filter: sort by start, keep only clips that don't overlap the previous one
+        # (guarantees one clip on screen at a time and avoids FFmpeg filter chain conflicts)
+        overlays_sorted = sorted(overlays, key=lambda o: float(o.get("start_time", 0)))
+        non_overlapping = []
+        last_end = -1.0
+        for ov in overlays_sorted:
+            loop_mode_tmp = ov.get("loop_mode", "none")
+            start_t_tmp   = float(ov.get("start_time", 0))
+            clip_dur_tmp  = float(ov.get("duration") or 5)
+            end_t_tmp     = base_duration if loop_mode_tmp != "none" else start_t_tmp + clip_dur_tmp
+            if start_t_tmp >= last_end:
+                non_overlapping.append(ov)
+                last_end = end_t_tmp
+        overlays = non_overlapping
+
         prepared = []
         for idx, ov in enumerate(overlays):
             clip_path        = ov["clip_path"]
@@ -343,7 +358,7 @@ def composite_video(
             if loop_mode != "none":
                 target_dur = max(clip_natural_dur, base_duration - start_t)
             else:
-                target_dur = clip_natural_dur  # freeze handled by tpad in filter chain
+                target_dur = clip_natural_dur
             looped      = _build_looped_clip(clip_path, target_dur, loop_mode, tmp_dir, clip_info)
             looped_info = get_video_info(looped)
             prepared.append({
@@ -373,8 +388,8 @@ def composite_video(
             clip_natural_dur = p["clip_natural_dur"]
             loop_mode        = p["loop_mode"]
             start_t          = float(ov.get("start_time", 0))
-            # Overlay stays visible until the base video ends (loop fills it; freeze holds last frame)
-            end_t            = base_duration
+            # end_t: loop fills rest of video; no-loop ends at natural clip duration
+            end_t            = base_duration if loop_mode != "none" else start_t + clip_natural_dur
             has_alpha        = clip_info["has_alpha"]
             mix_sfx          = ov.get("has_sound", True) and mix_overlay_audio
             has_sfx          = p["looped_info"]["has_audio"]
@@ -383,7 +398,10 @@ def composite_video(
             input_label    = f"[{idx + 1}:v]"
             filtered_label = f"[fov{idx}]"
 
-            ov_filters = [f"setpts=PTS-STARTPTS+{start_t}/TB", "fps=30"]
+            # setpts=PTS-STARTPTS resets overlay to t=0; enable gates when it appears on the timeline.
+            # FFmpeg does not consume the overlay stream while enable=0, so the clip starts fresh
+            # at its start_t. This is Approach B (clean + stable per FFmpeg docs).
+            ov_filters = ["setpts=PTS-STARTPTS", "fps=30"]
             if not has_alpha:
                 ov_filters.append(
                     f"chromakey=color={chroma_color}"
@@ -391,11 +409,6 @@ def composite_video(
                 )
             ov_filters.append(f"scale=-1:{base_h}")
             ov_filters.append("format=yuva420p")
-            # For "none" mode: freeze last frame for the rest of the base video
-            if loop_mode == "none":
-                freeze_dur = base_duration - start_t - clip_natural_dur
-                if freeze_dur > 0:
-                    ov_filters.append(f"tpad=stop_mode=clone:stop_duration={freeze_dur:.3f}")
 
             filter_parts.append(f"{input_label}{','.join(ov_filters)}{filtered_label}")
             ov_label = filtered_label
@@ -405,6 +418,7 @@ def composite_video(
                 f"{prev_v}{ov_label}overlay="
                 f"x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2"
                 f":enable='between(t,{start_t},{end_t})'"
+                f":shortest=1"
                 f"{out_v}"
             )
             prev_v = out_v

@@ -635,7 +635,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
       hasSound:       clip.has_audio,
       preview_hidden: false, // visible in preview immediately
     };
-    setOverlays([newOv]); // replace — only one clip active at a time
+    setOverlays(prev => [...prev, newOv]);
     setSelectedId(newOv.id);
     setModalClip(null);
     // Flash green in the right panel for 1.5 s

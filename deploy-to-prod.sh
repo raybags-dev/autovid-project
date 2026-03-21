@@ -80,6 +80,8 @@ ssh $SERVER << REMOTE
 
   # .env is never overwritten by rsync — back it up and restore
 
+  echo "→ Freeing disk space before build..."
+  docker system prune -af --volumes 2>/dev/null || true
   echo "→ Pulling latest images and rebuilding..."
   docker compose down --remove-orphans
 
