@@ -2,7 +2,8 @@
  * Script Studio — v2
  * Write your own script → choose a looping visual + background music → generate a long-form video.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { listStickFiguresPaged } from "../api/client";
 import api from "../api/client";
 
 const PROFILES = [
@@ -43,7 +44,7 @@ const STEP_LABELS = {
 };
 
 
-export default function ScriptStudio({ T, showToast, onVideoReady }) {
+export default function ScriptStudio({ T, showToast, addNotification, onVideoReady }) {
   const [title, setTitle]     = useState("");
   const [script, setScript]   = useState("");
   const [profile, setProfile] = useState("educational");
@@ -57,6 +58,8 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
   });
   const [music, setMusic]         = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_style || "Laidback_Fevorite"; } catch { return "Laidback_Fevorite"; } });
   const [musicVolume, setMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
+  const [useStickfigures, setUseStickfigures] = useState(false);
+  const [sfClipCount, setSfClipCount] = useState(null);
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep]   = useState(0);
   const [jobId, setJobId]         = useState(null);
@@ -68,6 +71,10 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
   const logPollRef = useRef(null);
   const logLineRef = useRef(0);
   const logsEndRef = useRef(null);
+
+  useEffect(() => {
+    listStickFiguresPaged(0, 1, false).then(r => setSfClipCount(r.total ?? 0)).catch(() => {});
+  }, []);
 
   const saveShortsConfig = (ambience, music_style, music_volume) => {
     try { localStorage.setItem("autovid_shorts_cfg", JSON.stringify({ ambience, music_style, music_volume })); } catch {}
@@ -106,12 +113,13 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
 
     try {
       const { data } = await api.post("/script-studio/generate", {
-        title:        title.trim(),
-        script:       script.trim(),
+        title:           title.trim(),
+        script:          script.trim(),
         profile,
-        visual_mood:  mood,
-        music_style:  music,
-        music_volume: musicVolume,
+        visual_mood:     useStickfigures ? "rain" : mood,
+        music_style:     music,
+        music_volume:    musicVolume,
+        use_stickfigures: useStickfigures,
       });
       const vid = data.video_id;
       setJobId(vid);
@@ -767,6 +775,41 @@ export default function ScriptStudio({ T, showToast, onVideoReady }) {
               />
               <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round(musicVolume * 100)}%</div>
             </div>
+          </div>
+
+          {/* Stickfigure toggle */}
+          <div style={{
+            padding: "10px 14px", borderRadius: 10,
+            background: useStickfigures ? `${T.accentPurple || "#a060ff"}10` : T.bgCard,
+            border: `1px solid ${useStickfigures ? (T.accentPurple || "#a060ff") + "50" : T.border}`,
+            transition: "all 0.2s",
+          }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: running ? "not-allowed" : "pointer" }}>
+              <input
+                type="checkbox"
+                checked={useStickfigures}
+                disabled={running}
+                onChange={e => {
+                  const on = e.target.checked;
+                  setUseStickfigures(on);
+                  if (on && sfClipCount === 0) {
+                    showToast("No stickfigures in DB — add clips first", "error");
+                    if (addNotification) addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before enabling this option.", "error");
+                  }
+                }}
+                style={{ accentColor: T.accentPurple || "#a060ff", cursor: "pointer" }}
+              />
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: useStickfigures ? (T.accentPurple || "#a060ff") : T.text, letterSpacing: "0.05em" }}>
+                  🕹 USE STICKFIGURES
+                </div>
+                <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>
+                  {useStickfigures
+                    ? `Rain background + auto-matched overlays — ${sfClipCount ?? "?"} clips in DB`
+                    : "Overlay animated stickfigures on rain background"}
+                </div>
+              </div>
+            </label>
           </div>
 
           {/* Generate / Cancel buttons */}

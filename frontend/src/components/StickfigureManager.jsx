@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteStickFigure,
   listStickFiguresPaged,
-  seedStickFigures,
   updateStickFigure,
   uploadStickFigure,
 } from "../api/client";
@@ -22,6 +21,38 @@ function fmtRes(w, h) {
   return `${w}×${h}`;
 }
 
+// ── Delete confirm modal ──────────────────────────────────────────────────────
+function DeleteConfirmModal({ T, clipName, onConfirm, onCancel }) {
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div style={{ background: T.bgCard, border: `1px solid rgba(239,68,68,0.3)`, borderRadius: 16, padding: "28px 32px", width: 360, maxWidth: "90vw", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#ef4444", letterSpacing: "0.04em" }}>DELETE CLIP</div>
+        <p style={{ fontSize: 13, color: T.textMid, lineHeight: 1.7, margin: 0 }}>
+          Are you sure you want to delete <strong style={{ color: T.text }}>{clipName}</strong> from the database?<br />
+          <span style={{ fontSize: 11, color: T.textFaint }}>The file on disk is not deleted.</span>
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={onConfirm}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.12)", color: "#ef4444", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}
+          >
+            DELETE
+          </button>
+          <button
+            onClick={onCancel}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}
+          >
+            CANCEL
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Clip card ─────────────────────────────────────────────────────────────────
 function ClipCard({ clip, T, onDelete, onSave }) {
   const [playing, setPlaying] = useState(false);
@@ -31,6 +62,7 @@ function ClipCard({ clip, T, onDelete, onSave }) {
   const [enabled, setEnabled] = useState(clip.enabled !== false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const videoRef = useRef(null);
 
@@ -72,8 +104,6 @@ function ClipCard({ clip, T, onDelete, onSave }) {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${clip.label || clip.filename}"? This cannot be undone.`))
-      return;
     setDeleting(true);
     try {
       await onDelete(clip.id);
@@ -112,6 +142,14 @@ function ClipCard({ clip, T, onDelete, onSave }) {
 
   return (
     <div style={card}>
+      {confirmDelete && (
+        <DeleteConfirmModal
+          T={T}
+          clipName={clip.label || clip.filename}
+          onConfirm={() => { setConfirmDelete(false); handleDelete(); }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
       {/* ── Video preview area ── */}
       <div
         style={{
@@ -340,7 +378,7 @@ function ClipCard({ clip, T, onDelete, onSave }) {
                 EDIT
               </button>
               <button
-                onClick={handleDelete}
+                onClick={() => setConfirmDelete(true)}
                 disabled={deleting}
                 style={btnStyle("#ef4444", deleting, true)}
               >
@@ -483,7 +521,6 @@ export default function StickfigureManager({ T }) {
   const [clips, setClips] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [search, setSearch] = useState("");
   const [filterEnabled, setFilterEnabled] = useState("all"); // "all" | "on" | "off"
@@ -543,19 +580,10 @@ export default function StickfigureManager({ T }) {
     return () => observer.disconnect();
   }, [loadMore]);
 
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      const r = await seedStickFigures();
-      alert(`Seed complete: ${r.upserted} upserted, ${r.skipped} skipped`);
-      hasMoreRef.current = true;
-      skipRef.current = 0;
-      await loadMore(true);
-    } catch (e) {
-      alert("Seed failed: " + (e?.response?.data?.detail || e.message));
-    } finally {
-      setSeeding(false);
-    }
+  const handleRefresh = () => {
+    hasMoreRef.current = true;
+    skipRef.current = 0;
+    loadMore(true);
   };
 
   const handleDelete = async (id) => {
@@ -636,22 +664,22 @@ export default function StickfigureManager({ T }) {
             + UPLOAD
           </button>
           <button
-            onClick={handleSeed}
-            disabled={seeding}
+            onClick={handleRefresh}
+            disabled={loading}
             style={{
               padding: "7px 14px",
               borderRadius: 8,
               border: `1px solid ${T.border}`,
               background: "transparent",
-              color: seeding ? T.textFaint : T.textDim,
+              color: loading ? T.textFaint : T.textDim,
               fontSize: 10,
               letterSpacing: "0.1em",
               fontWeight: 700,
-              cursor: seeding ? "not-allowed" : "pointer",
+              cursor: loading ? "not-allowed" : "pointer",
               fontFamily: "inherit",
             }}
           >
-            {seeding ? "SEEDING…" : "SEED FROM DISK"}
+            {loading ? "LOADING…" : "REFRESH FROM DB"}
           </button>
         </div>
       </div>
@@ -710,7 +738,7 @@ export default function StickfigureManager({ T }) {
           }}
         >
           {clips.length === 0
-            ? "NO CLIPS FOUND — CLICK \"SEED FROM DISK\" TO POPULATE"
+            ? "NO CLIPS FOUND — UPLOAD CLIPS OR USE THE API TO SEED FROM THE SERVER"
             : "NO CLIPS MATCH YOUR SEARCH"}
         </div>
       ) : (

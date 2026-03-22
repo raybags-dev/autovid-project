@@ -50,6 +50,7 @@ GENERATED_VISUAL_MOODS = {
     "gradient_wave", "starfield", "geometric_pulse",
     "colour_wash", "particle_field",
     "neon_purple", "cosmic_dust", "ember_glow",
+    "rain",   # ← rain animation; also the mandatory background for stickfigure mode
 }
 
 
@@ -344,6 +345,29 @@ def cleanup_output_folder():
 
 # ── Main Pipeline ─────────────────────────────────────────────────────────────
 
+def _step_stickfigure_composite(video_path: str, script_text: str, duration: float, video_id: str, cb=None) -> str:
+    """
+    Auto-match stick-figure clips to the script and composite them onto the video.
+    Returns composited path, or original path if no clips matched / on error.
+    """
+    try:
+        from pipeline.stickfigure_matcher import match_clips_to_script
+        from pipeline.stickfigure_compositor import composite_video
+        _log("STICKFIGURES", "🕹 Matching stickfigure clips to script...", cb)
+        overlays = match_clips_to_script(script_text, duration)
+        if not overlays:
+            _log("STICKFIGURES", "⚠️ No stickfigure clips matched — using background only", cb)
+            return video_path
+        _log("STICKFIGURES", f"🕹 Compositing {len(overlays)} stickfigure clip(s)...", cb)
+        out_path = str(Path(config.VIDEOS_OUTPUT_DIR) / f"{video_id}_sf.mp4")
+        result   = composite_video(video_path, overlays, out_path)
+        _log("STICKFIGURES", f"✅ {len(overlays)} stickfigure(s) composited", cb)
+        return result
+    except Exception as e:
+        _log("STICKFIGURES", f"⚠️ Stickfigure composite skipped: {e}", cb)
+        return video_path
+
+
 def run_pipeline(
     prompt: str,
     profile: str = 'educational',
@@ -353,6 +377,7 @@ def run_pipeline(
     music_volume: float = 0.06,
     progress_callback: Optional[Callable] = None,
     video_id: str = None,   # pre-created DB record ID (optional)
+    use_stickfigures: bool = False,
 ) -> dict:
     """
     Run the full AutoVid pipeline from prompt → final video → YouTube.
@@ -397,7 +422,11 @@ def run_pipeline(
         segments = step_align_segments(script_data, audio_result, cb)
 
         # ── 5 & 6. Fetch clips OR generate animation ──────────────────────────
-        _mood = visual_mood or video_fetcher.get_mood_for_topic(prompt)
+        # Stickfigure mode forces the rain procedural background
+        if use_stickfigures:
+            _mood = "rain"
+        else:
+            _mood = visual_mood or video_fetcher.get_mood_for_topic(prompt)
 
         if _mood in GENERATED_VISUAL_MOODS:
             from pipeline.visual_generator import generate_visual
@@ -407,6 +436,14 @@ def run_pipeline(
         else:
             segments = step_fetch_clips(segments, video_id, mood=_mood, cb=cb)
             raw_video_path = step_assemble_video(segments, audio_result, video_id, cb)
+
+        # ── 6b. Stickfigure overlay (only when requested) ─────────────────────
+        if use_stickfigures:
+            script_text = script_data.get("full_narration", prompt)
+            raw_video_path = _step_stickfigure_composite(
+                raw_video_path, script_text, audio_result["duration"], video_id, cb
+            )
+            db.set_video_assembled(video_id, raw_video_path, resolution="1920x1080")
 
         # ── 7. Thumbnail ──────────────────────────────────────────────────────
         thumb_path = step_generate_thumbnail(raw_video_path, video_id, cb)
@@ -514,7 +551,7 @@ def retry_failed(video_id: str, cb=None) -> dict:
 SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
 
 
-def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, angle: str = None, custom_script: str = None) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, angle: str = None, custom_script: str = None, use_stickfigures: bool = False) -> dict:
     """
     YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
@@ -587,10 +624,19 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
             _log("VOICE", f"⚠️ Narration upload skipped: {e}", cb)
 
         # 4. Generate portrait 9:16 visual — capped at SHORT_MAX_DURATION + 2s buffer
+        _ambience = "rain" if use_stickfigures else ambience
         visual_duration = min(int(duration) + 2, SHORT_MAX_DURATION + 2)
-        _log("VISUALS", f"Generating portrait visual: {ambience} ({visual_duration}s)...", cb)
-        visual_path = generate_short_visual(duration=visual_duration, ambience=ambience)
+        _log("VISUALS", f"Generating portrait visual: {_ambience} ({visual_duration}s)...", cb)
+        visual_path = generate_short_visual(duration=visual_duration, ambience=_ambience)
         db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
+
+        # 4b. Stickfigure overlay (only when requested)
+        if use_stickfigures:
+            script_text = script_data.get("full_narration", prompt)
+            visual_path = _step_stickfigure_composite(
+                visual_path, script_text, duration, video_id, cb
+            )
+            db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
 
         # 5. Thumbnail
         thumb_path = step_generate_thumbnail(visual_path, video_id, cb)
