@@ -69,13 +69,25 @@ def list_clips(enabled_only: bool = True) -> List[Dict]:
         import database as db
         rows = db.list_stickfigure_clips(enabled_only=enabled_only)
         if rows:
+            try:
+                import config as _cfg
+                supabase_base = (_cfg.SUPABASE_URL or "").rstrip("/")
+            except Exception:
+                supabase_base = ""
+            def _clip_path(r):
+                return (
+                    r.get("public_url")
+                    or (f"{supabase_base}/storage/v1/object/public/stickfigures/{r['filename']}" if supabase_base else "")
+                    or r.get("file_path")
+                    or ""
+                )
             return [
                 {
                     "id":        r["id"],
                     "filename":  r["filename"],
                     "label":     r["label"],
                     "keywords":  r.get("keywords") or [],
-                    "path":      r.get("public_url") or r["file_path"],
+                    "path":      _clip_path(r),
                     "duration":  r.get("duration") or 0,
                     "width":     r.get("width") or 0,
                     "height":    r.get("height") or 0,

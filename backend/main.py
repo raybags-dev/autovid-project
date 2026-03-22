@@ -3126,18 +3126,13 @@ def list_stickfigures(
         # Only expose MP4 files
         if not c.get("filename", "").lower().endswith(".mp4"):
             continue
-        # Include clip if it has a public URL OR the local file exists
+        # Build preview URL: stored public_url → computed Supabase URL → local fallback
         file_exists = _Path(c.get("file_path", "")).exists()
-        has_url = bool(c.get("public_url"))
+        computed_url = f"{supabase_base}/storage/v1/object/public/stickfigures/{c['filename']}" if supabase_base else ""
+        has_url = bool(c.get("public_url") or computed_url)
         if not file_exists and not has_url:
             continue
-        # Prefer the stored public_url from DB, then construct from SUPABASE_URL, then local fallback.
-        if c.get("public_url"):
-            c["preview_url"] = c["public_url"]
-        elif supabase_base:
-            c["preview_url"] = f"{supabase_base}/storage/v1/object/public/stickfigures/{c['filename']}"
-        else:
-            c["preview_url"] = f"/stickfigures-assets/{c['filename']}"
+        c["preview_url"] = c.get("public_url") or computed_url or f"/stickfigures-assets/{c['filename']}"
         valid.append(c)
     total = len(valid)
     if limit > 0:
@@ -3251,21 +3246,37 @@ def backfill_stickfigure_urls(_u: str = Depends(verify_token)):
     """
     One-time repair: for every clip that has no public_url saved in DB, construct
     the expected Supabase Storage URL and save it.  Safe to call multiple times.
-    Needed for clips that were uploaded before this column was populated.
+    Needed for clips that were uploaded before the public_url column was added.
+    Requires the public_url column to exist — run the SQL migration first if it errors.
     """
     supabase_base = (config.SUPABASE_URL or "").rstrip("/")
     if not supabase_base:
         raise HTTPException(500, "SUPABASE_URL not configured")
+
+    # Check that the column exists before attempting writes
+    try:
+        _client = db.get_client()
+        _client.table("stickfigure_clips").select("public_url").limit(1).execute()
+    except Exception:
+        raise HTTPException(500,
+            "Column 'public_url' does not exist in stickfigure_clips. "
+            "Run this SQL in your Supabase SQL editor first: "
+            "ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS public_url TEXT DEFAULT '';"
+        )
+
     clips = db.list_stickfigure_clips(enabled_only=False)
-    updated, already_ok = 0, 0
+    updated, already_ok, errors = 0, 0, []
     for clip in clips:
         if clip.get("public_url"):
             already_ok += 1
             continue
         pub_url = f"{supabase_base}/storage/v1/object/public/stickfigures/{clip['filename']}"
-        db.update_stickfigure_clip(clip["id"], public_url=pub_url)
-        updated += 1
-    return {"updated": updated, "already_ok": already_ok, "total": len(clips)}
+        try:
+            db.update_stickfigure_clip(clip["id"], public_url=pub_url)
+            updated += 1
+        except Exception as e:
+            errors.append(f"{clip['filename']}: {str(e)[:80]}")
+    return {"updated": updated, "already_ok": already_ok, "total": len(clips), "errors": errors}
 
 
 class StickFigureUpdate(BaseModel):

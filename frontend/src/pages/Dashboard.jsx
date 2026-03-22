@@ -10054,7 +10054,7 @@ export default function Dashboard() {
             )}
 
             {/* ── STICKFIGURE MANAGER TAB ───────────────────────────────────────── */}
-            {tab === "stickfigures" && <StickfigureManager T={T} />}
+            {tab === "stickfigures" && <StickfigureManager T={T} showToast={showToast} addNotification={addNotification} />}
 
             {tab === "reviews" && (
               <div style={{ padding: "28px 0", display: "flex", gap: 20, alignItems: "flex-start" }}>

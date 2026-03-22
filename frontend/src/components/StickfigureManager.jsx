@@ -55,7 +55,7 @@ function DeleteConfirmModal({ T, clipName, onConfirm, onCancel }) {
 }
 
 // ── Clip card ─────────────────────────────────────────────────────────────────
-function ClipCard({ clip, T, onDelete, onSave }) {
+function ClipCard({ clip, T, onDelete, onSave, showToast }) {
   const [playing, setPlaying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(clip.label || "");
@@ -98,7 +98,7 @@ function ClipCard({ clip, T, onDelete, onSave }) {
       await onSave(clip.id, { label: label.trim(), keywords: kwArr, enabled });
       setEditing(false);
     } catch (e) {
-      alert("Save failed: " + (e?.response?.data?.detail || e.message));
+      showToast?.("Save failed: " + (e?.response?.data?.detail || e.message), "error");
     } finally {
       setSaving(false);
     }
@@ -109,7 +109,7 @@ function ClipCard({ clip, T, onDelete, onSave }) {
     try {
       await onDelete(clip.id);
     } catch (e) {
-      alert("Delete failed: " + (e?.response?.data?.detail || e.message));
+      showToast?.("Delete failed: " + (e?.response?.data?.detail || e.message), "error");
       setDeleting(false);
     }
   };
@@ -518,7 +518,7 @@ function UploadModal({ T, onClose, onUploaded }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function StickfigureManager({ T }) {
+export default function StickfigureManager({ T, showToast, addNotification }) {
   const [clips, setClips] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -593,9 +593,13 @@ export default function StickfigureManager({ T }) {
     try {
       const r = await backfillStickFigureUrls();
       handleRefresh();
-      alert(`URL backfill done: ${r.updated} updated, ${r.already_ok} already had URLs`);
+      const msg = `URL repair done: ${r.updated} updated, ${r.already_ok} already had URLs`;
+      showToast?.(msg, "success");
+      addNotification?.("Stickfigure URL Repair", msg, "success");
     } catch (e) {
-      alert("Backfill failed: " + (e.response?.data?.detail || e.message));
+      const msg = e.response?.data?.detail || e.message || "Unknown error";
+      showToast?.("Repair failed: " + msg, "error");
+      addNotification?.("Stickfigure URL Repair Failed", msg, "error");
     } finally {
       setBackfilling(false);
     }
@@ -790,6 +794,7 @@ export default function StickfigureManager({ T }) {
               T={T}
               onDelete={handleDelete}
               onSave={handleSave}
+              showToast={showToast}
             />
           ))}
         </div>
