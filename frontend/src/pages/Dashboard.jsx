@@ -56,6 +56,7 @@ import api, {
   unarchiveVideo,
   listArchivedVideos,
   listStickFigures,
+  listStickFiguresPaged,
   seedStickFigures,
   uploadStickFigure,
   updateStickFigure,
@@ -908,6 +909,9 @@ export default function Dashboard() {
   const [tabLoading, setTabLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const [genError, setGenError] = useState("");
+  const [useStickfigures, setUseStickfigures] = useState(false);
+  const [shortUseStickfigures, setShortUseStickfigures] = useState(false);
+  const [sfClipCount, setSfClipCount] = useState(null); // null = not loaded yet
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
   const [syncing, setSyncing] = useState(false);
@@ -1200,9 +1204,10 @@ export default function Dashboard() {
         prompt.trim(),
         false,
         profile,
-        visualMood,
+        useStickfigures ? "rain" : visualMood,
         musicStyle,
         musicVolume,
+        useStickfigures,
       );
       const vid = data.video_id;
       setGenJobId(vid);
@@ -1393,8 +1398,10 @@ export default function Dashboard() {
     try {
       const res = await generateShortFromScratch(
         shortScriptMode === "custom" ? shortCustomScript.trim().slice(0, 200) : shortPrompt.trim(),
-        shortAmbience, shortMusicStyle, shortMusicVolume,
+        shortUseStickfigures ? "rain" : shortAmbience,
+        shortMusicStyle, shortMusicVolume,
         shortScriptMode === "custom" ? shortCustomScript.trim() : "",
+        shortUseStickfigures,
       );
       const vid = res?.video_id;
       saveRecentPrompt(hasInput);
@@ -1592,6 +1599,7 @@ export default function Dashboard() {
       auto_upload:   r.auto_upload   || false,
     }))).catch(() => {});
     getSubscriptions().then(r => setSubscriptions(Array.isArray(r) ? r : [])).catch(() => {});
+    listStickFiguresPaged(0, 1, false).then(r => setSfClipCount(r.total ?? 0)).catch(() => setSfClipCount(0));
 
     // ── Batch 2: external-API status checks — staggered to avoid thread exhaustion ──
     const t1 = setTimeout(() => getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {}), 200);
@@ -3193,6 +3201,33 @@ export default function Dashboard() {
                         {Math.round(musicVolume * 100)}%
                       </div>
                     </div>
+                  </div>
+
+                  {/* ── Stickfigure toggle ── */}
+                  <div style={{ marginTop: 12, padding: "10px 14px", background: useStickfigures ? `${T.accentPurple}10` : T.bg, border: `1px solid ${useStickfigures ? T.accentPurple + "50" : T.border}`, borderRadius: 10, transition: "all 0.2s" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                      <input type="checkbox" checked={useStickfigures}
+                        onChange={e => {
+                          const on = e.target.checked;
+                          setUseStickfigures(on);
+                          if (on && sfClipCount === 0) {
+                            addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
+                            showToast("No stickfigures in DB — add clips first", "error");
+                          }
+                        }}
+                        style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
+                      />
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: useStickfigures ? T.accentPurple : T.textMid, letterSpacing: "0.04em" }}>
+                          🕹 USE STICKFIGURES
+                        </div>
+                        <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>
+                          {useStickfigures
+                            ? `Rain background + auto-matched overlays — ${sfClipCount ?? "?"} clips in DB`
+                            : "Use animated stickfigure overlays instead of stock footage"}
+                        </div>
+                      </div>
+                    </label>
                   </div>
 
                   <div
@@ -4891,6 +4926,7 @@ export default function Dashboard() {
               <ScriptStudio
                 T={T}
                 showToast={showToast}
+                addNotification={addNotification}
                 onVideoReady={(video) => {
                   setTab("videos");
                   setTimeout(() => setPreview(video), 400);
@@ -5248,6 +5284,33 @@ export default function Dashboard() {
               </div>
             </>
           )}
+          {/* ── Stickfigure toggle (Shorts) ── */}
+          <div style={{ marginBottom: 10, padding: "10px 14px", background: shortUseStickfigures ? `${T.accentPurple}10` : T.bg, border: `1px solid ${shortUseStickfigures ? T.accentPurple + "50" : T.border}`, borderRadius: 10, transition: "all 0.2s" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={shortUseStickfigures}
+                onChange={e => {
+                  const on = e.target.checked;
+                  setShortUseStickfigures(on);
+                  if (on && sfClipCount === 0) {
+                    addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
+                    showToast("No stickfigures in DB — add clips first", "error");
+                  }
+                }}
+                style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
+              />
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: shortUseStickfigures ? T.accentPurple : T.textMid, letterSpacing: "0.04em" }}>
+                  🕹 USE STICKFIGURES
+                </div>
+                <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>
+                  {shortUseStickfigures
+                    ? `Rain background + auto-matched overlays — ${sfClipCount ?? "?"} clips in DB`
+                    : "Use animated stickfigure overlays instead of stock footage"}
+                </div>
+              </div>
+            </label>
+          </div>
+
           {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
           {(() => {
             const hasInput = shortScriptMode === "custom" ? shortCustomScript.trim() : shortPrompt.trim();

@@ -263,6 +263,7 @@ class GenerateRequest(BaseModel):
     visual_mood: Optional[str] = None
     music_style: str = "ambient"
     music_volume: float = 0.06
+    use_stickfigures: bool = False
 
 
 class VideoResponse(BaseModel):
@@ -346,6 +347,7 @@ def generate_video(
                 music_volume=req.music_volume,
                 progress_callback=_cb,
                 video_id=video_id,
+                use_stickfigures=req.use_stickfigures,
             )
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -927,12 +929,13 @@ def moderate_comment_endpoint(video_id: str, comment_id: str, body: dict, user: 
 # ── Script Studio ─────────────────────────────────────────────────────────────
 
 class ScriptStudioRequest(BaseModel):
-    title:        str
-    script:       str
-    profile:      str = "educational"
-    visual_mood:  Optional[str] = None   # ocean|candle|forest|stars|hands|mountains|None=auto
-    music_style:  str = "ambient"
-    music_volume: float = 0.06
+    title:            str
+    script:           str
+    profile:          str = "educational"
+    visual_mood:      Optional[str] = None   # ocean|candle|forest|stars|hands|mountains|None=auto
+    music_style:      str = "ambient"
+    music_volume:     float = 0.06
+    use_stickfigures: bool = False
 
 
 @app.post("/script-studio/generate")
@@ -972,6 +975,7 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
                 visual_mood=req.visual_mood,
                 music_style=req.music_style,
                 music_volume=req.music_volume,
+                use_stickfigures=req.use_stickfigures,
                 cb=_cb,
             )
         except Exception as e:
@@ -1839,11 +1843,12 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
 @app.post("/shorts/generate")
 def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = Depends(verify_token)):
     """Generate a brand-new YouTube Short from scratch (portrait 9:16)."""
-    prompt        = body.get("prompt", "")
-    ambience      = body.get("ambience", "rain")
-    music_style   = body.get("music_style", "Laidback_Fevorite")
-    music_volume  = float(body.get("music_volume", 0.04))
-    custom_script = body.get("custom_script", "").strip() if body.get("custom_script") else ""
+    prompt           = body.get("prompt", "")
+    ambience         = body.get("ambience", "rain")
+    music_style      = body.get("music_style", "Laidback_Fevorite")
+    music_volume     = float(body.get("music_volume", 0.04))
+    custom_script    = body.get("custom_script", "").strip() if body.get("custom_script") else ""
+    use_stickfigures = bool(body.get("use_stickfigures", False))
     if not prompt and not custom_script:
         raise HTTPException(status_code=400, detail="Prompt or custom_script required")
 
@@ -1870,7 +1875,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, custom_script=custom_script or None)
+            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, custom_script=custom_script or None, use_stickfigures=use_stickfigures)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")

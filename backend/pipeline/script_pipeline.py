@@ -85,13 +85,14 @@ def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public
 
 
 def run_script_pipeline(
-    video_id:     str,
-    title:        str,
-    script:       str,
-    profile:      str = "educational",
-    visual_mood:  str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
-    music_style:  str = "ambient",
-    music_volume: float = 0.06,
+    video_id:        str,
+    title:           str,
+    script:          str,
+    profile:         str = "educational",
+    visual_mood:     str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
+    music_style:     str = "ambient",
+    music_volume:    float = 0.06,
+    use_stickfigures: bool = False,
     cb=None,
 ):
     """
@@ -132,7 +133,7 @@ def run_script_pipeline(
         from pipeline.video_fetcher import MOOD_QUERIES, get_mood_for_topic
         from pipeline.video_assembler import assemble_video as _assemble
 
-        _mood = visual_mood or get_mood_for_topic(title)
+        _mood = "rain" if use_stickfigures else (visual_mood or get_mood_for_topic(title))
 
         if _mood in GENERATED_VISUAL_MOODS:
             # Generated animation mood — render numpy frames directly, skip Pexels
@@ -171,6 +172,22 @@ def run_script_pipeline(
             import pipeline.video_assembler as _va
             visual_path = _va.assemble_video(synth_segments, voice_path, video_id)
             db.set_status(video_id, "assembled")
+
+        # ── Step 2b: Stickfigure overlay (only when requested) ────────────────
+        if use_stickfigures:
+            try:
+                from pipeline.stickfigure_matcher import match_clips_to_script
+                from pipeline.stickfigure_compositor import composite_video
+                _log("STICKFIGURES", "🕹 Matching stickfigure clips...", cb)
+                overlays = match_clips_to_script(script, duration)
+                if overlays:
+                    sf_out = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_sf.mp4")
+                    visual_path = composite_video(visual_path, overlays, sf_out)
+                    _log("STICKFIGURES", f"✅ {len(overlays)} stickfigure(s) composited", cb)
+                else:
+                    _log("STICKFIGURES", "⚠️ No matching stickfigures — using background only", cb)
+            except Exception as e:
+                _log("STICKFIGURES", f"⚠️ Stickfigure composite skipped: {e}", cb)
 
         # ── Step 3: Background music ──────────────────────────────────────────
         _log("MUSIC", f"Generating {music_style} background track...", cb)

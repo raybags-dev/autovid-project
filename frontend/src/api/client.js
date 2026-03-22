@@ -54,6 +54,7 @@ export const generateVideo = async (
   visualMood = "inspirational",
   musicStyle = "ambient",
   musicVolume = 0.06,
+  useStickfigures = false,
 ) => {
   const { data } = await api.post("/videos/generate", {
     prompt,
@@ -62,6 +63,7 @@ export const generateVideo = async (
     visual_mood: visualMood,
     music_style: musicStyle,
     music_volume: musicVolume,
+    use_stickfigures: useStickfigures,
   });
   return data;
 };
@@ -258,8 +260,8 @@ export const createShortFromVideo = async (id) => {
   return data;
 };
 
-export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, custom_script = "") => {
-  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, custom_script });
+export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, custom_script = "", use_stickfigures = false) => {
+  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, custom_script, use_stickfigures });
   return data;
 };
 
