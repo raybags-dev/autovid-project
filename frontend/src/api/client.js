@@ -145,6 +145,13 @@ export const listStickFigures = async (enabledOnly = true) => {
   return data;
 };
 
+export const listStickFiguresPaged = async (skip = 0, limit = 20, enabledOnly = false) => {
+  const { data } = await api.get("/stickfigures", {
+    params: { enabled_only: enabledOnly, skip, limit },
+  });
+  return data; // { clips, total, skip, limit }
+};
+
 export const seedStickFigures = async () => {
   const { data } = await api.post("/stickfigures/seed");
   return data;

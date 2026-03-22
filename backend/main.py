@@ -3105,9 +3105,14 @@ class AutoCompositeRequest(BaseModel):
 @app.get("/stickfigures")
 def list_stickfigures(
     enabled_only: bool = True,
+    skip: int = 0,
+    limit: int = 0,
     _u: str = Depends(verify_token),
 ):
-    """List all stick-figure clips from the DB (with filesystem fallback)."""
+    """List all stick-figure clips from the DB (with filesystem fallback).
+
+    Pass skip/limit for paginated loading (limit=0 returns all).
+    """
     from pipeline.stickfigure_compositor import list_clips
     clips = list_clips(enabled_only=enabled_only)
     supabase_base = (config.SUPABASE_URL or "").rstrip("/")
@@ -3127,7 +3132,12 @@ def list_stickfigures(
         else:
             c["preview_url"] = f"/stickfigures-assets/{c['filename']}"
         valid.append(c)
-    return {"clips": valid, "total": len(valid)}
+    total = len(valid)
+    if limit > 0:
+        page_clips = valid[skip: skip + limit]
+    else:
+        page_clips = valid[skip:]
+    return {"clips": page_clips, "total": total, "skip": skip, "limit": limit}
 
 
 @app.post("/stickfigures/seed")
