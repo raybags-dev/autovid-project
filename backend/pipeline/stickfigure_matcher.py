@@ -335,14 +335,16 @@ def load_keyword_map_from_db() -> Dict[str, Dict]:
         import database as db
         rows = db.list_stickfigure_clips(enabled_only=True)
         if rows:
-            return {
-                r["filename"]: {
+            result = {}
+            for r in rows:
+                # Prefer public_url over file_path — local files vanish on container rebuild
+                file_p = r.get("public_url") or r.get("file_path") or ""
+                result[r["filename"]] = {
                     "keywords":  [k.lower() for k in (r.get("keywords") or [])],
-                    "file_path": r["file_path"],
+                    "file_path": file_p,
                     "duration":  r.get("duration") or 0,
                 }
-                for r in rows
-            }
+            return result
     except Exception as e:
         print(f"⚠️  load_keyword_map_from_db failed, using seed map: {e}")
 

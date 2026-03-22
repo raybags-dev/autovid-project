@@ -75,7 +75,7 @@ def list_clips(enabled_only: bool = True) -> List[Dict]:
                     "filename":  r["filename"],
                     "label":     r["label"],
                     "keywords":  r.get("keywords") or [],
-                    "path":      r["file_path"],
+                    "path":      r.get("public_url") or r["file_path"],
                     "duration":  r.get("duration") or 0,
                     "width":     r.get("width") or 0,
                     "height":    r.get("height") or 0,

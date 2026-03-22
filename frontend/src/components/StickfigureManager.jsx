@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  backfillStickFigureUrls,
   deleteStickFigure,
   listStickFiguresPaged,
   updateStickFigure,
@@ -586,6 +587,20 @@ export default function StickfigureManager({ T }) {
     loadMore(true);
   };
 
+  const [backfilling, setBackfilling] = useState(false);
+  const handleBackfill = async () => {
+    setBackfilling(true);
+    try {
+      const r = await backfillStickFigureUrls();
+      handleRefresh();
+      alert(`URL backfill done: ${r.updated} updated, ${r.already_ok} already had URLs`);
+    } catch (e) {
+      alert("Backfill failed: " + (e.response?.data?.detail || e.message));
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const handleDelete = async (id) => {
     await deleteStickFigure(id, false);
     setClips((prev) => prev.filter((c) => c.id !== id));
@@ -680,6 +695,25 @@ export default function StickfigureManager({ T }) {
             }}
           >
             {loading ? "LOADING…" : "REFRESH FROM DB"}
+          </button>
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling}
+            title="One-time fix: write Supabase URLs into DB for clips uploaded before this was tracked"
+            style={{
+              padding: "7px 14px",
+              borderRadius: 8,
+              border: `1px solid ${T.accentPurple ? T.accentPurple + "50" : "#a060ff50"}`,
+              background: "transparent",
+              color: backfilling ? T.textFaint : (T.accentPurple || "#a060ff"),
+              fontSize: 10,
+              letterSpacing: "0.1em",
+              fontWeight: 700,
+              cursor: backfilling ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {backfilling ? "REPAIRING…" : "REPAIR URLS"}
           </button>
         </div>
       </div>

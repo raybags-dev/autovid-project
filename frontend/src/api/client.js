@@ -159,6 +159,11 @@ export const seedStickFigures = async () => {
   return data;
 };
 
+export const backfillStickFigureUrls = async () => {
+  const { data } = await api.post("/stickfigures/backfill-urls");
+  return data;
+};
+
 export const uploadStickFigure = async (file, label = "", keywords = "") => {
   const form = new FormData();
   form.append("file", file);
