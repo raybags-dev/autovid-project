@@ -44,6 +44,8 @@ const NAV = [
       { id: "script-studio",  label: "Script Studio" },
       { id: "podcast",        label: "Podcast Pipeline" },
       { id: "compilations",   label: "Compilations" },
+      { id: "video-editor",   label: "Video Editor" },
+      { id: "stickfigures",   label: "Stickfigure System" },
     ],
   },
   {
@@ -66,12 +68,13 @@ const NAV = [
   {
     section: "API Reference",
     items: [
-      { id: "api-auth",       label: "Authentication" },
-      { id: "api-videos",     label: "Videos" },
-      { id: "api-shorts",     label: "Shorts" },
-      { id: "api-podcast",    label: "Podcast" },
-      { id: "api-automation", label: "Automation" },
-      { id: "api-stats",      label: "Stats & Quota" },
+      { id: "api-auth",         label: "Authentication" },
+      { id: "api-videos",       label: "Videos" },
+      { id: "api-shorts",       label: "Shorts" },
+      { id: "api-podcast",      label: "Podcast" },
+      { id: "api-automation",   label: "Automation" },
+      { id: "api-stickfigures", label: "Stickfigures" },
+      { id: "api-stats",        label: "Stats & Quota" },
     ],
   },
   {
@@ -308,7 +311,7 @@ export default function Docs() {
             <span style={{ color: T.accent }}>{NAV.flatMap(g => g.items).find(i => i.id === activeSection)?.label || "Docs"}</span>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-            <Badge color={T.accentGreen}>v1.0</Badge>
+            <Badge color={T.accentGreen}>v1.2</Badge>
             <Badge color={T.accent}>REST API</Badge>
           </div>
         </div>
@@ -321,11 +324,12 @@ export default function Docs() {
           <P>AutoVid is an AI-powered video automation engine that takes a text prompt and produces a fully narrated, captioned, music-backed YouTube video — end to end, no human editing required. It handles script generation, text-to-speech narration, visual sourcing, caption burning, YouTube upload, and post-publish analytics — all from a single API call.</P>
           <P>Whether you're running a faceless YouTube channel, a podcast network, a Shorts feed, or building a content-as-a-service product on top of AutoVid's API — the system handles the entire pipeline autonomously.</P>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, margin: "20px 0" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, margin: "20px 0" }}>
             {[
               { icon: "🎬", title: "Full Video Pipeline", desc: "Prompt → Script → Voice → Visuals → Captions → YouTube in ~3 minutes" },
               { icon: "⚡", title: "Shorts Pipeline", desc: "90-second portrait videos with custom or AI-generated scripts" },
               { icon: "🤖", title: "Full Automation", desc: "Scheduled daily generation for videos, shorts, and podcast episodes" },
+              { icon: "🕹", title: "Stickfigure Overlays", desc: "100+ animated stick-figure clips overlaid by keyword matching or manual placement" },
             ].map(c => (
               <div key={c.icon} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px" }}>
                 <div style={{ fontSize: 22, marginBottom: 8 }}>{c.icon}</div>
@@ -546,6 +550,170 @@ Content-Type: application/json
   "add_title_card": true
 }`}</Code>
 
+          {/* ── VIDEO EDITOR ──────────────────────────────────────────────────────── */}
+          <H2 id="video-editor">Video Editor</H2>
+          <P>The Video Editor is an in-browser compositing tool that lets you layer animated stick-figure overlays onto any generated video in real time — before committing a final FFmpeg render. Open it from the <strong>Video Editor</strong> tab in the dashboard sidebar, then pick a video.</P>
+
+          <H3>Workflow</H3>
+          <div style={{ margin: "12px 0" }}>
+            {[
+              { step: 1, name: "Pick a video",    desc: "Select any video that has reached 'assembled' status or later. The editor shows the base video and a clip browser." },
+              { step: 2, name: "Add overlays",    desc: "Click any stickfigure clip in the browser to add it as an overlay. Drag it to reposition, resize with the scale slider." },
+              { step: 3, name: "Adjust timing",   desc: "Set the start time (when the overlay begins relative to the video) and duration (how long it shows). Use the loop mode to fill longer slots." },
+              { step: 4, name: "Live preview",    desc: "Click play on the base video — all overlays animate in sync. The preview uses the browser video element; colours may differ slightly from the FFmpeg render." },
+              { step: 5, name: "Composite",       desc: "Click 'Composite' to start a single-pass FFmpeg job that burns all overlays into a new output file. Poll the status bar for progress." },
+              { step: 6, name: "Auto-composite",  desc: "Click 'Auto-Composite' to let the matcher engine analyse the video's script and pick clips automatically based on keyword matching." },
+            ].map(s => (
+              <div key={s.step} style={{ display: "flex", gap: 14, marginBottom: 10, alignItems: "flex-start" }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${T.accentPurple}18`, border: `1px solid ${T.accentPurple}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.accentPurple, flexShrink: 0 }}>{s.step}</div>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} — </span>
+                  <span style={{ fontSize: 13, color: T.textMid }}>{s.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <H3>Loop Modes</H3>
+          <P>Because a stickfigure clip may be shorter than its assigned window, four looping strategies are available:</P>
+          <Code>{`none     // Play once; clip ends when its natural duration finishes (may gap)
+full     // Loop the entire clip for the full window duration
+last_1s  // Play once, then hold-loop the final 1 second (freeze-frame loop)
+last_2s  // Play once, then loop the final 2 seconds
+last_3s  // Play once, then loop the final 3 seconds`}</Code>
+          <Note type="info"><strong>Tip:</strong> Use <code>last_2s</code> or <code>last_3s</code> for clips that end on a held pose — the tail-loop creates a natural frozen hold before switching to the next overlay.</Note>
+
+          <H3>Chroma-Key vs Alpha</H3>
+          <P>The FFmpeg compositor supports two transparency methods transparently:</P>
+          <ul style={{ paddingLeft: 18, margin: "8px 0" }}>
+            <Li><strong>Native alpha</strong> — clips encoded in <code>yuva420p</code> / RGBA format have pixel-level transparency without any colour removal. Set <code>has_alpha: true</code> in the DB.</Li>
+            <Li><strong>Chroma-key (default)</strong> — clips filmed against a solid green background (<code>#00FF00</code>). The compositor removes the key colour with configurable similarity and blend thresholds.</Li>
+          </ul>
+          <Code>{`// Chroma-key defaults (adjustable per-composite job)
+chroma_color:       "0x00FF00"   // green screen colour
+chroma_similarity:  0.35          // tolerance (0–1)
+chroma_blend:       0.05          // edge feathering`}</Code>
+
+          {/* ── STICKFIGURE SYSTEM ────────────────────────────────────────────────── */}
+          <H2 id="stickfigures">Stickfigure System</H2>
+          <P>The stickfigure system is the third visual source in AutoVid — alongside Pexels stock footage and procedural AutoVid animations. It manages a local database of animated stick-figure MP4 clips that can be overlaid on any video.</P>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, margin: "16px 0" }}>
+            {[
+              { icon: "🗂", title: "Stickfigure Manager", desc: "Browse, edit, delete and upload clips. Accessible from the sidebar → Stickfigures tab." },
+              { icon: "🔍", title: "Keyword Matcher", desc: "Auto-matches clips to video scripts by scoring keyword overlap against each sentence." },
+              { icon: "🎬", title: "Sticker Integrator", desc: "Python function for compositing stickers over a procedural background per paragraph." },
+            ].map(c => (
+              <div key={c.icon} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px" }}>
+                <div style={{ fontSize: 22, marginBottom: 8 }}>{c.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>{c.title}</div>
+                <div style={{ fontSize: 12, color: T.textDim, lineHeight: 1.6 }}>{c.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <H3>Stickfigure Manager (Dashboard Tab)</H3>
+          <P>The <strong>Stickfigures</strong> tab in the dashboard sidebar gives you full control over every clip in your database:</P>
+          <ul style={{ paddingLeft: 18, margin: "8px 0" }}>
+            <Li><strong>Infinite scroll</strong> — loads 20 clips at a time; scrolling to the bottom fetches the next page automatically.</Li>
+            <Li><strong>Play</strong> — click the video thumbnail to preview the clip inline in the card.</Li>
+            <Li><strong>Details</strong> — toggle to see duration, resolution, alpha flag, audio flag, and date added.</Li>
+            <Li><strong>Edit</strong> — inline editing of label, keywords, and enabled toggle. Saves to the database immediately on click.</Li>
+            <Li><strong>Delete</strong> — removes the DB record (with a confirmation prompt). The file on disk is preserved by default.</Li>
+            <Li><strong>Search</strong> — instant client-side filter by label, filename, or any keyword tag.</Li>
+            <Li><strong>Upload</strong> — add a new clip from your local machine with a label and keywords.</Li>
+            <Li><strong>Seed from disk</strong> — scans <code>backend/stickFigureAssets/</code> and populates the DB from the seed keyword map.</Li>
+          </ul>
+
+          <H3>Keyword / Tag System</H3>
+          <P>Each clip stores a <code>keywords</code> array in the <code>stickfigure_clips</code> table. These keywords drive every matching operation — the auto-composite in the Video Editor, the background sticker integrator, and future pipeline integrations.</P>
+
+          <Note type="info">
+            <strong>Adding extra tags beyond the filename:</strong> Tags are not restricted to what is inferred from the filename. You can add as many as you like using any of these methods:
+          </Note>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "10px 0" }}>
+            {[
+              { method: "Stickfigures tab → Edit", desc: "Click any clip card → Edit → type into the keywords field (comma-separated). Saved live to the DB." },
+              { method: "Video Editor → Clip browser", desc: "Every clip in the browser has an inline edit row. Change label and keywords without leaving the editor." },
+              { method: "API PATCH", desc: "PATCH /api/stickfigures/{id}  { \"keywords\": [\"climb\", \"rise\", \"progress\", \"upward\", \"ambition\"] }" },
+              { method: "Seed map (developer)", desc: "Edit the _SEED_KEYWORDS dict in backend/pipeline/stickfigure_matcher.py and re-run /api/stickfigures/seed." },
+            ].map((r, i) => (
+              <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <code style={{ fontSize: 11, color: T.accent, flexShrink: 0, paddingTop: 1 }}>{r.method}</code>
+                <span style={{ fontSize: 13, color: T.textMid }}>{r.desc}</span>
+              </div>
+            ))}
+          </div>
+
+          <Note type="warning">
+            The seed map (<code>_SEED_KEYWORDS</code>) is only the <em>starting point</em>. Once you run "Seed from Disk", each clip gets its own DB row and you can diverge those keywords from the seed defaults at any time without touching code. The DB always takes precedence over the seed map while clips exist in the table.
+          </Note>
+
+          <H3>Keyword Matching Algorithm</H3>
+          <P>When auto-compositing, the matcher distributes the video's script sentences linearly across the timeline, then scores every clip against each sentence:</P>
+          <Code>{`score = Σ matches(clip_keyword ∈ sentence)
+       phrase matches (2+ words) score 2×
+       single-word matches score 1×
+
+Constraints:
+  min_gap = 8 seconds   // minimum spacing between overlays
+  max_overlays = 8      // cap per video`}</Code>
+          <P>The <strong>Concept Expansions</strong> dictionary (<code>video_fetcher.py → CONCEPT_EXPANSIONS</code>) acts as a keyword bridge: if a paragraph mentions "mortality", it expands to synonyms like "autumn leaves", "gravestone", "empty bed" — which in turn match clip keywords. Adding those expanded terms to a clip's keyword list makes it surface for abstract paragraphs automatically.</P>
+
+          <H3>Sticker Integrator — Python API</H3>
+          <P>The <code>assemble_paragraph_visuals</code> function in <code>pipeline/sticker_integrator.py</code> is a programmatic building block for generating per-paragraph composite clips. It is <strong>not</strong> called automatically by the main video or shorts pipeline — it is a composable utility you invoke explicitly.</P>
+          <Code>{`from pipeline.sticker_integrator import assemble_paragraph_visuals
+
+output_path = assemble_paragraph_visuals(
+    paragraph_text   = "We climb because the summit is not the point...",
+    duration         = 8.0,          # seconds
+    background_style = "rain",       # any visual_generator style key
+    video_id         = "my_video",   # used for output filename
+    scale            = 0.5,          # sticker width as fraction of bg width
+    chroma_color     = (0, 255, 0),  # green-screen removal colour
+    chroma_tolerance = 80,           # chroma distance threshold
+)
+# → backend/output/videos/my_video_sticker_overlay.mp4`}</Code>
+
+          <H3>What it does internally</H3>
+          <div style={{ margin: "12px 0" }}>
+            {[
+              { step: 1, name: "Background",  desc: "Calls visual_generator.generate_visual(background_style, duration, ...) to produce a looping procedural animation for the full duration." },
+              { step: 2, name: "Match",       desc: "Queries the DB (with seed-map fallback) for the top 2 clips that score highest against the paragraph text. Concept expansions are applied so abstract text maps correctly." },
+              { step: 3, name: "Slot",        desc: "Splits the duration equally between matched clips (e.g. 2 clips → each gets 50% of the time). Each clip loops to fill its slot." },
+              { step: 4, name: "Transparency", desc: "Clips with has_alpha=True are loaded with native transparency. Others are processed through a per-frame numpy chroma-key mask." },
+              { step: 5, name: "Composite",   desc: "MoviePy CompositeVideoClip layers the background + all sticker clips (centered, sequentially timed) and writes the result." },
+              { step: 6, name: "Fallback",    desc: "If no clips score above zero, the plain background MP4 is returned without any compositing." },
+            ].map(s => (
+              <div key={s.step} style={{ display: "flex", gap: 14, marginBottom: 10, alignItems: "flex-start" }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${T.accentGreen}18`, border: `1px solid ${T.accentGreen}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.accentGreen, flexShrink: 0 }}>{s.step}</div>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} — </span>
+                  <span style={{ fontSize: 13, color: T.textMid }}>{s.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <H3>Does it apply to Shorts and other pipelines?</H3>
+          <Note type="warning">
+            <strong>Currently: No — it does not run automatically for any pipeline.</strong> The stickfigure system operates in two separate modes:
+          </Note>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "10px 0" }}>
+            {[
+              { label: "Video Editor (manual)", color: T.accentGreen, desc: "You manually add overlays through the browser UI for any existing video. Works on main videos, Shorts, and Script Studio outputs equally — any video that has a file path." },
+              { label: "Auto-composite (POST /videos/{id}/auto-composite)", color: T.accent, desc: "Triggers automatic keyword-matched overlay generation for one specific video. Applies to any video type by ID." },
+              { label: "assemble_paragraph_visuals (programmatic)", color: T.accentPurple, desc: "A Python building block you call explicitly in custom pipeline code. It is not wired into the main video, shorts, or podcast pipelines yet." },
+            ].map((r, i) => (
+              <div key={i} style={{ background: T.bgCard, border: `1px solid ${r.color}40`, borderRadius: 8, padding: "10px 14px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: r.color, marginBottom: 4 }}>{r.label}</div>
+                <div style={{ fontSize: 13, color: T.textMid }}>{r.desc}</div>
+              </div>
+            ))}
+          </div>
+          <P>To make stickers run automatically during video or shorts generation, wire <code>assemble_paragraph_visuals</code> (or the FFmpeg compositor) into <code>pipeline/orchestrator.py</code> after the assembly step, or call <code>/auto-composite</code> as a post-processing step.</P>
+
           {/* ── AUTO-VIDEO ────────────────────────────────────────────────────────── */}
           <H2 id="auto-video">Auto-Generate Videos</H2>
           <P>The auto-generator runs on a cron schedule, picks a topic from a configured list, and runs the full video pipeline autonomously — no human input required.</P>
@@ -758,6 +926,125 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
           </Endpoint>
           <Endpoint method="POST" path="/api/auto-short/trigger" desc="Manually trigger one auto-short" />
 
+          {/* ── API STICKFIGURES ──────────────────────────────────────────────────── */}
+          <H2 id="api-stickfigures">API Reference — Stickfigures</H2>
+
+          <Endpoint method="GET" path="/api/stickfigures" desc="List clips (paginated)">
+            <H3>Query params</H3>
+            <Code>{`?enabled_only=false   // true = only active clips, false = all (default false in Manager)
+?skip=0              // offset for pagination
+?limit=20            // page size (0 = return all — used by Video Editor)`}</Code>
+            <H3>Response</H3>
+            <Code>{`{
+  "clips": [
+    {
+      "id":          "uuid",
+      "filename":    "climbing.mp4",
+      "label":       "Climbing",
+      "keywords":    ["climb", "rising", "progress", "upward"],
+      "file_path":   "/home/.../stickFigureAssets/climbing.mp4",
+      "preview_url": "https://supabase.co/storage/v1/object/public/stickfigures/climbing.mp4",
+      "duration":    3.2,
+      "width":       1920,
+      "height":      1080,
+      "has_alpha":   false,
+      "has_audio":   true,
+      "enabled":     true,
+      "created_at":  "2026-03-01T10:00:00Z"
+    }
+  ],
+  "total": 112,
+  "skip": 0,
+  "limit": 20
+}`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/api/stickfigures/seed" desc="Populate DB from disk + seed map">
+            <P>Scans <code>backend/stickFigureAssets/</code> and upserts every MP4 found using the built-in <code>_SEED_KEYWORDS</code> map for initial tags. Safe to call repeatedly — uses upsert on filename.</P>
+            <H3>Response</H3>
+            <Code>{`{ "upserted": 112, "skipped": 0, "errors": [] }`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/api/stickfigures/upload" desc="Upload a new clip file">
+            <H3>Body (multipart/form-data)</H3>
+            <Code>{`file:     <video file>
+label:    "My Clip Label"         (optional)
+keywords: "tag1, tag2, tag3"      (optional, comma-separated string)`}</Code>
+            <H3>Response</H3>
+            <Code>{`{ "id": "uuid", "filename": "myclip.mp4", "label": "My Clip Label", "keywords": ["tag1","tag2","tag3"], ... }`}</Code>
+          </Endpoint>
+
+          <Endpoint method="PATCH" path="/api/stickfigures/{id}" desc="Update clip metadata">
+            <H3>Body (any subset)</H3>
+            <Code>{`{
+  "label":    "Updated Label",
+  "keywords": ["existing", "plus", "new", "extra", "tags"],
+  "enabled":  true
+}`}</Code>
+            <Note type="info">This is how you add extra keyword tags beyond what was inferred from the filename. Pass the complete desired array — it replaces the existing keywords entirely.</Note>
+          </Endpoint>
+
+          <Endpoint method="DELETE" path="/api/stickfigures/{id}" desc="Remove clip from DB">
+            <H3>Query params</H3>
+            <Code>{`?delete_file=false   // true = also delete the MP4 from disk (irreversible)`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/api/videos/{id}/composite" desc="Start manual composite job">
+            <H3>Body</H3>
+            <Code>{`{
+  "overlays": [
+    {
+      "clip_path":   "backend/stickFigureAssets/climbing.mp4",
+      "start_time":  5.0,
+      "duration":    6.0,
+      "x":           760,
+      "y":           200,
+      "scale":       0.5,
+      "loop_mode":   "last_2s",
+      "has_sound":   true
+    }
+  ],
+  "mix_overlay_audio":  true,
+  "chroma_color":       "0x00FF00",
+  "chroma_similarity":  0.35,
+  "chroma_blend":       0.05,
+  "replace_original":   false
+}`}</Code>
+          </Endpoint>
+
+          <Endpoint method="GET" path="/api/videos/{id}/composite-status" desc="Poll composite job progress">
+            <Code>{`{
+  "status":  "running",     // running | done | error
+  "message": "Compositing 3 overlay(s)…",
+  "logs":    ["Base video: final.mp4", "Overlays: 3 clip(s) queued", "…"],
+  "output":  null           // output path once done
+}`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/api/videos/{id}/composite-finalize" desc="Adopt composite output as the video's file">
+            <P>After a composite job completes, call this to replace the video's <code>file_path</code> in the DB with the new composited file.</P>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/api/videos/{id}/auto-composite" desc="Auto-match + composite in one call">
+            <H3>Body</H3>
+            <Code>{`{
+  "min_gap":          8,      // minimum seconds between overlays
+  "max_overlays":     8,
+  "mix_overlay_audio": true,
+  "replace_original": false
+}`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/api/videos/{id}/auto-composite/preview" desc="Preview which clips would be matched (dry-run)">
+            <H3>Response</H3>
+            <Code>{`{
+  "overlays": [
+    { "filename": "climbing.mp4", "start_time": 12.0, "duration": 5.0, "score": 3 },
+    { "filename": "death_forces_fate_dark_scary.mp4", "start_time": 28.0, "duration": 5.0, "score": 2 }
+  ]
+}`}</Code>
+          </Endpoint>
+
           {/* ── API STATS ─────────────────────────────────────────────────────────── */}
           <H2 id="api-stats">API Reference — Stats & Quota</H2>
 
@@ -881,6 +1168,12 @@ X-AutoVid-Key: av_live_sk_xxxx...`}</Code>
               { status: "done",    label: "Browser push notifications for pipeline completion" },
               { status: "done",    label: "Video library search & filter" },
               { status: "done",    label: "Next-run display for all automation schedulers" },
+              { status: "done",    label: "Stickfigure Manager — paginated browse, inline edit, delete, upload" },
+              { status: "done",    label: "Stickfigure keyword system — add/edit tags per clip via UI or API" },
+              { status: "done",    label: "Video Editor — live overlay preview, drag-and-drop positioning, loop modes" },
+              { status: "done",    label: "Auto-composite — keyword-matched sticker overlay from script text" },
+              { status: "done",    label: "assemble_paragraph_visuals — programmatic sticker + background compositor (MoviePy)" },
+              { status: "active",  label: "Wire sticker compositing into main video + shorts pipelines automatically" },
               { status: "active",  label: "Custom footage upload (replace Pexels with user-provided b-roll)" },
               { status: "planned", label: "User registration & multi-tenant accounts" },
               { status: "planned", label: "API key management UI & scoped permissions" },

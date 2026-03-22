@@ -65,6 +65,7 @@ import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
 import DangerZone from "../components/DangerZone";
 import VideoEditor from "../components/VideoEditor";
+import StickfigureManager from "../components/StickfigureManager";
 import {
   ShortsModal,
   UploadModal,
@@ -2526,6 +2527,7 @@ export default function Dashboard() {
               { id: "compilations", icon: "🎬", label: "Compilations" },
               { id: "reviews", icon: "◈", label: "Reviews", count: pendingReviewCount },
               { id: "editor", icon: "✂", label: "Video Editor" },
+              { id: "stickfigures", icon: "🕹", label: "Stickfigures" },
               { id: "settings", icon: "◎", label: "Settings" },
             ].map((n) => (
               <div
@@ -2773,6 +2775,8 @@ export default function Dashboard() {
                 ? "Reviews"
                 : tab === "editor"
                 ? "Video Editor"
+                : tab === "stickfigures"
+                ? "Stickfigure Manager"
                 : "Settings"}
             </div>
             <div
@@ -9985,6 +9989,9 @@ export default function Dashboard() {
                 T={T}
               />
             )}
+
+            {/* ── STICKFIGURE MANAGER TAB ───────────────────────────────────────── */}
+            {tab === "stickfigures" && <StickfigureManager T={T} />}
 
             {tab === "reviews" && (
               <div style={{ padding: "28px 0", display: "flex", gap: 20, alignItems: "flex-start" }}>
