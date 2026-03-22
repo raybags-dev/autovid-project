@@ -336,9 +336,19 @@ def load_keyword_map_from_db() -> Dict[str, Dict]:
         rows = db.list_stickfigure_clips(enabled_only=True)
         if rows:
             result = {}
+            try:
+                import config as _cfg
+                supabase_base = (_cfg.SUPABASE_URL or "").rstrip("/")
+            except Exception:
+                supabase_base = ""
             for r in rows:
-                # Prefer public_url over file_path — local files vanish on container rebuild
-                file_p = r.get("public_url") or r.get("file_path") or ""
+                # Prefer stored public_url, then compute from Supabase base, then local path
+                file_p = (
+                    r.get("public_url")
+                    or (f"{supabase_base}/storage/v1/object/public/stickfigures/{r['filename']}" if supabase_base else "")
+                    or r.get("file_path")
+                    or ""
+                )
                 result[r["filename"]] = {
                     "keywords":  [k.lower() for k in (r.get("keywords") or [])],
                     "file_path": file_p,
