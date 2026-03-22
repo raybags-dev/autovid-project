@@ -456,11 +456,23 @@ def composite_video(
                 audio_labels.append(a_label)
 
         # Mix all audio streams in one amix
-        if audio_labels:
+        base_has_audio = base_info.get("has_audio", False)
+        if audio_labels and base_has_audio:
+            # Base has audio — mix it with all overlay SFX
             all_audio = "[0:a]" + "".join(audio_labels)
             audio_parts.append(
                 f"{all_audio}amix=inputs={1 + len(audio_labels)}:normalize=0[outa]"
             )
+            audio_map = ["-map", "[outa]"]
+        elif audio_labels:
+            # Base has no audio (e.g. procedural visual) — mix overlay SFX only
+            if len(audio_labels) == 1:
+                audio_parts.append(f"{audio_labels[0]}acopy[outa]")
+            else:
+                all_audio = "".join(audio_labels)
+                audio_parts.append(
+                    f"{all_audio}amix=inputs={len(audio_labels)}:normalize=0[outa]"
+                )
             audio_map = ["-map", "[outa]"]
         else:
             audio_map = ["-map", "0:a?"]
