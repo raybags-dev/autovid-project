@@ -361,7 +361,12 @@ def upsert_stickfigure_clip(
         "has_audio":   has_audio,
         "enabled":     True,
     }
-    r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
+    try:
+        r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
+    except Exception:
+        # primary_tag column may not exist yet — retry without it
+        row.pop("primary_tag", None)
+        r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
     return r.data[0]
 
 

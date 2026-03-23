@@ -59,6 +59,7 @@ function ClipCard({ clip, T, onDelete, onSave, showToast }) {
   const [playing, setPlaying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(clip.label || "");
+  const [primaryTag, setPrimaryTag] = useState(clip.primary_tag || "");
   const [keywords, setKeywords] = useState((clip.keywords || []).join(", "));
   const [enabled, setEnabled] = useState(clip.enabled !== false);
   const [saving, setSaving] = useState(false);
@@ -71,6 +72,7 @@ function ClipCard({ clip, T, onDelete, onSave, showToast }) {
   useEffect(() => {
     if (!editing) {
       setLabel(clip.label || "");
+      setPrimaryTag(clip.primary_tag || "");
       setKeywords((clip.keywords || []).join(", "));
       setEnabled(clip.enabled !== false);
     }
@@ -95,7 +97,7 @@ function ClipCard({ clip, T, onDelete, onSave, showToast }) {
         .split(/[,\n]+/)
         .map((k) => k.trim())
         .filter(Boolean);
-      await onSave(clip.id, { label: label.trim(), keywords: kwArr, enabled });
+      await onSave(clip.id, { label: label.trim(), primary_tag: primaryTag.trim().toLowerCase(), keywords: kwArr, enabled });
       setEditing(false);
     } catch (e) {
       showToast?.("Save failed: " + (e?.response?.data?.detail || e.message), "error");
@@ -245,6 +247,37 @@ function ClipCard({ clip, T, onDelete, onSave, showToast }) {
         <div style={{ fontSize: 9, color: T.textFaint, fontFamily: "monospace" }}>
           {clip.filename}
         </div>
+
+        {/* Primary tag badge */}
+        {!editing && clip.primary_tag && (
+          <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: `${T.accent}25`, color: T.accent, letterSpacing: "0.05em", alignSelf: "flex-start" }}>
+            ★ {clip.primary_tag}
+          </span>
+        )}
+
+        {/* Primary tag */}
+        {editing && (
+          <div>
+            <div style={{ fontSize: 9, color: T.textDim, marginBottom: 3, letterSpacing: "0.08em" }}>PRIMARY TAG</div>
+            <input
+              value={primaryTag}
+              onChange={(e) => setPrimaryTag(e.target.value)}
+              placeholder="e.g. climbing"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                background: T.bg,
+                border: `1px solid ${T.accent}55`,
+                borderRadius: 7,
+                padding: "5px 10px",
+                color: T.text,
+                fontSize: 11,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            />
+          </div>
+        )}
 
         {/* Keywords */}
         {editing ? (
