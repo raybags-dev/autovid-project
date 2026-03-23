@@ -3336,12 +3336,29 @@ async def upload_stickfigure(
     if dest.exists():
         raise HTTPException(409, f"A clip named {safe_name!r} already exists — rename or delete it first")
 
-    # Save the file
+    # Save the raw upload
     content = await file.read()
-    with open(dest, "wb") as f:
+    raw_dest = _STICK_FIGURE_DIR / f"_raw_{safe_name}"
+    with open(raw_dest, "wb") as f:
         f.write(content)
 
-    # Probe
+    # Normalize: re-encode to h264 yuv420p, 30fps, aac audio, strip unusual colorspaces.
+    # This gives every clip a predictable format so chromakey works consistently.
+    import subprocess as _sp
+    norm_result = _sp.run([
+        "ffmpeg", "-y", "-i", str(raw_dest),
+        "-vf", "format=yuv420p,fps=30",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+        "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k",
+        "-movflags", "+faststart",
+        str(dest),
+    ], capture_output=True)
+    raw_dest.unlink(missing_ok=True)  # always clean up raw file
+    if norm_result.returncode != 0:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(422, f"Could not normalise video: {norm_result.stderr[-300:]}")
+
+    # Probe normalized file
     try:
         info = get_video_info(str(dest))
     except Exception:
@@ -3402,21 +3419,32 @@ def start_composite(
     skipped = []
     seen_paths: set[str] = set()
     for ov in req.overlays:
-        ov_path = _Path(ov.clip_path)
-        try:
-            ov_path.relative_to(_STICK_FIGURE_DIR)
-        except ValueError:
-            raise HTTPException(400, f"Clip path must be inside stickFigureAssets: {ov.clip_path}")
-        norm = str(ov_path.resolve())
-        if norm in seen_paths:
-            print(f"⚠️  Duplicate clip skipped: {ov.clip_path}")
-            continue
-        seen_paths.add(norm)
-        if not ov_path.exists():
-            print(f"⚠️  Clip not found (skipping): {ov.clip_path}")
-            skipped.append(ov_path.name)
-        else:
+        clip_str = ov.clip_path
+        is_url = clip_str.startswith("http://") or clip_str.startswith("https://")
+        if is_url:
+            # Supabase-hosted clip — URL is always valid, use it as dedup key
+            if clip_str in seen_paths:
+                print(f"⚠️  Duplicate clip skipped: {clip_str}")
+                continue
+            seen_paths.add(clip_str)
             valid_overlays.append(ov)
+        else:
+            # Local path — must be inside stickFigureAssets
+            ov_path = _Path(clip_str)
+            try:
+                ov_path.relative_to(_STICK_FIGURE_DIR)
+            except ValueError:
+                raise HTTPException(400, f"Clip path must be inside stickFigureAssets: {clip_str}")
+            norm = str(ov_path.resolve())
+            if norm in seen_paths:
+                print(f"⚠️  Duplicate clip skipped: {clip_str}")
+                continue
+            seen_paths.add(norm)
+            if not ov_path.exists():
+                print(f"⚠️  Clip not found (skipping): {clip_str}")
+                skipped.append(ov_path.name)
+            else:
+                valid_overlays.append(ov)
     req = req.model_copy(update={"overlays": valid_overlays})
 
     with _composite_lock:
