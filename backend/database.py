@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
     duration    FLOAT DEFAULT 0,
     width       INTEGER DEFAULT 0,
     height      INTEGER DEFAULT 0,
+    primary_tag TEXT DEFAULT '',              -- exact-match priority keyword
     has_alpha   BOOLEAN DEFAULT FALSE,
     has_audio   BOOLEAN DEFAULT FALSE,
     enabled     BOOLEAN DEFAULT TRUE,          -- can be toggled off without deleting
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
 );
 CREATE INDEX IF NOT EXISTS idx_sfclips_enabled ON stickfigure_clips(enabled);
 ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS public_url TEXT DEFAULT '';
+ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS primary_tag TEXT DEFAULT '';
 ─────────────────────────────────────────────────
 """
 import uuid
@@ -341,21 +343,23 @@ def upsert_stickfigure_clip(
     height: int = 0,
     has_alpha: bool = False,
     has_audio: bool = False,
+    primary_tag: str = "",
 ) -> dict:
     """Insert or update a clip record, keyed on filename."""
     db = get_client()
     row = {
-        "filename":  filename,
-        "label":     label,
-        "keywords":  keywords,
-        "file_path": file_path,
-        "public_url": public_url,
-        "duration":  duration,
-        "width":     width,
-        "height":    height,
-        "has_alpha": has_alpha,
-        "has_audio": has_audio,
-        "enabled":   True,
+        "filename":    filename,
+        "label":       label,
+        "keywords":    keywords,
+        "file_path":   file_path,
+        "public_url":  public_url,
+        "primary_tag": primary_tag.strip().lower(),
+        "duration":    duration,
+        "width":       width,
+        "height":      height,
+        "has_alpha":   has_alpha,
+        "has_audio":   has_audio,
+        "enabled":     True,
     }
     r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
     return r.data[0]

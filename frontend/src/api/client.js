@@ -164,11 +164,12 @@ export const backfillStickFigureUrls = async () => {
   return data;
 };
 
-export const uploadStickFigure = async (file, label = "", keywords = "") => {
+export const uploadStickFigure = async (file, label = "", keywords = "", primaryTag = "") => {
   const form = new FormData();
   form.append("file", file);
   form.append("label", label);
   form.append("keywords", keywords);
+  form.append("primary_tag", primaryTag);
   const { data } = await api.post("/stickfigures/upload", form, {
     timeout: 120000,
   });

@@ -327,7 +327,7 @@ CLIP_KEYWORDS = _SEED_KEYWORDS
 
 def load_keyword_map_from_db() -> Dict[str, Dict]:
     """
-    Return {filename: {"keywords": [...], "file_path": str, "duration": float}}
+    Return {filename: {"keywords": [...], "primary_tag": str, "file_path": str, "duration": float}}
     from the stickfigure_clips DB table.  Falls back to _SEED_KEYWORDS
     (filesystem paths) if the table is empty or unreachable.
     """
@@ -350,20 +350,22 @@ def load_keyword_map_from_db() -> Dict[str, Dict]:
                     or ""
                 )
                 result[r["filename"]] = {
-                    "keywords":  [k.lower() for k in (r.get("keywords") or [])],
-                    "file_path": file_p,
-                    "duration":  r.get("duration") or 0,
+                    "keywords":    [k.lower() for k in (r.get("keywords") or [])],
+                    "primary_tag": (r.get("primary_tag") or "").strip().lower(),
+                    "file_path":   file_p,
+                    "duration":    r.get("duration") or 0,
                 }
             return result
     except Exception as e:
         print(f"⚠️  load_keyword_map_from_db failed, using seed map: {e}")
 
-    # Fallback: build from _SEED_KEYWORDS + filesystem
+    # Fallback: build from _SEED_KEYWORDS + filesystem (no primary_tag in seed)
     return {
         filename: {
-            "keywords":  [k.lower() for k in kws],
-            "file_path": str(STICK_FIGURE_DIR / filename),
-            "duration":  0,
+            "keywords":    [k.lower() for k in kws],
+            "primary_tag": "",
+            "file_path":   str(STICK_FIGURE_DIR / filename),
+            "duration":    0,
         }
         for filename, kws in _SEED_KEYWORDS.items()
         if (STICK_FIGURE_DIR / filename).exists()
@@ -403,11 +405,15 @@ def match_clips_to_script(
     """
     Analyse script_text and return a sorted list of overlay events.
 
-    For each sentence, ALL clips with score > 0 are collected and scheduled
-    sequentially within that sentence's time window (best-scoring first).
-    Clips within the same window play back-to-back with no gap.
-    Clips from different sentences are separated by the natural time gap
-    between sentence windows.
+    For each sentence:
+      1. If a clip's primary_tag exactly appears in the sentence, that clip is
+         added first (highest priority).
+      2. Other clips with keyword score > 0 are appended in score-descending
+         order to fill the remaining window time.
+      3. If only one clip matches for a sentence, it is looped (loop_mode="full")
+         to fill the entire sentence window.
+      4. If the window time runs out before all clips are scheduled, remaining
+         clips are discarded.
 
     At most `max_overlays` events are returned.
     """
@@ -421,8 +427,8 @@ def match_clips_to_script(
     n = len(sentences)
     kw_map = load_keyword_map_from_db()
 
-    # (start_t, end_t, filename, score, clip_path, clip_dur)
-    all_candidates: List[Tuple[float, float, str, int, str, float]] = []
+    # (start_t, end_t, filename, score, clip_path, clip_dur, loop_mode)
+    all_candidates: List[Tuple[float, float, str, int, str, float, str]] = []
 
     for idx, sentence in enumerate(sentences):
         sent_lower = sentence.lower()
@@ -440,26 +446,48 @@ def match_clips_to_script(
             window_end = video_duration - 1.0
         window_end = min(window_end, video_duration - 1.0)
 
-        # Collect ALL matching clips, sort best-score first
-        matches = []
-        for filename, meta in kw_map.items():
-            score = _score_clip(meta["keywords"], sent_lower)
-            if score > 0:
-                clip_dur = meta.get("duration") or 5.0
-                matches.append((score, filename, meta["file_path"], clip_dur))
-        if not matches:
+        window_dur = window_end - start_t
+        if window_dur < 0.5:
             continue
-        matches.sort(key=lambda m: -m[0])
 
-        # Schedule sequentially within the sentence's time window
+        # --- Step 1: collect primary-tag matches (exact phrase in sentence) ---
+        primary_matches = []
+        secondary_matches = []
+        for filename, meta in kw_map.items():
+            pt = meta.get("primary_tag") or ""
+            is_primary = bool(pt and pt in sent_lower)
+            score = _score_clip(meta["keywords"], sent_lower)
+            clip_dur = meta.get("duration") or 5.0
+            if is_primary:
+                primary_matches.append((score, filename, meta["file_path"], clip_dur))
+            elif score > 0:
+                secondary_matches.append((score, filename, meta["file_path"], clip_dur))
+
+        primary_matches.sort(key=lambda m: -m[0])
+        secondary_matches.sort(key=lambda m: -m[0])
+
+        # Ordered sequence: primaries first, then secondaries
+        ordered = primary_matches + secondary_matches
+        if not ordered:
+            continue
+
+        # --- Step 3: single-match → loop to fill window ---
+        if len(ordered) == 1:
+            score, filename, path, clip_dur = ordered[0]
+            all_candidates.append(
+                (start_t, window_end, filename, score, path, clip_dur, "full")
+            )
+            continue
+
+        # --- Step 2 / 4: schedule sequentially, discard if window exhausted ---
         current_t = start_t
-        for score, filename, path, clip_dur in matches:
+        for score, filename, path, clip_dur in ordered:
             remaining = window_end - current_t
             if remaining < 0.5:
                 break
             actual_dur = min(clip_dur, remaining)
             all_candidates.append(
-                (current_t, current_t + actual_dur, filename, score, path, clip_dur)
+                (current_t, current_t + actual_dur, filename, score, path, clip_dur, "none")
             )
             current_t += actual_dur
 
@@ -468,18 +496,18 @@ def match_clips_to_script(
 
     # Sort by start_time and drop any that overlap the previous clip
     all_candidates.sort(key=lambda c: c[0])
-    accepted: List[Tuple[float, str, int, str, float]] = []
+    accepted: List[Tuple[float, str, int, str, float, str]] = []
     last_end = -999.0
-    for start_t, end_t, filename, score, path, clip_dur in all_candidates:
+    for start_t, end_t, filename, score, path, clip_dur, loop_mode in all_candidates:
         if start_t >= last_end - 0.05:   # allow tiny float rounding
-            accepted.append((start_t, filename, score, path, clip_dur))
+            accepted.append((start_t, filename, score, path, clip_dur, loop_mode))
             last_end = end_t
 
     accepted = accepted[:max_overlays]
 
     # Build output dicts
     results = []
-    for start_t, filename, score, path, clip_dur in accepted:
+    for start_t, filename, score, path, clip_dur, loop_mode in accepted:
         dur = kw_map.get(filename, {}).get("duration") or clip_dur
         if dur <= 0:
             try:
@@ -495,7 +523,7 @@ def match_clips_to_script(
             "x":          0,
             "y":          0,
             "scale":      0.5,
-            "loop_mode":  "none",
+            "loop_mode":  loop_mode,
             "has_sound":  True,
             "score":      score,
         })
