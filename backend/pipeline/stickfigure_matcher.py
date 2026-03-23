@@ -403,14 +403,12 @@ def match_clips_to_script(
     """
     Analyse script_text and return a sorted list of overlay events.
 
-    Each event is a dict:
-        clip_path   str    absolute path to the clip
-        filename    str    bare filename
-        start_time  float  seconds into the video
-        duration    float  clip's natural duration (caller may override)
-        score       int    match confidence (higher = more keywords matched)
+    For each sentence, ALL clips with score > 0 are collected and scheduled
+    sequentially within that sentence's time window (best-scoring first).
+    Clips within the same window play back-to-back with no gap.
+    Clips from different sentences are separated by the natural time gap
+    between sentence windows.
 
-    Deduplication: no two events are within `min_gap` seconds of each other.
     At most `max_overlays` events are returned.
     """
     if not script_text or video_duration <= 0:
@@ -421,71 +419,82 @@ def match_clips_to_script(
         return []
 
     n = len(sentences)
-    candidates: List[Tuple[float, str, int, str]] = []  # (start_t, filename, score, clip_path)
-
-    # Load live keyword map from DB (falls back to seed map if DB empty)
     kw_map = load_keyword_map_from_db()
+
+    # (start_t, end_t, filename, score, clip_path, clip_dur)
+    all_candidates: List[Tuple[float, float, str, int, str, float]] = []
 
     for idx, sentence in enumerate(sentences):
         sent_lower = sentence.lower()
-        # Time window: distribute sentences linearly, start at 10 % into video
-        # so the first overlay doesn't appear immediately at t=0
-        t_frac = (idx / n)
+
+        # This sentence's start time in the video timeline
+        t_frac  = idx / n
         start_t = 5.0 + t_frac * (video_duration - 10.0)
         start_t = max(0.0, min(start_t, video_duration - 3.0))
 
-        best_file = None
-        best_score = 0
+        # End of this sentence's window = start of next sentence (or near video end)
+        if idx + 1 < n:
+            next_frac  = (idx + 1) / n
+            window_end = 5.0 + next_frac * (video_duration - 10.0)
+        else:
+            window_end = video_duration - 1.0
+        window_end = min(window_end, video_duration - 1.0)
+
+        # Collect ALL matching clips, sort best-score first
+        matches = []
         for filename, meta in kw_map.items():
             score = _score_clip(meta["keywords"], sent_lower)
-            if score > best_score:
-                best_score = score
-                best_file  = filename
+            if score > 0:
+                clip_dur = meta.get("duration") or 5.0
+                matches.append((score, filename, meta["file_path"], clip_dur))
+        if not matches:
+            continue
+        matches.sort(key=lambda m: -m[0])
 
-        if best_file and best_score > 0:
-            candidates.append((start_t, best_file, best_score, kw_map[best_file]["file_path"]))
+        # Schedule sequentially within the sentence's time window
+        current_t = start_t
+        for score, filename, path, clip_dur in matches:
+            remaining = window_end - current_t
+            if remaining < 0.5:
+                break
+            actual_dur = min(clip_dur, remaining)
+            all_candidates.append(
+                (current_t, current_t + actual_dur, filename, score, path, clip_dur)
+            )
+            current_t += actual_dur
 
-    if not candidates:
+    if not all_candidates:
         return []
 
-    # Sort by start_time
-    candidates.sort(key=lambda c: c[0])
-
-    # Deduplication: enforce min_gap
-    accepted: List[Tuple[float, str, int, str]] = []
+    # Sort by start_time and drop any that overlap the previous clip
+    all_candidates.sort(key=lambda c: c[0])
+    accepted: List[Tuple[float, str, int, str, float]] = []
     last_end = -999.0
+    for start_t, end_t, filename, score, path, clip_dur in all_candidates:
+        if start_t >= last_end - 0.05:   # allow tiny float rounding
+            accepted.append((start_t, filename, score, path, clip_dur))
+            last_end = end_t
 
-    for start_t, filename, score, path in candidates:
-        if start_t >= last_end + min_gap:
-            accepted.append((start_t, filename, score, path))
-            last_end = start_t
-        else:
-            # Prefer higher-scoring match within the same window
-            if accepted and score > accepted[-1][2]:
-                accepted[-1] = (start_t, filename, score, path)
-                last_end = start_t
-
-    # Limit total overlays
     accepted = accepted[:max_overlays]
 
-    # Build output dicts (use duration from kw_map if available, else probe)
+    # Build output dicts
     results = []
-    for start_t, filename, score, path in accepted:
-        duration = kw_map.get(filename, {}).get("duration") or 0
-        if duration <= 0:
+    for start_t, filename, score, path, clip_dur in accepted:
+        dur = kw_map.get(filename, {}).get("duration") or clip_dur
+        if dur <= 0:
             try:
                 from .stickfigure_compositor import get_video_info
-                duration = get_video_info(path)["duration"]
+                dur = get_video_info(path)["duration"]
             except Exception:
-                duration = 5.0
+                dur = 5.0
         results.append({
             "clip_path":  path,
             "filename":   filename,
             "start_time": round(start_t, 2),
-            "duration":   round(duration, 2),
-            "x":          0,    # caller / user may override
+            "duration":   round(dur, 2),
+            "x":          0,
             "y":          0,
-            "scale":      0.5,  # default: half-size overlay
+            "scale":      0.5,
             "loop_mode":  "none",
             "has_sound":  True,
             "score":      score,
