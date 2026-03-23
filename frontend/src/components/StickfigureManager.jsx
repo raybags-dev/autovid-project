@@ -415,6 +415,7 @@ function btnStyle(color, disabled = false, ghost = false) {
 function UploadModal({ T, onClose, onUploaded }) {
   const [file, setFile] = useState(null);
   const [label, setLabel] = useState("");
+  const [primaryTag, setPrimaryTag] = useState("");
   const [keywords, setKeywords] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -424,7 +425,7 @@ function UploadModal({ T, onClose, onUploaded }) {
     setUploading(true);
     setError("");
     try {
-      const result = await uploadStickFigure(file, label, keywords);
+      const result = await uploadStickFigure(file, label, keywords, primaryTag);
       onUploaded(result);
       onClose();
     } catch (e) {
@@ -489,6 +490,13 @@ function UploadModal({ T, onClose, onUploaded }) {
             LABEL
           </div>
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Climbing" style={inputStyle} />
+        </div>
+
+        <div>
+          <div style={{ fontSize: 9, color: T.textDim, marginBottom: 4, letterSpacing: "0.1em" }}>
+            PRIMARY TAG
+          </div>
+          <input value={primaryTag} onChange={(e) => setPrimaryTag(e.target.value)} placeholder="e.g. climbing" style={inputStyle} />
         </div>
 
         <div>

@@ -490,27 +490,47 @@ def generate_visual(style: str, duration: float, video_id: str) -> str:
     Returns:
         Path to the generated MP4 file
     """
+    import subprocess
     from moviepy.editor import VideoClip
 
     frame_fn = FRAME_FUNCS.get(style, _colour_wash_frame)
-    loop_dur = 8.0  # base loop duration in seconds
+    loop_dur = 8.0  # render only this many seconds, then loop via FFmpeg
 
     def make_frame(t):
-        # Loop the animation by using t mod loop_dur
-        return frame_fn(t % loop_dur)
+        return frame_fn(t)
 
     out_path = config.VIDEOS_OUTPUT_DIR / f"{video_id}_visual.mp4"
+    loop_path = config.VIDEOS_OUTPUT_DIR / f"{video_id}_visual_loop.mp4"
     print(f"🎨 Generating looping visual: {style} ({duration:.0f}s)...")
 
-    clip = VideoClip(make_frame, duration=duration)
+    # Step 1: render only the short loop (8s worth of frames)
+    clip = VideoClip(make_frame, duration=loop_dur)
     clip.write_videofile(
-        str(out_path),
+        str(loop_path),
         fps=FPS,
         codec="libx264",
         preset="fast",
         logger=None,
     )
     clip.close()
+
+    # Step 2: extend to full duration using FFmpeg stream_loop (near-instant)
+    result = subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-stream_loop", "-1",
+            "-i", str(loop_path),
+            "-t", str(duration),
+            "-c", "copy",
+            str(out_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    loop_path.unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg loop extension failed: {result.stderr[-500:]}")
 
     size_mb = out_path.stat().st_size / (1024 * 1024)
     print(f"✅ Visual ready: {out_path.name} ({size_mb:.1f}MB)")
