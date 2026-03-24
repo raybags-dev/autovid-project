@@ -3319,13 +3319,11 @@ async def upload_stickfigure(
     file: UploadFile = File(...),
     label: str = "",
     keywords: str = "",   # comma-separated
-    primary_tag: str = "",
     _u: str = Depends(verify_token),
 ):
     """
     Upload a new stick-figure clip (.mp4) and register it in the DB.
     keywords: comma-separated trigger words, e.g. "joy,happy,smile"
-    primary_tag: exact-match keyword for priority selection
     """
     from pipeline.stickfigure_compositor import get_video_info
 
@@ -3383,17 +3381,16 @@ async def upload_stickfigure(
         print(f"⚠️  Clip storage upload failed: {_ue}")
 
     row = db.upsert_stickfigure_clip(
-        filename    = safe_name,
-        label       = display_label,
-        keywords    = kw_list,
-        file_path   = str(dest),
-        public_url  = public_url,
-        primary_tag = primary_tag.strip().lower(),
-        duration    = round(info["duration"], 2),
-        width       = info["width"],
-        height      = info["height"],
-        has_alpha   = info["has_alpha"],
-        has_audio   = info["has_audio"],
+        filename   = safe_name,
+        label      = display_label,
+        keywords   = kw_list,
+        file_path  = str(dest),
+        public_url = public_url,
+        duration   = round(info["duration"], 2),
+        width      = info["width"],
+        height     = info["height"],
+        has_alpha  = info["has_alpha"],
+        has_audio  = info["has_audio"],
     )
     row["preview_url"] = public_url or f"/stickfigures-assets/{safe_name}"
     return row
