@@ -374,13 +374,29 @@ def cancel_pipeline(video_id: str, user: str = Depends(verify_token)):
     return {"message": "Cancellation requested", "video_id": video_id}
 
 
+_IN_PROGRESS_STATUSES = {"generating", "scripted", "voiced", "assembled", "captioned", "labeled"}
+
 @app.get("/videos/{video_id}/logs")
 def get_logs(video_id: str, since: int = Query(default=0), user: str = Depends(verify_token)):
     """Return buffered pipeline logs since a given line index.
-    Frontend polls this every second — simple and reliable."""
+    Frontend polls this every second — simple and reliable.
+
+    With multiple backend instances the in-memory pipeline registry only exists
+    on the instance that is *running* the job.  If this instance has no entry,
+    we fall back to the DB status: if the video is still in-progress the
+    pipeline is running on the other instance — return done=False so the
+    frontend keeps polling until the DB status leaves the in-progress set.
+    """
     with _pipeline_lock:
         entry = _active_pipelines.get(video_id)
     if not entry:
+        # Check DB: if still in-progress, pipeline is alive on another instance
+        try:
+            v = db.get_video(video_id)
+            if v and v.get("status") in _IN_PROGRESS_STATUSES:
+                return {"lines": [], "total": 0, "done": False}
+        except Exception:
+            pass
         return {"lines": [], "total": 0, "done": True}
     lines = entry.get("log_buffer", [])
     running = not entry.get("done", False)

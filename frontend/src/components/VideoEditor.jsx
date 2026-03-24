@@ -838,22 +838,12 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
                 Clips ({filteredClips.length}{disabledCount > 0 && !showDisabled ? `/${clips.length}` : ""})
               </span>
               <div style={{ display:"flex", gap:4 }}>
-                <button onClick={loadClips} title="Refresh"
+                <button onClick={loadClips} title="Reload clips from DB"
                   style={{ padding:"2px 6px", borderRadius:4, border:`1px solid ${T.border}`, background:"transparent", color:T.textDim, fontSize:11, cursor:"pointer" }}>↺</button>
-                <button onClick={handleSeed} disabled={seeding}
-                  style={{ padding:"2px 7px", borderRadius:4, border:"none", background:seeding ? T.bgCard : `${T.accent}20`, color:T.accent, fontSize:10, cursor:seeding?"not-allowed":"pointer" }}>
-                  {seeding ? "…" : "Seed"}
-                </button>
                 <button onClick={() => setShowUploadForm(v => !v)}
                   style={{ padding:"2px 7px", borderRadius:4, border:"none", background:showUploadForm ? T.accent : T.bgCard, color:showUploadForm ? "#fff" : T.textDim, fontSize:10, cursor:"pointer" }}>+</button>
               </div>
             </div>
-
-            {seedResult && (
-              <div style={{ fontSize:9, color:seedResult.error ? T.accentRed : T.accentGreen, marginBottom:4 }}>
-                {seedResult.error || `✓ ${seedResult.upserted} clips loaded`}
-              </div>
-            )}
 
             {showUploadForm && (
               <div style={{ padding:7, background:T.bgDeep, borderRadius:6, border:`1px solid ${T.border}`, marginBottom:5 }}>
