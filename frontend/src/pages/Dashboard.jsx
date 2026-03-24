@@ -9891,7 +9891,7 @@ export default function Dashboard() {
                             <div style={{ marginBottom: 10 }}>
                               <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 5 }}>CONNECTED INTEGRATIONS</div>
                               {integrationRows.map(r => (
-                                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: T.bgBase, borderRadius: 7, marginBottom: 4, border: `1px solid ${r.color}22` }}>
+                                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: T.bgBase, borderRadius: 7, marginBottom: 4, border: `1px solid ${r.color}22`, minHeight: 44 }}>
                                   <div style={{ width: 28, height: 28, borderRadius: 6, background: `${r.color}18`, border: `1px solid ${r.color}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{r.icon}</div>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>
@@ -9919,9 +9919,9 @@ export default function Dashboard() {
 
                           {/* Subscription list */}
                           {subscriptions.length > 0 && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, maxHeight: 260, overflowY: "auto", paddingRight: 2 }}>
                               {subscriptions.map(s => (
-                                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: T.bgBase, borderRadius: 7 }}>
+                                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: T.bgBase, borderRadius: 7, minHeight: 44, flexShrink: 0 }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 12, color: T.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
                                     {s.next_billing && (
