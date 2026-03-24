@@ -420,8 +420,6 @@ def composite_video(
             # NO shortest=1 — that terminates the entire output stream when overlay ends.
             looped_dur = float(p["looped_info"]["duration"])
             end_t = base_duration if loop_mode != "none" else start_t + clip_natural_dur
-            fade_out_dur = float(ov.get("fade_out", 0))
-
             ov_filters = [
                 f"trim=start=0:end={looped_dur:.3f}",
                 f"setpts=PTS-STARTPTS+{start_t}/TB",
@@ -434,13 +432,6 @@ def composite_video(
                 )
             ov_filters.append(f"scale=-1:{base_h}")
             ov_filters.append("format=yuva420p")
-
-            # Fade-out: alpha fades to 0 (transparent) over the last fade_out_dur seconds
-            if fade_out_dur > 0 and looped_dur > fade_out_dur:
-                fade_start = looped_dur - fade_out_dur
-                ov_filters.append(
-                    f"fade=t=out:st={fade_start:.3f}:d={fade_out_dur:.3f}:alpha=1"
-                )
 
             filter_parts.append(f"{input_label}{','.join(ov_filters)}{filtered_label}")
             ov_label = filtered_label

@@ -574,7 +574,6 @@ function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
   const [editing, setEditing] = useState(false);
   const [draftLabel, setDraftLabel] = useState(clip.label || "");
   const [draftKw, setDraftKw] = useState((clip.keywords || []).join(", "));
-  const [draftPrimaryTag, setDraftPrimaryTag] = useState(clip.primary_tag || "");
   const [saving, setSaving] = useState(false);
 
   // React doesn't reliably pass `muted` to the DOM — set via ref
@@ -595,10 +594,9 @@ function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
     e.stopPropagation();
     setSaving(true);
     const kws = draftKw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-    const pt = draftPrimaryTag.trim().toLowerCase();
     try {
-      await updateStickFigure(clip.id, { label: draftLabel.trim(), keywords: kws, primary_tag: pt });
-      onUpdated({ ...clip, label: draftLabel.trim(), keywords: kws, primary_tag: pt });
+      await updateStickFigure(clip.id, { label: draftLabel.trim(), keywords: kws });
+      onUpdated({ ...clip, label: draftLabel.trim(), keywords: kws });
       setEditing(false);
     } catch { /* ignore */ }
     setSaving(false);
@@ -624,12 +622,12 @@ function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
   const label = clip.label || clip.filename.replace(".mp4", "").replace(/_/g, " ");
 
   if (editing) {
-    const iStyle = { width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 7px", color: T.text, fontFamily: "inherit", fontSize: 11, boxSizing: "border-box", marginBottom: 5 };
     return (
       <div style={{ border: `1px solid ${T.accent}`, borderRadius: 8, padding: 10, background: T.bgCard }} onClick={e => e.stopPropagation()}>
-        <input value={draftLabel} onChange={e => setDraftLabel(e.target.value)} placeholder="Label" style={iStyle} />
-        <input value={draftPrimaryTag} onChange={e => setDraftPrimaryTag(e.target.value)} placeholder="Primary tag (e.g. climbing)" style={iStyle} />
-        <input value={draftKw} onChange={e => setDraftKw(e.target.value)} placeholder="keywords, comma, separated" style={{ ...iStyle, marginBottom: 6 }} />
+        <input value={draftLabel} onChange={e => setDraftLabel(e.target.value)} placeholder="Label"
+          style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 7px", color: T.text, fontFamily: "inherit", fontSize: 11, boxSizing: "border-box", marginBottom: 5 }} />
+        <input value={draftKw} onChange={e => setDraftKw(e.target.value)} placeholder="keywords, comma, separated"
+          style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 7px", color: T.text, fontFamily: "inherit", fontSize: 11, boxSizing: "border-box", marginBottom: 6 }} />
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={saveEdit} disabled={saving} style={{ padding: "3px 10px", borderRadius: 5, border: "none", background: T.accentGreen, color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
             {saving ? "Saving…" : "Save"}
@@ -661,8 +659,7 @@ function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
         <div style={{ fontSize: 10, color: T.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
         <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>
           {clip.duration}s · {clip.has_alpha ? "α" : "key"}
-          {clip.primary_tag && <span style={{ color: T.accent }}> · ★ {clip.primary_tag}</span>}
-          {clip.keywords?.length > 0 && <span style={{ color: T.textFaint }}> · {clip.keywords.slice(0, 2).join(", ")}{clip.keywords.length > 2 ? "…" : ""}</span>}
+          {clip.keywords?.length > 0 && <span style={{ color: T.textFaint }}> · {clip.keywords.slice(0, 3).join(", ")}{clip.keywords.length > 3 ? "…" : ""}</span>}
         </div>
       </div>
       {hovered && (
@@ -686,7 +683,7 @@ function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
 function StickFigureSettings({ T }) {
   const [clips, setClips]           = React.useState(null); // null = not loaded yet
   const [loading, setLoading]       = React.useState(false);
-  const [seeding, setSeeding]       = React.useState(false); // kept for compat
+  const [seeding, setSeeding]       = React.useState(false);
   const [seedResult, setSeedResult] = React.useState(null);
   const [uploading, setUploading]   = React.useState(false);
   const [uploadLabel, setUploadLabel] = React.useState("");
@@ -760,15 +757,26 @@ function StickFigureSettings({ T }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
+            {clips === null && (
+              <button
+                onClick={load}
+                disabled={loading}
+                style={{
+                  padding: "5px 12px", borderRadius: 6, border: `1px solid ${T.border}`,
+                  background: T.bgSub, color: T.textMid, fontSize: 11,
+                  cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit",
+                }}
+              >{loading ? "Loading…" : "Load"}</button>
+            )}
             <button
-              onClick={load}
-              disabled={loading}
+              onClick={handleSeed}
+              disabled={seeding}
               style={{
-                padding: "5px 12px", borderRadius: 6, border: `1px solid ${T.border}`,
-                background: T.bgSub, color: T.textMid, fontSize: 11,
-                cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit",
+                padding: "5px 12px", borderRadius: 6, border: `1px solid ${T.accent}40`,
+                background: `${T.accent}12`, color: T.accent, fontSize: 11,
+                cursor: seeding ? "not-allowed" : "pointer", fontFamily: "inherit",
               }}
-            >{loading ? "Loading…" : clips === null ? "Load" : "Refresh"}</button>
+            >{seeding ? "Seeding…" : "Seed from disk"}</button>
             <button
               onClick={() => setShowUpload(v => !v)}
               style={{
@@ -779,6 +787,12 @@ function StickFigureSettings({ T }) {
             >{showUpload ? "Cancel" : "+ Upload"}</button>
           </div>
         </div>
+
+        {seedResult && (
+          <div style={{ fontSize: 11, color: seedResult.error ? T.accentRed : T.accentGreen, marginBottom: 10 }}>
+            {seedResult.error || `✓ ${seedResult.upserted} clips seeded${seedResult.skipped > 0 ? `, ${seedResult.skipped} skipped` : ""}`}
+          </div>
+        )}
 
         {/* Upload form */}
         {showUpload && (
@@ -864,7 +878,7 @@ function StickFigureSettings({ T }) {
 
         {clips !== null && clips.length === 0 && (
           <div style={{ fontSize: 11, color: T.textFaint, textAlign: "center", padding: "16px 0" }}>
-            No clips in the DB yet — use "+ Upload" to add clips.
+            No clips in the DB yet — click "Seed from disk" to load the 84 built-in clips.
           </div>
         )}
       </div>
