@@ -204,8 +204,8 @@ const THEMES = {
     bg: "#111318", // dark charcoal — not pure black
     bgSub: "#1a1d24",
     bgDeep: "#0c0e13",
-    bgCard: "#1e2128", // card slightly lighter than bg
-    bgCardHover: "#252830",
+    bgCard: "#252d3d", // pleasant dark navy-slate
+    bgCardHover: "#2e3850",
     border: "#2e3340", // clearly visible border
     borderHover: "#4a9eff",
     text: "#f0f2f5", // near-white, crisp
@@ -2317,7 +2317,9 @@ export default function Dashboard() {
         .video-row{background:${T.bgCard};border:1px solid ${T.border};border-radius:12px;padding:16px 20px;cursor:pointer;transition:all 0.15s;margin-bottom:8px;}
         .video-row:hover{background:${T.bgCardHover};border-color:${T.borderHover};transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,100,180,0.08);}
         .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:100px;font-size:10px;letter-spacing:0.06em;font-weight:500;white-space:nowrap;}
-        .tag{display:inline-block;padding:2px 8px;border-radius:100px;font-size:9px;background:${T.inputBg};color:${T.textDim};border:1px solid ${T.border};margin:1px;letter-spacing:0.04em;}
+        .tag{display:inline-block;padding:2px 8px;border-radius:100px;font-size:9px;background:${T.inputBg};color:${T.textDim};border:1px solid ${T.border};margin:1px;letter-spacing:0.04em;flex-shrink:0;white-space:nowrap;}
+        .tags-row{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:2px;scrollbar-width:none;}
+        .tags-row::-webkit-scrollbar{display:none;}
         .btn-primary{background:linear-gradient(135deg,#0060bb,#00a8f0);border:none;color:white;padding:11px 22px;border-radius:9px;font-family:inherit;font-size:11px;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
         .btn-primary:hover:not(:disabled){opacity:0.85;transform:translateY(-1px);}
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -2478,6 +2480,7 @@ export default function Dashboard() {
             flexDirection: "column",
             padding: "20px 10px",
             flexShrink: 0,
+            overflowY: "auto",
           }}
         >
           <div
@@ -3874,7 +3877,7 @@ export default function Dashboard() {
                             >
                               {v.prompt}
                             </div>
-                            <div>
+                            <div className="tags-row">
                               {(v.labels || []).map((l) => (
                                 <span key={l} className="tag">
                                   {l}
@@ -4513,7 +4516,9 @@ export default function Dashboard() {
                             display: "flex",
                             gap: 8,
                             alignItems: "center",
-                            flexWrap: "wrap",
+                            flexWrap: "nowrap",
+                            overflowX: "auto",
+                            scrollbarWidth: "none",
                           }}
                         >
                           {/* Preview button — show for ready videos always, posted if has URL */}
@@ -4790,57 +4795,25 @@ export default function Dashboard() {
                                   ▶ YouTube
                                 </a>
                               )}
-                              <span
-                                style={{ fontSize: 10, color: T.textFaint }}
-                              >
-                                👁 {fmtNum(v.views_count)} · ♥{" "}
-                                {fmtNum(v.likes_count)} · {timeAgo(v.posted_at)}
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: 6,
-                                    marginTop: 6,
-                                    flexWrap: "wrap",
-                                  }}
-                                >
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setYtSettingsModal(v);
-                                    }}
-                                    style={{
-                                      fontSize: 11,
-                                      padding: "4px 8px",
-                                      borderRadius: 6,
-                                      border: `1px solid ${T.border}`,
-                                      background: "transparent",
-                                      color: T.textFaint,
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    ⚙ Settings
-                                  </button>
-                                  {v.resolution !== "1080x1920" && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setShortsModal(v);
-                                    }}
-                                    style={{
-                                      fontSize: 11,
-                                      padding: "4px 8px",
-                                      borderRadius: 6,
-                                      border: `1px solid ${T.border}`,
-                                      background: "transparent",
-                                      color: T.textFaint,
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    📱 Make Short
-                                  </button>
-                                  )}
-                                </div>
+                              <span style={{ fontSize: 10, color: T.textFaint, whiteSpace: "nowrap", flexShrink: 0 }}>
+                                👁 {fmtNum(v.views_count)} · ♥ {fmtNum(v.likes_count)} · {timeAgo(v.posted_at)}
                               </span>
+                              <button
+                                className="btn-sm"
+                                onClick={(e) => { e.stopPropagation(); setYtSettingsModal(v); }}
+                                style={{ color: T.textFaint, borderColor: T.border, background: "transparent", flexShrink: 0 }}
+                              >
+                                ⚙ Settings
+                              </button>
+                              {v.resolution !== "1080x1920" && (
+                                <button
+                                  className="btn-sm"
+                                  onClick={(e) => { e.stopPropagation(); setShortsModal(v); }}
+                                  style={{ color: T.textFaint, borderColor: T.border, background: "transparent", flexShrink: 0 }}
+                                >
+                                  📱 Make Short
+                                </button>
+                              )}
                             </>
                           )}
                           {/* Make Short — available for ready long-form videos only */}
