@@ -1643,16 +1643,27 @@ def _create_access_token(user_id: str) -> str:
 
 
 def verify_subscriber_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Returns subscriber user_id if token valid."""
+    """Returns subscriber user_id if token is valid AND matches the token stored in the DB."""
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = jwt.decode(credentials.credentials, config.SECRET_KEY, algorithms=["HS256"])
         if payload.get("role") != "subscriber":
             raise HTTPException(status_code=403, detail="Not a subscriber token")
-        return payload["sub"]
+        user_id = payload["sub"]
+        # Cross-check with DB — catches revoked tokens
+        user = db.get_subscription_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        if user.get("access_token") != credentials.credentials:
+            raise HTTPException(status_code=401, detail="Token revoked — please log in again")
+        if user.get("status") != "approved":
+            raise HTTPException(status_code=403, detail="Account not approved")
+        return user_id
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -1699,6 +1710,13 @@ def subscribe_login(req: SubLoginRequest):
     token = _create_access_token(user["id"])
     db.update_subscription_user(user["id"], access_token=token)
     return {"token": token, "email": user["email"], "role": "subscriber"}
+
+
+@app.get("/subscribe/verify")
+def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
+    """Verify a subscriber token is valid and return user info. Used by frontend on page load."""
+    user = db.get_subscription_user_by_id(user_id)
+    return {"email": user["email"], "status": user["status"], "role": "subscriber", "user_id": user_id}
 
 
 @app.get("/subscribe/videos")

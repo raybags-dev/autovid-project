@@ -435,6 +435,12 @@ def get_subscription_user_by_email(email: str) -> dict | None:
     return r.data[0] if r.data else None
 
 
+def get_subscription_user_by_id(user_id: str) -> dict | None:
+    db = get_client()
+    r = db.table("subscription_users").select("*").eq("id", user_id).execute()
+    return r.data[0] if r.data else None
+
+
 def list_subscription_users(status: str = None) -> list[dict]:
     db = get_client()
     q = db.table("subscription_users").select("*").order("created_at", desc=True)
