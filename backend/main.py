@@ -650,6 +650,8 @@ def upload_to_youtube(video_id: str, req: UploadRequest, background_tasks: Backg
         raise HTTPException(status_code=404, detail="Video not found")
     if video["status"] != "ready":
         raise HTTPException(status_code=400, detail=f"Video must be ready (current: {video['status']})")
+    if video.get("is_exclusive"):
+        raise HTTPException(status_code=403, detail="Exclusive videos cannot be uploaded to YouTube")
 
     # Merge form values with video defaults
     title       = (req.title       or video["title"]       or "AutoVid Video")[:100]
@@ -1611,6 +1613,145 @@ def public_subscribe(req: SubscribeRequest):
     except Exception as e:
         print(f"⚠️  Subscribe: {e}")
         raise HTTPException(status_code=500, detail="server_error")
+
+
+# ── Exclusive Subscription System ─────────────────────────────────────────────
+
+class SubSignupRequest(BaseModel):
+    email: str
+    password: str
+
+
+class SubLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+def _hash_password(pw: str) -> str:
+    import hashlib
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+
+def _create_access_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "iat": int(time.time()),
+        "exp": int(time.time()) + 86400 * 365,
+        "role": "subscriber",
+    }
+    return jwt.encode(payload, config.SECRET_KEY, algorithm="HS256")
+
+
+def verify_subscriber_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """Returns subscriber user_id if token valid."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(credentials.credentials, config.SECRET_KEY, algorithms=["HS256"])
+        if payload.get("role") != "subscriber":
+            raise HTTPException(status_code=403, detail="Not a subscriber token")
+        return payload["sub"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@app.post("/subscribe/signup")
+def subscribe_signup(req: SubSignupRequest):
+    """Public — register for exclusive access. Account starts as 'pending' until admin approves."""
+    import re
+    em = req.email.strip().lower()
+    if not em or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", em):
+        raise HTTPException(status_code=422, detail="invalid_email")
+    if not req.password or len(req.password) < 6:
+        raise HTTPException(status_code=422, detail="Password must be at least 6 characters")
+    existing = db.get_subscription_user_by_email(em)
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")
+    user = db.create_subscription_user(em, _hash_password(req.password))
+    return {"ok": True, "status": "pending", "message": "Account created — awaiting admin approval"}
+
+
+@app.post("/subscribe/login")
+def subscribe_login(req: SubLoginRequest):
+    """Public — login as subscriber. Only approved accounts get a token."""
+    em = req.email.strip().lower()
+    user = db.get_subscription_user_by_email(em)
+    if not user or user["password_hash"] != _hash_password(req.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if user["status"] == "pending":
+        raise HTTPException(status_code=403, detail="Account pending approval")
+    if user["status"] == "rejected":
+        raise HTTPException(status_code=403, detail="Account access denied")
+    token = _create_access_token(user["id"])
+    db.update_subscription_user(user["id"], access_token=token)
+    return {"token": token, "email": user["email"], "role": "subscriber"}
+
+
+@app.get("/subscribe/videos")
+def get_subscriber_videos(user_id: str = Depends(verify_subscriber_token)):
+    """Approved subscribers can see all non-exclusive videos + exclusive ones."""
+    user = db.update_subscription_user(user_id)  # Just verify user exists
+    videos = db.list_videos(limit=200)
+    return {"videos": videos}
+
+
+@app.get("/admin/subscription-requests")
+def list_subscription_requests(_u: str = Depends(verify_token)):
+    """Admin — list all subscription requests."""
+    pending = db.list_subscription_users(status="pending")
+    approved = db.list_subscription_users(status="approved")
+    rejected = db.list_subscription_users(status="rejected")
+    return {"pending": pending, "approved": approved, "rejected": rejected}
+
+
+@app.post("/admin/subscription-requests/{user_id}/approve")
+def approve_subscription(user_id: str, _u: str = Depends(verify_token)):
+    """Admin — approve a subscription request."""
+    user = db.update_subscription_user(user_id, status="approved")
+    return {"ok": True, "user": user}
+
+
+@app.post("/admin/subscription-requests/{user_id}/reject")
+def reject_subscription(user_id: str, _u: str = Depends(verify_token)):
+    """Admin — reject a subscription request."""
+    user = db.update_subscription_user(user_id, status="rejected")
+    return {"ok": True, "user": user}
+
+
+class SetExclusiveRequest(BaseModel):
+    is_exclusive: bool
+
+
+@app.post("/videos/{video_id}/set-exclusive")
+def set_video_exclusive(video_id: str, req: SetExclusiveRequest, _u: str = Depends(verify_token)):
+    """Admin — mark/unmark a video as exclusive."""
+    result = db.set_video_exclusive(video_id, req.is_exclusive)
+    return {"ok": True, "video": result}
+
+
+_ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url"}
+
+
+@app.get("/app-settings/{key}")
+def get_app_setting_public(key: str):
+    """Public endpoint — read whitelisted app settings (e.g. exclusive preview video URL)."""
+    if key not in _ALLOWED_PUBLIC_SETTINGS:
+        raise HTTPException(status_code=404, detail="Not found")
+    value = db.get_setting(key)
+    return {"key": key, "value": value}
+
+
+class ExclusiveVideoUrlRequest(BaseModel):
+    url: str
+
+
+@app.post("/admin/exclusive-preview-video")
+def set_exclusive_preview_video(req: ExclusiveVideoUrlRequest, _u: str = Depends(verify_token)):
+    """Admin — set the video URL shown in the exclusive subscription card on the landing page."""
+    db.set_setting("exclusive_preview_video_url", req.url)
+    return {"ok": True}
 
 
 @app.get("/public/channel-videos")

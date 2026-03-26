@@ -428,6 +428,24 @@ export const listArchivedVideos = async () => {
   return data;
 };
 
+// ── Exclusive Subscription System ────────────────────────────────────────────
+export const setVideoExclusive = async (id, is_exclusive) => {
+  const { data } = await api.post(`/videos/${id}/set-exclusive`, { is_exclusive });
+  return data;
+};
+export const listSubscriptionRequests = async () => {
+  const { data } = await api.get("/admin/subscription-requests");
+  return data;
+};
+export const approveSubscription = async (id) => {
+  const { data } = await api.post(`/admin/subscription-requests/${id}/approve`);
+  return data;
+};
+export const rejectSubscription = async (id) => {
+  const { data } = await api.post(`/admin/subscription-requests/${id}/reject`);
+  return data;
+};
+
 // ── Danger Zone ───────────────────────────────────────────────────────────────
 export const dangerVerify = async (key) => {
   const { data } = await api.post("/admin/danger/verify", { key });

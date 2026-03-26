@@ -1757,7 +1757,7 @@ export default function LandingPage() {
         .yt-thumb { position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#050510; }
         .yt-thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform 0.55s; display:block; }
         .yt-card:hover .yt-thumb img { transform:scale(1.08); }
-        .yt-thumb-grad { position:absolute; inset:0; background:linear-gradient(to top,rgba(4,4,16,0.98) 0%,rgba(4,4,16,0.5) 42%,transparent 68%); pointer-events:none; }
+        .yt-thumb-grad { position:absolute; inset:0; background:linear-gradient(to top,rgba(4,4,16,0.75) 0%,rgba(4,4,16,0.1) 42%,transparent 68%); pointer-events:none; }
         .yt-thumb-title { position:absolute; bottom:0; left:0; right:0; padding:16px 18px 14px; }
         .yt-thumb-title .ttl { font-family:'Syne',sans-serif; font-weight:800; font-size:15px; line-height:1.38; color:#fff;
           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
@@ -2782,7 +2782,7 @@ export default function LandingPage() {
             className="carousel-main"
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "1fr",
               gap: 20,
               minHeight: "40vh",
               marginBottom: 24,
@@ -2868,62 +2868,6 @@ export default function LandingPage() {
                 {item.icon} WATCH / LISTEN NOW
               </a>
             </div>
-            <div
-              key={`icon-${carouselIdx}`}
-              className={
-                slideDir === "right" ? "carousel-slide-icon" : "carousel-slide"
-              }
-              style={{
-                background: `linear-gradient(145deg,rgba(0,0,0,0.5),${item.color}0c)`,
-                border: `1px solid ${item.color}1a`,
-                borderRadius: 18,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 16,
-                minHeight: 240,
-                padding: 24,
-                boxShadow: c.cardSh,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 60,
-                  color: item.color,
-                  opacity: 0.6,
-                  transition: "transform 0.3s,opacity 0.3s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.18)";
-                  e.currentTarget.style.opacity = "0.9";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                  e.currentTarget.style.opacity = "0.6";
-                }}
-              >
-                {item.icon}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: c.textD,
-                  letterSpacing: "0.18em",
-                }}
-              >
-                AVAILABLE ON {item.platform}
-              </div>
-              <a
-                href={item.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="lp-btn lp-btn-ghost"
-                style={{ fontSize: 10, padding: "10px 20px" }}
-              >
-                OPEN →
-              </a>
-            </div>
           </div>
 
           <div
@@ -2947,52 +2891,6 @@ export default function LandingPage() {
             ))}
           </div>
 
-          <div
-            className="mini-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
-              gap: 12,
-            }}
-          >
-            {CAROUSEL.map((cc, i) => (
-              <div
-                key={cc.id}
-                onClick={() => goTo(i)}
-                className="lp-card"
-                style={{
-                  padding: "14px 16px",
-                  cursor: "pointer",
-                  "--card-bg":
-                    i === carouselIdx ? `rgba(255,80,30,0.06)` : c.cardBg,
-                  "--card-br": i === carouselIdx ? "#ff553440" : c.cardBr,
-                  "--card-sh": c.cardSh,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: cc.color,
-                    letterSpacing: "0.12em",
-                    marginBottom: 7,
-                  }}
-                >
-                  {cc.platform}
-                </div>
-                <div
-                  className="syne"
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    lineHeight: 1.45,
-                    color: c.text,
-                  }}
-                >
-                  {cc.title}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -3089,7 +2987,7 @@ export default function LandingPage() {
             backgroundImage: `url(${freedomImg})`,
             backgroundSize: "cover",
             backgroundPosition: "center 45%",
-            opacity: 1,
+            opacity: 0.1,
             willChange: "transform",
             transform: "scale(1.35)",
             pointerEvents: "none",
@@ -4054,6 +3952,145 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ══ EXCLUSIVE CONTENT SUBSCRIPTION ════════════════════════════════════ */}
+      <section
+        id="exclusive"
+        style={{
+          padding: "80px 20px",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          position: "relative",
+          overflow: "hidden",
+          background: "linear-gradient(160deg,rgba(3,6,15,0.98) 0%,rgba(8,4,20,0.95) 100%)",
+        }}
+      >
+        <div style={{ maxWidth: 900, margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div style={{ textAlign: "center", marginBottom: 40 }}>
+            <span className="section-tag" style={{ color: "#a855f7" }}>EXCLUSIVE ACCESS</span>
+            <h2 className="syne" style={{ fontWeight: 800, fontSize: "clamp(24px,4vw,38px)", color: c.text, marginBottom: 12 }}>
+              Subscribe to <span style={{ color: "#a855f7" }}>Exclusive Content</span>
+            </h2>
+            <p style={{ fontSize: 13, color: c.textM, maxWidth: 500, margin: "0 auto" }}>
+              Get access to premium, members-only videos and deep-dives not available anywhere else.
+            </p>
+          </div>
+
+          {/* Video preview + signup */}
+          {(() => {
+            const [subEmail, setSubEmail] = React.useState("");
+            const [subPassword, setSubPassword] = React.useState("");
+            const [subLoading, setSubLoading] = React.useState(false);
+            const [subMsg, setSubMsg] = React.useState(null);
+            const [showForm, setShowForm] = React.useState(false);
+            const [previewUrl, setPreviewUrl] = React.useState(null);
+            const [videoLoading, setVideoLoading] = React.useState(true);
+
+            React.useEffect(() => {
+              fetch("/api/app-settings/exclusive_preview_video_url")
+                .then(r => r.ok ? r.json() : null)
+                .then(d => { if (d?.value) setPreviewUrl(d.value); setVideoLoading(false); })
+                .catch(() => setVideoLoading(false));
+            }, []);
+
+            const handleSubmit = async (e) => {
+              e.preventDefault();
+              if (!subEmail || !subPassword) return;
+              setSubLoading(true);
+              setSubMsg(null);
+              try {
+                const res = await fetch("/api/subscribe/signup", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: subEmail, password: subPassword }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                  setSubMsg({ type: "success", text: "Request submitted! You'll get access once approved." });
+                  setSubEmail(""); setSubPassword(""); setShowForm(false);
+                } else {
+                  setSubMsg({ type: "error", text: data.detail === "Email already registered" ? "Already registered — check your email" : (data.detail || "Something went wrong") });
+                }
+              } catch {
+                setSubMsg({ type: "error", text: "Network error — please try again" });
+              } finally {
+                setSubLoading(false);
+              }
+            };
+
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "center" }}>
+                {/* Video preview */}
+                <div style={{ borderRadius: 18, overflow: "hidden", border: "1px solid rgba(168,85,247,0.25)", background: "rgba(0,0,0,0.5)", aspectRatio: "16/9", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {videoLoading ? (
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>Loading preview...</div>
+                  ) : previewUrl ? (
+                    <video src={previewUrl} controls playsInline style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 18 }} />
+                  ) : (
+                    <div style={{ textAlign: "center", color: "rgba(255,255,255,0.25)" }}>
+                      <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
+                      <div style={{ fontSize: 11, letterSpacing: "0.1em" }}>EXCLUSIVE CONTENT</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Signup form */}
+                <div>
+                  <h3 className="syne" style={{ fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 12 }}>
+                    Get exclusive access
+                  </h3>
+                  <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.7, marginBottom: 24 }}>
+                    Members-only videos, early access content, and deep-dives that go beyond what's public.
+                    Submit a request — approved members get instant access.
+                  </p>
+
+                  {subMsg && (
+                    <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: subMsg.type === "success" ? "rgba(61,214,140,0.1)" : "rgba(255,92,108,0.1)", border: `1px solid ${subMsg.type === "success" ? "rgba(61,214,140,0.3)" : "rgba(255,92,108,0.3)"}`, color: subMsg.type === "success" ? "#3dd68c" : "#ff5c6c", fontSize: 12 }}>
+                      {subMsg.text}
+                    </div>
+                  )}
+
+                  {!showForm ? (
+                    <button
+                      onClick={() => setShowForm(true)}
+                      style={{ padding: "14px 32px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", width: "100%", fontFamily: "inherit" }}
+                    >
+                      🔐 SUBSCRIBE NOW
+                    </button>
+                  ) : (
+                    <form onSubmit={handleSubmit}>
+                      <input
+                        type="email"
+                        placeholder="your@email.com"
+                        value={subEmail}
+                        onChange={e => setSubEmail(e.target.value)}
+                        required
+                        style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: 13, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }}
+                      />
+                      <input
+                        type="password"
+                        placeholder="Choose a password (min. 6 chars)"
+                        value={subPassword}
+                        onChange={e => setSubPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: 13, marginBottom: 14, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }}
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button type="submit" disabled={subLoading} style={{ flex: 1, padding: "12px 20px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: subLoading ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit", opacity: subLoading ? 0.6 : 1 }}>
+                          {subLoading ? "Submitting..." : "SUBMIT REQUEST"}
+                        </button>
+                        <button type="button" onClick={() => setShowForm(false)} style={{ padding: "12px 16px", borderRadius: 50, background: "transparent", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                          CANCEL
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      </section>
+
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
       <footer
         style={{
@@ -4499,7 +4536,7 @@ export default function LandingPage() {
                   CONTACT
                 </div>
                 <a
-                  href="mailto:4lifemystery@gmail.com"
+                  href="mailto:contact@4lifemystery.com"
                   style={{
                     display: "block",
                     padding: "4px 0",
@@ -4514,7 +4551,25 @@ export default function LandingPage() {
                     (e.currentTarget.style.color = "#8ab8d4")
                   }
                 >
-                  4lifemystery@gmail.com
+                  General: contact@4lifemystery.com
+                </a>
+                <a
+                  href="mailto:support@4lifemystery.com"
+                  style={{
+                    display: "block",
+                    padding: "4px 0",
+                    fontSize: 12,
+                    color: "#8ab8d4",
+                    textDecoration: "none",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "#e8f4ff")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "#8ab8d4")
+                  }
+                >
+                  Support: support@4lifemystery.com
                 </a>
                 <Link
                   to="/login"

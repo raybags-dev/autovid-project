@@ -33,8 +33,8 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,               # Don't ack until task completes (retry on crash)
     worker_prefetch_multiplier=1,      # One task at a time per worker (videos are heavy)
-    task_soft_time_limit=1800,         # 30 minute soft limit per video
-    task_time_limit=2100,              # 35 minute hard limit
+    task_soft_time_limit=5400,         # 90 minute soft limit per video
+    task_time_limit=7200,              # 120 minute hard limit
     task_default_queue="autovid",      # Named queue — worker only picks from this queue
     task_routes={
         "workers.celery_worker.*": {"queue": "autovid"},

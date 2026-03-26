@@ -60,6 +60,21 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
 CREATE INDEX IF NOT EXISTS idx_sfclips_enabled ON stickfigure_clips(enabled);
 ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS public_url TEXT DEFAULT '';
 ─────────────────────────────────────────────────
+-- Subscription users (exclusive content access) — run once in Supabase SQL Editor:
+─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS subscription_users (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',  -- pending/approved/rejected
+    access_token  TEXT,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_subu_status ON subscription_users(status);
+
+-- Exclusive videos flag — run once in Supabase SQL Editor:
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
+─────────────────────────────────────────────────
 """
 import uuid
 from datetime import datetime, timezone
@@ -403,3 +418,38 @@ def danger_clear_storage() -> dict:
             results["errors"].append(f"{bucket_name}: {str(e)}")
     print(f"🚨 DANGER: Cleared storage — videos: {results['videos']}, narrations: {results['narrations']}")
     return results
+
+
+# ── Subscription Users (exclusive content) ────────────────────────────────────
+
+def create_subscription_user(email: str, password_hash: str) -> dict:
+    db = get_client()
+    row = {"email": email, "password_hash": password_hash, "status": "pending"}
+    result = db.table("subscription_users").insert(row).execute()
+    return result.data[0]
+
+
+def get_subscription_user_by_email(email: str) -> dict | None:
+    db = get_client()
+    r = db.table("subscription_users").select("*").eq("email", email).execute()
+    return r.data[0] if r.data else None
+
+
+def list_subscription_users(status: str = None) -> list[dict]:
+    db = get_client()
+    q = db.table("subscription_users").select("*").order("created_at", desc=True)
+    if status:
+        q = q.eq("status", status)
+    return q.execute().data or []
+
+
+def update_subscription_user(user_id: str, **fields) -> dict:
+    db = get_client()
+    result = db.table("subscription_users").update(fields).eq("id", user_id).execute()
+    return result.data[0] if result.data else {}
+
+
+def set_video_exclusive(video_id: str, is_exclusive: bool) -> dict:
+    db = get_client()
+    result = db.table("videos").update({"is_exclusive": is_exclusive}).eq("id", video_id).execute()
+    return result.data[0] if result.data else {}
