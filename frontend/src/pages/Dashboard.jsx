@@ -61,6 +61,10 @@ import api, {
   uploadStickFigure,
   updateStickFigure,
   deleteStickFigure,
+  setVideoExclusive,
+  listSubscriptionRequests,
+  approveSubscription,
+  rejectSubscription,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -201,12 +205,12 @@ const fmtDur = (s) =>
 // ── Theme definitions ─────────────────────────────────────────────────────────
 const THEMES = {
   dark: {
-    bg: "#111318", // dark charcoal — not pure black
-    bgSub: "#1a1d24",
-    bgDeep: "#0c0e13",
-    bgCard: "#252d3d", // pleasant dark navy-slate
-    bgCardHover: "#2e3850",
-    border: "#2e3340", // clearly visible border
+    bg: "#111214", // dark charcoal — not pure black
+    bgSub: "#191a1e",
+    bgDeep: "#0b0c0e",
+    bgCard: "#1e2026", // neutral dark, not blue
+    bgCardHover: "#252830",
+    border: "#2b2d35", // clearly visible border
     borderHover: "#4a9eff",
     text: "#f0f2f5", // near-white, crisp
     textMid: "#c8cdd8", // clearly readable secondary
@@ -2537,6 +2541,7 @@ export default function Dashboard() {
               { id: "analytics", icon: "◈", label: "Analytics" },
               { id: "compilations", icon: "🎬", label: "Compilations" },
               { id: "reviews", icon: "◈", label: "Reviews", count: pendingReviewCount },
+              { id: "subscribers", icon: "🔐", label: "Subscribers" },
               { id: "editor", icon: "✂", label: "Video Editor" },
               { id: "stickfigures", icon: "🕹", label: "Stickfigures" },
               { id: "settings", icon: "◎", label: "Settings" },
@@ -4570,7 +4575,30 @@ export default function Dashboard() {
                               🎬 No Preview
                             </span>
                           ) : null}
-                          {(v.status === "ready" || v.status === "uploading") && (
+                          {/* Exclusive toggle */}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await setVideoExclusive(v.id, !v.is_exclusive);
+                                showToast(v.is_exclusive ? "Marked as public" : "Marked as exclusive");
+                                refresh();
+                              } catch (err) {
+                                showToast("Failed to update exclusive flag", "error");
+                              }
+                            }}
+                            className="btn-sm"
+                            title={v.is_exclusive ? "Exclusive — click to make public" : "Make exclusive (hides from YouTube/MP3)"}
+                            style={{
+                              color: v.is_exclusive ? "#ff5c6c" : T.textFaint,
+                              borderColor: v.is_exclusive ? "rgba(255,92,108,0.4)" : T.border,
+                              background: v.is_exclusive ? "rgba(255,92,108,0.08)" : "transparent",
+                            }}
+                          >
+                            {v.is_exclusive ? "🔐 EXCLUSIVE" : "🔓 PUBLIC"}
+                          </button>
+
+                          {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && (
                             /* Audio-only (podcast/MP3) → Podbean; video → YouTube upload */
                             isPodcast(v) ? (
                               <>
@@ -4651,8 +4679,8 @@ export default function Dashboard() {
                               </button>
                             )
                           )}
-                          {/* MP3 narration download — show for any video with a narration */}
-                          {v.narration_url && (
+                          {/* MP3 narration download — show for any video with a narration (not exclusive) */}
+                          {v.narration_url && !v.is_exclusive && (
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`); }}
                               title="Download narration MP3"
@@ -10010,9 +10038,152 @@ export default function Dashboard() {
                     );
                   })()}
 
+                  {/* ── Exclusive Preview Video ── */}
+                  {(() => {
+                    const [exUrl, setExUrl] = React.useState("");
+                    const [exSaving, setExSaving] = React.useState(false);
+                    React.useEffect(() => {
+                      api.get("/app-settings/exclusive_preview_video_url").then(r => setExUrl(r.data?.value || "")).catch(() => {});
+                    }, []);
+                    return (
+                      <div style={{ marginTop: 20, padding: "14px 16px", background: T.bgCard, border: `1px solid rgba(168,85,247,0.25)`, borderRadius: 10 }}>
+                        <div style={{ fontSize: 10, color: "#a855f7", letterSpacing: "0.1em", marginBottom: 8, fontWeight: 700 }}>🔐 EXCLUSIVE PREVIEW VIDEO</div>
+                        <div style={{ fontSize: 10, color: T.textDim, marginBottom: 10 }}>
+                          URL of the video shown in the subscribe card on your landing page
+                        </div>
+                        <input
+                          type="url"
+                          value={exUrl}
+                          onChange={e => setExUrl(e.target.value)}
+                          placeholder="https://..."
+                          style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 11, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8, outline: "none" }}
+                        />
+                        <button
+                          onClick={async () => {
+                            setExSaving(true);
+                            try {
+                              await api.post("/admin/exclusive-preview-video", { url: exUrl });
+                              showToast("Preview video saved");
+                            } catch { showToast("Failed to save", "error"); }
+                            finally { setExSaving(false); }
+                          }}
+                          disabled={exSaving}
+                          style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(168,85,247,0.08)", color: "#a855f7", fontSize: 10, cursor: "pointer", fontFamily: "inherit", opacity: exSaving ? 0.6 : 1 }}
+                        >
+                          {exSaving ? "Saving..." : "SAVE URL"}
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                 </div>{/* end RIGHT COLUMN */}
 
               </div>
+            )}
+
+            {/* ── SUBSCRIBERS TAB ──────────────────────────────────────────────── */}
+            {tab === "subscribers" && (
+              (() => {
+                const [subRequests, setSubRequests] = React.useState(null);
+                const [subLoading, setSubLoading] = React.useState(false);
+                const loadRequests = async () => {
+                  setSubLoading(true);
+                  try {
+                    const data = await listSubscriptionRequests();
+                    setSubRequests(data);
+                  } catch (e) {
+                    showToast("Failed to load subscription requests", "error");
+                  } finally {
+                    setSubLoading(false);
+                  }
+                };
+                React.useEffect(() => { loadRequests(); }, []);
+                const handleApprove = async (id) => {
+                  try { await approveSubscription(id); showToast("Approved"); loadRequests(); }
+                  catch (e) { showToast("Failed to approve", "error"); }
+                };
+                const handleReject = async (id) => {
+                  try { await rejectSubscription(id); showToast("Rejected"); loadRequests(); }
+                  catch (e) { showToast("Failed to reject", "error"); }
+                };
+                const UserRow = ({ user, actions }) => (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: `1px solid ${T.border}`, borderRadius: 6 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{user.email}</div>
+                      <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2, letterSpacing: "0.06em" }}>
+                        {new Date(user.created_at).toLocaleDateString()} · {user.status.toUpperCase()}
+                      </div>
+                    </div>
+                    {actions}
+                  </div>
+                );
+                return (
+                  <div style={{ maxWidth: 720 }}>
+                    <div style={{ marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>🔐 Subscription Requests</div>
+                        <div style={{ fontSize: 11, color: T.textDim }}>Manage exclusive content subscriber access</div>
+                      </div>
+                      <button onClick={loadRequests} disabled={subLoading} style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}>
+                        {subLoading ? "⟳" : "↺ REFRESH"}
+                      </button>
+                    </div>
+                    {subLoading && <div style={{ textAlign: "center", color: T.textFaint, padding: 40 }}>Loading...</div>}
+                    {subRequests && (
+                      <>
+                        {/* Pending */}
+                        <div style={{ marginBottom: 24 }}>
+                          <div style={{ fontSize: 10, color: "#ffb020", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 700 }}>
+                            ⏳ PENDING ({subRequests.pending?.length || 0})
+                          </div>
+                          {(subRequests.pending || []).length === 0 ? (
+                            <div style={{ fontSize: 11, color: T.textFaint, padding: "12px 14px", background: T.bgCard, borderRadius: 8, border: `1px solid ${T.border}` }}>No pending requests</div>
+                          ) : (subRequests.pending || []).map(u => (
+                            <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(255,176,32,0.2)`, borderRadius: 8, marginBottom: 6 }}>
+                              <UserRow user={u} actions={
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button onClick={() => handleApprove(u.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✓ APPROVE</button>
+                                  <button onClick={() => handleReject(u.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,92,108,0.35)", background: "rgba(255,92,108,0.08)", color: "#ff5c6c", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✕ REJECT</button>
+                                </div>
+                              } />
+                            </div>
+                          ))}
+                        </div>
+                        {/* Approved */}
+                        <div style={{ marginBottom: 24 }}>
+                          <div style={{ fontSize: 10, color: "#3dd68c", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 700 }}>
+                            ✓ APPROVED ({subRequests.approved?.length || 0})
+                          </div>
+                          {(subRequests.approved || []).length === 0 ? (
+                            <div style={{ fontSize: 11, color: T.textFaint, padding: "12px 14px", background: T.bgCard, borderRadius: 8, border: `1px solid ${T.border}` }}>No approved subscribers</div>
+                          ) : (subRequests.approved || []).map(u => (
+                            <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(61,214,140,0.15)`, borderRadius: 8, marginBottom: 6 }}>
+                              <UserRow user={u} actions={
+                                <button onClick={() => handleReject(u.id)} style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>REVOKE</button>
+                              } />
+                            </div>
+                          ))}
+                        </div>
+                        {/* Rejected */}
+                        <div>
+                          <div style={{ fontSize: 10, color: "#ff5c6c", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 700 }}>
+                            ✕ REJECTED ({subRequests.rejected?.length || 0})
+                          </div>
+                          {(subRequests.rejected || []).length === 0 ? (
+                            <div style={{ fontSize: 11, color: T.textFaint, padding: "12px 14px", background: T.bgCard, borderRadius: 8, border: `1px solid ${T.border}` }}>No rejected requests</div>
+                          ) : (subRequests.rejected || []).map(u => (
+                            <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(255,92,108,0.1)`, borderRadius: 8, marginBottom: 6 }}>
+                              <UserRow user={u} actions={
+                                <button onClick={() => handleApprove(u.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✓ RE-APPROVE</button>
+                              } />
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()
             )}
 
             {/* ── VIDEO EDITOR TAB ──────────────────────────────────────────────── */}
