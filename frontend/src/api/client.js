@@ -458,18 +458,14 @@ export const deleteSubscriptionUser = async (id) => {
 export const replaceVideoFile = async (id, file) => {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await api.post(`/videos/${id}/replace-file`, form, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const { data } = await api.post(`/videos/${id}/replace-file`, form);
   return data;
 };
 
 export const uploadExclusivePreviewVideo = async (file) => {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await api.post("/admin/exclusive-preview-video/upload", form, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const { data } = await api.post("/admin/exclusive-preview-video/upload", form);
   return data;
 };
 

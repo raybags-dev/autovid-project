@@ -2658,6 +2658,21 @@ export default function Dashboard() {
             >
               {globalLoading}
             </div>
+            {replaceLog.length > 0 && (
+              <div style={{ width: "min(480px, 90vw)", background: "rgba(0,0,0,0.7)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em", padding: "7px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  📋 REPLACE LOGS
+                </div>
+                <div style={{ maxHeight: 180, overflowY: "auto", padding: "10px 14px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
+                  {replaceLog.map((line, i) => (
+                    <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : line.startsWith("[WARN]") ? "#ffb020" : "#a0d0a0" }}>
+                      {line}
+                    </div>
+                  ))}
+                  <div ref={replaceLogEndRef} />
+                </div>
+              </div>
+            )}
           </div>
         )}
         <style>{`
