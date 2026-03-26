@@ -11377,13 +11377,17 @@ export default function Dashboard() {
                 startReplaceLogs(videoId);
                 try {
                   const result = await replaceVideoFile(videoId, file);
-                  showToast("Video file replaced");
+                  setGlobalLoading("Replace complete — check logs below");
                   if (result.thumbnail_url) {
                     setVideos(vs => vs.map(v => v.id === videoId ? { ...v, file_path: result.file_path, thumbnail_url: result.thumbnail_url, status: "ready" } : v));
                   } else {
                     refresh();
                   }
+                  showToast("Video file replaced");
+                  await new Promise(r => setTimeout(r, 2500));
                 } catch (err) {
+                  setGlobalLoading("Upload failed — check logs below");
+                  await new Promise(r => setTimeout(r, 3000));
                   showToast(err?.response?.data?.detail || "Upload failed", "error");
                 } finally {
                   setGlobalLoading(null);

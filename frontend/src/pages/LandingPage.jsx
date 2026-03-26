@@ -1682,7 +1682,7 @@ function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
           </p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "center" }}>
+        <div className="exclusive-grid">
           {/* Video preview */}
           <div style={{ borderRadius: 18, overflow: "hidden", border: "1px solid rgba(168,85,247,0.25)", background: "rgba(0,0,0,0.5)", aspectRatio: "16/9", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {videoLoading ? (
@@ -2456,6 +2456,10 @@ export default function LandingPage() {
 
         /* ── FEATURED CONTENT BUTTON — full width on mobile ── */
         @media (max-width:640px) { .feat-cta-btn { align-self:stretch!important; justify-content:center!important; width:100%!important; } }
+
+        /* ── EXCLUSIVE SECTION — stack on small screens ── */
+        .exclusive-grid { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; }
+        @media (max-width:700px) { .exclusive-grid { grid-template-columns:1fr; gap:24px; } }
 
         /* ── FOOTER MOBILE ────────────────────────────── */
         @media (max-width:540px) {
