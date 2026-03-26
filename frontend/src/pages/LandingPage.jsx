@@ -1462,10 +1462,9 @@ function LibraryModal({ subUser, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(2,4,14,0.98)", backdropFilter: "blur(28px)", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
       <style>{`
-        @keyframes libPlayPulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(168,85,247,0.4); } 50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(168,85,247,0); } }
         .lib-card { transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s, border-color 0.15s; }
         .lib-card:hover { transform: translateY(-4px) scale(1.015); box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(168,85,247,0.3); }
-        .lib-card:hover .lib-play-ring { opacity: 1 !important; animation: libPlayPulse 1.6s ease-in-out infinite; }
+        .lib-card:hover .lib-play-ring { opacity: 0.85 !important; }
         .lib-card:hover .lib-thumb { opacity: 0; }
         .lib-card:hover .lib-hover-vid { opacity: 1 !important; }
         .lib-hover-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.35s; pointer-events: none; }
@@ -1542,7 +1541,7 @@ function LibraryModal({ subUser, onClose }) {
 
                     {/* Play button — always visible at 28% opacity, brightens on hover */}
                     {canPlay && (
-                      <div className="lib-play-ring" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "40%", aspectRatio: "1 / 1", borderRadius: "50%", background: "rgba(168,85,247,0.22)", border: "2px solid rgba(168,85,247,0.55)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.28, transition: "opacity 0.2s, transform 0.2s, box-shadow 0.2s", zIndex: 2 }}>
+                      <div className="lib-play-ring" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "40%", aspectRatio: "1 / 1", borderRadius: "50%", background: "rgba(168,85,247,0.22)", border: "2px solid rgba(168,85,247,0.55)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.28, transition: "opacity 0.18s", zIndex: 2 }}>
                         <span style={{ fontSize: "clamp(22px,3vw,36px)", color: "#fff", marginLeft: "8%" }}>▶</span>
                       </div>
                     )}
