@@ -2086,7 +2086,7 @@ def trigger_auto_reply(user: str = Depends(verify_token)):
 
 
 def _start_pipeline_watchdog():
-    """Kills any pipeline stuck for >20 min — runs as daemon thread."""
+    """Kills any pipeline stuck for >90 min — runs as daemon thread."""
     import threading
     def _watch():
         while True:
@@ -2109,13 +2109,13 @@ def _start_pipeline_watchdog():
                         try:
                             ts = datetime.datetime.fromisoformat(ts_str.replace("Z","+00:00"))
                             age_mins = (datetime.datetime.now(datetime.timezone.utc) - ts).total_seconds() / 60
-                            if age_mins > 20:
+                            if age_mins > 90:
                                 print(f"⏰ Watchdog: {vid[:8]} stuck {age_mins:.0f}min — cancelling")
                                 with _pipeline_lock:
                                     entry = _active_pipelines.get(vid)
                                     if entry: entry["cancelled"] = True
-                                _push_log(vid, "[ERROR] Watchdog: pipeline timed out (20 min limit)")
-                                db.set_failed(vid, "Timed out — cancelled by watchdog after 20 minutes")
+                                _push_log(vid, "[ERROR] Watchdog: pipeline timed out (90 min limit)")
+                                db.set_failed(vid, "Timed out — cancelled by watchdog after 90 minutes")
                                 _unregister_pipeline(vid)
                         except Exception:
                             pass
