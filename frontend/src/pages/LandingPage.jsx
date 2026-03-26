@@ -1220,7 +1220,180 @@ function BuzzsproutPlayer({ size = "large" }) {
   );
 }
 
-function ExclusiveSection({ c }) {
+function LibraryModal({ subUser, onClose }) {
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [playVideo, setPlayVideo] = useState(null);
+  const gridRef = useRef(null);
+  const LIB_PAGE = 20;
+
+  const getVideoUrl = (fp) => {
+    if (!fp) return null;
+    if (fp.startsWith("https://") || fp.startsWith("http://")) return fp;
+    const fn = fp.split("/").pop();
+    if (fn && fn.endsWith(".mp4")) return `/local-videos/${fn}`;
+    return null;
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("sub_token");
+    fetch("/api/subscribe/videos", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setVideos(d.videos || []); setLoading(false); })
+      .catch(() => { setError("Could not load videos"); setLoading(false); });
+  }, []);
+
+  // Infinite scroll
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const fn = () => { if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) setPage(p => p + 1); };
+    el.addEventListener("scroll", fn, { passive: true });
+    return () => el.removeEventListener("scroll", fn);
+  }, []);
+  useEffect(() => { setPage(1); }, [search]);
+
+  const filtered = search.trim()
+    ? videos.filter(v => (v.title || v.prompt || "").toLowerCase().includes(search.trim().toLowerCase()))
+    : videos;
+  const visible = filtered.slice(0, page * LIB_PAGE);
+  const hasMore = visible.length < filtered.length;
+
+  // Keyboard close
+  useEffect(() => {
+    const fn = (e) => { if (e.key === "Escape") { if (playVideo) setPlayVideo(null); else onClose(); } };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [onClose, playVideo]);
+
+  const fmtDur = (s) => { if (!s) return ""; const m = Math.floor(s / 60); const sec = s % 60; return `${m}:${String(sec).padStart(2, "0")}`; };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(2,4,12,0.97)", backdropFilter: "blur(24px)", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
+      {/* Header */}
+      <div style={{ padding: "18px 28px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: 20, flexShrink: 0, background: "rgba(4,8,20,0.9)" }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, background: "linear-gradient(135deg,#a855f7,#7c3aed)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", letterSpacing: "0.04em" }}>🔐 MEMBER LIBRARY</div>
+          <div style={{ fontSize: 11, color: "rgba(180,200,230,0.5)", marginTop: 2 }}>
+            {subUser?.email} · {videos.length} video{videos.length !== 1 ? "s" : ""} available
+          </div>
+        </div>
+        <input
+          type="text"
+          placeholder="Search videos..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.3)", background: "rgba(168,85,247,0.06)", color: "#e8f0ff", fontSize: 12, fontFamily: "inherit", outline: "none", width: 220 }}
+        />
+        <button onClick={onClose} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.5)", fontSize: 18, width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>✕</button>
+      </div>
+
+      {/* Video player view */}
+      {playVideo && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ padding: "12px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12 }}>
+            <button onClick={() => setPlayVideo(null)} style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 6, color: "#a855f7", fontSize: 11, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}>← BACK</button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, color: "#e8f0ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{playVideo.title || "Untitled"}</div>
+              {playVideo.duration_seconds && <div style={{ fontSize: 10, color: "rgba(180,200,230,0.4)", marginTop: 2 }}>{fmtDur(playVideo.duration_seconds)} · {playVideo.resolution || ""}</div>}
+            </div>
+          </div>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 28px", overflow: "auto" }}>
+            <div style={{ width: "100%", maxWidth: 900 }}>
+              {getVideoUrl(playVideo.file_path) ? (
+                <video controls autoPlay playsInline style={{ width: "100%", maxHeight: "68vh", borderRadius: 12, background: "#000", display: "block", boxShadow: "0 24px 80px rgba(0,0,0,0.8)" }} src={getVideoUrl(playVideo.file_path)} />
+              ) : (
+                <div style={{ width: "100%", aspectRatio: "16/9", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+                  <div style={{ fontSize: 40 }}>🎬</div>
+                  <div style={{ fontSize: 12, color: "rgba(180,200,230,0.4)" }}>Video file not available</div>
+                </div>
+              )}
+              {playVideo.description && (
+                <div style={{ marginTop: 16, padding: "14px 18px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", fontSize: 13, color: "rgba(180,210,240,0.7)", lineHeight: 1.7 }}>
+                  {playVideo.description}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Grid view */}
+      {!playVideo && (
+        <div ref={gridRef} style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
+          {loading && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
+              <div style={{ fontSize: 13, color: "rgba(180,200,230,0.4)" }}>Loading library...</div>
+            </div>
+          )}
+          {error && <div style={{ textAlign: "center", color: "#ff5c6c", padding: 40, fontSize: 13 }}>{error}</div>}
+          {!loading && !error && filtered.length === 0 && (
+            <div style={{ textAlign: "center", color: "rgba(180,200,230,0.35)", padding: 60, fontSize: 13 }}>
+              {search ? "No videos match your search" : "No videos available yet"}
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
+            {visible.map((v, i) => {
+              const thumb = v.thumbnail_url;
+              const url = getVideoUrl(v.file_path);
+              return (
+                <div
+                  key={v.id}
+                  onClick={() => url && setPlayVideo(v)}
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(168,85,247,0.15)", borderRadius: 12, overflow: "hidden", cursor: url ? "pointer" : "default", transition: "all 0.2s", opacity: url ? 1 : 0.55 }}
+                  onMouseEnter={e => { if (url) { e.currentTarget.style.border = "1px solid rgba(168,85,247,0.4)"; e.currentTarget.style.transform = "translateY(-2px)"; } }}
+                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(168,85,247,0.15)"; e.currentTarget.style.transform = "none"; }}
+                >
+                  {/* Thumbnail */}
+                  <div style={{ position: "relative", aspectRatio: "16/9", background: "rgba(0,0,0,0.6)", overflow: "hidden" }}>
+                    {thumb ? (
+                      <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: "rgba(168,85,247,0.3)" }}>🎬</div>
+                    )}
+                    {/* Play overlay */}
+                    {url && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.2s" }} className="lib-play-overlay">
+                        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(168,85,247,0.85)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff" }}>▶</div>
+                      </div>
+                    )}
+                    {/* Index badge */}
+                    <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.7)", borderRadius: 5, padding: "2px 7px", fontSize: 9, color: "rgba(168,85,247,0.9)", fontWeight: 700 }}>#{i + 1}</div>
+                    {v.duration_seconds && (
+                      <div style={{ position: "absolute", bottom: 7, right: 8, background: "rgba(0,0,0,0.75)", borderRadius: 4, padding: "2px 6px", fontSize: 9, color: "#e8f0ff" }}>{fmtDur(v.duration_seconds)}</div>
+                    )}
+                    {v.is_exclusive && (
+                      <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(168,85,247,0.85)", borderRadius: 4, padding: "2px 7px", fontSize: 8, color: "#fff", fontWeight: 700, letterSpacing: "0.06em" }}>🔐 EXCLUSIVE</div>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div style={{ padding: "10px 12px 12px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#e8f0ff", lineHeight: 1.4, marginBottom: 5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{v.title || v.prompt || "Untitled"}</div>
+                    {v.labels?.length > 0 && (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {v.labels.slice(0, 3).map(l => (
+                          <span key={l} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 8, background: "rgba(168,85,247,0.1)", color: "rgba(168,85,247,0.8)", border: "1px solid rgba(168,85,247,0.2)" }}>{l}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {hasMore && <div style={{ textAlign: "center", padding: "20px 0 8px", fontSize: 11, color: "rgba(168,85,247,0.4)" }}>Scroll for more videos...</div>}
+        </div>
+      )}
+      <style>{`.lib-play-overlay { opacity: 0 !important; } [style*="cursor: pointer"]:hover .lib-play-overlay { opacity: 1 !important; }`}</style>
+    </div>
+  );
+}
+
+
+function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [videoLoading, setVideoLoading] = useState(true);
   const [mode, setMode] = useState(null); // null | 'signup' | 'login'
@@ -1276,8 +1449,8 @@ function ExclusiveSection({ c }) {
       if (res.ok) {
         localStorage.setItem("sub_token", data.token);
         localStorage.setItem("sub_email", data.email);
-        setMsg({ type: "success", text: `Welcome back! You now have access to exclusive content.` });
         reset(); setMode(null);
+        onLogin({ email: data.email, status: "approved" });
       } else {
         const detail = data.detail || "";
         setMsg({ type: "error", text:
@@ -1330,30 +1503,57 @@ function ExclusiveSection({ c }) {
 
           {/* Right panel */}
           <div>
-            <h3 className="syne" style={{ fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 12 }}>
-              {mode === "login" ? "Member Login" : "Get exclusive access"}
-            </h3>
-            <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.7, marginBottom: 20 }}>
-              Members-only videos, early access content, and deep-dives that go beyond what's public.
-              {mode === null && " Submit a request — approved members get instant access."}
-            </p>
-
-            {msg && (
-              <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: msg.type === "success" ? "rgba(61,214,140,0.08)" : "rgba(255,92,108,0.08)", border: `1px solid ${msg.type === "success" ? "rgba(61,214,140,0.3)" : "rgba(255,92,108,0.3)"}`, color: msg.type === "success" ? "#3dd68c" : "#ff5c6c", fontSize: 12, lineHeight: 1.5 }}>
-                {msg.text}
-              </div>
-            )}
-
-            {mode === null && (
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => { setMode("signup"); setMsg(null); }} style={{ flex: 1, padding: "13px 20px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
-                  🔐 SUBSCRIBE NOW
+            {subUser ? (
+              /* ── Logged-in state ── */
+              <div>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20, background: "rgba(61,214,140,0.08)", border: "1px solid rgba(61,214,140,0.25)", marginBottom: 18 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3dd68c", boxShadow: "0 0 6px #3dd68c" }} />
+                  <span style={{ fontSize: 11, color: "#3dd68c", fontWeight: 600 }}>MEMBER ACCESS ACTIVE</span>
+                </div>
+                <h3 className="syne" style={{ fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 10 }}>
+                  Welcome back!
+                </h3>
+                <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.7, marginBottom: 6 }}>
+                  Logged in as <span style={{ color: "#a855f7" }}>{subUser.email}</span>
+                </p>
+                <p style={{ fontSize: 12, color: c.textD, lineHeight: 1.6, marginBottom: 24 }}>
+                  Your library is available in the navigation bar above. Click{" "}
+                  <span style={{ color: "#a855f7", fontWeight: 600 }}>LIBRARY</span> to browse all exclusive content.
+                </p>
+                <button
+                  onClick={() => { localStorage.removeItem("sub_token"); localStorage.removeItem("sub_email"); onLogout(); }}
+                  style={{ padding: "10px 22px", borderRadius: 50, background: "transparent", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.1)", fontSize: 11, cursor: "pointer", letterSpacing: "0.05em", fontFamily: "inherit" }}
+                >
+                  Sign out
                 </button>
-                <button onClick={() => { setMode("login"); setMsg(null); }} style={{ padding: "13px 20px", borderRadius: 50, background: "rgba(255,255,255,0.05)", color: c.textM, border: "1px solid rgba(255,255,255,0.12)", fontSize: 12, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em", fontFamily: "inherit" }}>
-                  MEMBER LOGIN
-                </button>
               </div>
-            )}
+            ) : (
+              /* ── Guest state ── */
+              <div>
+                <h3 className="syne" style={{ fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 12 }}>
+                  {mode === "login" ? "Member Login" : "Get exclusive access"}
+                </h3>
+                <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.7, marginBottom: 20 }}>
+                  Members-only videos, early access content, and deep-dives that go beyond what's public.
+                  {mode === null && " Submit a request — approved members get instant access."}
+                </p>
+
+                {msg && (
+                  <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: msg.type === "success" ? "rgba(61,214,140,0.08)" : "rgba(255,92,108,0.08)", border: `1px solid ${msg.type === "success" ? "rgba(61,214,140,0.3)" : "rgba(255,92,108,0.3)"}`, color: msg.type === "success" ? "#3dd68c" : "#ff5c6c", fontSize: 12, lineHeight: 1.5 }}>
+                    {msg.text}
+                  </div>
+                )}
+
+                {mode === null && (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button onClick={() => { setMode("signup"); setMsg(null); }} style={{ flex: 1, padding: "13px 20px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+                      🔐 SUBSCRIBE NOW
+                    </button>
+                    <button onClick={() => { setMode("login"); setMsg(null); }} style={{ padding: "13px 20px", borderRadius: 50, background: "rgba(255,255,255,0.05)", color: c.textM, border: "1px solid rgba(255,255,255,0.12)", fontSize: 12, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em", fontFamily: "inherit" }}>
+                      MEMBER LOGIN
+                    </button>
+                  </div>
+                )}
 
             {mode === "signup" && (
               <form onSubmit={handleSignup}>
@@ -1396,6 +1596,8 @@ function ExclusiveSection({ c }) {
                 </div>
               </form>
             )}
+              </div>  {/* end guest state */}
+            )}
           </div>
         </div>
       </div>
@@ -1430,6 +1632,8 @@ export default function LandingPage() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [subEmail, setSubEmail] = useState("");
   const [subStatus, setSubStatus] = useState(""); // '' | 'loading' | 'success' | 'error'
+  const [subUser, setSubUser] = useState(null); // { email, status } if token valid
+  const [showLibrary, setShowLibrary] = useState(false);
   const wrapperRef = useRef(null);
   const autoRef = useRef(null);
   const heroVidRef = useRef(null);
@@ -1440,6 +1644,19 @@ export default function LandingPage() {
   const ytAutoRef = useRef(null);
 
   const c = DARK;
+
+  // Verify subscriber token on mount
+  useEffect(() => {
+    const token = localStorage.getItem("sub_token");
+    if (!token) return;
+    fetch("/api/subscribe/verify", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.email) setSubUser({ email: d.email, status: d.status });
+        else { localStorage.removeItem("sub_token"); localStorage.removeItem("sub_email"); }
+      })
+      .catch(() => {});
+  }, []);
 
   // Scroll detection on the wrapper (not window)
   useEffect(() => {
@@ -2265,15 +2482,26 @@ export default function LandingPage() {
                 {label}
               </button>
             ))}
-            <button
-              onClick={() => scrollTo("exclusive")}
-              title="Exclusive Content"
-              style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 20, padding: "5px 14px", color: "#a855f7", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", fontFamily: "inherit", transition: "all 0.2s" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(168,85,247,0.22)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.55)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(168,85,247,0.12)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.3)"; }}
-            >
-              🔐 MEMBERS
-            </button>
+            {subUser ? (
+              <button
+                onClick={() => setShowLibrary(true)}
+                style={{ background: "linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.15))", border: "1px solid rgba(168,85,247,0.45)", borderRadius: 20, padding: "5px 16px", color: "#a855f7", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.07em", fontFamily: "inherit", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6 }}
+                onMouseEnter={e => { e.currentTarget.style.background = "linear-gradient(135deg,rgba(124,58,237,0.35),rgba(168,85,247,0.3))"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.15))"; }}
+              >
+                <span style={{ fontSize: 9 }}>●</span> LIBRARY
+              </button>
+            ) : (
+              <button
+                onClick={() => scrollTo("exclusive")}
+                title="Exclusive Content"
+                style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 20, padding: "5px 14px", color: "#a855f7", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", fontFamily: "inherit", transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(168,85,247,0.22)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.55)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(168,85,247,0.12)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.3)"; }}
+              >
+                🔐 MEMBERS
+              </button>
+            )}
           </div>
 
           <div
@@ -3180,7 +3408,7 @@ export default function LandingPage() {
             backgroundImage: `url(${freedomImg})`,
             backgroundSize: "cover",
             backgroundPosition: "center 45%",
-            opacity: 0.1,
+            opacity: 0.42,
             willChange: "transform",
             transform: "scale(1.35)",
             pointerEvents: "none",
@@ -3192,7 +3420,7 @@ export default function LandingPage() {
             inset: 0,
             pointerEvents: "none",
             background:
-              "linear-gradient(160deg,rgba(3,6,15,0.93) 0%,rgba(3,6,15,0.76) 50%,rgba(3,6,15,0.93) 100%)",
+              "linear-gradient(160deg,rgba(3,6,15,0.55) 0%,rgba(3,6,15,0.25) 50%,rgba(3,6,15,0.55) 100%)",
           }}
         />
 
@@ -4180,7 +4408,12 @@ export default function LandingPage() {
       </section>
 
       {/* ══ EXCLUSIVE CONTENT SUBSCRIPTION ════════════════════════════════════ */}
-      <ExclusiveSection c={c} />
+      <ExclusiveSection
+        c={c}
+        subUser={subUser}
+        onLogin={(u) => setSubUser(u)}
+        onLogout={() => setSubUser(null)}
+      />
 
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
       <footer
@@ -4649,6 +4882,11 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* ── Member Library Modal ─────────────────────────────────────────── */}
+      {showLibrary && subUser && (
+        <LibraryModal subUser={subUser} onClose={() => setShowLibrary(false)} />
+      )}
 
       {/* Back to top */}
       <button
