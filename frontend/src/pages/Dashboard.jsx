@@ -929,9 +929,15 @@ function ExclusiveVideoSetting({ T, showToast }) {
 }
 
 
+const PAGE_SIZE = 20;
+
 function SubscribersTabContent({ T, showToast }) {
   const [subRequests, setSubRequests] = useState(null);
   const [subLoading, setSubLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [listPage, setListPage] = useState(1);
+  const listContainerRef = useRef(null);
+
   const loadRequests = useCallback(async () => {
     setSubLoading(true);
     try {
@@ -943,7 +949,9 @@ function SubscribersTabContent({ T, showToast }) {
       setSubLoading(false);
     }
   }, [showToast]);
+
   useEffect(() => { loadRequests(); }, [loadRequests]);
+
   const handleApprove = async (id) => {
     try { await approveSubscription(id); showToast("Approved"); loadRequests(); }
     catch { showToast("Failed to approve", "error"); }
@@ -952,81 +960,173 @@ function SubscribersTabContent({ T, showToast }) {
     try { await rejectSubscription(id); showToast("Rejected"); loadRequests(); }
     catch { showToast("Failed to reject", "error"); }
   };
-  const UserRow = ({ user, actions }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: `1px solid ${T.border}`, borderRadius: 6 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{user.email}</div>
-        <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2, letterSpacing: "0.06em" }}>
-          {new Date(user.created_at).toLocaleDateString()} · {user.status.toUpperCase()}
-        </div>
-      </div>
-      {actions}
-    </div>
-  );
+  const handleUnsubscribe = async (id, email) => {
+    if (!window.confirm(`Revoke access for ${email}?`)) return;
+    try { await rejectSubscription(id); showToast("Access revoked"); loadRequests(); }
+    catch { showToast("Failed to revoke", "error"); }
+  };
+
+  // Flattened all-subscribers list for the directory
+  const allUsers = subRequests
+    ? [...(subRequests.pending || []), ...(subRequests.approved || []), ...(subRequests.rejected || [])]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    : [];
+
+  const filtered = search.trim()
+    ? allUsers.filter(u => u.email.toLowerCase().includes(search.trim().toLowerCase()))
+    : allUsers;
+  const visibleUsers = filtered.slice(0, listPage * PAGE_SIZE);
+  const hasMore = visibleUsers.length < filtered.length;
+
+  // Infinite scroll on the list container
+  useEffect(() => {
+    const el = listContainerRef.current;
+    if (!el) return;
+    const fn = () => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40 && hasMore) {
+        setListPage(p => p + 1);
+      }
+    };
+    el.addEventListener("scroll", fn, { passive: true });
+    return () => el.removeEventListener("scroll", fn);
+  }, [hasMore]);
+
+  // Reset page when search changes
+  useEffect(() => { setListPage(1); }, [search]);
+
+  const statusColor = (s) => s === "approved" ? "#3dd68c" : s === "pending" ? "#ffb020" : "#ff5c6c";
+  const statusBg = (s) => s === "approved" ? "rgba(61,214,140,0.08)" : s === "pending" ? "rgba(255,176,32,0.08)" : "rgba(255,92,108,0.08)";
+  const statusBorder = (s) => s === "approved" ? "rgba(61,214,140,0.2)" : s === "pending" ? "rgba(255,176,32,0.2)" : "rgba(255,92,108,0.1)";
+
   return (
-    <div style={{ maxWidth: 720 }}>
-      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>🔐 Subscription Requests</div>
-          <div style={{ fontSize: 11, color: T.textDim }}>Manage exclusive content subscriber access</div>
-        </div>
-        <button onClick={loadRequests} disabled={subLoading} style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}>
-          {subLoading ? "⟳" : "↺ REFRESH"}
-        </button>
-      </div>
-      {subLoading && <div style={{ textAlign: "center", color: T.textFaint, padding: 40 }}>Loading...</div>}
-      {subRequests && (
-        <>
-          {/* Pending */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: "#ffb020", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 700 }}>
-              ⏳ PENDING ({subRequests.pending?.length || 0})
-            </div>
-            {(subRequests.pending || []).length === 0 ? (
-              <div style={{ fontSize: 11, color: T.textFaint, padding: "12px 14px", background: T.bgCard, borderRadius: 8, border: `1px solid ${T.border}` }}>No pending requests</div>
-            ) : (subRequests.pending || []).map(u => (
-              <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(255,176,32,0.2)`, borderRadius: 8, marginBottom: 6 }}>
-                <UserRow user={u} actions={
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => handleApprove(u.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✓ APPROVE</button>
-                    <button onClick={() => handleReject(u.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,92,108,0.35)", background: "rgba(255,92,108,0.08)", color: "#ff5c6c", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✕ REJECT</button>
-                  </div>
-                } />
-              </div>
-            ))}
-          </div>
-          {/* Approved */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: "#3dd68c", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 700 }}>
-              ✓ APPROVED ({subRequests.approved?.length || 0})
-            </div>
-            {(subRequests.approved || []).length === 0 ? (
-              <div style={{ fontSize: 11, color: T.textFaint, padding: "12px 14px", background: T.bgCard, borderRadius: 8, border: `1px solid ${T.border}` }}>No approved subscribers</div>
-            ) : (subRequests.approved || []).map(u => (
-              <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(61,214,140,0.15)`, borderRadius: 8, marginBottom: 6 }}>
-                <UserRow user={u} actions={
-                  <button onClick={() => handleReject(u.id)} style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>REVOKE</button>
-                } />
-              </div>
-            ))}
-          </div>
-          {/* Rejected */}
+    <div style={{ maxWidth: 860, display: "flex", gap: 24 }}>
+
+      {/* ── LEFT: Requests management ── */}
+      <div style={{ flex: "0 0 340px", minWidth: 0 }}>
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 10, color: "#ff5c6c", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 700 }}>
-              ✕ REJECTED ({subRequests.rejected?.length || 0})
-            </div>
-            {(subRequests.rejected || []).length === 0 ? (
-              <div style={{ fontSize: 11, color: T.textFaint, padding: "12px 14px", background: T.bgCard, borderRadius: 8, border: `1px solid ${T.border}` }}>No rejected requests</div>
-            ) : (subRequests.rejected || []).map(u => (
-              <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(255,92,108,0.1)`, borderRadius: 8, marginBottom: 6 }}>
-                <UserRow user={u} actions={
-                  <button onClick={() => handleApprove(u.id)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>✓ RE-APPROVE</button>
-                } />
-              </div>
-            ))}
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>🔐 Requests</div>
+            <div style={{ fontSize: 10, color: T.textDim }}>Approve or reject access</div>
           </div>
-        </>
-      )}
+          <button onClick={loadRequests} disabled={subLoading} style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+            {subLoading ? "⟳" : "↺"}
+          </button>
+        </div>
+
+        {subLoading && <div style={{ textAlign: "center", color: T.textFaint, padding: 32 }}>Loading...</div>}
+        {subRequests && (
+          <>
+            {/* Pending */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 9, color: "#ffb020", letterSpacing: "0.12em", marginBottom: 8, fontWeight: 700 }}>⏳ PENDING ({subRequests.pending?.length || 0})</div>
+              {(subRequests.pending || []).length === 0 ? (
+                <div style={{ fontSize: 11, color: T.textFaint, padding: "10px 12px", background: T.bgCard, borderRadius: 7, border: `1px solid ${T.border}` }}>No pending requests</div>
+              ) : (subRequests.pending || []).map((u, i) => (
+                <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(255,176,32,0.2)`, borderRadius: 8, marginBottom: 5 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px" }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(255,176,32,0.12)", border: "1px solid rgba(255,176,32,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#ffb020", fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: T.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                      <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>{new Date(u.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => handleApprove(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>✓</button>
+                      <button onClick={() => handleReject(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(255,92,108,0.35)", background: "rgba(255,92,108,0.08)", color: "#ff5c6c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Rejected */}
+            <div>
+              <div style={{ fontSize: 9, color: "#ff5c6c", letterSpacing: "0.12em", marginBottom: 8, fontWeight: 700 }}>✕ REJECTED ({subRequests.rejected?.length || 0})</div>
+              {(subRequests.rejected || []).length === 0 ? (
+                <div style={{ fontSize: 11, color: T.textFaint, padding: "10px 12px", background: T.bgCard, borderRadius: 7, border: `1px solid ${T.border}` }}>No rejected requests</div>
+              ) : (subRequests.rejected || []).map((u, i) => (
+                <div key={u.id} style={{ background: T.bgCard, border: `1px solid rgba(255,92,108,0.1)`, borderRadius: 8, marginBottom: 5 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px" }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(255,92,108,0.08)", border: "1px solid rgba(255,92,108,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#ff5c6c", fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: T.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                      <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>{new Date(u.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <button onClick={() => handleApprove(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>↺ RE-APPROVE</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── RIGHT: Subscriber directory ── */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>Subscriber Directory</div>
+            <div style={{ fontSize: 10, color: T.textDim }}>{allUsers.length} total · {(subRequests?.approved || []).length} active</div>
+          </div>
+        </div>
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search by email..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bgCard, color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none", marginBottom: 12, boxSizing: "border-box" }}
+        />
+        {/* List */}
+        <div
+          ref={listContainerRef}
+          style={{ maxHeight: 520, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5 }}
+        >
+          {!subRequests && subLoading && <div style={{ textAlign: "center", color: T.textFaint, padding: 32 }}>Loading...</div>}
+          {subRequests && filtered.length === 0 && (
+            <div style={{ textAlign: "center", color: T.textFaint, padding: 32, fontSize: 12 }}>
+              {search ? "No subscribers match your search" : "No subscribers yet"}
+            </div>
+          )}
+          {visibleUsers.map((u, i) => (
+            <div key={u.id} style={{ background: T.bgCard, border: `1px solid ${statusBorder(u.status)}`, borderRadius: 9, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+              {/* Index badge */}
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: statusBg(u.status), border: `1px solid ${statusColor(u.status)}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: statusColor(u.status), fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+              {/* Avatar initial */}
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${statusColor(u.status)}18`, border: `1px solid ${statusColor(u.status)}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: statusColor(u.status), fontWeight: 700, flexShrink: 0 }}>
+                {u.email[0].toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: T.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>
+                  Joined {new Date(u.created_at).toLocaleDateString()}
+                </div>
+              </div>
+              <span style={{ padding: "3px 9px", borderRadius: 10, background: statusBg(u.status), border: `1px solid ${statusColor(u.status)}33`, color: statusColor(u.status), fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", flexShrink: 0 }}>
+                {u.status.toUpperCase()}
+              </span>
+              {/* Actions */}
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                {u.status === "approved" && (
+                  <button onClick={() => handleUnsubscribe(u.id, u.email)} title="Revoke access" style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid rgba(255,92,108,0.3)", background: "rgba(255,92,108,0.07)", color: "#ff5c6c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>
+                    UNSUBSCRIBE
+                  </button>
+                )}
+                {u.status === "pending" && (
+                  <>
+                    <button onClick={() => handleApprove(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>✓</button>
+                    <button onClick={() => handleReject(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(255,92,108,0.35)", background: "rgba(255,92,108,0.08)", color: "#ff5c6c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                  </>
+                )}
+                {u.status === "rejected" && (
+                  <button onClick={() => handleApprove(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>↺</button>
+                )}
+              </div>
+            </div>
+          ))}
+          {hasMore && (
+            <div style={{ textAlign: "center", padding: "12px 0", fontSize: 10, color: T.textFaint }}>Scroll for more...</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
