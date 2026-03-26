@@ -65,6 +65,7 @@ import api, {
   listSubscriptionRequests,
   approveSubscription,
   rejectSubscription,
+  generateThumbnail,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -773,15 +774,6 @@ function StickFigureSettings({ T }) {
               >{loading ? "Loading…" : "Load"}</button>
             )}
             <button
-              onClick={handleSeed}
-              disabled={seeding}
-              style={{
-                padding: "5px 12px", borderRadius: 6, border: `1px solid ${T.accent}40`,
-                background: `${T.accent}12`, color: T.accent, fontSize: 11,
-                cursor: seeding ? "not-allowed" : "pointer", fontFamily: "inherit",
-              }}
-            >{seeding ? "Seeding…" : "Seed from disk"}</button>
-            <button
               onClick={() => setShowUpload(v => !v)}
               style={{
                 padding: "5px 12px", borderRadius: 6, border: "none",
@@ -1268,6 +1260,25 @@ export default function Dashboard() {
       });
     }
   };
+
+  // Push video errors to the notification panel (deduplicated by video ID in localStorage)
+  useEffect(() => {
+    if (!videos.length) return;
+    const seenKey = "autovid_notified_errors";
+    let seen = [];
+    try { seen = JSON.parse(localStorage.getItem(seenKey) || "[]"); } catch {}
+    const toNotify = videos.filter(v => v.error_message && !seen.includes(v.id));
+    if (!toNotify.length) return;
+    toNotify.forEach(v => {
+      addNotification(
+        `Video error — ${v.title || v.id.slice(0, 8)}`,
+        v.error_message.split("\n")[0],
+        "error",
+      );
+    });
+    const updated = [...seen, ...toNotify.map(v => v.id)].slice(-200);
+    try { localStorage.setItem(seenKey, JSON.stringify(updated)); } catch {}
+  }, [videos]); // eslint-disable-line
 
   const markAllRead = () => {
     setNotifications(prev => {
@@ -4311,28 +4322,18 @@ export default function Dashboard() {
                         {v.error_message && (v.status === "failed" || v.status === "ready") && (
                           <div
                             style={{
-                              marginTop: 10,
-                              padding: "8px 12px",
-                              background: "rgba(200,40,60,0.05)",
-                              border: "1px solid rgba(200,40,60,0.14)",
-                              borderRadius: 7,
-                              fontSize: 10,
-                              color: T.accentRed,
+                              marginTop: 6,
                               display: "flex",
-                              justifyContent: "space-between",
+                              justifyContent: "flex-end",
                               alignItems: "center",
-                              gap: 8,
+                              gap: 6,
                             }}
                           >
                             <span
-                              style={{
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                flex: 1,
-                              }}
+                              title={v.error_message.split("\n")[0]}
+                              style={{ fontSize: 9, color: T.accentRed, opacity: 0.7, cursor: "help" }}
                             >
-                              ⚠ {v.error_message.split("\n")[0]}
+                              ⚠ error logged to notifications
                             </span>
                             {v.status === "failed" && (
                               isStructuralError(v.error_message) ? (
@@ -4816,27 +4817,32 @@ export default function Dashboard() {
                               🎬 No Preview
                             </span>
                           ) : null}
-                          {/* Exclusive toggle */}
+                          {/* Library toggle */}
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
+                              const goingExclusive = !v.is_exclusive;
                               try {
-                                await setVideoExclusive(v.id, !v.is_exclusive);
-                                showToast(v.is_exclusive ? "Marked as public" : "Marked as exclusive");
+                                await setVideoExclusive(v.id, goingExclusive);
+                                if (goingExclusive && !v.thumbnail_url) {
+                                  generateThumbnail(v.id).catch(() => {});
+                                }
+                                showToast(goingExclusive ? "Added to Library" : "Removed from Library");
                                 refresh();
                               } catch (err) {
-                                showToast("Failed to update exclusive flag", "error");
+                                showToast("Failed to update library", "error");
                               }
                             }}
                             className="btn-sm"
-                            title={v.is_exclusive ? "Exclusive — click to make public" : "Make exclusive (hides from YouTube/MP3)"}
+                            title={v.is_exclusive ? "In Library — click to remove" : "Add to Member Library"}
                             style={{
-                              color: v.is_exclusive ? "#ff5c6c" : T.textFaint,
-                              borderColor: v.is_exclusive ? "rgba(255,92,108,0.4)" : T.border,
-                              background: v.is_exclusive ? "rgba(255,92,108,0.08)" : "transparent",
+                              color: v.is_exclusive ? "#3dd68c" : T.textFaint,
+                              borderColor: v.is_exclusive ? "rgba(61,214,140,0.4)" : T.border,
+                              background: v.is_exclusive ? "rgba(61,214,140,0.08)" : "transparent",
+                              fontWeight: v.is_exclusive ? 700 : 400,
                             }}
                           >
-                            {v.is_exclusive ? "🔐 EXCLUSIVE" : "🔓 PUBLIC"}
+                            {v.is_exclusive ? "✓ IN LIBRARY" : "+ LIBRARY"}
                           </button>
 
                           {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && (
@@ -5895,28 +5901,24 @@ export default function Dashboard() {
                                   background: T.bgBase,
                                 }}
                               >
-                                <img
-                                  src={v.thumbnail_url}
-                                  alt={v.title}
-                                  style={{
-                                    position: "absolute",
-                                    inset: 0,
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                    display: v.thumbnail_url ? "block" : "none",
-                                  }}
-                                  onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
-                                />
+                                {v.thumbnail_url && (
+                                  <img
+                                    src={v.thumbnail_url}
+                                    alt={v.title}
+                                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                                    onError={e => { e.target.style.display = "none"; }}
+                                  />
+                                )}
                                 <div
                                   style={{
                                     position: "absolute",
                                     inset: 0,
-                                    display: v.thumbnail_url ? "none" : "flex",
+                                    display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
                                     color: T.textFaint,
                                     fontSize: 28,
+                                    pointerEvents: "none",
                                   }}
                                 >
                                   ▶
