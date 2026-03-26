@@ -1401,6 +1401,7 @@ function LibraryModal({ subUser, onClose }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all"); // all | video | audio
   const [playVideo, setPlayVideo] = useState(null);
   const gridRef = useRef(null);
   const LIB_PAGE = 20;
@@ -1430,7 +1431,7 @@ function LibraryModal({ subUser, onClose }) {
     el.addEventListener("scroll", fn, { passive: true });
     return () => el.removeEventListener("scroll", fn);
   }, []);
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, typeFilter]);
 
   useEffect(() => {
     const fn = (e) => { if (e.key === "Escape" && !playVideo) onClose(); };
@@ -1438,9 +1439,13 @@ function LibraryModal({ subUser, onClose }) {
     return () => window.removeEventListener("keydown", fn);
   }, [onClose, playVideo]);
 
-  const filtered = search.trim()
-    ? videos.filter(v => (v.title || v.prompt || "").toLowerCase().includes(search.toLowerCase()))
-    : videos;
+  const filtered = videos.filter(v => {
+    const isPod = !v.file_path || v.labels?.includes("mp3") || v.file_path?.endsWith?.(".mp3") || (!v.file_path?.endsWith?.(".mp4") && !v.file_path?.startsWith?.("http") && v.narration_url);
+    if (typeFilter === "video" && isPod) return false;
+    if (typeFilter === "audio" && !isPod) return false;
+    if (search.trim() && !(v.title || v.prompt || "").toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
   const visible = filtered.slice(0, page * LIB_PAGE);
   const hasMore = visible.length < filtered.length;
 
@@ -1467,13 +1472,19 @@ function LibraryModal({ subUser, onClose }) {
       `}</style>
 
       {/* Header */}
-      <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 16, flexShrink: 0, background: "rgba(3,5,16,0.96)" }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 14, flexShrink: 0, background: "rgba(3,5,16,0.96)", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 160 }}>
           <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17, letterSpacing: "0.06em", background: "linear-gradient(135deg,#c084fc,#7c3aed)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>◈ MEMBER LIBRARY</div>
-          <div style={{ fontSize: 10, color: "rgba(160,185,220,0.45)", marginTop: 1 }}>{subUser?.email} · {videos.length} exclusive video{videos.length !== 1 ? "s" : ""}</div>
+          <div style={{ fontSize: 10, color: "rgba(160,185,220,0.45)", marginTop: 1 }}>{subUser?.email} · {filtered.length} item{filtered.length !== 1 ? "s" : ""}</div>
         </div>
-        <input type="text" placeholder="Search library..." value={search} onChange={e => setSearch(e.target.value)} style={{ padding: "8px 14px", borderRadius: 22, border: "1px solid rgba(168,85,247,0.25)", background: "rgba(168,85,247,0.05)", color: "#e8f0ff", fontSize: 12, fontFamily: "inherit", outline: "none", width: 200 }} />
-        <button onClick={onClose} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 8, color: "rgba(180,200,230,0.5)", fontSize: 17, width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        {/* Type filters */}
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["all","ALL"], ["video","▶ VIDEO"], ["audio","🎙 AUDIO"]].map(([val, label]) => (
+            <button key={val} onClick={() => setTypeFilter(val)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${typeFilter === val ? "rgba(168,85,247,0.5)" : "rgba(168,85,247,0.15)"}`, background: typeFilter === val ? "rgba(168,85,247,0.15)" : "transparent", color: typeFilter === val ? "#c084fc" : "rgba(168,85,247,0.4)", fontSize: 10, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.04em", fontWeight: typeFilter === val ? 700 : 400 }}>{label}</button>
+          ))}
+        </div>
+        <input type="text" placeholder="Search library..." value={search} onChange={e => setSearch(e.target.value)} style={{ padding: "8px 14px", borderRadius: 22, border: "1px solid rgba(168,85,247,0.25)", background: "rgba(168,85,247,0.05)", color: "#e8f0ff", fontSize: 12, fontFamily: "inherit", outline: "none", width: 190 }} />
+        <button onClick={onClose} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 8, color: "rgba(180,200,230,0.5)", fontSize: 17, width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
       </div>
 
       {/* Player */}
@@ -1487,7 +1498,7 @@ function LibraryModal({ subUser, onClose }) {
             <div style={{ textAlign: "center", padding: 80 }}>
               <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }}>◈</div>
               <div style={{ fontSize: 13, color: "rgba(160,185,220,0.35)", letterSpacing: "0.06em" }}>
-                {search ? "No videos match your search" : "No exclusive videos yet — add videos to the library from your dashboard"}
+                {search || typeFilter !== "all" ? "No videos match your filters" : "No exclusive videos yet — add videos to the library from your dashboard"}
               </div>
             </div>
           )}
@@ -1531,8 +1542,8 @@ function LibraryModal({ subUser, onClose }) {
 
                     {/* Play button — always visible at 28% opacity, brightens on hover */}
                     {canPlay && (
-                      <div className="lib-play-ring" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 56, height: 56, borderRadius: "50%", background: "rgba(168,85,247,0.22)", border: "2px solid rgba(168,85,247,0.55)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.28, transition: "opacity 0.2s, transform 0.2s, box-shadow 0.2s" }}>
-                        <span style={{ fontSize: 20, color: "#fff", marginLeft: 3 }}>▶</span>
+                      <div className="lib-play-ring" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "40%", aspectRatio: "1 / 1", borderRadius: "50%", background: "rgba(168,85,247,0.22)", border: "2px solid rgba(168,85,247,0.55)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.28, transition: "opacity 0.2s, transform 0.2s, box-shadow 0.2s", zIndex: 2 }}>
+                        <span style={{ fontSize: "clamp(22px,3vw,36px)", color: "#fff", marginLeft: "8%" }}>▶</span>
                       </div>
                     )}
 

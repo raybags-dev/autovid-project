@@ -1782,6 +1782,14 @@ def reject_subscription(user_id: str, _u: str = Depends(verify_token)):
     return {"ok": True, "user": user}
 
 
+@app.delete("/admin/subscription-requests/{user_id}")
+def delete_subscription_user(user_id: str, _u: str = Depends(verify_token)):
+    """Admin — permanently delete a subscriber record from DB."""
+    client = db.get_client()
+    client.table("subscription_users").delete().eq("id", user_id).execute()
+    return {"ok": True}
+
+
 class SetExclusiveRequest(BaseModel):
     is_exclusive: bool
 
@@ -1814,6 +1822,43 @@ def set_exclusive_preview_video(req: ExclusiveVideoUrlRequest, _u: str = Depends
     """Admin — set the video URL shown in the exclusive subscription card on the landing page."""
     db.set_setting("exclusive_preview_video_url", req.url)
     return {"ok": True}
+
+
+@app.post("/admin/exclusive-preview-video/upload")
+async def upload_exclusive_preview_video(file: UploadFile = File(...), _u: str = Depends(verify_token)):
+    """Admin — upload a video file to use as the exclusive preview on the landing page."""
+    import shutil as _shutil
+    suffix = _P(file.filename).suffix.lower() if file.filename else ".mp4"
+    if suffix not in (".mp4", ".webm", ".mov"):
+        raise HTTPException(400, "Only .mp4 / .webm / .mov files are supported")
+    dest = _cfg.VIDEOS_OUTPUT_DIR / f"exclusive_preview{suffix}"
+    with dest.open("wb") as f:
+        _shutil.copyfileobj(file.file, f)
+    url = f"/local-videos/exclusive_preview{suffix}"
+    db.set_setting("exclusive_preview_video_url", url)
+    return {"ok": True, "url": url}
+
+
+@app.post("/videos/{video_id}/replace-file")
+async def replace_video_file(video_id: str, file: UploadFile = File(...), _u: str = Depends(verify_token)):
+    """Admin — replace the mp4 file for an existing video record."""
+    import shutil as _shutil
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+    suffix = _P(file.filename).suffix.lower() if file.filename else ".mp4"
+    if suffix not in (".mp4", ".webm", ".mov"):
+        raise HTTPException(400, "Only .mp4 / .webm / .mov files are supported")
+    dest = _cfg.VIDEOS_OUTPUT_DIR / f"{video_id}{suffix}"
+    with dest.open("wb") as f:
+        _shutil.copyfileobj(file.file, f)
+    new_path = str(dest)
+    db.update_video(video_id, file_path=new_path, status="ready")
+    # Regenerate thumbnail from new file
+    thumb_url = _generate_thumbnail(new_path, video_id)
+    if thumb_url:
+        db.update_video(video_id, thumbnail_url=thumb_url)
+    return {"ok": True, "file_path": new_path, "thumbnail_url": thumb_url}
 
 
 @app.get("/public/channel-videos")

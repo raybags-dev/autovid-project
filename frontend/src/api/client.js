@@ -450,6 +450,29 @@ export const generateThumbnail = async (id) => {
   return data;
 };
 
+export const deleteSubscriptionUser = async (id) => {
+  const { data } = await api.delete(`/admin/subscription-requests/${id}`);
+  return data;
+};
+
+export const replaceVideoFile = async (id, file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post(`/videos/${id}/replace-file`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+};
+
+export const uploadExclusivePreviewVideo = async (file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post("/admin/exclusive-preview-video/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+};
+
 // ── Danger Zone ───────────────────────────────────────────────────────────────
 export const dangerVerify = async (key) => {
   const { data } = await api.post("/admin/danger/verify", { key });

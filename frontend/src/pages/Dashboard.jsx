@@ -66,6 +66,9 @@ import api, {
   approveSubscription,
   rejectSubscription,
   generateThumbnail,
+  deleteSubscriptionUser,
+  replaceVideoFile,
+  uploadExclusivePreviewVideo,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import ScriptStudio from "../components/ScriptStudio";
@@ -886,36 +889,71 @@ function StickFigureSettings({ T }) {
 function ExclusiveVideoSetting({ T, showToast }) {
   const [exUrl, setExUrl] = useState("");
   const [exSaving, setExSaving] = useState(false);
+  const [exUploading, setExUploading] = useState(false);
+  const [exUploadProgress, setExUploadProgress] = useState(null);
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     api.get("/app-settings/exclusive_preview_video_url").then(r => setExUrl(r.data?.value || "")).catch(() => {});
   }, []);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExUploading(true);
+    setExUploadProgress(0);
+    try {
+      const result = await uploadExclusivePreviewVideo(file);
+      if (result.url) {
+        setExUrl(result.url);
+        showToast("Preview video uploaded");
+      }
+    } catch { showToast("Upload failed", "error"); }
+    finally { setExUploading(false); setExUploadProgress(null); e.target.value = ""; }
+  };
+
   return (
     <div style={{ marginTop: 20, padding: "14px 16px", background: T.bgCard, border: `1px solid rgba(168,85,247,0.25)`, borderRadius: 10 }}>
       <div style={{ fontSize: 10, color: "#a855f7", letterSpacing: "0.1em", marginBottom: 8, fontWeight: 700 }}>🔐 EXCLUSIVE PREVIEW VIDEO</div>
       <div style={{ fontSize: 10, color: T.textDim, marginBottom: 10 }}>
-        URL of the video shown in the subscribe card on your landing page
+        Video shown in the subscribe card on your landing page — paste a URL or upload a file
       </div>
       <input
         type="url"
         value={exUrl}
         onChange={e => setExUrl(e.target.value)}
-        placeholder="https://..."
+        placeholder="https://... or /local-videos/..."
         style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.inputBg, color: T.text, fontSize: 11, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8, outline: "none" }}
       />
-      <button
-        onClick={async () => {
-          setExSaving(true);
-          try {
-            await api.post("/admin/exclusive-preview-video", { url: exUrl });
-            showToast("Preview video saved");
-          } catch { showToast("Failed to save", "error"); }
-          finally { setExSaving(false); }
-        }}
-        disabled={exSaving}
-        style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(168,85,247,0.08)", color: "#a855f7", fontSize: 10, cursor: "pointer", fontFamily: "inherit", opacity: exSaving ? 0.6 : 1 }}
-      >
-        {exSaving ? "Saving..." : "SAVE URL"}
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          onClick={async () => {
+            setExSaving(true);
+            try {
+              await api.post("/admin/exclusive-preview-video", { url: exUrl });
+              showToast("Preview video saved");
+            } catch { showToast("Failed to save", "error"); }
+            finally { setExSaving(false); }
+          }}
+          disabled={exSaving}
+          style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(168,85,247,0.08)", color: "#a855f7", fontSize: 10, cursor: "pointer", fontFamily: "inherit", opacity: exSaving ? 0.6 : 1 }}
+        >
+          {exSaving ? "Saving..." : "SAVE URL"}
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={exUploading}
+          style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(168,85,247,0.08)", color: "#a855f7", fontSize: 10, cursor: "pointer", fontFamily: "inherit", opacity: exUploading ? 0.6 : 1 }}
+        >
+          {exUploading ? "Uploading..." : "⬆ UPLOAD FILE"}
+        </button>
+        <input ref={fileInputRef} type="file" accept="video/mp4,video/webm,video/quicktime" style={{ display: "none" }} onChange={handleUpload} />
+      </div>
+      {exUrl && (
+        <div style={{ marginTop: 10, fontSize: 9, color: T.textFaint }}>
+          Current: <span style={{ color: T.textDim }}>{exUrl.length > 60 ? exUrl.slice(0, 60) + "…" : exUrl}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -929,6 +967,10 @@ function SubscribersTabContent({ T, showToast }) {
   const [search, setSearch] = useState("");
   const [listPage, setListPage] = useState(1);
   const listContainerRef = useRef(null);
+  const [subConfirm, setSubConfirm] = useState(null); // {message, onConfirm, label}
+
+  const askSubConfirm = (message, onConfirm, label = "CONFIRM") =>
+    setSubConfirm({ message, onConfirm, label });
 
   const loadRequests = useCallback(async () => {
     setSubLoading(true);
@@ -952,10 +994,17 @@ function SubscribersTabContent({ T, showToast }) {
     try { await rejectSubscription(id); showToast("Rejected"); loadRequests(); }
     catch { showToast("Failed to reject", "error"); }
   };
-  const handleUnsubscribe = async (id, email) => {
-    if (!window.confirm(`Revoke access for ${email}?`)) return;
-    try { await rejectSubscription(id); showToast("Access revoked"); loadRequests(); }
-    catch { showToast("Failed to revoke", "error"); }
+  const handleUnsubscribe = (id, email) => {
+    askSubConfirm(`Revoke library access for ${email}?`, async () => {
+      try { await rejectSubscription(id); showToast("Access revoked"); loadRequests(); }
+      catch { showToast("Failed to revoke", "error"); }
+    }, "REVOKE");
+  };
+  const handleDelete = (id, email) => {
+    askSubConfirm(`Permanently delete subscriber record for ${email}? This cannot be undone.`, async () => {
+      try { await deleteSubscriptionUser(id); showToast("Subscriber deleted"); loadRequests(); }
+      catch { showToast("Failed to delete", "error"); }
+    }, "DELETE");
   };
 
   // Flattened all-subscribers list for the directory
@@ -991,6 +1040,7 @@ function SubscribersTabContent({ T, showToast }) {
   const statusBorder = (s) => s === "approved" ? "rgba(61,214,140,0.2)" : s === "pending" ? "rgba(255,176,32,0.2)" : "rgba(255,92,108,0.1)";
 
   return (
+    <>
     <div style={{ maxWidth: 860, display: "flex", gap: 24 }}>
 
       {/* ── LEFT: Requests management ── */}
@@ -1111,6 +1161,8 @@ function SubscribersTabContent({ T, showToast }) {
                 {u.status === "rejected" && (
                   <button onClick={() => handleApprove(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>↺</button>
                 )}
+                {/* Delete — always available */}
+                <button onClick={() => handleDelete(u.id, u.email)} title="Delete record permanently" style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(255,92,108,0.2)", background: "transparent", color: "rgba(255,92,108,0.5)", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>🗑</button>
               </div>
             </div>
           ))}
@@ -1120,6 +1172,27 @@ function SubscribersTabContent({ T, showToast }) {
         </div>
       </div>
     </div>
+
+    {/* Custom confirm modal for subscriber actions */}
+    {subConfirm && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSubConfirm(null)}>
+        <div style={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: 28, maxWidth: 340, width: "90%", textAlign: "center" }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+          <div style={{ fontSize: 13, color: "#fff", fontWeight: 600, marginBottom: 8 }}>Are you sure?</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 24, lineHeight: 1.6 }}>{subConfirm.message}</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setSubConfirm(null)} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "transparent", color: "rgba(255,255,255,0.5)", fontSize: 12, fontFamily: "inherit", cursor: "pointer" }}>CANCEL</button>
+            <button
+              onClick={() => { subConfirm.onConfirm(); setSubConfirm(null); }}
+              style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "1px solid rgba(255,92,108,0.4)", background: "rgba(255,92,108,0.1)", color: "#ff5c6c", fontSize: 12, fontFamily: "inherit", cursor: "pointer", fontWeight: 700 }}
+            >
+              {subConfirm.label}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -1151,6 +1224,7 @@ export default function Dashboard() {
   const [sfClipCount, setSfClipCount] = useState(null); // null = not loaded yet
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
+  const [exclusiveYtModal, setExclusiveYtModal] = useState(null); // {videoId, youtubeId, onSkip} — prompt to unlist/private on YT
   const [syncing, setSyncing] = useState(false);
   const [globalLoading, setGlobalLoading] = useState(null); // string message or null
   const [ytModal, setYtModal] = useState(null); // video being managed on YT
@@ -1197,6 +1271,8 @@ export default function Dashboard() {
   const [shortMusicVolume, setShortMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
   const [shortGenerating, setShortGenerating] = useState(false);
   const [shortGenError, setShortGenError] = useState("");
+  const [replaceFileModal, setReplaceFileModal] = useState(null); // {videoId} pending upload
+  const replaceFileInputRef = useRef(null);
   const [shortLogs, setShortLogs] = useState([]);
   const [shortLogVideoId, setShortLogVideoId] = useState(null);
   const [shortPipeStep, setShortPipeStep] = useState(0);
@@ -2419,6 +2495,7 @@ export default function Dashboard() {
       if (filter === "mp4") return !!v.file_path && v.resolution !== "1080x1920" && v.status !== "failed";
       if (filter === "mp3") return !!v.narration_url && v.resolution !== "1080x1920" && v.status !== "failed";
       if (filter === "shorts") return v.resolution === "1080x1920";
+      if (filter === "exclusive") return !!v.is_exclusive && !v.archived;
       return v.status === filter;
     })();
     if (!matchesFilter) return false;
@@ -3880,6 +3957,18 @@ export default function Dashboard() {
                   >
                     📦 ARCHIVED
                   </button>
+                  <button
+                    className={`filter-btn ${filter === "exclusive" ? "active" : ""}`}
+                    onClick={() => setFilter("exclusive")}
+                    style={filter === "exclusive"
+                      ? { background: "rgba(61,214,140,0.1)", borderColor: "rgba(61,214,140,0.4)", color: "#3dd68c" }
+                      : { color: "#3dd68c", borderColor: "rgba(61,214,140,0.2)" }}
+                  >
+                    🔐 EXCLUSIVE
+                    <span style={{ marginLeft: 5, opacity: 0.6 }}>
+                      {videos.filter(v => !!v.is_exclusive).length}
+                    </span>
+                  </button>
                 </div>
 
                 {/* Video list */}
@@ -4829,6 +4918,10 @@ export default function Dashboard() {
                                 }
                                 showToast(goingExclusive ? "Added to Library" : "Removed from Library");
                                 refresh();
+                                // If video is on YouTube and we're making it exclusive, prompt to update privacy
+                                if (goingExclusive && v.youtube_id) {
+                                  setExclusiveYtModal({ videoId: v.id, youtubeId: v.youtube_id });
+                                }
                               } catch (err) {
                                 showToast("Failed to update library", "error");
                               }
@@ -11163,6 +11256,18 @@ export default function Dashboard() {
                     ↺ RETRY
                   </button>
                 )}
+                {/* Replace video file */}
+                {(selected.file_path || selected.status === "ready" || selected.status === "posted") && (
+                  <button
+                    onClick={() => {
+                      setReplaceFileModal({ videoId: selected.id });
+                      replaceFileInputRef.current?.click();
+                    }}
+                    style={{ padding: "10px 18px", background: "rgba(255,176,32,0.07)", border: "1px solid rgba(255,176,32,0.25)", borderRadius: 9, fontSize: 11, color: "#ffb020", cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}
+                  >
+                    ⬆ REPLACE FILE
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setDeleteConfirm({
@@ -11186,6 +11291,93 @@ export default function Dashboard() {
                   }}
                 >
                   ✕ DELETE
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Hidden file input for replacing video files ─────────────────────────── */}
+        <input
+          ref={replaceFileInputRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime"
+          style={{ display: "none" }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file || !replaceFileModal) return;
+            const videoId = replaceFileModal.videoId;
+            e.target.value = "";
+            askConfirm(
+              `Replace the video file for this entry with "${file.name}"? The current file will be overwritten and a new thumbnail will be generated.`,
+              async () => {
+                setGlobalLoading("Uploading replacement file...");
+                try {
+                  const result = await replaceVideoFile(videoId, file);
+                  showToast("Video file replaced");
+                  if (result.thumbnail_url) {
+                    setVideos(vs => vs.map(v => v.id === videoId ? { ...v, file_path: result.file_path, thumbnail_url: result.thumbnail_url, status: "ready" } : v));
+                  } else {
+                    refresh();
+                  }
+                } catch (err) {
+                  showToast(err?.response?.data?.detail || "Upload failed", "error");
+                } finally {
+                  setGlobalLoading(null);
+                  setReplaceFileModal(null);
+                }
+              },
+              "REPLACE"
+            );
+          }}
+        />
+
+        {/* ── YouTube Privacy Prompt (when adding video to Library) ────────────────── */}
+        {exclusiveYtModal && (
+          <div className="modal-bg" onClick={() => setExclusiveYtModal(null)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380, padding: 28 }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8 }}>
+                🔐 Update YouTube Privacy?
+              </div>
+              <div style={{ fontSize: 12, color: T.textMid, marginBottom: 20, lineHeight: 1.7 }}>
+                This video is on YouTube. Since you're making it exclusive, would you like to update its visibility?
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    const { videoId } = exclusiveYtModal;
+                    setExclusiveYtModal(null);
+                    try {
+                      await api.patch(`/videos/${videoId}/youtube-settings`, { privacy: "unlisted" });
+                      showToast("YouTube video set to Unlisted");
+                    } catch (err) {
+                      showToast("Library updated, but YouTube privacy change failed: " + (err?.response?.data?.detail || err.message), "error");
+                    }
+                  }}
+                  style={{ padding: "11px 16px", borderRadius: 8, border: "1px solid rgba(255,176,32,0.35)", background: "rgba(255,176,32,0.08)", color: "#ffb020", fontSize: 12, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}
+                >
+                  🔗 Unlist — keep URL working but hide from search
+                </button>
+                <button
+                  onClick={async () => {
+                    const { videoId } = exclusiveYtModal;
+                    setExclusiveYtModal(null);
+                    try {
+                      await api.patch(`/videos/${videoId}/youtube-settings`, { privacy: "private" });
+                      showToast("YouTube video set to Private");
+                    } catch (err) {
+                      showToast("Library updated, but YouTube privacy change failed: " + (err?.response?.data?.detail || err.message), "error");
+                    }
+                  }}
+                  style={{ padding: "11px 16px", borderRadius: 8, border: "1px solid rgba(255,92,108,0.35)", background: "rgba(255,92,108,0.08)", color: "#ff5c6c", fontSize: 12, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}
+                >
+                  🔒 Make Private — only you can see it
+                </button>
+                <button
+                  onClick={() => setExclusiveYtModal(null)}
+                  style={{ padding: "11px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 12, fontFamily: "inherit", cursor: "pointer" }}
+                >
+                  Keep As Is — don't change YouTube privacy
                 </button>
               </div>
             </div>
