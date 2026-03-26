@@ -1849,16 +1849,46 @@ async def replace_video_file(video_id: str, file: UploadFile = File(...), _u: st
     suffix = _P(file.filename).suffix.lower() if file.filename else ".mp4"
     if suffix not in (".mp4", ".webm", ".mov"):
         raise HTTPException(400, "Only .mp4 / .webm / .mov files are supported")
-    dest = _cfg.VIDEOS_OUTPUT_DIR / f"{video_id}{suffix}"
-    with dest.open("wb") as f:
-        _shutil.copyfileobj(file.file, f)
-    new_path = str(dest)
-    db.update_video(video_id, file_path=new_path, status="ready")
-    # Regenerate thumbnail from new file
-    thumb_url = _generate_thumbnail(new_path, video_id)
-    if thumb_url:
-        db.update_video(video_id, thumbnail_url=thumb_url)
-    return {"ok": True, "file_path": new_path, "thumbnail_url": thumb_url}
+
+    def _rlog(msg):
+        with _pipeline_lock:
+            entry = _active_pipelines.get(video_id)
+            if entry is not None:
+                entry.setdefault("log_buffer", []).append(msg)
+        print(msg)
+
+    with _pipeline_lock:
+        _active_pipelines[video_id] = {"log_buffer": [], "done": False}
+
+    try:
+        _rlog(f"[INFO] Replacing file for video {video_id[:8]}...")
+        _rlog(f"[INFO] Filename: {file.filename}  type: {suffix}")
+        dest = _cfg.VIDEOS_OUTPUT_DIR / f"{video_id}{suffix}"
+        _rlog(f"[INFO] Writing to {dest.name}...")
+        with dest.open("wb") as f:
+            _shutil.copyfileobj(file.file, f)
+        size_mb = dest.stat().st_size / (1024 * 1024)
+        _rlog(f"[INFO] Saved {size_mb:.1f} MB")
+        new_path = str(dest)
+        db.update_video(video_id, file_path=new_path, status="ready")
+        _rlog("[INFO] DB updated — file_path set, status → ready")
+        _rlog("[INFO] Generating thumbnail from new file...")
+        thumb_url = _generate_thumbnail(new_path, video_id)
+        if thumb_url:
+            db.update_video(video_id, thumbnail_url=thumb_url)
+            _rlog(f"[INFO] Thumbnail saved: {thumb_url}")
+        else:
+            _rlog("[WARN] Thumbnail generation failed (ffmpeg error or no ffmpeg)")
+        _rlog("[DONE] Replace complete")
+        return {"ok": True, "file_path": new_path, "thumbnail_url": thumb_url}
+    except Exception as e:
+        _rlog(f"[ERROR] Replace failed: {e}")
+        raise
+    finally:
+        with _pipeline_lock:
+            entry = _active_pipelines.get(video_id)
+            if entry is not None:
+                entry["done"] = True
 
 
 @app.get("/public/channel-videos")

@@ -1273,6 +1273,11 @@ export default function Dashboard() {
   const [shortGenError, setShortGenError] = useState("");
   const [replaceFileModal, setReplaceFileModal] = useState(null); // {videoId} pending upload
   const replaceFileInputRef = useRef(null);
+  const [replaceLog, setReplaceLog] = useState([]);
+  const [showReplaceLog, setShowReplaceLog] = useState(false);
+  const [replaceLogVideoId, setReplaceLogVideoId] = useState(null);
+  const replaceLogPollRef = useRef(null);
+  const replaceLogEndRef = useRef(null);
   const [shortLogs, setShortLogs] = useState([]);
   const [shortLogVideoId, setShortLogVideoId] = useState(null);
   const [shortPipeStep, setShortPipeStep] = useState(0);
@@ -1659,6 +1664,25 @@ export default function Dashboard() {
         }
       } catch (_) {}
     }, 1500);
+  };
+
+  const startReplaceLogs = (videoId) => {
+    clearInterval(replaceLogPollRef.current);
+    setReplaceLog([]);
+    setReplaceLogVideoId(videoId);
+    setShowReplaceLog(true);
+    let since = 0;
+    replaceLogPollRef.current = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/videos/${videoId}/logs?since=${since}`);
+        if (data?.lines?.length > 0) {
+          since += data.lines.length;
+          setReplaceLog(prev => [...prev, ...data.lines].slice(-200));
+          setTimeout(() => replaceLogEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+        }
+        if (data?.done) clearInterval(replaceLogPollRef.current);
+      } catch (_) {}
+    }, 1000);
   };
 
   // ── Archive ───────────────────────────────────────────────────────────────
@@ -11293,6 +11317,29 @@ export default function Dashboard() {
                   ✕ DELETE
                 </button>
               </div>
+
+              {/* ── Replace file log viewer ── */}
+              {replaceLogVideoId === selected.id && replaceLog.length > 0 && (
+                <div style={{ marginTop: 14, background: isDark ? "#08090e" : "#f0f2f5", border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div
+                    onClick={() => setShowReplaceLog(p => !p)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", cursor: "pointer", borderBottom: showReplaceLog ? `1px solid ${T.border}` : "none" }}
+                  >
+                    <span style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em" }}>📋 REPLACE LOGS ({replaceLog.length} lines)</span>
+                    <span style={{ fontSize: 11, color: T.textFaint }}>{showReplaceLog ? "▲" : "▼"}</span>
+                  </div>
+                  {showReplaceLog && (
+                    <div style={{ maxHeight: 200, overflowY: "auto", padding: "10px 14px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
+                      {replaceLog.map((line, i) => (
+                        <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : line.startsWith("[WARN]") ? "#ffb020" : isDark ? "#a0d0a0" : "#2d5a2d" }}>
+                          {line}
+                        </div>
+                      ))}
+                      <div ref={replaceLogEndRef} />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -11312,6 +11359,7 @@ export default function Dashboard() {
               `Replace the video file for this entry with "${file.name}"? The current file will be overwritten and a new thumbnail will be generated.`,
               async () => {
                 setGlobalLoading("Uploading replacement file...");
+                startReplaceLogs(videoId);
                 try {
                   const result = await replaceVideoFile(videoId, file);
                   showToast("Video file replaced");
