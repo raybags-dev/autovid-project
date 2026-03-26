@@ -1598,6 +1598,13 @@ function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
       .catch(() => setVideoLoading(false));
   }, []);
 
+  const getYouTubeEmbedUrl = (url) => {
+    if (!url) return null;
+    const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+    if (ytMatch) return `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?rel=0&modestbranding=1`;
+    return null;
+  };
+
   const reset = () => { setEmail(""); setPassword(""); setMsg(null); };
 
   const handleSignup = async (e) => {
@@ -1681,7 +1688,16 @@ function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
             {videoLoading ? (
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>Loading preview...</div>
             ) : previewUrl ? (
-              <video src={previewUrl} controls playsInline style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 18 }} />
+              getYouTubeEmbedUrl(previewUrl) ? (
+                <iframe
+                  src={getYouTubeEmbedUrl(previewUrl)}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  style={{ width: "100%", height: "100%", border: "none", borderRadius: 18 }}
+                />
+              ) : (
+                <video src={previewUrl} controls playsInline style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 18 }} />
+              )
             ) : (
               <div style={{ textAlign: "center", color: "rgba(255,255,255,0.25)" }}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
