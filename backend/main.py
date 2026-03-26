@@ -1666,10 +1666,22 @@ def subscribe_signup(req: SubSignupRequest):
         raise HTTPException(status_code=422, detail="invalid_email")
     if not req.password or len(req.password) < 6:
         raise HTTPException(status_code=422, detail="Password must be at least 6 characters")
-    existing = db.get_subscription_user_by_email(em)
+    try:
+        existing = db.get_subscription_user_by_email(em)
+    except Exception as e:
+        err = str(e)
+        if "does not exist" in err or "relation" in err:
+            raise HTTPException(status_code=503, detail="Subscription system not yet configured — run the DB migration")
+        raise HTTPException(status_code=500, detail="Database error")
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
-    user = db.create_subscription_user(em, _hash_password(req.password))
+    try:
+        db.create_subscription_user(em, _hash_password(req.password))
+    except Exception as e:
+        err = str(e)
+        if "does not exist" in err or "relation" in err:
+            raise HTTPException(status_code=503, detail="Subscription system not yet configured — run the DB migration")
+        raise HTTPException(status_code=500, detail="Database error")
     return {"ok": True, "status": "pending", "message": "Account created — awaiting admin approval"}
 
 
