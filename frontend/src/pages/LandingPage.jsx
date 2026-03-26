@@ -91,8 +91,8 @@ const DARK = {
   textM: "#8ab0cc",
   textD: "#5a8aaa",
   textD2: "#2e5a7a",
-  cardBg: "rgba(255,255,255,0.025)",
-  cardBr: "rgba(255,255,255,0.07)",
+  cardBg: "rgba(255,255,255,0.06)",
+  cardBr: "rgba(255,255,255,0.13)",
   cardSh: "none",
   navBg: "rgba(3,6,15,0.82)",
   secBr: "rgba(255,255,255,0.045)",
@@ -1220,6 +1220,190 @@ function BuzzsproutPlayer({ size = "large" }) {
   );
 }
 
+function ExclusiveSection({ c }) {
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [videoLoading, setVideoLoading] = useState(true);
+  const [mode, setMode] = useState(null); // null | 'signup' | 'login'
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/app-settings/exclusive_preview_video_url")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.value) setPreviewUrl(d.value); setVideoLoading(false); })
+      .catch(() => setVideoLoading(false));
+  }, []);
+
+  const reset = () => { setEmail(""); setPassword(""); setMsg(null); };
+
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setLoading(true); setMsg(null);
+    try {
+      const res = await fetch("/api/subscribe/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMsg({ type: "success", text: "Request submitted! You'll receive access once approved." });
+        reset(); setMode(null);
+      } else {
+        const detail = data.detail || "";
+        setMsg({ type: "error", text:
+          detail === "Email already registered" ? "Already registered — try logging in" :
+          detail.includes("not yet configured") ? "Subscription system coming soon — check back shortly" :
+          detail || "Something went wrong"
+        });
+      }
+    } catch { setMsg({ type: "error", text: "Network error — please try again" }); }
+    finally { setLoading(false); }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true); setMsg(null);
+    try {
+      const res = await fetch("/api/subscribe/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("sub_token", data.token);
+        localStorage.setItem("sub_email", data.email);
+        setMsg({ type: "success", text: `Welcome back! You now have access to exclusive content.` });
+        reset(); setMode(null);
+      } else {
+        const detail = data.detail || "";
+        setMsg({ type: "error", text:
+          detail === "Account pending approval" ? "Your request is pending — we'll notify you when approved" :
+          detail === "Account access denied" ? "Your access request was not approved. Contact support." :
+          detail === "Invalid credentials" ? "Invalid email or password" :
+          detail || "Login failed"
+        });
+      }
+    } catch { setMsg({ type: "error", text: "Network error — please try again" }); }
+    finally { setLoading(false); }
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "11px 14px", borderRadius: 8,
+    border: "1px solid rgba(168,85,247,0.35)", background: "rgba(255,255,255,0.04)",
+    color: "#fff", fontSize: 13, boxSizing: "border-box", fontFamily: "inherit",
+    outline: "none", marginBottom: 10,
+  };
+
+  return (
+    <section id="exclusive" style={{ padding: "80px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", position: "relative", overflow: "hidden", background: "linear-gradient(160deg,rgba(3,6,15,0.98) 0%,rgba(8,4,20,0.95) 100%)" }}>
+      {/* ambient glow */}
+      <div style={{ position: "absolute", top: "30%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle,rgba(168,85,247,0.06) 0%,transparent 70%)", pointerEvents: "none" }} />
+      <div style={{ maxWidth: 900, margin: "0 auto", position: "relative", zIndex: 1 }}>
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <span className="section-tag" style={{ color: "#a855f7" }}>EXCLUSIVE ACCESS</span>
+          <h2 className="syne" style={{ fontWeight: 800, fontSize: "clamp(24px,4vw,38px)", color: c.text, marginBottom: 12 }}>
+            Subscribe to <span style={{ color: "#a855f7" }}>Exclusive Content</span>
+          </h2>
+          <p style={{ fontSize: 13, color: c.textM, maxWidth: 500, margin: "0 auto" }}>
+            Get access to premium, members-only videos and deep-dives not available anywhere else.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "center" }}>
+          {/* Video preview */}
+          <div style={{ borderRadius: 18, overflow: "hidden", border: "1px solid rgba(168,85,247,0.25)", background: "rgba(0,0,0,0.5)", aspectRatio: "16/9", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {videoLoading ? (
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>Loading preview...</div>
+            ) : previewUrl ? (
+              <video src={previewUrl} controls playsInline style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 18 }} />
+            ) : (
+              <div style={{ textAlign: "center", color: "rgba(255,255,255,0.25)" }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
+                <div style={{ fontSize: 11, letterSpacing: "0.1em" }}>EXCLUSIVE CONTENT</div>
+              </div>
+            )}
+          </div>
+
+          {/* Right panel */}
+          <div>
+            <h3 className="syne" style={{ fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 12 }}>
+              {mode === "login" ? "Member Login" : "Get exclusive access"}
+            </h3>
+            <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.7, marginBottom: 20 }}>
+              Members-only videos, early access content, and deep-dives that go beyond what's public.
+              {mode === null && " Submit a request — approved members get instant access."}
+            </p>
+
+            {msg && (
+              <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: msg.type === "success" ? "rgba(61,214,140,0.08)" : "rgba(255,92,108,0.08)", border: `1px solid ${msg.type === "success" ? "rgba(61,214,140,0.3)" : "rgba(255,92,108,0.3)"}`, color: msg.type === "success" ? "#3dd68c" : "#ff5c6c", fontSize: 12, lineHeight: 1.5 }}>
+                {msg.text}
+              </div>
+            )}
+
+            {mode === null && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => { setMode("signup"); setMsg(null); }} style={{ flex: 1, padding: "13px 20px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+                  🔐 SUBSCRIBE NOW
+                </button>
+                <button onClick={() => { setMode("login"); setMsg(null); }} style={{ padding: "13px 20px", borderRadius: 50, background: "rgba(255,255,255,0.05)", color: c.textM, border: "1px solid rgba(255,255,255,0.12)", fontSize: 12, fontWeight: 600, cursor: "pointer", letterSpacing: "0.04em", fontFamily: "inherit" }}>
+                  MEMBER LOGIN
+                </button>
+              </div>
+            )}
+
+            {mode === "signup" && (
+              <form onSubmit={handleSignup}>
+                <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
+                <input type="password" placeholder="Choose a password (min. 6 chars)" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} style={inputStyle} />
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <button type="submit" disabled={loading} style={{ flex: 1, padding: "12px 20px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}>
+                    {loading ? "Submitting..." : "SUBMIT REQUEST"}
+                  </button>
+                  <button type="button" onClick={() => { setMode(null); reset(); }} style={{ padding: "12px 16px", borderRadius: 50, background: "transparent", color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.1)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                    CANCEL
+                  </button>
+                </div>
+                <div style={{ marginTop: 12, fontSize: 11, color: c.textD, textAlign: "center" }}>
+                  Already a member?{" "}
+                  <button type="button" onClick={() => { setMode("login"); setMsg(null); }} style={{ background: "none", border: "none", color: "#a855f7", cursor: "pointer", fontSize: 11, fontFamily: "inherit", textDecoration: "underline" }}>
+                    Log in
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {mode === "login" && (
+              <form onSubmit={handleLogin}>
+                <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
+                <input type="password" placeholder="Your password" value={password} onChange={e => setPassword(e.target.value)} required style={inputStyle} />
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <button type="submit" disabled={loading} style={{ flex: 1, padding: "12px 20px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit", opacity: loading ? 0.6 : 1 }}>
+                    {loading ? "Logging in..." : "LOGIN"}
+                  </button>
+                  <button type="button" onClick={() => { setMode(null); reset(); }} style={{ padding: "12px 16px", borderRadius: 50, background: "transparent", color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.1)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                    CANCEL
+                  </button>
+                </div>
+                <div style={{ marginTop: 12, fontSize: 11, color: c.textD, textAlign: "center" }}>
+                  Not a member?{" "}
+                  <button type="button" onClick={() => { setMode("signup"); setMsg(null); }} style={{ background: "none", border: "none", color: "#a855f7", cursor: "pointer", fontSize: 11, fontFamily: "inherit", textDecoration: "underline" }}>
+                    Request access
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
 export default function LandingPage() {
   const theme = "dark";
   const [scrolled, setScrolled] = useState(false);
@@ -2081,6 +2265,15 @@ export default function LandingPage() {
                 {label}
               </button>
             ))}
+            <button
+              onClick={() => scrollTo("exclusive")}
+              title="Exclusive Content"
+              style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 20, padding: "5px 14px", color: "#a855f7", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", fontFamily: "inherit", transition: "all 0.2s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(168,85,247,0.22)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.55)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(168,85,247,0.12)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.3)"; }}
+            >
+              🔐 MEMBERS
+            </button>
           </div>
 
           <div
@@ -3828,6 +4021,40 @@ export default function LandingPage() {
         </div>
       </div>
 
+      {/* ══ MANIFESTO ════════════════════════════════════════════════════════ */}
+      <section style={{ padding: "0", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "relative", background: "linear-gradient(160deg,rgba(2,4,12,0.98) 0%,rgba(6,2,18,0.96) 50%,rgba(2,6,14,0.98) 100%)", borderTop: "1px solid rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.04)", padding: "100px 20px" }}>
+          {/* ambient orb */}
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 900, height: 400, borderRadius: "50%", background: "radial-gradient(ellipse,rgba(255,60,20,0.04) 0%,rgba(20,40,200,0.04) 50%,transparent 75%)", pointerEvents: "none" }} />
+          <div style={{ maxWidth: 820, margin: "0 auto", textAlign: "center", position: "relative", zIndex: 1 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.22em", color: "rgba(255,85,51,0.7)", fontWeight: 700, marginBottom: 28, textTransform: "uppercase" }}>Our Manifesto</div>
+            <blockquote style={{ margin: 0, padding: 0 }}>
+              <p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(26px,4.5vw,52px)", lineHeight: 1.18, color: "#e8f0f8", marginBottom: 20, letterSpacing: "-0.01em" }}>
+                "We exist in the space{" "}
+                <span style={{ background: "linear-gradient(135deg,#ff6633,#ff3300)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>between</span>
+                {" "}question and answer."
+              </p>
+            </blockquote>
+            <div style={{ width: 60, height: 1, background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)", margin: "28px auto" }} />
+            <p style={{ fontSize: "clamp(13px,1.6vw,16px)", color: "rgba(180,210,235,0.7)", lineHeight: 1.85, maxWidth: 600, margin: "0 auto 32px", fontWeight: 400 }}>
+              4Life Mystery is not a channel. It is a conversation — one that has been happening for centuries
+              in whispered rooms and sleepless nights, but was never given a stage.{" "}
+              <span style={{ color: "rgba(200,225,245,0.9)" }}>Until now.</span>
+            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              {[
+                { label: "Mortality & Meaning", color: "rgba(255,85,51,0.6)" },
+                { label: "Consciousness", color: "rgba(100,100,255,0.6)" },
+                { label: "The Self", color: "rgba(168,85,247,0.6)" },
+                { label: "Why We're Here", color: "rgba(29,185,84,0.5)" },
+              ].map(t => (
+                <span key={t.label} style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${t.color}`, color: t.color, fontSize: 10, letterSpacing: "0.1em", fontWeight: 600 }}>{t.label}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ══ COMMUNITY ═════════════════════════════════════════════════════════ */}
       <section
         id="community"
@@ -3953,143 +4180,7 @@ export default function LandingPage() {
       </section>
 
       {/* ══ EXCLUSIVE CONTENT SUBSCRIPTION ════════════════════════════════════ */}
-      <section
-        id="exclusive"
-        style={{
-          padding: "80px 20px",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          position: "relative",
-          overflow: "hidden",
-          background: "linear-gradient(160deg,rgba(3,6,15,0.98) 0%,rgba(8,4,20,0.95) 100%)",
-        }}
-      >
-        <div style={{ maxWidth: 900, margin: "0 auto", position: "relative", zIndex: 1 }}>
-          <div style={{ textAlign: "center", marginBottom: 40 }}>
-            <span className="section-tag" style={{ color: "#a855f7" }}>EXCLUSIVE ACCESS</span>
-            <h2 className="syne" style={{ fontWeight: 800, fontSize: "clamp(24px,4vw,38px)", color: c.text, marginBottom: 12 }}>
-              Subscribe to <span style={{ color: "#a855f7" }}>Exclusive Content</span>
-            </h2>
-            <p style={{ fontSize: 13, color: c.textM, maxWidth: 500, margin: "0 auto" }}>
-              Get access to premium, members-only videos and deep-dives not available anywhere else.
-            </p>
-          </div>
-
-          {/* Video preview + signup */}
-          {(() => {
-            const [subEmail, setSubEmail] = React.useState("");
-            const [subPassword, setSubPassword] = React.useState("");
-            const [subLoading, setSubLoading] = React.useState(false);
-            const [subMsg, setSubMsg] = React.useState(null);
-            const [showForm, setShowForm] = React.useState(false);
-            const [previewUrl, setPreviewUrl] = React.useState(null);
-            const [videoLoading, setVideoLoading] = React.useState(true);
-
-            React.useEffect(() => {
-              fetch("/api/app-settings/exclusive_preview_video_url")
-                .then(r => r.ok ? r.json() : null)
-                .then(d => { if (d?.value) setPreviewUrl(d.value); setVideoLoading(false); })
-                .catch(() => setVideoLoading(false));
-            }, []);
-
-            const handleSubmit = async (e) => {
-              e.preventDefault();
-              if (!subEmail || !subPassword) return;
-              setSubLoading(true);
-              setSubMsg(null);
-              try {
-                const res = await fetch("/api/subscribe/signup", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email: subEmail, password: subPassword }),
-                });
-                const data = await res.json();
-                if (res.ok) {
-                  setSubMsg({ type: "success", text: "Request submitted! You'll get access once approved." });
-                  setSubEmail(""); setSubPassword(""); setShowForm(false);
-                } else {
-                  setSubMsg({ type: "error", text: data.detail === "Email already registered" ? "Already registered — check your email" : (data.detail || "Something went wrong") });
-                }
-              } catch {
-                setSubMsg({ type: "error", text: "Network error — please try again" });
-              } finally {
-                setSubLoading(false);
-              }
-            };
-
-            return (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "center" }}>
-                {/* Video preview */}
-                <div style={{ borderRadius: 18, overflow: "hidden", border: "1px solid rgba(168,85,247,0.25)", background: "rgba(0,0,0,0.5)", aspectRatio: "16/9", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {videoLoading ? (
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>Loading preview...</div>
-                  ) : previewUrl ? (
-                    <video src={previewUrl} controls playsInline style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 18 }} />
-                  ) : (
-                    <div style={{ textAlign: "center", color: "rgba(255,255,255,0.25)" }}>
-                      <div style={{ fontSize: 48, marginBottom: 12 }}>🔐</div>
-                      <div style={{ fontSize: 11, letterSpacing: "0.1em" }}>EXCLUSIVE CONTENT</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Signup form */}
-                <div>
-                  <h3 className="syne" style={{ fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 12 }}>
-                    Get exclusive access
-                  </h3>
-                  <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.7, marginBottom: 24 }}>
-                    Members-only videos, early access content, and deep-dives that go beyond what's public.
-                    Submit a request — approved members get instant access.
-                  </p>
-
-                  {subMsg && (
-                    <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: subMsg.type === "success" ? "rgba(61,214,140,0.1)" : "rgba(255,92,108,0.1)", border: `1px solid ${subMsg.type === "success" ? "rgba(61,214,140,0.3)" : "rgba(255,92,108,0.3)"}`, color: subMsg.type === "success" ? "#3dd68c" : "#ff5c6c", fontSize: 12 }}>
-                      {subMsg.text}
-                    </div>
-                  )}
-
-                  {!showForm ? (
-                    <button
-                      onClick={() => setShowForm(true)}
-                      style={{ padding: "14px 32px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em", width: "100%", fontFamily: "inherit" }}
-                    >
-                      🔐 SUBSCRIBE NOW
-                    </button>
-                  ) : (
-                    <form onSubmit={handleSubmit}>
-                      <input
-                        type="email"
-                        placeholder="your@email.com"
-                        value={subEmail}
-                        onChange={e => setSubEmail(e.target.value)}
-                        required
-                        style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: 13, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }}
-                      />
-                      <input
-                        type="password"
-                        placeholder="Choose a password (min. 6 chars)"
-                        value={subPassword}
-                        onChange={e => setSubPassword(e.target.value)}
-                        required
-                        minLength={6}
-                        style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.35)", background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: 13, marginBottom: 14, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }}
-                      />
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button type="submit" disabled={subLoading} style={{ flex: 1, padding: "12px 20px", borderRadius: 50, background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: subLoading ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit", opacity: subLoading ? 0.6 : 1 }}>
-                          {subLoading ? "Submitting..." : "SUBMIT REQUEST"}
-                        </button>
-                        <button type="button" onClick={() => setShowForm(false)} style={{ padding: "12px 16px", borderRadius: 50, background: "transparent", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                          CANCEL
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      </section>
+      <ExclusiveSection c={c} />
 
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
       <footer
@@ -4149,64 +4240,16 @@ export default function LandingPage() {
                 Subscribe and never miss a deep dive.
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <a
-                href={SOCIAL.spotify}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "10px 22px",
-                  borderRadius: 50,
-                  background: "rgba(29,185,84,0.12)",
-                  border: "1px solid rgba(29,185,84,0.3)",
-                  color: "#1db954",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  letterSpacing: "0.07em",
-                  textDecoration: "none",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(29,185,84,0.22)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "rgba(29,185,84,0.12)")
-                }
-              >
-                ◎ SPOTIFY
-              </a>
-              <a
-                href={`https://www.buzzsprout.com/2603264`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "10px 22px",
-                  borderRadius: 50,
-                  background: "rgba(242,101,34,0.10)",
-                  border: "1px solid rgba(242,101,34,0.25)",
-                  color: "#f26522",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  letterSpacing: "0.07em",
-                  textDecoration: "none",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(242,101,34,0.2)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "rgba(242,101,34,0.10)")
-                }
-              >
-                🎙 PODBEAN / BUZZSPROUT
-              </a>
-            </div>
+            <a
+              href={SOCIAL.youtube}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 50, background: "rgba(255,85,51,0.12)", border: "1px solid rgba(255,85,51,0.3)", color: "#ff5533", fontSize: 12, fontWeight: 700, letterSpacing: "0.07em", textDecoration: "none", transition: "all 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,85,51,0.22)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,85,51,0.12)")}
+            >
+              ▶ YOUTUBE
+            </a>
           </div>
         </div>
 
@@ -4265,32 +4308,11 @@ export default function LandingPage() {
                     bg: "rgba(255,85,51,0.12)",
                   },
                   {
-                    href: SOCIAL.tiktok,
-                    icon: "♪",
-                    label: "TikTok",
-                    color: "#00f2ea",
-                    bg: "rgba(0,242,234,0.08)",
-                  },
-                  {
                     href: SOCIAL.spotify,
                     icon: "◎",
                     label: "Spotify",
                     color: "#1db954",
                     bg: "rgba(29,185,84,0.10)",
-                  },
-                  {
-                    href: `https://www.buzzsprout.com/2603264`,
-                    icon: "🎚",
-                    label: "Buzzsprout",
-                    color: "#1db954",
-                    bg: "rgba(29,185,84,0.08)",
-                  },
-                  {
-                    href: "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P",
-                    icon: "🎙",
-                    label: "Podbean",
-                    color: "#f26522",
-                    bg: "rgba(242,101,34,0.10)",
                   },
                 ].map((s) => (
                   <a
@@ -4412,28 +4434,10 @@ export default function LandingPage() {
                   color: "#ff5533",
                 },
                 {
-                  href: SOCIAL.tiktok,
-                  icon: "♪",
-                  label: "TikTok",
-                  color: "#00f2ea",
-                },
-                {
                   href: SOCIAL.spotify,
                   icon: "◎",
                   label: "Spotify Podcast",
                   color: "#1db954",
-                },
-                {
-                  href: `https://www.buzzsprout.com/2603264`,
-                  icon: "🎚",
-                  label: "Buzzsprout",
-                  color: "#8ab8d4",
-                },
-                {
-                  href: "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P",
-                  icon: "🎙",
-                  label: "Podbean",
-                  color: "#f26522",
                 },
               ].map((p) => (
                 <a
