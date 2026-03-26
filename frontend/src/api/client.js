@@ -445,6 +445,10 @@ export const rejectSubscription = async (id) => {
   const { data } = await api.post(`/admin/subscription-requests/${id}/reject`);
   return data;
 };
+export const generateThumbnail = async (id) => {
+  const { data } = await api.post(`/videos/${id}/generate-thumbnail`);
+  return data;
+};
 
 // ── Danger Zone ───────────────────────────────────────────────────────────────
 export const dangerVerify = async (key) => {

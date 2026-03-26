@@ -1719,12 +1719,44 @@ def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
     return {"email": user["email"], "status": user["status"], "role": "subscriber", "user_id": user_id}
 
 
+def _generate_thumbnail(file_path: str, video_id: str) -> str | None:
+    """Extract first frame from video, save locally. Returns public path or None."""
+    try:
+        import subprocess as _sp
+        out = _cfg.VIDEOS_OUTPUT_DIR / f"thumb_{video_id}.jpg"
+        res = _sp.run(
+            ["ffmpeg", "-i", file_path, "-ss", "00:00:01", "-vframes", "1", "-q:v", "2", str(out), "-y"],
+            capture_output=True, timeout=30,
+        )
+        if res.returncode == 0 and out.exists():
+            return f"/local-videos/thumb_{video_id}.jpg"
+    except Exception as e:
+        print(f"Thumbnail generation failed: {e}")
+    return None
+
+
+@app.post("/videos/{video_id}/generate-thumbnail")
+def generate_video_thumbnail(video_id: str, _u: str = Depends(verify_token)):
+    """Generate a thumbnail from the first frame of a video and store it."""
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+    fp = video.get("file_path", "")
+    if not fp or fp.startswith("http"):
+        return {"ok": False, "reason": "no_local_file"}
+    url = _generate_thumbnail(fp, video_id)
+    if url:
+        db.update_video(video_id, thumbnail_url=url)
+        return {"ok": True, "thumbnail_url": url}
+    return {"ok": False, "reason": "ffmpeg_failed"}
+
+
 @app.get("/subscribe/videos")
 def get_subscriber_videos(user_id: str = Depends(verify_subscriber_token)):
-    """Approved subscribers can see all non-exclusive videos + exclusive ones."""
-    user = db.update_subscription_user(user_id)  # Just verify user exists
-    videos = db.list_videos(limit=200)
-    return {"videos": videos}
+    """Approved subscribers — returns only is_exclusive=True videos."""
+    all_videos = db.list_videos(limit=500)
+    exclusive = [v for v in all_videos if v.get("is_exclusive") and not v.get("archived")]
+    return {"videos": exclusive}
 
 
 @app.get("/admin/subscription-requests")

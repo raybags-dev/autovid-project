@@ -1220,10 +1220,185 @@ function BuzzsproutPlayer({ size = "large" }) {
   );
 }
 
+function LibraryVideoPlayer({ video, onBack }) {
+  const vidRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [showDesc, setShowDesc] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const hideCtrlTimer = useRef(null);
+  const [ctrlVisible, setCtrlVisible] = useState(true);
+
+  const getVideoUrl = (fp) => {
+    if (!fp) return null;
+    if (fp.startsWith("https://") || fp.startsWith("http://")) return fp;
+    const fn = fp.split("/").pop();
+    if (fn && fn.endsWith(".mp4")) return `/local-videos/${fn}`;
+    return null;
+  };
+  const url = getVideoUrl(video.file_path);
+  const isPodcast = !url && video.narration_url;
+
+  const fmtTime = (s) => { const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
+  const pct = duration ? (currentTime / duration) * 100 : 0;
+
+  const showCtrl = () => {
+    setCtrlVisible(true);
+    clearTimeout(hideCtrlTimer.current);
+    hideCtrlTimer.current = setTimeout(() => setCtrlVisible(false), 3000);
+  };
+
+  useEffect(() => {
+    showCtrl();
+    return () => clearTimeout(hideCtrlTimer.current);
+  }, []);
+
+  useEffect(() => {
+    const vid = vidRef.current;
+    if (!vid) return;
+    const fn = (e) => {
+      switch (e.key) {
+        case " ": e.preventDefault(); vid.paused ? vid.play() : vid.pause(); break;
+        case "ArrowLeft": vid.currentTime = Math.max(0, vid.currentTime - 10); break;
+        case "ArrowRight": vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + 10); break;
+        case "ArrowUp": e.preventDefault(); vid.volume = Math.min(1, vid.volume + 0.1); break;
+        case "ArrowDown": e.preventDefault(); vid.volume = Math.max(0, vid.volume - 0.1); break;
+        case "m": case "M": vid.muted = !vid.muted; setMuted(vid.muted); break;
+        case "f": case "F": document.fullscreenElement ? document.exitFullscreen() : vid.requestFullscreen?.(); break;
+        default: break;
+      }
+    };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, []);
+
+  const seek = (e) => {
+    const bar = e.currentTarget;
+    const ratio = (e.clientX - bar.getBoundingClientRect().left) / bar.offsetWidth;
+    if (vidRef.current) vidRef.current.currentTime = ratio * (vidRef.current.duration || 0);
+  };
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "#000" }}>
+      {/* Top bar */}
+      <div style={{ padding: "10px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 14, background: "rgba(4,6,16,0.95)", flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 6, color: "#a855f7", fontSize: 11, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>← BACK</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: "#e8f0ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title || "Untitled"}</div>
+          <div style={{ fontSize: 9, color: "rgba(180,200,230,0.35)", marginTop: 1, letterSpacing: "0.06em" }}>
+            {video.duration_seconds ? fmtTime(video.duration_seconds) : ""}
+            {video.resolution ? ` · ${video.resolution}` : ""}
+            {video.labels?.filter(l => l && l !== "compilation").slice(0, 2).map(l => ` · ${l}`).join("")}
+          </div>
+        </div>
+        {video.description && (
+          <button onClick={() => setShowDesc(d => !d)} style={{ background: showDesc ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${showDesc ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.1)"}`, borderRadius: 6, color: showDesc ? "#a855f7" : "rgba(180,200,230,0.4)", fontSize: 10, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+            {showDesc ? "Hide description" : "See description"}
+          </button>
+        )}
+      </div>
+
+      {/* Description panel */}
+      {showDesc && video.description && (
+        <div style={{ padding: "14px 28px", background: "rgba(168,85,247,0.04)", borderBottom: "1px solid rgba(168,85,247,0.12)", fontSize: 13, color: "rgba(200,220,245,0.75)", lineHeight: 1.75, maxHeight: 140, overflowY: "auto", flexShrink: 0 }}>
+          {video.description}
+        </div>
+      )}
+
+      {/* Player area */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }} onMouseMove={showCtrl} onClick={showCtrl}>
+        {url ? (
+          <video
+            ref={vidRef}
+            src={url}
+            autoPlay
+            playsInline
+            style={{ width: "100%", maxHeight: "100%", display: "block", outline: "none" }}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onTimeUpdate={() => { if (vidRef.current) setCurrentTime(vidRef.current.currentTime); }}
+            onDurationChange={() => { if (vidRef.current) setDuration(vidRef.current.duration || 0); }}
+            onVolumeChange={() => { if (vidRef.current) { setVolume(vidRef.current.volume); setMuted(vidRef.current.muted); } }}
+          />
+        ) : isPodcast ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18, padding: 40 }}>
+            <div style={{ fontSize: 64, opacity: 0.4 }}>🎙</div>
+            <div style={{ fontSize: 14, color: "rgba(180,200,230,0.5)" }}>{video.title || "Podcast episode"}</div>
+            <audio ref={vidRef} src={video.narration_url} autoPlay controls style={{ width: 420, maxWidth: "90%", outline: "none", borderRadius: 8 }} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onTimeUpdate={() => { if (vidRef.current) setCurrentTime(vidRef.current.currentTime); }} onDurationChange={() => { if (vidRef.current) setDuration(vidRef.current.duration || 0); }} />
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, color: "rgba(180,200,230,0.3)" }}>
+            <div style={{ fontSize: 56 }}>🎬</div>
+            <div style={{ fontSize: 12 }}>Video file not available</div>
+          </div>
+        )}
+
+        {/* Custom control bar (video only) */}
+        {url && (
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,0.88))", padding: "40px 20px 16px", transition: "opacity 0.3s", opacity: ctrlVisible ? 1 : 0, pointerEvents: ctrlVisible ? "auto" : "none" }}>
+            {/* Progress bar */}
+            <div onClick={seek} style={{ height: 4, background: "rgba(255,255,255,0.15)", borderRadius: 2, marginBottom: 12, cursor: "pointer", position: "relative" }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#7c3aed,#a855f7)", borderRadius: 2, transition: "width 0.1s linear" }} />
+              <div style={{ position: "absolute", top: "50%", left: `${pct}%`, transform: "translate(-50%,-50%)", width: 12, height: 12, borderRadius: "50%", background: "#a855f7", boxShadow: "0 0 6px rgba(168,85,247,0.8)" }} />
+            </div>
+
+            {/* Controls row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* Rewind */}
+              <button onClick={() => { if (vidRef.current) vidRef.current.currentTime -= 10; }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 14, cursor: "pointer", padding: "2px 6px", borderRadius: 4, fontFamily: "inherit" }} title="−10s (←)">⟪ 10</button>
+              {/* Play/Pause */}
+              <button onClick={() => { const v = vidRef.current; v && (v.paused ? v.play() : v.pause()); }} style={{ background: "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.4)", borderRadius: "50%", width: 36, height: 36, color: "#fff", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }} title="Play/Pause (Space)">
+                {playing ? "⏸" : "▶"}
+              </button>
+              {/* Forward */}
+              <button onClick={() => { if (vidRef.current) vidRef.current.currentTime += 10; }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 14, cursor: "pointer", padding: "2px 6px", borderRadius: 4, fontFamily: "inherit" }} title="+10s (→)">10 ⟫</button>
+
+              {/* Time */}
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", minWidth: 80 }}>{fmtTime(currentTime)} / {fmtTime(duration)}</span>
+
+              <div style={{ flex: 1 }} />
+
+              {/* Volume */}
+              <button onClick={() => { if (vidRef.current) { vidRef.current.muted = !vidRef.current.muted; } }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }} title="Mute (M)">
+                {muted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+              </button>
+              <input type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume} onChange={e => { const v = vidRef.current; if (v) { v.volume = +e.target.value; v.muted = false; } }} style={{ width: 64, accentColor: "#a855f7", cursor: "pointer" }} />
+
+              {/* Speed */}
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setShowSettings(s => !s)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 5, color: "rgba(255,255,255,0.6)", fontSize: 10, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>{playbackRate}x</button>
+                {showSettings && (
+                  <div style={{ position: "absolute", bottom: "110%", right: 0, background: "rgba(10,14,28,0.96)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 0", zIndex: 10, minWidth: 80 }}>
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(r => (
+                      <div key={r} onClick={() => { const v = vidRef.current; if (v) v.playbackRate = r; setPlaybackRate(r); setShowSettings(false); }} style={{ padding: "5px 14px", fontSize: 11, color: r === playbackRate ? "#a855f7" : "rgba(200,220,245,0.7)", cursor: "pointer", background: r === playbackRate ? "rgba(168,85,247,0.1)" : "none" }}>{r}x</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Fullscreen */}
+              <button onClick={() => { document.fullscreenElement ? document.exitFullscreen() : vidRef.current?.requestFullscreen?.(); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }} title="Fullscreen (F)">⛶</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Keyboard hint */}
+      <div style={{ padding: "6px 24px", borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 9, color: "rgba(180,200,230,0.2)", letterSpacing: "0.08em", background: "rgba(4,6,16,0.95)", flexShrink: 0 }}>
+        SPACE play/pause · ← → seek 10s · ↑ ↓ volume · M mute · F fullscreen · ESC back
+      </div>
+    </div>
+  );
+}
+
+
 function LibraryModal({ subUser, onClose }) {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [playVideo, setPlayVideo] = useState(null);
@@ -1238,15 +1413,16 @@ function LibraryModal({ subUser, onClose }) {
     return null;
   };
 
+  const fmtDur = (s) => { if (!s) return ""; const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
+
   useEffect(() => {
     const token = localStorage.getItem("sub_token");
     fetch("/api/subscribe/videos", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => { setVideos(d.videos || []); setLoading(false); })
-      .catch(() => { setError("Could not load videos"); setLoading(false); });
+      .catch(() => setLoading(false));
   }, []);
 
-  // Infinite scroll
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
@@ -1256,138 +1432,141 @@ function LibraryModal({ subUser, onClose }) {
   }, []);
   useEffect(() => { setPage(1); }, [search]);
 
-  const filtered = search.trim()
-    ? videos.filter(v => (v.title || v.prompt || "").toLowerCase().includes(search.trim().toLowerCase()))
-    : videos;
-  const visible = filtered.slice(0, page * LIB_PAGE);
-  const hasMore = visible.length < filtered.length;
-
-  // Keyboard close
   useEffect(() => {
-    const fn = (e) => { if (e.key === "Escape") { if (playVideo) setPlayVideo(null); else onClose(); } };
+    const fn = (e) => { if (e.key === "Escape" && !playVideo) onClose(); };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
   }, [onClose, playVideo]);
 
-  const fmtDur = (s) => { if (!s) return ""; const m = Math.floor(s / 60); const sec = s % 60; return `${m}:${String(sec).padStart(2, "0")}`; };
+  const filtered = search.trim()
+    ? videos.filter(v => (v.title || v.prompt || "").toLowerCase().includes(search.toLowerCase()))
+    : videos;
+  const visible = filtered.slice(0, page * LIB_PAGE);
+  const hasMore = visible.length < filtered.length;
+
+  const onCardHoverEnter = (e, url) => {
+    if (!url) return;
+    const vid = e.currentTarget.querySelector("video.lib-hover-vid");
+    if (vid) { vid.src = url; vid.play().catch(() => {}); }
+  };
+  const onCardHoverLeave = (e) => {
+    const vid = e.currentTarget.querySelector("video.lib-hover-vid");
+    if (vid) { vid.pause(); vid.src = ""; }
+  };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(2,4,12,0.97)", backdropFilter: "blur(24px)", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(2,4,14,0.98)", backdropFilter: "blur(28px)", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
+      <style>{`
+        @keyframes libPlayPulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(168,85,247,0.4); } 50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(168,85,247,0); } }
+        .lib-card { transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s, border-color 0.15s; }
+        .lib-card:hover { transform: translateY(-4px) scale(1.015); box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(168,85,247,0.3); }
+        .lib-card:hover .lib-play-ring { opacity: 1 !important; animation: libPlayPulse 1.6s ease-in-out infinite; }
+        .lib-card:hover .lib-thumb { opacity: 0; }
+        .lib-card:hover .lib-hover-vid { opacity: 1 !important; }
+        .lib-hover-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.35s; pointer-events: none; }
+      `}</style>
+
       {/* Header */}
-      <div style={{ padding: "18px 28px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: 20, flexShrink: 0, background: "rgba(4,8,20,0.9)" }}>
+      <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 16, flexShrink: 0, background: "rgba(3,5,16,0.96)" }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, background: "linear-gradient(135deg,#a855f7,#7c3aed)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", letterSpacing: "0.04em" }}>🔐 MEMBER LIBRARY</div>
-          <div style={{ fontSize: 11, color: "rgba(180,200,230,0.5)", marginTop: 2 }}>
-            {subUser?.email} · {videos.length} video{videos.length !== 1 ? "s" : ""} available
-          </div>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17, letterSpacing: "0.06em", background: "linear-gradient(135deg,#c084fc,#7c3aed)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>◈ MEMBER LIBRARY</div>
+          <div style={{ fontSize: 10, color: "rgba(160,185,220,0.45)", marginTop: 1 }}>{subUser?.email} · {videos.length} exclusive video{videos.length !== 1 ? "s" : ""}</div>
         </div>
-        <input
-          type="text"
-          placeholder="Search videos..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(168,85,247,0.3)", background: "rgba(168,85,247,0.06)", color: "#e8f0ff", fontSize: 12, fontFamily: "inherit", outline: "none", width: 220 }}
-        />
-        <button onClick={onClose} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.5)", fontSize: 18, width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>✕</button>
+        <input type="text" placeholder="Search library..." value={search} onChange={e => setSearch(e.target.value)} style={{ padding: "8px 14px", borderRadius: 22, border: "1px solid rgba(168,85,247,0.25)", background: "rgba(168,85,247,0.05)", color: "#e8f0ff", fontSize: 12, fontFamily: "inherit", outline: "none", width: 200 }} />
+        <button onClick={onClose} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 8, color: "rgba(180,200,230,0.5)", fontSize: 17, width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
 
-      {/* Video player view */}
-      {playVideo && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ padding: "12px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12 }}>
-            <button onClick={() => setPlayVideo(null)} style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 6, color: "#a855f7", fontSize: 11, padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em" }}>← BACK</button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, color: "#e8f0ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{playVideo.title || "Untitled"}</div>
-              {playVideo.duration_seconds && <div style={{ fontSize: 10, color: "rgba(180,200,230,0.4)", marginTop: 2 }}>{fmtDur(playVideo.duration_seconds)} · {playVideo.resolution || ""}</div>}
-            </div>
-          </div>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 28px", overflow: "auto" }}>
-            <div style={{ width: "100%", maxWidth: 900 }}>
-              {getVideoUrl(playVideo.file_path) ? (
-                <video controls autoPlay playsInline style={{ width: "100%", maxHeight: "68vh", borderRadius: 12, background: "#000", display: "block", boxShadow: "0 24px 80px rgba(0,0,0,0.8)" }} src={getVideoUrl(playVideo.file_path)} />
-              ) : (
-                <div style={{ width: "100%", aspectRatio: "16/9", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                  <div style={{ fontSize: 40 }}>🎬</div>
-                  <div style={{ fontSize: 12, color: "rgba(180,200,230,0.4)" }}>Video file not available</div>
-                </div>
-              )}
-              {playVideo.description && (
-                <div style={{ marginTop: 16, padding: "14px 18px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", fontSize: 13, color: "rgba(180,210,240,0.7)", lineHeight: 1.7 }}>
-                  {playVideo.description}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Player */}
+      {playVideo && <LibraryVideoPlayer video={playVideo} onBack={() => setPlayVideo(null)} />}
 
-      {/* Grid view */}
+      {/* Grid */}
       {!playVideo && (
-        <div ref={gridRef} style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
-          {loading && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
-              <div style={{ fontSize: 13, color: "rgba(180,200,230,0.4)" }}>Loading library...</div>
+        <div ref={gridRef} style={{ flex: 1, overflowY: "auto", padding: "28px 28px 40px" }}>
+          {loading && <div style={{ textAlign: "center", color: "rgba(168,85,247,0.4)", padding: 60, fontSize: 13, letterSpacing: "0.1em" }}>LOADING LIBRARY...</div>}
+          {!loading && filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: 80 }}>
+              <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }}>◈</div>
+              <div style={{ fontSize: 13, color: "rgba(160,185,220,0.35)", letterSpacing: "0.06em" }}>
+                {search ? "No videos match your search" : "No exclusive videos yet — add videos to the library from your dashboard"}
+              </div>
             </div>
           )}
-          {error && <div style={{ textAlign: "center", color: "#ff5c6c", padding: 40, fontSize: 13 }}>{error}</div>}
-          {!loading && !error && filtered.length === 0 && (
-            <div style={{ textAlign: "center", color: "rgba(180,200,230,0.35)", padding: 60, fontSize: 13 }}>
-              {search ? "No videos match your search" : "No videos available yet"}
-            </div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 22 }}>
             {visible.map((v, i) => {
               const thumb = v.thumbnail_url;
-              const url = getVideoUrl(v.file_path);
+              const isPodcast = !v.file_path || v.labels?.includes("mp3") || v.file_path?.endsWith?.(".mp3") || (!v.file_path?.endsWith?.(".mp4") && !v.file_path?.startsWith?.("http") && v.narration_url);
+              const fp = v.file_path;
+              const vidUrl = fp && (fp.startsWith("http") ? fp : fp.endsWith(".mp4") ? `/local-videos/${fp.split("/").pop()}` : null);
+              const canPlay = !!(vidUrl || (isPodcast && v.narration_url));
+              const fmtDur = (s) => { if (!s) return ""; return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`; };
+
               return (
                 <div
                   key={v.id}
-                  onClick={() => url && setPlayVideo(v)}
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(168,85,247,0.15)", borderRadius: 12, overflow: "hidden", cursor: url ? "pointer" : "default", transition: "all 0.2s", opacity: url ? 1 : 0.55 }}
-                  onMouseEnter={e => { if (url) { e.currentTarget.style.border = "1px solid rgba(168,85,247,0.4)"; e.currentTarget.style.transform = "translateY(-2px)"; } }}
-                  onMouseLeave={e => { e.currentTarget.style.border = "1px solid rgba(168,85,247,0.15)"; e.currentTarget.style.transform = "none"; }}
+                  className="lib-card"
+                  onClick={() => canPlay && setPlayVideo(v)}
+                  onMouseEnter={e => onCardHoverEnter(e, vidUrl)}
+                  onMouseLeave={e => onCardHoverLeave(e)}
+                  style={{ background: "linear-gradient(145deg,rgba(20,14,40,0.9),rgba(12,10,26,0.95))", border: "1px solid rgba(168,85,247,0.12)", borderRadius: 16, overflow: "hidden", cursor: canPlay ? "pointer" : "default" }}
                 >
-                  {/* Thumbnail */}
-                  <div style={{ position: "relative", aspectRatio: "16/9", background: "rgba(0,0,0,0.6)", overflow: "hidden" }}>
-                    {thumb ? (
-                      <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: "rgba(168,85,247,0.3)" }}>🎬</div>
+                  {/* Media area */}
+                  <div style={{ position: "relative", aspectRatio: "16/9", background: "rgba(0,0,0,0.7)", overflow: "hidden" }}>
+                    {/* Thumbnail image */}
+                    {thumb && !isPodcast && (
+                      <img src={thumb} alt="" className="lib-thumb" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transition: "opacity 0.35s" }} onError={e => { e.target.style.display = "none"; }} />
                     )}
-                    {/* Play overlay */}
-                    {url && (
-                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.2s" }} className="lib-play-overlay">
-                        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(168,85,247,0.85)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff" }}>▶</div>
+
+                    {/* Hover video */}
+                    {vidUrl && <video className="lib-hover-vid" muted loop playsInline />}
+
+                    {/* Podcast / no thumb placeholder */}
+                    {(isPodcast || !thumb) && (
+                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: isPodcast ? "radial-gradient(circle,rgba(29,185,84,0.08) 0%,transparent 70%)" : "radial-gradient(circle,rgba(168,85,247,0.06) 0%,transparent 70%)" }}>
+                        <span style={{ fontSize: 44, opacity: 0.25 }}>{isPodcast ? "🎙" : "🎬"}</span>
                       </div>
                     )}
-                    {/* Index badge */}
-                    <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.7)", borderRadius: 5, padding: "2px 7px", fontSize: 9, color: "rgba(168,85,247,0.9)", fontWeight: 700 }}>#{i + 1}</div>
-                    {v.duration_seconds && (
-                      <div style={{ position: "absolute", bottom: 7, right: 8, background: "rgba(0,0,0,0.75)", borderRadius: 4, padding: "2px 6px", fontSize: 9, color: "#e8f0ff" }}>{fmtDur(v.duration_seconds)}</div>
+
+                    {/* Gradient overlay (bottom) */}
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,4,18,0.85) 0%, transparent 50%)", pointerEvents: "none" }} />
+
+                    {/* Play button — always visible at 28% opacity, brightens on hover */}
+                    {canPlay && (
+                      <div className="lib-play-ring" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 56, height: 56, borderRadius: "50%", background: "rgba(168,85,247,0.22)", border: "2px solid rgba(168,85,247,0.55)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.28, transition: "opacity 0.2s, transform 0.2s, box-shadow 0.2s" }}>
+                        <span style={{ fontSize: 20, color: "#fff", marginLeft: 3 }}>▶</span>
+                      </div>
                     )}
-                    {v.is_exclusive && (
-                      <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(168,85,247,0.85)", borderRadius: 4, padding: "2px 7px", fontSize: 8, color: "#fff", fontWeight: 700, letterSpacing: "0.06em" }}>🔐 EXCLUSIVE</div>
+
+                    {/* Top badges */}
+                    <div style={{ position: "absolute", top: 10, left: 10, right: 10, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ background: "rgba(0,0,0,0.6)", borderRadius: 6, padding: "2px 8px", fontSize: 9, color: "rgba(168,85,247,0.9)", fontWeight: 700, backdropFilter: "blur(4px)" }}>#{i + 1}</div>
+                      {v.is_exclusive && <div style={{ background: "rgba(168,85,247,0.75)", borderRadius: 6, padding: "2px 8px", fontSize: 8, color: "#fff", fontWeight: 700, letterSpacing: "0.06em", backdropFilter: "blur(4px)" }}>🔐 EXCLUSIVE</div>}
+                    </div>
+
+                    {/* Duration badge */}
+                    {v.duration_seconds > 0 && (
+                      <div style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.65)", borderRadius: 5, padding: "2px 7px", fontSize: 10, color: "rgba(255,255,255,0.85)", backdropFilter: "blur(4px)" }}>{fmtDur(v.duration_seconds)}</div>
                     )}
                   </div>
-                  {/* Info */}
-                  <div style={{ padding: "10px 12px 12px" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#e8f0ff", lineHeight: 1.4, marginBottom: 5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{v.title || v.prompt || "Untitled"}</div>
-                    {v.labels?.length > 0 && (
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {v.labels.slice(0, 3).map(l => (
-                          <span key={l} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 8, background: "rgba(168,85,247,0.1)", color: "rgba(168,85,247,0.8)", border: "1px solid rgba(168,85,247,0.2)" }}>{l}</span>
-                        ))}
-                      </div>
-                    )}
+
+                  {/* Card info */}
+                  <div style={{ padding: "14px 16px 16px" }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 13, color: "#ddeeff", lineHeight: 1.4, marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                      {v.title || v.prompt || "Untitled"}
+                    </div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {(v.labels || []).filter(l => l && l !== "compilation" && l !== "mp3").slice(0, 3).map(l => (
+                        <span key={l} style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(168,85,247,0.08)", color: "rgba(168,85,247,0.7)", border: "1px solid rgba(168,85,247,0.18)", letterSpacing: "0.04em" }}>{l}</span>
+                      ))}
+                      {isPodcast && <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(29,185,84,0.08)", color: "rgba(29,185,84,0.7)", border: "1px solid rgba(29,185,84,0.18)" }}>podcast</span>}
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
-          {hasMore && <div style={{ textAlign: "center", padding: "20px 0 8px", fontSize: 11, color: "rgba(168,85,247,0.4)" }}>Scroll for more videos...</div>}
+          {hasMore && <div style={{ textAlign: "center", padding: "24px 0 8px", fontSize: 10, color: "rgba(168,85,247,0.3)", letterSpacing: "0.1em" }}>↓ SCROLL FOR MORE</div>}
         </div>
       )}
-      <style>{`.lib-play-overlay { opacity: 0 !important; } [style*="cursor: pointer"]:hover .lib-play-overlay { opacity: 1 !important; }`}</style>
     </div>
   );
 }
@@ -4411,7 +4590,7 @@ export default function LandingPage() {
       <ExclusiveSection
         c={c}
         subUser={subUser}
-        onLogin={(u) => setSubUser(u)}
+        onLogin={(u) => { setSubUser(u); setShowLibrary(true); }}
         onLogout={() => setSubUser(null)}
       />
 
