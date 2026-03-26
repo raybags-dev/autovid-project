@@ -1596,7 +1596,7 @@ function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
                 </div>
               </form>
             )}
-              </div>  {/* end guest state */}
+              </div>
             )}
           </div>
         </div>
