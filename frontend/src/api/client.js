@@ -455,19 +455,39 @@ export const deleteSubscriptionUser = async (id) => {
   return data;
 };
 
-export const replaceVideoFile = async (id, file, onProgress) => {
-  const { data } = await api.post(`/videos/${id}/replace-file`, file, {
-    headers: {
-      "Content-Type": file.type || "application/octet-stream",
-      "X-Filename": file.name || "video.mp4",
-    },
-    timeout: 600000,
-    onUploadProgress: onProgress ? (e) => {
-      const pct = e.total ? Math.round((e.loaded * 100) / e.total) : null;
-      onProgress(pct, e.loaded, e.total);
-    } : undefined,
+export const replaceVideoFile = async (id, file, onProgress, onLog) => {
+  // Step 1 — get a Supabase signed upload URL from the backend
+  onLog?.("[INFO] Getting upload URL...");
+  const { data: urlData } = await api.post(`/videos/${id}/upload-url`, { filename: file.name || "video.mp4" });
+  const { upload_url, file_path, public_url } = urlData;
+
+  // Step 2 — PUT the file directly to Supabase (bypasses nginx/uvicorn entirely)
+  onLog?.("[INFO] Uploading to Supabase Storage...");
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", upload_url);
+    xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded * 100) / e.total));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Supabase upload failed: ${xhr.status} ${xhr.responseText?.slice(0, 200)}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(file);
   });
-  return data;
+
+  // Step 3 — tell backend to update the DB record
+  onLog?.("[INFO] Finalizing...");
+  await api.post(`/videos/${id}/finalize-upload`, { file_path, public_url });
+  onLog?.("[DONE] Replace complete");
+  return { ok: true, file_path: public_url, thumbnail_url: null };
 };
 
 export const uploadExclusivePreviewVideo = async (file) => {

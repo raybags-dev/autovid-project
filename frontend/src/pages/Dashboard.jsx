@@ -5322,7 +5322,7 @@ export default function Dashboard() {
                             </div>
                             {cardReplaceProgress !== null && cardReplaceProgress < 100 && (
                               <div style={{ padding: "8px 14px" }}>
-                                <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Uploading to server... {cardReplaceProgress}%</div>
+                                <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Uploading to Supabase... {cardReplaceProgress}%</div>
                                 <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden" }}>
                                   <div style={{ height: "100%", width: `${cardReplaceProgress}%`, background: T.accent, borderRadius: 2, transition: "width 0.3s" }} />
                                 </div>
@@ -11425,24 +11425,17 @@ export default function Dashboard() {
             setCardReplaceRunning(true);
             setCardReplaceLog([]);
             setCardReplaceProgress(0);
-            // Start polling backend logs
-            clearInterval(cardReplacePollRef.current);
-            let since = 0;
-            cardReplacePollRef.current = setInterval(async () => {
-              try {
-                const { data } = await api.get(`/videos/${videoId}/logs?since=${since}`);
-                if (data?.lines?.length) {
-                  since += data.lines.length;
-                  setCardReplaceLog(prev => [...prev, ...data.lines].slice(-300));
-                  setTimeout(() => cardReplaceEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-                }
-                if (data?.done) clearInterval(cardReplacePollRef.current);
-              } catch (_) {}
-            }, 1000);
+            // Upload goes directly to Supabase — no backend log polling needed
             try {
-              const result = await replaceVideoFile(videoId, file, (pct) => {
-                if (pct !== null) setCardReplaceProgress(pct);
-              });
+              const result = await replaceVideoFile(
+                videoId,
+                file,
+                (pct) => { if (pct !== null) setCardReplaceProgress(pct); },
+                (msg) => {
+                  setCardReplaceLog(prev => [...prev, msg]);
+                  setTimeout(() => cardReplaceEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+                },
+              );
               setCardReplaceProgress(100);
               setVideos(vs => vs.map(v => v.id === videoId ? { ...v, file_path: result.file_path, thumbnail_url: result.thumbnail_url || v.thumbnail_url, status: "ready" } : v));
               showToast("Video file replaced");
