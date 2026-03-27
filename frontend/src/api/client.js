@@ -455,10 +455,16 @@ export const deleteSubscriptionUser = async (id) => {
   return data;
 };
 
-export const replaceVideoFile = async (id, file) => {
+export const replaceVideoFile = async (id, file, onProgress) => {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await api.post(`/videos/${id}/replace-file`, form, { timeout: 600000 });
+  const { data } = await api.post(`/videos/${id}/replace-file`, form, {
+    timeout: 600000,
+    onUploadProgress: onProgress ? (e) => {
+      const pct = e.total ? Math.round((e.loaded * 100) / e.total) : null;
+      onProgress(pct, e.loaded, e.total);
+    } : undefined,
+  });
   return data;
 };
 

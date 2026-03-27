@@ -1278,6 +1278,14 @@ export default function Dashboard() {
   const [replaceLogVideoId, setReplaceLogVideoId] = useState(null);
   const replaceLogPollRef = useRef(null);
   const replaceLogEndRef = useRef(null);
+  // Card-level inline replace
+  const cardReplaceInputRef = useRef(null);
+  const [cardReplaceId, setCardReplaceId] = useState(null);
+  const [cardReplaceLog, setCardReplaceLog] = useState([]);
+  const [cardReplaceProgress, setCardReplaceProgress] = useState(null); // 0-100
+  const [cardReplaceRunning, setCardReplaceRunning] = useState(false);
+  const cardReplacePollRef = useRef(null);
+  const cardReplaceEndRef = useRef(null);
   const [shortLogs, setShortLogs] = useState([]);
   const [shortLogVideoId, setShortLogVideoId] = useState(null);
   const [shortPipeStep, setShortPipeStep] = useState(0);
@@ -1664,6 +1672,11 @@ export default function Dashboard() {
         }
       } catch (_) {}
     }, 1500);
+  };
+
+  const handleCardReplace = (videoId) => {
+    setCardReplaceId(videoId);
+    setTimeout(() => cardReplaceInputRef.current?.click(), 50);
   };
 
   const startReplaceLogs = (videoId) => {
@@ -5241,6 +5254,17 @@ export default function Dashboard() {
                               📱 Make Short
                             </button>
                           )}
+                          {/* ── Inline Replace File ── */}
+                          {(v.status === "ready" || v.status === "posted") && v.file_path && (
+                            <button
+                              className="btn-sm"
+                              onClick={(e) => { e.stopPropagation(); handleCardReplace(v.id); }}
+                              disabled={cardReplaceRunning && cardReplaceId === v.id}
+                              style={{ color: "#ffb020", borderColor: "rgba(255,176,32,0.3)", background: "rgba(255,176,32,0.06)", opacity: cardReplaceRunning && cardReplaceId === v.id ? 0.5 : 1 }}
+                            >
+                              {cardReplaceRunning && cardReplaceId === v.id ? "⟳ Replacing..." : "⬆ REPLACE FILE"}
+                            </button>
+                          )}
                           {v.status === "uploading" && (
                             <span
                               style={{
@@ -5288,6 +5312,34 @@ export default function Dashboard() {
                             ✕ DELETE
                           </button>
                         </div>
+                        {/* ── Card inline replace log ── */}
+                        {cardReplaceId === v.id && (cardReplaceLog.length > 0 || cardReplaceProgress !== null) && (
+                          <div style={{ marginTop: 10, background: isDark ? "#08090e" : "#f0f2f5", border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                            <div style={{ padding: "7px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+                              <span style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.12em", flex: 1 }}>
+                                📋 REPLACE LOGS {cardReplaceRunning && <span style={{ color: T.accent }}>● LIVE</span>}
+                              </span>
+                            </div>
+                            {cardReplaceProgress !== null && cardReplaceProgress < 100 && (
+                              <div style={{ padding: "8px 14px" }}>
+                                <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Uploading to server... {cardReplaceProgress}%</div>
+                                <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${cardReplaceProgress}%`, background: T.accent, borderRadius: 2, transition: "width 0.3s" }} />
+                                </div>
+                              </div>
+                            )}
+                            {cardReplaceLog.length > 0 && (
+                              <div style={{ maxHeight: 200, overflowY: "auto", padding: "8px 14px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
+                                {cardReplaceLog.map((line, i) => (
+                                  <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : line.startsWith("[WARN]") ? "#ffb020" : isDark ? "#a0d0a0" : "#2d5a2d" }}>
+                                    {line}
+                                  </div>
+                                ))}
+                                <div ref={cardReplaceEndRef} />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -11358,6 +11410,52 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {/* ── Hidden file input for CARD-LEVEL replace ─────────────────────────── */}
+        <input
+          ref={cardReplaceInputRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime"
+          style={{ display: "none" }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file || !cardReplaceId) return;
+            const videoId = cardReplaceId;
+            setCardReplaceRunning(true);
+            setCardReplaceLog([]);
+            setCardReplaceProgress(0);
+            // Start polling backend logs
+            clearInterval(cardReplacePollRef.current);
+            let since = 0;
+            cardReplacePollRef.current = setInterval(async () => {
+              try {
+                const { data } = await api.get(`/videos/${videoId}/logs?since=${since}`);
+                if (data?.lines?.length) {
+                  since += data.lines.length;
+                  setCardReplaceLog(prev => [...prev, ...data.lines].slice(-300));
+                  setTimeout(() => cardReplaceEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+                }
+                if (data?.done) clearInterval(cardReplacePollRef.current);
+              } catch (_) {}
+            }, 1000);
+            try {
+              const result = await replaceVideoFile(videoId, file, (pct) => {
+                if (pct !== null) setCardReplaceProgress(pct);
+              });
+              setCardReplaceProgress(100);
+              setVideos(vs => vs.map(v => v.id === videoId ? { ...v, file_path: result.file_path, thumbnail_url: result.thumbnail_url || v.thumbnail_url, status: "ready" } : v));
+              showToast("Video file replaced");
+            } catch (err) {
+              const msg = err?.response?.data?.detail || err?.message || "Upload failed";
+              setCardReplaceLog(prev => [...prev, `[ERROR] ${msg}`]);
+              showToast(msg, "error");
+            } finally {
+              setCardReplaceRunning(false);
+              setCardReplaceProgress(null);
+            }
+          }}
+        />
 
         {/* ── Hidden file input for replacing video files ─────────────────────────── */}
         <input
