@@ -1841,8 +1841,10 @@ async def upload_exclusive_preview_video(file: UploadFile = File(...), _u: str =
 
 @app.post("/videos/{video_id}/replace-file")
 async def replace_video_file(video_id: str, file: UploadFile = File(...), _u: str = Depends(verify_token)):
-    """Admin — replace the mp4 file for an existing video record."""
+    """Admin — replace the mp4 file for an existing video record, uploading to Supabase Storage."""
     import shutil as _shutil
+    import asyncio as _asyncio
+
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(404, "Video not found")
@@ -1860,31 +1862,80 @@ async def replace_video_file(video_id: str, file: UploadFile = File(...), _u: st
     with _pipeline_lock:
         _active_pipelines[video_id] = {"log_buffer": [], "done": False}
 
+    tmp_dest = _cfg.VIDEOS_OUTPUT_DIR / f"{video_id}_replace_tmp{suffix}"
+
     try:
         _rlog(f"[INFO] Replacing file for video {video_id[:8]}...")
-        _rlog(f"[INFO] Filename: {file.filename}  type: {suffix}")
-        dest = _cfg.VIDEOS_OUTPUT_DIR / f"{video_id}{suffix}"
-        _rlog(f"[INFO] Writing to {dest.name}...")
-        with dest.open("wb") as f:
-            _shutil.copyfileobj(file.file, f)
-        size_mb = dest.stat().st_size / (1024 * 1024)
-        _rlog(f"[INFO] Saved {size_mb:.1f} MB")
-        new_path = str(dest)
-        db.update_video(video_id, file_path=new_path, status="ready")
-        _rlog("[INFO] DB updated — file_path set, status → ready")
-        _rlog("[INFO] Generating thumbnail from new file...")
-        thumb_url = _generate_thumbnail(new_path, video_id)
+        _rlog(f"[INFO] File: {file.filename} ({suffix})")
+
+        # 1 — Save upload to temp file (run blocking I/O off event loop)
+        _rlog("[INFO] Saving uploaded file...")
+        loop = _asyncio.get_event_loop()
+
+        def _save():
+            with tmp_dest.open("wb") as out_f:
+                _shutil.copyfileobj(file.file, out_f)
+
+        await loop.run_in_executor(None, _save)
+        size_mb = tmp_dest.stat().st_size / (1024 * 1024)
+        _rlog(f"[INFO] Saved {size_mb:.1f} MB to temp file")
+
+        # 2 — Upload to Supabase Storage
+        new_file_path = str(tmp_dest)  # fallback to local if Supabase unavailable
+        _rlog("[INFO] Uploading to Supabase Storage...")
+        try:
+            from pipeline.storage import upload_to_storage as _upload_storage
+            storage_url = await loop.run_in_executor(None, lambda: _upload_storage(str(tmp_dest), video_id))
+            new_file_path = storage_url
+            _rlog(f"[INFO] Supabase upload OK: ...{storage_url[-40:]}")
+        except Exception as se:
+            _rlog(f"[WARN] Supabase upload failed ({se}) — keeping local path")
+
+        # 3 — Update DB with new file path
+        _rlog("[INFO] Updating DB record...")
+        try:
+            result = db.get_client().table("videos").update({"file_path": new_file_path, "status": "ready"}).eq("id", video_id).execute()
+            _rlog(f"[INFO] DB updated — file_path={'Supabase URL' if new_file_path.startswith('http') else 'local'}, status=ready")
+        except Exception as de:
+            _rlog(f"[ERROR] DB update failed: {de}")
+            raise HTTPException(500, f"DB update failed: {de}")
+
+        # 4 — Generate thumbnail from temp file
+        _rlog("[INFO] Generating thumbnail...")
+        thumb_url = _generate_thumbnail(str(tmp_dest), video_id)
         if thumb_url:
-            db.update_video(video_id, thumbnail_url=thumb_url)
-            _rlog(f"[INFO] Thumbnail saved: {thumb_url}")
+            try:
+                db.get_client().table("videos").update({"thumbnail_url": thumb_url}).eq("id", video_id).execute()
+                _rlog(f"[INFO] Thumbnail saved: {thumb_url}")
+            except Exception:
+                pass
         else:
-            _rlog("[WARN] Thumbnail generation failed (ffmpeg error or no ffmpeg)")
+            _rlog("[WARN] Thumbnail generation skipped (ffmpeg unavailable?)")
+
+        # 5 — Clean up temp file if successfully uploaded to Supabase
+        if new_file_path.startswith("http") and tmp_dest.exists():
+            tmp_dest.unlink(missing_ok=True)
+            _rlog("[INFO] Temp file removed")
+        elif not new_file_path.startswith("http"):
+            # Keep local temp as the permanent file
+            final = _cfg.VIDEOS_OUTPUT_DIR / f"{video_id}{suffix}"
+            tmp_dest.rename(final)
+            _rlog(f"[INFO] Moved to {final.name}")
+
         _rlog("[DONE] Replace complete")
-        return {"ok": True, "file_path": new_path, "thumbnail_url": thumb_url}
+        return {"ok": True, "file_path": new_file_path, "thumbnail_url": thumb_url}
+    except HTTPException:
+        raise
     except Exception as e:
         _rlog(f"[ERROR] Replace failed: {e}")
-        raise
+        raise HTTPException(500, str(e))
     finally:
+        # Clean up temp if still present after any error
+        if tmp_dest.exists():
+            try:
+                tmp_dest.unlink(missing_ok=True)
+            except Exception:
+                pass
         with _pipeline_lock:
             entry = _active_pipelines.get(video_id)
             if entry is not None:
