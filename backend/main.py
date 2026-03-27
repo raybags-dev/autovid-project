@@ -1898,20 +1898,14 @@ async def finalize_video_upload(video_id: str, body: _FinalizeUploadBody, _u: st
 
 @app.post("/videos/{video_id}/replace-file")
 async def replace_video_file(video_id: str, request: Request, _u: str = Depends(verify_token)):
-    """Admin — replace the mp4 file for an existing video record, uploading to Supabase Storage.
+    """Admin — replace the mp4 file for an existing video record.
 
-    Upload flow (no Starlette multipart buffering, no per-chunk disk I/O):
-      1. Stream request body → BytesIO in RAM  (async, non-blocking — pure memcpy)
-      2. In a single thread-executor call:
-           a. Write BytesIO → temp file  (one blocking call, not per-chunk)
-           b. Upload temp file → Supabase Storage
-           c. Generate thumbnail via ffmpeg
-           d. Remove temp file
-      3. Update DB with Supabase public URL
+    Upload flow — browser → nginx → uvicorn → httpx → Supabase (pure async pipe):
+      • httpx.AsyncClient streams request body directly to Supabase Storage
+      • No disk I/O, no BytesIO buffering, event loop never blocks
+      • Browser progress tracks bytes sent to the backend (same-origin, no CORS)
     """
-    import asyncio as _asyncio
-    import io as _io
-    import shutil as _shutil
+    import httpx as _httpx
 
     raw_filename = request.headers.get("x-filename", "video.mp4")
     suffix = _P(raw_filename).suffix.lower() if raw_filename else ".mp4"
@@ -1932,90 +1926,53 @@ async def replace_video_file(video_id: str, request: Request, _u: str = Depends(
     with _pipeline_lock:
         _active_pipelines[video_id] = {"log_buffer": [], "done": False}
 
-    tmp_dest = _cfg.VIDEOS_OUTPUT_DIR / f"{video_id}_replace_tmp{suffix}"
-    new_file_path = None
-    thumb_url = None
+    BUCKET = "videos"
+    filename = f"{video_id}_final.mp4"
+    base = _cfg.SUPABASE_URL.rstrip("/")
+    upload_url = f"{base}/storage/v1/object/{BUCKET}/{filename}"
+    public_url = f"{base}/storage/v1/object/public/{BUCKET}/{filename}"
 
     try:
-        _rlog(f"[INFO] Replacing file for video {video_id[:8]}...")
+        _rlog(f"[INFO] Replacing video {video_id[:8]}...")
+        _rlog("[INFO] Streaming to Supabase Storage...")
 
-        # ── Step 1: Collect body into RAM (async, no blocking I/O) ───────────────
-        # BytesIO.write() is a pure memcpy — never stalls the event loop.
-        # This is why progress moves smoothly; the loop stays free to read chunks.
-        _rlog("[INFO] Receiving upload...")
-        buf = _io.BytesIO()
-        chunk_count = 0
-        async for chunk in request.stream():
-            buf.write(chunk)
-            chunk_count += 1
-            if chunk_count % 200 == 0:
-                _rlog(f"[INFO] Received {buf.tell() / (1024*1024):.1f} MB so far...")
+        content_length = request.headers.get("content-length")
+        upload_headers = {
+            "Authorization": f"Bearer {_cfg.SUPABASE_SERVICE_KEY}",
+            "Content-Type": "video/mp4",
+            "x-upsert": "true",
+        }
+        if content_length:
+            upload_headers["Content-Length"] = content_length
 
-        total_mb = buf.tell() / (1024 * 1024)
-        buf.seek(0)
-        _rlog(f"[INFO] Upload complete — {total_mb:.1f} MB ({chunk_count} chunks)")
+        # Async generator: yields chunks from the incoming request directly to httpx.
+        # No buffering — each chunk flows browser → uvicorn → httpx → Supabase in the same event loop tick.
+        async def _body():
+            async for chunk in request.stream():
+                yield chunk
 
-        # ── Step 2: All blocking I/O in a single executor call ───────────────────
-        loop = _asyncio.get_event_loop()
-        _result = {"file_path": None, "thumb_url": None, "error": None}
+        async with _httpx.AsyncClient(timeout=_httpx.Timeout(600.0)) as client:
+            resp = await client.put(upload_url, content=_body(), headers=upload_headers)
 
-        def _blocking_work():
-            try:
-                # 2a — Write buffer to temp file (one write, not per-chunk)
-                _rlog("[INFO] Saving to disk...")
-                with tmp_dest.open("wb") as f:
-                    _shutil.copyfileobj(buf, f)
-                size_mb = tmp_dest.stat().st_size / (1024 * 1024)
-                _rlog(f"[INFO] Saved {size_mb:.1f} MB")
+        if resp.status_code not in (200, 201):
+            raise HTTPException(500, f"Supabase upload failed {resp.status_code}: {resp.text[:300]}")
 
-                # 2b — Upload to Supabase Storage
-                _rlog("[INFO] Uploading to Supabase Storage...")
-                from pipeline.storage import upload_to_storage as _upload
-                url = _upload(str(tmp_dest), video_id)
-                _result["file_path"] = url
-                _rlog(f"[INFO] Supabase upload OK")
+        size_mb = int(content_length or 0) / (1024 * 1024)
+        _rlog(f"[INFO] Supabase upload OK ({size_mb:.1f} MB)")
 
-                # 2c — Generate thumbnail
-                _rlog("[INFO] Generating thumbnail...")
-                t = _generate_thumbnail(str(tmp_dest), video_id)
-                _result["thumb_url"] = t
-                if t:
-                    _rlog("[INFO] Thumbnail generated")
-
-                # 2d — Remove temp file (uploaded to Supabase)
-                if tmp_dest.exists():
-                    tmp_dest.unlink(missing_ok=True)
-
-            except Exception as exc:
-                _result["error"] = str(exc)
-                if tmp_dest.exists():
-                    try:
-                        tmp_dest.unlink(missing_ok=True)
-                    except Exception:
-                        pass
-
-        await loop.run_in_executor(None, _blocking_work)
-
-        if _result["error"]:
-            _rlog(f"[ERROR] {_result['error']}")
-            raise HTTPException(500, _result["error"])
-
-        new_file_path = _result["file_path"]
-        thumb_url = _result["thumb_url"]
-
-        # ── Step 3: Update DB ─────────────────────────────────────────────────────
+        # Update DB
         _rlog("[INFO] Updating DB...")
-        update_payload = {"file_path": new_file_path, "status": "ready"}
-        if thumb_url:
-            update_payload["thumbnail_url"] = thumb_url
         try:
-            db.get_client().table("videos").update(update_payload).eq("id", video_id).execute()
+            db.get_client().table("videos").update({
+                "file_path": public_url,
+                "status": "ready",
+            }).eq("id", video_id).execute()
         except Exception as de:
             _rlog(f"[ERROR] DB update failed: {de}")
             raise HTTPException(500, f"DB update failed: {de}")
 
         _rlog("[DONE] Replace complete")
-        return {"ok": True, "file_path": new_file_path, "thumbnail_url": thumb_url}
+        return {"ok": True, "file_path": public_url, "thumbnail_url": None}
 
     except HTTPException:
         raise
@@ -2023,11 +1980,6 @@ async def replace_video_file(video_id: str, request: Request, _u: str = Depends(
         _rlog(f"[ERROR] Replace failed: {e}")
         raise HTTPException(500, str(e))
     finally:
-        if tmp_dest.exists():
-            try:
-                tmp_dest.unlink(missing_ok=True)
-            except Exception:
-                pass
         with _pipeline_lock:
             entry = _active_pipelines.get(video_id)
             if entry is not None:

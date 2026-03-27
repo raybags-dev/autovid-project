@@ -11425,17 +11425,24 @@ export default function Dashboard() {
             setCardReplaceRunning(true);
             setCardReplaceLog([]);
             setCardReplaceProgress(0);
-            // Upload goes directly to Supabase — no backend log polling needed
-            try {
-              const result = await replaceVideoFile(
-                videoId,
-                file,
-                (pct) => { if (pct !== null) setCardReplaceProgress(pct); },
-                (msg) => {
-                  setCardReplaceLog(prev => [...prev, msg]);
+            // Poll backend logs (backend streams to Supabase via httpx and logs each step)
+            clearInterval(cardReplacePollRef.current);
+            let since = 0;
+            cardReplacePollRef.current = setInterval(async () => {
+              try {
+                const { data } = await api.get(`/videos/${videoId}/logs?since=${since}`);
+                if (data?.lines?.length) {
+                  since += data.lines.length;
+                  setCardReplaceLog(prev => [...prev, ...data.lines].slice(-300));
                   setTimeout(() => cardReplaceEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-                },
-              );
+                }
+                if (data?.done) clearInterval(cardReplacePollRef.current);
+              } catch (_) {}
+            }, 1000);
+            try {
+              const result = await replaceVideoFile(videoId, file, (pct) => {
+                if (pct !== null) setCardReplaceProgress(pct);
+              });
               setCardReplaceProgress(100);
               setVideos(vs => vs.map(v => v.id === videoId ? { ...v, file_path: result.file_path, thumbnail_url: result.thumbnail_url || v.thumbnail_url, status: "ready" } : v));
               showToast("Video file replaced");
@@ -11444,6 +11451,7 @@ export default function Dashboard() {
               setCardReplaceLog(prev => [...prev, `[ERROR] ${msg}`]);
               showToast(msg, "error");
             } finally {
+              clearInterval(cardReplacePollRef.current);
               setCardReplaceRunning(false);
               setCardReplaceProgress(null);
             }
