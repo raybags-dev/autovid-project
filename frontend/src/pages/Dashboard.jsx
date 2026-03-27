@@ -5322,7 +5322,7 @@ export default function Dashboard() {
                             </div>
                             {cardReplaceProgress !== null && cardReplaceProgress < 100 && (
                               <div style={{ padding: "8px 14px" }}>
-                                <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Uploading to Supabase... {cardReplaceProgress}%</div>
+                                <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Uploading to server... {cardReplaceProgress}%</div>
                                 <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden" }}>
                                   <div style={{ height: "100%", width: `${cardReplaceProgress}%`, background: T.accent, borderRadius: 2, transition: "width 0.3s" }} />
                                 </div>
