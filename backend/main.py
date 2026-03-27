@@ -1840,17 +1840,19 @@ async def upload_exclusive_preview_video(file: UploadFile = File(...), _u: str =
 
 
 @app.post("/videos/{video_id}/replace-file")
-async def replace_video_file(video_id: str, file: UploadFile = File(...), _u: str = Depends(verify_token)):
+async def replace_video_file(video_id: str, request: Request, _u: str = Depends(verify_token)):
     """Admin — replace the mp4 file for an existing video record, uploading to Supabase Storage."""
-    import shutil as _shutil
     import asyncio as _asyncio
+
+    # Filename and suffix come from the X-Filename header (raw binary upload, no multipart)
+    raw_filename = request.headers.get("x-filename", "video.mp4")
+    suffix = _P(raw_filename).suffix.lower() if raw_filename else ".mp4"
+    if suffix not in (".mp4", ".webm", ".mov"):
+        raise HTTPException(400, "Only .mp4 / .webm / .mov files are supported")
 
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(404, "Video not found")
-    suffix = _P(file.filename).suffix.lower() if file.filename else ".mp4"
-    if suffix not in (".mp4", ".webm", ".mov"):
-        raise HTTPException(400, "Only .mp4 / .webm / .mov files are supported")
 
     def _rlog(msg):
         with _pipeline_lock:
@@ -1866,19 +1868,19 @@ async def replace_video_file(video_id: str, file: UploadFile = File(...), _u: st
 
     try:
         _rlog(f"[INFO] Replacing file for video {video_id[:8]}...")
-        _rlog(f"[INFO] File: {file.filename} ({suffix})")
+        _rlog(f"[INFO] File: {raw_filename} ({suffix})")
 
-        # 1 — Save upload to temp file (run blocking I/O off event loop)
-        _rlog("[INFO] Saving uploaded file...")
+        # 1 — Stream request body directly to disk (no Starlette buffering)
+        _rlog("[INFO] Uploading to server...")
         loop = _asyncio.get_event_loop()
+        bytes_written = 0
+        with tmp_dest.open("wb") as out_f:
+            async for chunk in request.stream():
+                out_f.write(chunk)
+                bytes_written += len(chunk)
 
-        def _save():
-            with tmp_dest.open("wb") as out_f:
-                _shutil.copyfileobj(file.file, out_f)
-
-        await loop.run_in_executor(None, _save)
-        size_mb = tmp_dest.stat().st_size / (1024 * 1024)
-        _rlog(f"[INFO] Saved {size_mb:.1f} MB to temp file")
+        size_mb = bytes_written / (1024 * 1024)
+        _rlog(f"[INFO] Received {size_mb:.1f} MB")
 
         # 2 — Upload to Supabase Storage
         new_file_path = str(tmp_dest)  # fallback to local if Supabase unavailable

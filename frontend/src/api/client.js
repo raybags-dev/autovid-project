@@ -456,9 +456,11 @@ export const deleteSubscriptionUser = async (id) => {
 };
 
 export const replaceVideoFile = async (id, file, onProgress) => {
-  const form = new FormData();
-  form.append("file", file);
-  const { data } = await api.post(`/videos/${id}/replace-file`, form, {
+  const { data } = await api.post(`/videos/${id}/replace-file`, file, {
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      "X-Filename": file.name || "video.mp4",
+    },
     timeout: 600000,
     onUploadProgress: onProgress ? (e) => {
       const pct = e.total ? Math.round((e.loaded * 100) / e.total) : null;
