@@ -1900,12 +1900,12 @@ async def finalize_video_upload(video_id: str, body: _FinalizeUploadBody, _u: st
 async def replace_video_file(video_id: str, request: Request, _u: str = Depends(verify_token)):
     """Admin — replace the mp4 file for an existing video record.
 
-    Upload flow — browser → nginx → uvicorn → httpx → Supabase (pure async pipe):
-      • httpx.AsyncClient streams request body directly to Supabase Storage
-      • No disk I/O, no BytesIO buffering, event loop never blocks
-      • Browser progress tracks bytes sent to the backend (same-origin, no CORS)
+    Upload flow — browser → nginx → uvicorn (buffer) → httpx → Supabase:
+      • Body buffered in RAM first so browser upload completes at full speed
+      • Eliminates TCP backpressure stall caused by Supabase upload rate coupling
     """
     import httpx as _httpx
+    from pathlib import Path as _P
 
     raw_filename = request.headers.get("x-filename", "video.mp4")
     suffix = _P(raw_filename).suffix.lower() if raw_filename else ".mp4"
@@ -1934,30 +1934,28 @@ async def replace_video_file(video_id: str, request: Request, _u: str = Depends(
 
     try:
         _rlog(f"[INFO] Replacing video {video_id[:8]}...")
-        _rlog("[INFO] Streaming to Supabase Storage...")
+        _rlog("[INFO] Receiving file from browser...")
 
-        content_length = request.headers.get("content-length")
+        # Buffer the entire body first. This lets uvicorn drain the socket at full
+        # speed so the browser sees 100% upload progress immediately, then we upload
+        # to Supabase as a separate step — no TCP backpressure stall.
+        body_bytes = await request.body()
+        size_mb = len(body_bytes) / (1024 * 1024)
+        _rlog(f"[INFO] Received {size_mb:.1f} MB — uploading to Supabase...")
+
         upload_headers = {
             "Authorization": f"Bearer {_cfg.SUPABASE_SERVICE_KEY}",
             "Content-Type": "video/mp4",
+            "Content-Length": str(len(body_bytes)),
             "x-upsert": "true",
         }
-        if content_length:
-            upload_headers["Content-Length"] = content_length
-
-        # Async generator: yields chunks from the incoming request directly to httpx.
-        # No buffering — each chunk flows browser → uvicorn → httpx → Supabase in the same event loop tick.
-        async def _body():
-            async for chunk in request.stream():
-                yield chunk
 
         async with _httpx.AsyncClient(timeout=_httpx.Timeout(600.0)) as client:
-            resp = await client.put(upload_url, content=_body(), headers=upload_headers)
+            resp = await client.put(upload_url, content=body_bytes, headers=upload_headers)
 
         if resp.status_code not in (200, 201):
             raise HTTPException(500, f"Supabase upload failed {resp.status_code}: {resp.text[:300]}")
 
-        size_mb = int(content_length or 0) / (1024 * 1024)
         _rlog(f"[INFO] Supabase upload OK ({size_mb:.1f} MB)")
 
         # Update DB
