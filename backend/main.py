@@ -1839,6 +1839,63 @@ async def upload_exclusive_preview_video(file: UploadFile = File(...), _u: str =
     return {"ok": True, "url": url}
 
 
+class _FinalizeUploadBody(BaseModel):
+    file_path: str
+    public_url: str
+
+@app.post("/videos/{video_id}/upload-url")
+async def get_video_upload_url(video_id: str, body: dict, _u: str = Depends(verify_token)):
+    """Return a Supabase signed upload URL so the browser can PUT the file directly to storage.
+    The backend never touches the file bytes — no nginx/uvicorn bottleneck."""
+    import requests as _req
+    from uuid import uuid4 as _uuid4
+
+    filename = body.get("filename", "video.mp4")
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "mp4"
+    if ext not in ("mp4", "webm", "mov"):
+        raise HTTPException(400, "Only .mp4 / .webm / .mov files are supported")
+
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+
+    BUCKET = "videos"
+    path = f"{video_id}/{_uuid4()}.{ext}"
+    base = _cfg.SUPABASE_URL.rstrip("/")
+
+    resp = _req.post(
+        f"{base}/storage/v1/object/upload/sign/{BUCKET}/{path}",
+        headers={"Authorization": f"Bearer {_cfg.SUPABASE_SERVICE_KEY}"},
+        timeout=10,
+    )
+    if resp.status_code not in (200, 201):
+        raise HTTPException(500, f"Supabase signed URL creation failed: {resp.text[:200]}")
+
+    signed = resp.json()
+    # Supabase returns a relative path like /storage/v1/object/upload/sign?token=...
+    signed_relative = signed.get("signedURL") or signed.get("signedUrl", "")
+    upload_url = f"{base}{signed_relative}"
+    public_url = f"{base}/storage/v1/object/public/{BUCKET}/{path}"
+
+    return {"upload_url": upload_url, "file_path": path, "public_url": public_url}
+
+
+@app.post("/videos/{video_id}/finalize-upload")
+async def finalize_video_upload(video_id: str, body: _FinalizeUploadBody, _u: str = Depends(verify_token)):
+    """After direct Supabase upload completes, update the DB record with the new file URL."""
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(404, "Video not found")
+    try:
+        db.get_client().table("videos").update({
+            "file_path": body.public_url,
+            "status": "ready",
+        }).eq("id", video_id).execute()
+    except Exception as e:
+        raise HTTPException(500, f"DB update failed: {e}")
+    return {"ok": True, "file_path": body.public_url}
+
+
 @app.post("/videos/{video_id}/replace-file")
 async def replace_video_file(video_id: str, request: Request, _u: str = Depends(verify_token)):
     """Admin — replace the mp4 file for an existing video record, uploading to Supabase Storage.
