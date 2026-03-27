@@ -2484,10 +2484,10 @@ export default function Dashboard() {
     // Full Supabase/remote URL → play directly
     if (filePath.startsWith("http://") || filePath.startsWith("https://"))
       return filePath;
-    // Local path → serve via backend static mount
+    // Local path → serve via nginx proxy (relative, works on any host)
     const filename = filePath.split("/").pop();
     if (filename && filename.endsWith(".mp4"))
-      return `http://localhost:8000/local-videos/${filename}`;
+      return `/local-videos/${filename}`;
     return null;
   };
 
