@@ -4076,95 +4076,96 @@ def list_cc(include_archived: bool = False, user: str = Depends(verify_token)):
     return db.list_custom_content(include_archived=include_archived)
 
 
-@app.post("/custom-content/upload")
-async def upload_custom_content(
-    file: UploadFile = File(...),
-    title: str = "",
-    description: str = "",
-    tags: str = "",
-    category: str = "Entertainment",
-    privacy: str = "public",
-    user: str = Depends(verify_token),
-):
-    """Receive an MP4, persist to a temp file, create a DB record, then stream-upload to
-    Supabase Storage in a background thread — returns immediately with the item record."""
-    if not file.filename.lower().endswith(".mp4"):
-        raise HTTPException(400, "Only .mp4 files are accepted")
-    if not title.strip():
+@app.post("/custom-content/request-upload")
+def request_cc_upload(req: CustomContentUploadMeta, user: str = Depends(verify_token)):
+    """Step 1 of direct-to-Supabase upload.
+    Creates the DB record and returns a signed upload URL so the browser can PUT
+    the file directly to Supabase Storage — completely bypassing nginx/Cloudflare."""
+    if not req.title.strip():
         raise HTTPException(400, "Title is required")
 
-    # Read uploaded bytes asynchronously (this is fine — uvicorn handles it)
-    content = await file.read()
-    if not content:
-        raise HTTPException(400, "Empty file")
-
     import uuid as _uuid
+    from supabase import create_client as _sb_create
+
     item_id = str(_uuid.uuid4())
+    filename = f"{item_id}.mp4"
 
-    # Write to a named temp file that survives beyond this request handler
-    tmp_path = _CCPath(_tempfile.mktemp(suffix=f"_{item_id}.mp4"))
-    tmp_path.write_bytes(content)
-    del content  # free RAM immediately
+    # Generate a 2-hour signed upload URL (browser will PUT the file to this URL)
+    try:
+        _sb = _sb_create(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+        signed = _sb.storage.from_(_CC_BUCKET).create_signed_upload_url(filename)
+        # supabase-py sometimes returns a double-slash; normalise it
+        raw_url: str = signed["signed_url"].replace("//object/upload", "/object/upload")
+        # Make sure it's an absolute URL
+        if raw_url.startswith("/"):
+            raw_url = config.SUPABASE_URL.rstrip("/") + raw_url
+    except Exception as e:
+        raise HTTPException(500, f"Could not generate upload URL: {e}")
 
-    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    tag_list = [t.strip() for t in (req.tags or "").split(",") if t.strip()]
+    public_url = f"{config.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{_CC_BUCKET}/{filename}"
 
-    # Create DB record immediately with status="uploading" so the frontend can poll
     row = db.create_custom_content(
-        title=title.strip(),
-        description=description,
+        title=req.title.strip(),
+        description=req.description or "",
         tags=tag_list,
-        category=category,
-        privacy=privacy,
+        category=req.category or "Entertainment",
+        privacy=req.privacy or "public",
         file_path=None,
         duration_seconds=None,
     )
-    db.update_custom_content(item_id := row["id"], status="uploading")
+    real_id = row["id"]
+    db.update_custom_content(real_id, status="uploading")
 
-    # Register pipeline so logs endpoint works
+    return {
+        "item":        row,
+        "item_id":     real_id,
+        "signed_url":  raw_url,
+        "public_url":  public_url,
+        "filename":    filename,
+    }
+
+
+@app.post("/custom-content/{item_id}/finalize")
+def finalize_cc_upload(item_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+    """Step 3 of direct-to-Supabase upload.
+    Called by the browser after the PUT to the signed URL succeeds.
+    Updates the DB record to ready and runs ffprobe in a background thread."""
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+
+    filename = f"{item_id}.mp4"
+    public_url = f"{config.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{_CC_BUCKET}/{filename}"
+    db.update_custom_content(item_id, file_path=public_url)
+
     _register_pipeline(item_id)
 
-    def _do_upload():
+    def _probe():
         import subprocess as _sp
         try:
-            size_mb = tmp_path.stat().st_size / (1024 * 1024)
-            _push_log(item_id, f"[UPLOAD] File received — {size_mb:.1f} MB. Processing...")
-
-            # Duration probe
-            duration = None
-            try:
-                r = _sp.run(
-                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                     "-of", "default=noprint_wrappers=1:nokey=1", str(tmp_path)],
-                    capture_output=True, text=True, timeout=30,
-                )
-                duration = int(float(r.stdout.strip()))
-                _push_log(item_id, f"[UPLOAD] Duration detected: {duration}s")
-            except Exception:
-                _push_log(item_id, "[UPLOAD] Could not detect duration (continuing anyway)")
-
-            filename = f"{item_id}.mp4"
-            _push_log(item_id, f"[UPLOAD] Uploading {size_mb:.1f} MB to Supabase Storage...")
-            public_url = _upload_to_cc_bucket(tmp_path, filename, "video/mp4")
-            _push_log(item_id, f"[UPLOAD] Storage upload complete.")
-
-            db.update_custom_content(
-                item_id,
-                status="ready",
-                file_path=public_url,
-                duration_seconds=duration,
+            _push_log(item_id, "[FINALIZE] Probing video duration...")
+            r = _sp.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", public_url],
+                capture_output=True, text=True, timeout=60,
             )
-            _push_log(item_id, f"[UPLOAD] Done — video is ready.")
+            duration = None
+            if r.returncode == 0 and r.stdout.strip():
+                duration = int(float(r.stdout.strip()))
+                _push_log(item_id, f"[FINALIZE] Duration: {duration}s")
+            db.update_custom_content(item_id, status="ready", duration_seconds=duration)
+            _push_log(item_id, "[FINALIZE] Video is ready.")
             _push_log(item_id, "__DONE__")
         except Exception as e:
             _push_log(item_id, f"[ERROR] {e}")
             _push_log(item_id, "__DONE__")
-            db.update_custom_content(item_id, status="failed", error_message=str(e)[:500])
+            db.update_custom_content(item_id, status="ready")  # still mark ready even if probe failed
         finally:
-            tmp_path.unlink(missing_ok=True)
             _unregister_pipeline(item_id)
 
-    _queue_pipeline(_do_upload, job_id=item_id, job_type="cc_upload", prompt=title.strip())
-    return row
+    _queue_pipeline(_probe, job_id=item_id, job_type="cc_finalize", prompt=item.get("title", ""))
+    return {"ok": True, "item_id": item_id, "public_url": public_url}
 
 
 @app.delete("/custom-content/{item_id}")

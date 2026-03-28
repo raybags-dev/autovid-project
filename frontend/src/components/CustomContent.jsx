@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   listCustomContent,
-  uploadCustomContent,
+  requestCCUpload,
+  uploadFileToSignedUrl,
+  finalizeCCUpload,
   deleteCustomContent,
   archiveCustomContent,
   unarchiveCustomContent,
@@ -178,16 +180,34 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
     if (!file) { setError("Please select an MP4 file."); return; }
     if (!form.title.trim()) { setError("Title is required."); return; }
     setPhase("sending"); setError("");
-    setLogs([`Sending ${(file.size / 1024 / 1024).toFixed(1)} MB to server...`]);
+    setLogs(["Step 1/3 — Requesting upload slot from server..."]);
     try {
-      // Backend now returns immediately with item record (status="uploading")
-      const result = await uploadCustomContent(file, form);
-      setItemId(result.id);
+      // Step 1: get signed URL from backend (tiny JSON request, no file bytes)
+      const { item_id, signed_url } = await requestCCUpload(form);
+      setItemId(item_id);
+      setLogs(prev => [...prev,
+        "Step 2/3 — Uploading directly to Supabase Storage (bypasses server)...",
+        `File: ${(file.size / 1024 / 1024).toFixed(1)} MB`,
+      ]);
+
+      // Step 2: PUT file directly to Supabase (no nginx/Cloudflare in path)
+      await uploadFileToSignedUrl(signed_url, file, (pct) => {
+        setLogs(prev => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.startsWith("Uploading: ")) next[next.length - 1] = `Uploading: ${pct}%`;
+          else next.push(`Uploading: ${pct}%`);
+          return next;
+        });
+      });
+      setLogs(prev => [...prev, "Upload complete.", "Step 3/3 — Finalizing on server..."]);
+
+      // Step 3: tell backend to mark ready & run ffprobe
+      await finalizeCCUpload(item_id);
       setPhase("processing");
-      setLogs(prev => [...prev, "File received by server. Processing in background..."]);
     } catch (e) {
       setPhase("error");
-      setError(e?.response?.data?.detail || "Upload failed — check your connection and try again");
+      setError(e?.response?.data?.detail || e?.message || "Upload failed — check console for details");
     }
   };
 

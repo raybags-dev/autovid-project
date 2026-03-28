@@ -469,15 +469,38 @@ export const listCustomContent = async (includeArchived = false) => {
   return data;
 };
 
-export const uploadCustomContent = async (file, { title, description, tags, category, privacy }) => {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("title", title);
-  form.append("description", description || "");
-  form.append("tags", tags || "");
-  form.append("category", category || "Entertainment");
-  form.append("privacy", privacy || "public");
-  const { data } = await api.post("/custom-content/upload", form, { timeout: 600000 });
+/** Step 1: ask backend for a signed Supabase upload URL — no file bytes sent here */
+export const requestCCUpload = async ({ title, description, tags, category, privacy }) => {
+  const { data } = await api.post("/custom-content/request-upload", {
+    title, description: description || "", tags: tags || "",
+    category: category || "Entertainment", privacy: privacy || "public",
+  });
+  return data; // { item, item_id, signed_url, public_url, filename }
+};
+
+/** Step 2: PUT file bytes directly to Supabase signed URL (bypasses nginx/Cloudflare).
+ *  onProgress(percent) is called during upload. Returns when done. */
+export const uploadFileToSignedUrl = (signedUrl, file, onProgress) =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", signedUrl);
+    xhr.setRequestHeader("Content-Type", "video/mp4");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response);
+      else reject(new Error(`Upload failed: ${xhr.status} ${xhr.responseText?.slice(0, 200)}`));
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.ontimeout = () => reject(new Error("Upload timed out"));
+    xhr.timeout = 0; // no timeout for large files
+    xhr.send(file);
+  });
+
+/** Step 3: notify backend the file is in storage — triggers ffprobe in background */
+export const finalizeCCUpload = async (itemId) => {
+  const { data } = await api.post(`/custom-content/${itemId}/finalize`);
   return data;
 };
 
