@@ -4084,27 +4084,11 @@ def request_cc_upload(req: CustomContentUploadMeta, user: str = Depends(verify_t
     if not req.title.strip():
         raise HTTPException(400, "Title is required")
 
-    import uuid as _uuid
     from supabase import create_client as _sb_create
 
-    item_id = str(_uuid.uuid4())
-    filename = f"{item_id}.mp4"
-
-    # Generate a 2-hour signed upload URL (browser will PUT the file to this URL)
-    try:
-        _sb = _sb_create(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
-        signed = _sb.storage.from_(_CC_BUCKET).create_signed_upload_url(filename)
-        # supabase-py sometimes returns a double-slash; normalise it
-        raw_url: str = signed["signed_url"].replace("//object/upload", "/object/upload")
-        # Make sure it's an absolute URL
-        if raw_url.startswith("/"):
-            raw_url = config.SUPABASE_URL.rstrip("/") + raw_url
-    except Exception as e:
-        raise HTTPException(500, f"Could not generate upload URL: {e}")
-
     tag_list = [t.strip() for t in (req.tags or "").split(",") if t.strip()]
-    public_url = f"{config.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{_CC_BUCKET}/{filename}"
 
+    # 1. Create the DB row first so we get Postgres's UUID — this UUID IS the filename.
     row = db.create_custom_content(
         title=req.title.strip(),
         description=req.description or "",
@@ -4114,12 +4098,28 @@ def request_cc_upload(req: CustomContentUploadMeta, user: str = Depends(verify_t
         file_path=None,
         duration_seconds=None,
     )
-    real_id = row["id"]
-    db.update_custom_content(real_id, status="uploading")
+    item_id = row["id"]
+    filename = f"{item_id}.mp4"
+    public_url = f"{config.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{_CC_BUCKET}/{filename}"
+
+    # 2. Generate a 2-hour signed upload URL using the item's own UUID as the path.
+    try:
+        _sb = _sb_create(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+        signed = _sb.storage.from_(_CC_BUCKET).create_signed_upload_url(filename)
+        # supabase-py sometimes returns a double-slash; normalise it
+        raw_url: str = signed["signed_url"].replace("//object/upload", "/object/upload")
+        # Make sure it's an absolute URL
+        if raw_url.startswith("/"):
+            raw_url = config.SUPABASE_URL.rstrip("/") + raw_url
+    except Exception as e:
+        db.delete_custom_content(item_id)  # roll back orphaned row
+        raise HTTPException(500, f"Could not generate upload URL: {e}")
+
+    db.update_custom_content(item_id, status="uploading", file_path=public_url)
 
     return {
         "item":        row,
-        "item_id":     real_id,
+        "item_id":     item_id,
         "signed_url":  raw_url,
         "public_url":  public_url,
         "filename":    filename,
