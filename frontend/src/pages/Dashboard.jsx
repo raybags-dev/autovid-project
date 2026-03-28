@@ -70,6 +70,7 @@ import api, {
   uploadExclusivePreviewVideo,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
+import CustomContent from "../components/CustomContent";
 import ScriptStudio from "../components/ScriptStudio";
 import DangerZone from "../components/DangerZone";
 import VideoEditor from "../components/VideoEditor";
@@ -2867,6 +2868,7 @@ export default function Dashboard() {
               { id: "billing", icon: "◑", label: "Subscriptions" },
               { id: "analytics", icon: "◈", label: "Analytics" },
               { id: "compilations", icon: "🎬", label: "Compilations" },
+              { id: "custom_content", icon: "📦", label: "Custom Content" },
               { id: "reviews", icon: "◈", label: "Reviews", count: pendingReviewCount },
               { id: "subscribers", icon: "🔐", label: "Subscribers" },
               { id: "editor", icon: "✂", label: "Video Editor" },
@@ -3120,6 +3122,8 @@ export default function Dashboard() {
                 ? "Video Editor"
                 : tab === "stickfigures"
                 ? "Stickfigure Manager"
+                : tab === "custom_content"
+                ? "Custom Content"
                 : "Settings"}
             </div>
             <div
@@ -10398,6 +10402,11 @@ export default function Dashboard() {
 
             {/* ── STICKFIGURE MANAGER TAB ───────────────────────────────────────── */}
             {tab === "stickfigures" && <StickfigureManager T={T} showToast={showToast} addNotification={addNotification} />}
+
+            {/* ── CUSTOM CONTENT TAB ────────────────────────────────────────────── */}
+            {tab === "custom_content" && (
+              <CustomContent T={T} showToast={showToast} addNotification={addNotification} />
+            )}
 
             {tab === "reviews" && (
               <div style={{ padding: "28px 0", display: "flex", gap: 20, alignItems: "flex-start" }}>

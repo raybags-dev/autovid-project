@@ -459,3 +459,52 @@ def set_video_exclusive(video_id: str, is_exclusive: bool) -> dict:
     db = get_client()
     result = db.table("videos").update({"is_exclusive": is_exclusive}).eq("id", video_id).execute()
     return result.data[0] if result.data else {}
+
+
+# ── Custom Content ─────────────────────────────────────────────────────────────
+
+def create_custom_content(title: str, description: str = "", tags: list = None,
+                          category: str = "Entertainment", privacy: str = "public",
+                          file_path: str = None, duration_seconds: int = None,
+                          thumbnail_url: str = None) -> dict:
+    client = get_client()
+    row = {
+        "title": title,
+        "description": description,
+        "tags": tags or [],
+        "category": category,
+        "privacy": privacy,
+        "file_path": file_path,
+        "duration_seconds": duration_seconds,
+        "thumbnail_url": thumbnail_url,
+        "status": "ready",
+        "archived": False,
+    }
+    result = client.table("custom_content").insert(row).execute()
+    return result.data[0]
+
+
+def list_custom_content(include_archived: bool = False, limit: int = 200) -> list[dict]:
+    client = get_client()
+    q = client.table("custom_content").select("*").order("created_at", desc=True).limit(limit)
+    if not include_archived:
+        q = q.eq("archived", False)
+    return q.execute().data or []
+
+
+def get_custom_content(item_id: str) -> dict | None:
+    client = get_client()
+    r = client.table("custom_content").select("*").eq("id", item_id).execute()
+    return r.data[0] if r.data else None
+
+
+def update_custom_content(item_id: str, **fields) -> dict:
+    client = get_client()
+    result = client.table("custom_content").update(fields).eq("id", item_id).execute()
+    return result.data[0] if result.data else {}
+
+
+def delete_custom_content(item_id: str) -> bool:
+    client = get_client()
+    client.table("custom_content").delete().eq("id", item_id).execute()
+    return True

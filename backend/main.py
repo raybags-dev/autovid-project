@@ -4022,6 +4022,310 @@ def preview_auto_composite(
 # ── end Stick-Figure Video Editor ─────────────────────────────────────────────
 
 
+# ── Custom Content ─────────────────────────────────────────────────────────────
+
+from pathlib import Path as _CCPath
+import tempfile as _tempfile
+import os as _os
+
+_CC_BUCKET = "custom-content"
+_CC_AUDIO_BUCKET = "custom-content-audio"
+
+
+def _upload_to_cc_bucket(local_path: _CCPath, filename: str, content_type: str = "video/mp4") -> str:
+    """Upload a file to the custom-content Supabase Storage bucket. Returns public URL."""
+    import requests as _req
+    base = config.SUPABASE_URL.rstrip("/")
+    bucket = _CC_BUCKET if content_type == "video/mp4" else _CC_AUDIO_BUCKET
+    url = f"{base}/storage/v1/object/{bucket}/{filename}"
+    headers = {
+        "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
+        "x-upsert": "true",
+        "Content-Type": content_type,
+    }
+    with open(local_path, "rb") as fh:
+        resp = _req.post(url, data=fh, headers=headers, timeout=(30, 600))
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Storage upload failed {resp.status_code}: {resp.text[:300]}")
+    return f"{base}/storage/v1/object/public/{bucket}/{filename}"
+
+
+def _delete_from_cc_bucket(filename: str, bucket: str = None) -> None:
+    import requests as _req
+    base = config.SUPABASE_URL.rstrip("/")
+    bucket = bucket or _CC_BUCKET
+    headers = {"Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}"}
+    _req.delete(
+        f"{base}/storage/v1/object/{bucket}",
+        json={"prefixes": [filename]},
+        headers=headers,
+        timeout=10,
+    )
+
+
+class CustomContentUploadMeta(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    tags: Optional[str] = ""       # comma-separated
+    category: Optional[str] = "Entertainment"
+    privacy: Optional[str] = "public"
+
+
+@app.get("/custom-content")
+def list_cc(include_archived: bool = False, user: str = Depends(verify_token)):
+    return db.list_custom_content(include_archived=include_archived)
+
+
+@app.post("/custom-content/upload")
+async def upload_custom_content(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    title: str = "",
+    description: str = "",
+    tags: str = "",
+    category: str = "Entertainment",
+    privacy: str = "public",
+    user: str = Depends(verify_token),
+):
+    """Upload an MP4 file as custom content. Stores in Supabase Storage and creates DB record."""
+    if not file.filename.lower().endswith(".mp4"):
+        raise HTTPException(400, "Only .mp4 files are accepted")
+    if not title.strip():
+        raise HTTPException(400, "Title is required")
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(400, "Empty file")
+
+    import uuid as _uuid
+    item_id = str(_uuid.uuid4())
+    tmp_path = _CCPath(_tempfile.mktemp(suffix=".mp4"))
+    try:
+        tmp_path.write_bytes(content)
+
+        # Get duration via ffprobe
+        import subprocess as _sp
+        duration = None
+        try:
+            r = _sp.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(tmp_path)],
+                capture_output=True, text=True, timeout=30,
+            )
+            duration = int(float(r.stdout.strip()))
+        except Exception:
+            pass
+
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        filename = f"{item_id}.mp4"
+        public_url = _upload_to_cc_bucket(tmp_path, filename, "video/mp4")
+
+        row = db.create_custom_content(
+            title=title.strip(),
+            description=description,
+            tags=tag_list,
+            category=category,
+            privacy=privacy,
+            file_path=public_url,
+            duration_seconds=duration,
+        )
+        return row
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@app.delete("/custom-content/{item_id}")
+def delete_cc(item_id: str, user: str = Depends(verify_token)):
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    # Delete from storage
+    try:
+        _delete_from_cc_bucket(f"{item_id}.mp4", _CC_BUCKET)
+    except Exception:
+        pass
+    if item.get("mp3_url"):
+        try:
+            _delete_from_cc_bucket(f"{item_id}.mp3", _CC_AUDIO_BUCKET)
+        except Exception:
+            pass
+    db.delete_custom_content(item_id)
+    return {"ok": True}
+
+
+@app.post("/custom-content/{item_id}/archive")
+def archive_cc(item_id: str, user: str = Depends(verify_token)):
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    db.update_custom_content(item_id, archived=True)
+    return {"ok": True}
+
+
+@app.post("/custom-content/{item_id}/unarchive")
+def unarchive_cc(item_id: str, user: str = Depends(verify_token)):
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    db.update_custom_content(item_id, archived=False)
+    return {"ok": True}
+
+
+@app.post("/custom-content/{item_id}/upload-youtube")
+def upload_cc_youtube(
+    item_id: str,
+    req: UploadRequest,
+    background_tasks: BackgroundTasks,
+    user: str = Depends(verify_token),
+):
+    """Upload a custom content video to YouTube."""
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    if item["status"] == "uploading":
+        raise HTTPException(400, "Already uploading")
+    if not item.get("file_path"):
+        raise HTTPException(400, "No video file — upload content first")
+
+    title       = (req.title       or item.get("title")       or "Custom Content")[:100]
+    description = (req.description or item.get("description") or "")[:5000]
+    tags        = req.tags         or item.get("tags")         or []
+    privacy     = req.privacy      or item.get("privacy")      or "public"
+    category    = req.category     or item.get("category")     or "Entertainment"
+
+    db.update_custom_content(item_id, title=title, description=description, tags=tags)
+    db.update_custom_content(item_id, status="uploading")
+
+    _register_pipeline(item_id)
+
+    def do_upload():
+        tmp_file = None
+        try:
+            _push_log(item_id, "[UPLOAD] Starting YouTube upload...")
+            from pipeline.youtube_uploader import upload_video, record_upload
+            file_path = item["file_path"]
+            if file_path.startswith("http"):
+                import urllib.request as _ureq
+                tmp_file = _CCPath(_tempfile.mktemp(suffix=".mp4"))
+                _push_log(item_id, "[UPLOAD] Downloading video file...")
+                _ureq.urlretrieve(file_path, tmp_file)
+                file_path = str(tmp_file)
+
+            _push_log(item_id, f"[UPLOAD] Uploading '{title}' to YouTube...")
+            result = upload_video(
+                video_path=file_path,
+                title=title,
+                description=description,
+                labels=tags,
+                category=category,
+                privacy=privacy,
+                thumbnail_path=item.get("thumbnail_url"),
+            )
+            db.update_custom_content(
+                item_id,
+                status="posted",
+                youtube_id=result["youtube_id"],
+                youtube_url=result["youtube_url"],
+            )
+            record_upload()
+            _push_log(item_id, f"[UPLOAD] Done — {result['youtube_url']}")
+            _push_log(item_id, "__DONE__")
+        except Exception as e:
+            db.update_custom_content(item_id, status="ready", error_message=str(e)[:500])
+            _push_log(item_id, f"[ERROR] {e}")
+            _push_log(item_id, "__DONE__")
+        finally:
+            if tmp_file and _CCPath(str(tmp_file)).exists():
+                try:
+                    _CCPath(str(tmp_file)).unlink()
+                except Exception:
+                    pass
+            _unregister_pipeline(item_id)
+
+    _queue_pipeline(do_upload, job_id=item_id, job_type="cc_youtube", prompt=title)
+    return {"message": "Upload queued", "item_id": item_id}
+
+
+@app.post("/custom-content/{item_id}/generate-mp3")
+def generate_cc_mp3(item_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+    """Extract MP3 audio from a custom content video."""
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    if not item.get("file_path"):
+        raise HTTPException(400, "No video file")
+
+    _register_pipeline(item_id)
+
+    def do_mp3():
+        tmp_video = None
+        tmp_mp3 = None
+        try:
+            _push_log(item_id, "[MP3] Starting audio extraction...")
+            import subprocess as _sp
+            file_path = item["file_path"]
+            if file_path.startswith("http"):
+                import urllib.request as _ureq
+                tmp_video = _CCPath(_tempfile.mktemp(suffix=".mp4"))
+                _push_log(item_id, "[MP3] Downloading video...")
+                _ureq.urlretrieve(file_path, tmp_video)
+                src = str(tmp_video)
+            else:
+                src = file_path
+
+            tmp_mp3 = _CCPath(_tempfile.mktemp(suffix=".mp3"))
+            _push_log(item_id, "[MP3] Running ffmpeg...")
+            _sp.run(
+                ["ffmpeg", "-y", "-i", src, "-acodec", "libmp3lame", "-b:a", "192k", "-ar", "44100", str(tmp_mp3)],
+                capture_output=True, check=True, timeout=600,
+            )
+            _push_log(item_id, "[MP3] Uploading to storage...")
+            mp3_url = _upload_to_cc_bucket(tmp_mp3, f"{item_id}.mp3", "audio/mpeg")
+            db.update_custom_content(item_id, mp3_url=mp3_url)
+            _push_log(item_id, f"[MP3] Done — {mp3_url}")
+            _push_log(item_id, "__DONE__")
+        except Exception as e:
+            _push_log(item_id, f"[ERROR] {e}")
+            _push_log(item_id, "__DONE__")
+        finally:
+            for p in [tmp_video, tmp_mp3]:
+                if p and _CCPath(str(p)).exists():
+                    try:
+                        _CCPath(str(p)).unlink()
+                    except Exception:
+                        pass
+            _unregister_pipeline(item_id)
+
+    _queue_pipeline(do_mp3, job_id=item_id, job_type="cc_mp3", prompt=item.get("title", ""))
+    return {"message": "MP3 generation queued", "item_id": item_id}
+
+
+@app.get("/custom-content/{item_id}/logs")
+def get_cc_logs(item_id: str, since: int = Query(default=0), user: str = Depends(verify_token)):
+    """Return buffered logs for a custom content background job."""
+    with _pipeline_lock:
+        entry = _active_pipelines.get(item_id)
+    if not entry:
+        return {"lines": [], "total": 0, "done": True}
+    lines = entry.get("log_buffer", [])
+    return {
+        "lines": lines[since:],
+        "total": len(lines),
+        "done": entry.get("done", False),
+    }
+
+
+@app.get("/custom-content/{item_id}")
+def get_cc(item_id: str, user: str = Depends(verify_token)):
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    return item
+
+
+# ── end Custom Content ─────────────────────────────────────────────────────────
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

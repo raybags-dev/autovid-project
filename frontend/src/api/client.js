@@ -463,6 +463,61 @@ export const uploadExclusivePreviewVideo = async (file) => {
   return data;
 };
 
+// ── Custom Content ────────────────────────────────────────────────────────────
+export const listCustomContent = async (includeArchived = false) => {
+  const { data } = await api.get("/custom-content", { params: { include_archived: includeArchived } });
+  return data;
+};
+
+export const uploadCustomContent = async (file, { title, description, tags, category, privacy }) => {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", title);
+  form.append("description", description || "");
+  form.append("tags", tags || "");
+  form.append("category", category || "Entertainment");
+  form.append("privacy", privacy || "public");
+  const { data } = await api.post("/custom-content/upload", form, { timeout: 600000 });
+  return data;
+};
+
+export const deleteCustomContent = async (id) => {
+  const { data } = await api.delete(`/custom-content/${id}`);
+  return data;
+};
+
+export const archiveCustomContent = async (id) => {
+  const { data } = await api.post(`/custom-content/${id}/archive`);
+  return data;
+};
+
+export const unarchiveCustomContent = async (id) => {
+  const { data } = await api.post(`/custom-content/${id}/unarchive`);
+  return data;
+};
+
+export const uploadCCToYouTube = async (id, { title, description, tags, privacy, category }) => {
+  const { data } = await api.post(`/custom-content/${id}/upload-youtube`, {
+    title, description, tags, privacy, category,
+  });
+  return data;
+};
+
+export const generateCCMp3 = async (id) => {
+  const { data } = await api.post(`/custom-content/${id}/generate-mp3`);
+  return data;
+};
+
+export const getCCLogs = async (id, since = 0) => {
+  const { data } = await api.get(`/custom-content/${id}/logs`, { params: { since } });
+  return data;
+};
+
+export const getCustomContentItem = async (id) => {
+  const { data } = await api.get(`/custom-content/${id}`);
+  return data;
+};
+
 // ── Danger Zone ───────────────────────────────────────────────────────────────
 export const dangerVerify = async (key) => {
   const { data } = await api.post("/admin/danger/verify", { key });
