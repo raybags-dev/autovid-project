@@ -108,18 +108,58 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
   const [form, setForm] = useState({
     title: "", description: "", tags: "", category: "Entertainment", privacy: "public",
   });
-  const [uploading, setUploading] = useState(false);
+  // phase: "form" | "sending" | "processing" | "done" | "error"
+  const [phase, setPhase] = useState("form");
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState(null);
+  const [itemId, setItemId] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [logDone, setLogDone] = useState(false);
   const fileRef = useRef();
+  const logPollRef = useRef(null);
+  const logSinceRef = useRef(0);
+  const logEndRef = useRef(null);
+  const resultRef = useRef(null);
+
+  // Auto-scroll logs
+  useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
+
+  // Poll logs once we have an itemId
+  useEffect(() => {
+    if (!itemId) return;
+    const poll = async () => {
+      try {
+        const r = await getCCLogs(itemId, logSinceRef.current);
+        if (r.lines.length) {
+          setLogs(prev => [...prev, ...r.lines]);
+          logSinceRef.current = r.total;
+        }
+        if (r.done) {
+          setLogDone(true);
+          clearInterval(logPollRef.current);
+          // Fetch final item to check status
+          try {
+            const fresh = await getCustomContentItem(itemId);
+            resultRef.current = fresh;
+            if (fresh.status === "ready") {
+              setPhase("done");
+              showToast("Upload complete!", "success");
+            } else {
+              setPhase("error");
+              setError(fresh.error_message || "Upload failed — check logs");
+            }
+          } catch { setPhase("error"); setError("Could not verify upload status"); }
+        }
+      } catch { /* ignore polling errors */ }
+    };
+    poll();
+    logPollRef.current = setInterval(poll, 1200);
+    return () => clearInterval(logPollRef.current);
+  }, [itemId]); // eslint-disable-line
 
   const handleFile = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (!f.name.toLowerCase().endsWith(".mp4")) {
-      setError("Only .mp4 files are accepted.");
-      return;
-    }
+    if (!f.name.toLowerCase().endsWith(".mp4")) { setError("Only .mp4 files are accepted."); return; }
     setError("");
     setFile(f);
     if (!form.title) setForm(p => ({ ...p, title: f.name.replace(/\.mp4$/i, "") }));
@@ -137,31 +177,37 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
   const handleSubmit = async () => {
     if (!file) { setError("Please select an MP4 file."); return; }
     if (!form.title.trim()) { setError("Title is required."); return; }
-    setUploading(true); setError(""); setProgress("Uploading...");
+    setPhase("sending"); setError("");
+    setLogs([`Sending ${(file.size / 1024 / 1024).toFixed(1)} MB to server...`]);
     try {
+      // Backend now returns immediately with item record (status="uploading")
       const result = await uploadCustomContent(file, form);
-      setProgress("Done!");
-      showToast("Upload complete!", "success");
-      onSuccess(result);
+      setItemId(result.id);
+      setPhase("processing");
+      setLogs(prev => [...prev, "File received by server. Processing in background..."]);
     } catch (e) {
-      setError(e?.response?.data?.detail || "Upload failed");
-      setProgress(null);
-    } finally {
-      setUploading(false);
+      setPhase("error");
+      setError(e?.response?.data?.detail || "Upload failed — check your connection and try again");
     }
   };
 
+  const isBusy = phase === "sending" || phase === "processing";
+  const isDone = phase === "done";
+
   return (
-    <ModalShell title="Upload Custom Content" onClose={onClose} T={T} maxWidth={540}>
+    <ModalShell title="Upload Custom Content" onClose={isDone ? () => { onSuccess(resultRef.current); } : isBusy ? undefined : onClose} T={T} maxWidth={560}>
+
+      {/* Show form only while in form/error phase */}
+      {(phase === "form" || phase === "error") && (<>
       {/* Drop zone */}
       <div
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
-        onClick={() => !uploading && fileRef.current?.click()}
+        onClick={() => fileRef.current?.click()}
         style={{
           border: `2px dashed ${file ? T.accentGreen : T.border}`,
           borderRadius: 10, padding: "24px 16px", textAlign: "center",
-          cursor: uploading ? "not-allowed" : "pointer", marginBottom: 18,
+          cursor: "pointer", marginBottom: 18,
           background: file ? `${T.accentGreen}08` : T.bgSub,
           transition: "border-color 0.15s, background 0.15s",
         }}
@@ -171,9 +217,7 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
           <div>
             <div style={{ fontSize: 20, marginBottom: 6 }}>🎬</div>
             <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{file.name}</div>
-            <div style={{ fontSize: 10, color: T.textFaint, marginTop: 3 }}>
-              {(file.size / 1024 / 1024).toFixed(1)} MB
-            </div>
+            <div style={{ fontSize: 10, color: T.textFaint, marginTop: 3 }}>{(file.size / 1024 / 1024).toFixed(1)} MB</div>
           </div>
         ) : (
           <div>
@@ -193,7 +237,6 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
           maxLength={100}
           placeholder="Video title"
           style={inputStyle(T)}
-          disabled={uploading}
         />
       </div>
 
@@ -207,7 +250,6 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
           rows={3}
           placeholder="Describe your video..."
           style={{ ...inputStyle(T), resize: "vertical" }}
-          disabled={uploading}
         />
       </div>
 
@@ -219,7 +261,6 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
           onChange={e => setForm(p => ({ ...p, tags: e.target.value }))}
           placeholder="tag1, tag2, tag3"
           style={inputStyle(T)}
-          disabled={uploading}
         />
       </div>
 
@@ -231,7 +272,6 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
             value={form.category}
             onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
             style={{ ...inputStyle(T), cursor: "pointer" }}
-            disabled={uploading}
           >
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -242,7 +282,6 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
             value={form.privacy}
             onChange={e => setForm(p => ({ ...p, privacy: e.target.value }))}
             style={{ ...inputStyle(T), cursor: "pointer" }}
-            disabled={uploading}
           >
             {PRIVACY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
@@ -255,27 +294,67 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
         </div>
       )}
 
-      {progress && (
-        <div style={{ padding: "9px 12px", borderRadius: 8, background: "rgba(0,200,100,0.1)", color: T.accentGreen, fontSize: 12, marginBottom: 14 }}>
-          {progress}
-        </div>
-      )}
-
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-        <button
-          onClick={onClose}
-          disabled={uploading}
-          style={{
-            padding: "9px 20px", borderRadius: 8, border: `1px solid ${T.border}`,
-            background: "transparent", color: T.textDim, fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
+        <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
           Cancel
         </button>
-        <BtnPrimary onClick={handleSubmit} disabled={uploading} T={T}>
-          {uploading ? "Uploading..." : "Upload"}
-        </BtnPrimary>
+        <BtnPrimary onClick={handleSubmit} T={T}>Upload</BtnPrimary>
       </div>
+      </>)}
+
+      {/* Log container — shown during sending/processing/done/error phases */}
+      {phase !== "form" && (
+        <div>
+          <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>
+            {isDone ? "✓ COMPLETE" : phase === "error" ? "✕ FAILED" : "⟳ UPLOAD LOG"}
+          </div>
+          <div style={{
+            background: "#060912", border: `1px solid ${isDone ? T.accentGreen : phase === "error" ? "#e03050" : T.border}`,
+            borderRadius: 8, padding: "12px 14px", fontFamily: "'Courier New',monospace", fontSize: 11,
+            lineHeight: 1.7, maxHeight: 220, overflowY: "auto", color: "#c0e0ff",
+          }}>
+            {logs.map((l, i) => (
+              <div key={i} style={{
+                color: l.startsWith("[ERROR]") ? "#ff6060"
+                  : l === "__DONE__" ? T.accentGreen
+                  : l.startsWith("Sending") || l.startsWith("File received") ? "#ffd080"
+                  : "#c0e0ff",
+              }}>
+                {l === "__DONE__" ? "✓ Done" : l}
+              </div>
+            ))}
+            {!logDone && phase === "processing" && (
+              <div style={{ color: T.textFaint, animation: "none" }}>▌</div>
+            )}
+            <div ref={logEndRef} />
+          </div>
+
+          {error && phase === "error" && (
+            <div style={{ marginTop: 10, padding: "9px 12px", borderRadius: 8, background: "rgba(220,40,60,0.1)", color: "#e04060", fontSize: 12 }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+            {isDone && (
+              <BtnPrimary onClick={() => onSuccess(resultRef.current)} T={T}>
+                Done — View Content
+              </BtnPrimary>
+            )}
+            {phase === "error" && (
+              <button onClick={() => { setPhase("form"); setLogs([]); setLogDone(false); setItemId(null); logSinceRef.current = 0; }}
+                style={{ padding: "9px 20px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                Try Again
+              </button>
+            )}
+            {isBusy && (
+              <div style={{ fontSize: 11, color: T.textFaint, alignSelf: "center" }}>
+                {phase === "sending" ? "Transferring file to server..." : "Processing in background..."}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </ModalShell>
   );
 }
