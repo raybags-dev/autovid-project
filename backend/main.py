@@ -4078,7 +4078,6 @@ def list_cc(include_archived: bool = False, user: str = Depends(verify_token)):
 
 @app.post("/custom-content/upload")
 async def upload_custom_content(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = "",
     description: str = "",
@@ -4087,51 +4086,85 @@ async def upload_custom_content(
     privacy: str = "public",
     user: str = Depends(verify_token),
 ):
-    """Upload an MP4 file as custom content. Stores in Supabase Storage and creates DB record."""
+    """Receive an MP4, persist to a temp file, create a DB record, then stream-upload to
+    Supabase Storage in a background thread — returns immediately with the item record."""
     if not file.filename.lower().endswith(".mp4"):
         raise HTTPException(400, "Only .mp4 files are accepted")
     if not title.strip():
         raise HTTPException(400, "Title is required")
 
+    # Read uploaded bytes asynchronously (this is fine — uvicorn handles it)
     content = await file.read()
-    if len(content) == 0:
+    if not content:
         raise HTTPException(400, "Empty file")
 
     import uuid as _uuid
     item_id = str(_uuid.uuid4())
-    tmp_path = _CCPath(_tempfile.mktemp(suffix=".mp4"))
-    try:
-        tmp_path.write_bytes(content)
 
-        # Get duration via ffprobe
+    # Write to a named temp file that survives beyond this request handler
+    tmp_path = _CCPath(_tempfile.mktemp(suffix=f"_{item_id}.mp4"))
+    tmp_path.write_bytes(content)
+    del content  # free RAM immediately
+
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # Create DB record immediately with status="uploading" so the frontend can poll
+    row = db.create_custom_content(
+        title=title.strip(),
+        description=description,
+        tags=tag_list,
+        category=category,
+        privacy=privacy,
+        file_path=None,
+        duration_seconds=None,
+    )
+    db.update_custom_content(item_id := row["id"], status="uploading")
+
+    # Register pipeline so logs endpoint works
+    _register_pipeline(item_id)
+
+    def _do_upload():
         import subprocess as _sp
-        duration = None
         try:
-            r = _sp.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                 "-of", "default=noprint_wrappers=1:nokey=1", str(tmp_path)],
-                capture_output=True, text=True, timeout=30,
+            size_mb = tmp_path.stat().st_size / (1024 * 1024)
+            _push_log(item_id, f"[UPLOAD] File received — {size_mb:.1f} MB. Processing...")
+
+            # Duration probe
+            duration = None
+            try:
+                r = _sp.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", str(tmp_path)],
+                    capture_output=True, text=True, timeout=30,
+                )
+                duration = int(float(r.stdout.strip()))
+                _push_log(item_id, f"[UPLOAD] Duration detected: {duration}s")
+            except Exception:
+                _push_log(item_id, "[UPLOAD] Could not detect duration (continuing anyway)")
+
+            filename = f"{item_id}.mp4"
+            _push_log(item_id, f"[UPLOAD] Uploading {size_mb:.1f} MB to Supabase Storage...")
+            public_url = _upload_to_cc_bucket(tmp_path, filename, "video/mp4")
+            _push_log(item_id, f"[UPLOAD] Storage upload complete.")
+
+            db.update_custom_content(
+                item_id,
+                status="ready",
+                file_path=public_url,
+                duration_seconds=duration,
             )
-            duration = int(float(r.stdout.strip()))
-        except Exception:
-            pass
+            _push_log(item_id, f"[UPLOAD] Done — video is ready.")
+            _push_log(item_id, "__DONE__")
+        except Exception as e:
+            _push_log(item_id, f"[ERROR] {e}")
+            _push_log(item_id, "__DONE__")
+            db.update_custom_content(item_id, status="failed", error_message=str(e)[:500])
+        finally:
+            tmp_path.unlink(missing_ok=True)
+            _unregister_pipeline(item_id)
 
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-        filename = f"{item_id}.mp4"
-        public_url = _upload_to_cc_bucket(tmp_path, filename, "video/mp4")
-
-        row = db.create_custom_content(
-            title=title.strip(),
-            description=description,
-            tags=tag_list,
-            category=category,
-            privacy=privacy,
-            file_path=public_url,
-            duration_seconds=duration,
-        )
-        return row
-    finally:
-        tmp_path.unlink(missing_ok=True)
+    _queue_pipeline(_do_upload, job_id=item_id, job_type="cc_upload", prompt=title.strip())
+    return row
 
 
 @app.delete("/custom-content/{item_id}")

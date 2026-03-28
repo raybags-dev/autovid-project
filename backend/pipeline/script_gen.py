@@ -361,45 +361,82 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
     return script_data
 
 
+def _strip_emoji(text: str) -> str:
+    """Remove emoji characters that can confuse Groq's JSON mode."""
+    import re
+    return re.sub(
+        r'[\U00010000-\U0010ffff\U0001F300-\U0001F9FF\U00002600-\U000027BF]',
+        '', text, flags=re.UNICODE,
+    ).strip()
+
+
 def generate_labels(title: str, description: str, script: str) -> dict:
     """
     Auto-generate labels and category for an existing script.
     Used in the labeling pipeline step.
+    Retries once with a stripped/simplified prompt on JSON validation failure.
     """
-    client = get_groq()
-    response = client.chat.completions.create(
-        model=config.GROQ_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a YouTube SEO expert. Return ONLY valid JSON. No markdown.",
-            },
-            {
-                "role": "user",
-                "content": f"""Analyze this video and return labels and category:
+    import re as _re
 
-Title: {title}
-Description: {description}
-Script excerpt: {script[:300]}
+    safe_title = _strip_emoji(title)
+    safe_desc  = _strip_emoji((description or "")[:200])
+    safe_script = _strip_emoji((script or "")[:300])
 
-Return JSON:
-{{
-  "labels": ["label1", "label2", "label3"],
-  "category": "Entertainment",
-  "youtube_tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-}}
+    def _call(t, d, s):
+        client = get_groq()
+        return client.chat.completions.create(
+            model=config.GROQ_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a YouTube SEO expert. Return ONLY valid JSON with no markdown, no extra text.",
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f'Video title: "{t}"\n'
+                        f'Description: "{d}"\n'
+                        f'Script: "{s}"\n\n'
+                        'Return JSON exactly like this:\n'
+                        '{"labels":["Education","Lifestyle"],"category":"Education",'
+                        '"youtube_tags":["tag1","tag2","tag3"]}'
+                    ),
+                },
+            ],
+            temperature=0.1,
+            max_tokens=200,
+            response_format={"type": "json_object"},
+        )
 
-Choose 2-4 labels from: Comedy, Animals, Technology, Science, Food, Gaming, 
-Education, Lifestyle, Travel, DIY, Sports, News, Music, Art, Business, Health
-""",
-            },
-        ],
-        temperature=0.3,
-        max_tokens=256,
-        response_format={"type": "json_object"},
-    )
+    # First attempt
+    try:
+        resp = _call(safe_title, safe_desc, safe_script)
+        return json.loads(resp.choices[0].message.content)
+    except Exception as e:
+        print(f"⚠️  generate_labels first attempt failed ({e}) — retrying with minimal prompt")
 
-    return json.loads(response.choices[0].message.content)
+    # Retry with bare-minimum prompt to avoid any JSON generation issues
+    try:
+        client = get_groq()
+        resp2 = client.chat.completions.create(
+            model=config.GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": "Return ONLY valid JSON. No markdown."},
+                {"role": "user", "content": (
+                    f'Topic: "{safe_title}". '
+                    'Give YouTube labels and category. '
+                    'JSON only: {"labels":["L1","L2"],"category":"C","youtube_tags":["t1","t2","t3"]}'
+                )},
+            ],
+            temperature=0.1,
+            max_tokens=150,
+            response_format={"type": "json_object"},
+        )
+        return json.loads(resp2.choices[0].message.content)
+    except Exception as e2:
+        print(f"⚠️  generate_labels retry also failed ({e2}) — using fallback labels")
+        # Safe fallback so the pipeline never hard-fails on this step
+        return {"labels": ["Education", "Lifestyle"], "category": "Education", "youtube_tags": []}
 
 
 def generate_description(title: str, script: str) -> str:
