@@ -184,7 +184,6 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
     try {
       // Step 1: get signed URL from backend (tiny JSON request, no file bytes)
       const { item_id, signed_url } = await requestCCUpload(form);
-      setItemId(item_id);
       setLogs(prev => [...prev,
         "Step 2/3 — Uploading directly to Supabase Storage (bypasses server)...",
         `File: ${(file.size / 1024 / 1024).toFixed(1)} MB`,
@@ -204,6 +203,9 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
 
       // Step 3: tell backend to mark ready & run ffprobe
       await finalizeCCUpload(item_id);
+      // Start log polling only NOW — finalize has registered the pipeline,
+      // so getCCLogs won't prematurely return done:true with status="uploading"
+      setItemId(item_id);
       setPhase("processing");
     } catch (e) {
       setPhase("error");
