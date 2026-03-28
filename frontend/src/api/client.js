@@ -455,22 +455,6 @@ export const deleteSubscriptionUser = async (id) => {
   return data;
 };
 
-export const replaceVideoFile = async (id, file, onProgress) => {
-  // POST raw binary to backend — backend streams it to Supabase via httpx (fully async, no buffering)
-  const { data } = await api.post(`/videos/${id}/replace-file`, file, {
-    headers: {
-      "Content-Type": file.type || "video/mp4",
-      "X-Filename": file.name || "video.mp4",
-    },
-    timeout: 600000,
-    onUploadProgress: (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded * 100) / e.total));
-      }
-    },
-  });
-  return data;
-};
 
 export const uploadExclusivePreviewVideo = async (file) => {
   const form = new FormData();

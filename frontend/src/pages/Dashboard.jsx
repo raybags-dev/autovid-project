@@ -67,7 +67,6 @@ import api, {
   rejectSubscription,
   generateThumbnail,
   deleteSubscriptionUser,
-  replaceVideoFile,
   uploadExclusivePreviewVideo,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
@@ -1271,21 +1270,6 @@ export default function Dashboard() {
   const [shortMusicVolume, setShortMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
   const [shortGenerating, setShortGenerating] = useState(false);
   const [shortGenError, setShortGenError] = useState("");
-  const [replaceFileModal, setReplaceFileModal] = useState(null); // {videoId} pending upload
-  const replaceFileInputRef = useRef(null);
-  const [replaceLog, setReplaceLog] = useState([]);
-  const [showReplaceLog, setShowReplaceLog] = useState(false);
-  const [replaceLogVideoId, setReplaceLogVideoId] = useState(null);
-  const replaceLogPollRef = useRef(null);
-  const replaceLogEndRef = useRef(null);
-  // Card-level inline replace
-  const cardReplaceInputRef = useRef(null);
-  const [cardReplaceId, setCardReplaceId] = useState(null);
-  const [cardReplaceLog, setCardReplaceLog] = useState([]);
-  const [cardReplaceProgress, setCardReplaceProgress] = useState(null); // 0-100
-  const [cardReplaceRunning, setCardReplaceRunning] = useState(false);
-  const cardReplacePollRef = useRef(null);
-  const cardReplaceEndRef = useRef(null);
   const [shortLogs, setShortLogs] = useState([]);
   const [shortLogVideoId, setShortLogVideoId] = useState(null);
   const [shortPipeStep, setShortPipeStep] = useState(0);
@@ -1674,29 +1658,6 @@ export default function Dashboard() {
     }, 1500);
   };
 
-  const handleCardReplace = (videoId) => {
-    setCardReplaceId(videoId);
-    setTimeout(() => cardReplaceInputRef.current?.click(), 50);
-  };
-
-  const startReplaceLogs = (videoId) => {
-    clearInterval(replaceLogPollRef.current);
-    setReplaceLog([]);
-    setReplaceLogVideoId(videoId);
-    setShowReplaceLog(true);
-    let since = 0;
-    replaceLogPollRef.current = setInterval(async () => {
-      try {
-        const { data } = await api.get(`/videos/${videoId}/logs?since=${since}`);
-        if (data?.lines?.length > 0) {
-          since += data.lines.length;
-          setReplaceLog(prev => [...prev, ...data.lines].slice(-200));
-          setTimeout(() => replaceLogEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-        }
-        if (data?.done) clearInterval(replaceLogPollRef.current);
-      } catch (_) {}
-    }, 1000);
-  };
 
   // ── Archive ───────────────────────────────────────────────────────────────
   const handleArchive = async (id, e) => {
@@ -2671,21 +2632,6 @@ export default function Dashboard() {
             >
               {globalLoading}
             </div>
-            {replaceLog.length > 0 && (
-              <div style={{ width: "min(480px, 90vw)", background: "rgba(0,0,0,0.7)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, overflow: "hidden" }}>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "0.12em", padding: "7px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  📋 REPLACE LOGS
-                </div>
-                <div style={{ maxHeight: 180, overflowY: "auto", padding: "10px 14px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
-                  {replaceLog.map((line, i) => (
-                    <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : line.startsWith("[WARN]") ? "#ffb020" : "#a0d0a0" }}>
-                      {line}
-                    </div>
-                  ))}
-                  <div ref={replaceLogEndRef} />
-                </div>
-              </div>
-            )}
           </div>
         )}
         <style>{`
@@ -5254,17 +5200,6 @@ export default function Dashboard() {
                               📱 Make Short
                             </button>
                           )}
-                          {/* ── Inline Replace File ── */}
-                          {(v.status === "ready" || v.status === "posted") && v.file_path && (
-                            <button
-                              className="btn-sm"
-                              onClick={(e) => { e.stopPropagation(); handleCardReplace(v.id); }}
-                              disabled={cardReplaceRunning && cardReplaceId === v.id}
-                              style={{ color: "#ffb020", borderColor: "rgba(255,176,32,0.3)", background: "rgba(255,176,32,0.06)", opacity: cardReplaceRunning && cardReplaceId === v.id ? 0.5 : 1 }}
-                            >
-                              {cardReplaceRunning && cardReplaceId === v.id ? "⟳ Replacing..." : "⬆ REPLACE FILE"}
-                            </button>
-                          )}
                           {v.status === "uploading" && (
                             <span
                               style={{
@@ -5312,34 +5247,6 @@ export default function Dashboard() {
                             ✕ DELETE
                           </button>
                         </div>
-                        {/* ── Card inline replace log ── */}
-                        {cardReplaceId === v.id && (cardReplaceLog.length > 0 || cardReplaceProgress !== null) && (
-                          <div style={{ marginTop: 10, background: isDark ? "#08090e" : "#f0f2f5", border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
-                            <div style={{ padding: "7px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
-                              <span style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.12em", flex: 1 }}>
-                                📋 REPLACE LOGS {cardReplaceRunning && <span style={{ color: T.accent }}>● LIVE</span>}
-                              </span>
-                            </div>
-                            {cardReplaceProgress !== null && cardReplaceProgress < 100 && (
-                              <div style={{ padding: "8px 14px" }}>
-                                <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>Uploading to server... {cardReplaceProgress}%</div>
-                                <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden" }}>
-                                  <div style={{ height: "100%", width: `${cardReplaceProgress}%`, background: T.accent, borderRadius: 2, transition: "width 0.3s" }} />
-                                </div>
-                              </div>
-                            )}
-                            {cardReplaceLog.length > 0 && (
-                              <div style={{ maxHeight: 200, overflowY: "auto", padding: "8px 14px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
-                                {cardReplaceLog.map((line, i) => (
-                                  <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : line.startsWith("[WARN]") ? "#ffb020" : isDark ? "#a0d0a0" : "#2d5a2d" }}>
-                                    {line}
-                                  </div>
-                                ))}
-                                <div ref={cardReplaceEndRef} />
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })
@@ -11347,18 +11254,6 @@ export default function Dashboard() {
                     ↺ RETRY
                   </button>
                 )}
-                {/* Replace video file */}
-                {(selected.file_path || selected.status === "ready" || selected.status === "posted") && (
-                  <button
-                    onClick={() => {
-                      setReplaceFileModal({ videoId: selected.id });
-                      replaceFileInputRef.current?.click();
-                    }}
-                    style={{ padding: "10px 18px", background: "rgba(255,176,32,0.07)", border: "1px solid rgba(255,176,32,0.25)", borderRadius: 9, fontSize: 11, color: "#ffb020", cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}
-                  >
-                    ⬆ REPLACE FILE
-                  </button>
-                )}
                 <button
                   onClick={() => {
                     setDeleteConfirm({
@@ -11385,118 +11280,10 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* ── Replace file log viewer ── */}
-              {replaceLogVideoId === selected.id && replaceLog.length > 0 && (
-                <div style={{ marginTop: 14, background: isDark ? "#08090e" : "#f0f2f5", border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
-                  <div
-                    onClick={() => setShowReplaceLog(p => !p)}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", cursor: "pointer", borderBottom: showReplaceLog ? `1px solid ${T.border}` : "none" }}
-                  >
-                    <span style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em" }}>📋 REPLACE LOGS ({replaceLog.length} lines)</span>
-                    <span style={{ fontSize: 11, color: T.textFaint }}>{showReplaceLog ? "▲" : "▼"}</span>
-                  </div>
-                  {showReplaceLog && (
-                    <div style={{ maxHeight: 200, overflowY: "auto", padding: "10px 14px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.7 }}>
-                      {replaceLog.map((line, i) => (
-                        <div key={i} style={{ color: line.startsWith("[ERROR]") ? "#ff6060" : line.startsWith("[DONE]") ? "#60ff60" : line.startsWith("[WARN]") ? "#ffb020" : isDark ? "#a0d0a0" : "#2d5a2d" }}>
-                          {line}
-                        </div>
-                      ))}
-                      <div ref={replaceLogEndRef} />
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* ── Hidden file input for CARD-LEVEL replace ─────────────────────────── */}
-        <input
-          ref={cardReplaceInputRef}
-          type="file"
-          accept="video/mp4,video/webm,video/quicktime"
-          style={{ display: "none" }}
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (!file || !cardReplaceId) return;
-            const videoId = cardReplaceId;
-            setCardReplaceRunning(true);
-            setCardReplaceLog([]);
-            setCardReplaceProgress(0);
-            // Poll backend logs (backend streams to Supabase via httpx and logs each step)
-            clearInterval(cardReplacePollRef.current);
-            let since = 0;
-            cardReplacePollRef.current = setInterval(async () => {
-              try {
-                const { data } = await api.get(`/videos/${videoId}/logs?since=${since}`);
-                if (data?.lines?.length) {
-                  since += data.lines.length;
-                  setCardReplaceLog(prev => [...prev, ...data.lines].slice(-300));
-                  setTimeout(() => cardReplaceEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-                }
-                if (data?.done) clearInterval(cardReplacePollRef.current);
-              } catch (_) {}
-            }, 1000);
-            try {
-              const result = await replaceVideoFile(videoId, file, (pct) => {
-                if (pct !== null) setCardReplaceProgress(pct);
-              });
-              setCardReplaceProgress(100);
-              setVideos(vs => vs.map(v => v.id === videoId ? { ...v, file_path: result.file_path, thumbnail_url: result.thumbnail_url || v.thumbnail_url, status: "ready" } : v));
-              showToast("Video file replaced");
-            } catch (err) {
-              const msg = err?.response?.data?.detail || err?.message || "Upload failed";
-              setCardReplaceLog(prev => [...prev, `[ERROR] ${msg}`]);
-              showToast(msg, "error");
-            } finally {
-              clearInterval(cardReplacePollRef.current);
-              setCardReplaceRunning(false);
-              setCardReplaceProgress(null);
-            }
-          }}
-        />
-
-        {/* ── Hidden file input for replacing video files ─────────────────────────── */}
-        <input
-          ref={replaceFileInputRef}
-          type="file"
-          accept="video/mp4,video/webm,video/quicktime"
-          style={{ display: "none" }}
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file || !replaceFileModal) return;
-            const videoId = replaceFileModal.videoId;
-            e.target.value = "";
-            askConfirm(
-              `Replace the video file for this entry with "${file.name}"? The current file will be overwritten and a new thumbnail will be generated.`,
-              async () => {
-                setGlobalLoading("Uploading replacement file...");
-                startReplaceLogs(videoId);
-                try {
-                  const result = await replaceVideoFile(videoId, file);
-                  setGlobalLoading("Replace complete — check logs below");
-                  if (result.thumbnail_url) {
-                    setVideos(vs => vs.map(v => v.id === videoId ? { ...v, file_path: result.file_path, thumbnail_url: result.thumbnail_url, status: "ready" } : v));
-                  } else {
-                    refresh();
-                  }
-                  showToast("Video file replaced");
-                  await new Promise(r => setTimeout(r, 2500));
-                } catch (err) {
-                  setGlobalLoading("Upload failed — check logs below");
-                  await new Promise(r => setTimeout(r, 3000));
-                  showToast(err?.response?.data?.detail || "Upload failed", "error");
-                } finally {
-                  setGlobalLoading(null);
-                  setReplaceFileModal(null);
-                }
-              },
-              "REPLACE"
-            );
-          }}
-        />
 
         {/* ── YouTube Privacy Prompt (when adding video to Library) ────────────────── */}
         {exclusiveYtModal && (
