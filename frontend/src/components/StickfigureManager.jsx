@@ -2,10 +2,27 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   backfillStickFigureUrls,
   deleteStickFigure,
+  generateStickfigures,
+  getStickfigureGenLogs,
   listStickFiguresPaged,
   updateStickFigure,
   uploadStickFigure,
 } from "../api/client";
+
+// ── Parser: raw text → Action/Environment pairs ───────────────────────────────
+function parseActionEnvPairs(text) {
+  const pairs = [];
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (let i = 0; i < lines.length - 1; i++) {
+    const aMatch = /^action:\s*(.+)/i.exec(lines[i]);
+    const eMatch = /^environment:\s*(.+)/i.exec(lines[i + 1]);
+    if (aMatch && eMatch) {
+      pairs.push({ action: aMatch[1].trim(), environment: eMatch[1].trim() });
+      i++;
+    }
+  }
+  return pairs;
+}
 
 const PAGE_SIZE = 20;
 
@@ -411,6 +428,134 @@ function btnStyle(color, disabled = false, ghost = false) {
   };
 }
 
+// ── Generate modal ────────────────────────────────────────────────────────────
+function GenerateModal({ T, onClose, onGenerated }) {
+  const [promptsText, setPromptsText] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  const pollRef = useRef(null);
+  const logLineRef = useRef(0);
+  const logBoxRef = useRef(null);
+
+  const pairs = parseActionEnvPairs(promptsText);
+
+  const handleGenerate = async () => {
+    if (pairs.length === 0) {
+      setError("No valid Action+Environment pairs found. Use the format:\nAction: <text>\nEnvironment: <text>");
+      return;
+    }
+    setGenerating(true);
+    setDone(false);
+    setError("");
+    setLogs([`Parsed ${pairs.length} pair(s). Sending to server...`]);
+    logLineRef.current = 0;
+
+    try {
+      const { job_id } = await generateStickfigures(promptsText);
+      pollRef.current = setInterval(async () => {
+        try {
+          const res = await getStickfigureGenLogs(job_id, logLineRef.current);
+          if (res.lines?.length > 0) {
+            logLineRef.current += res.lines.length;
+            setLogs((prev) => {
+              const next = [...prev, ...res.lines].slice(-300);
+              return next;
+            });
+          }
+          if (res.done) {
+            clearInterval(pollRef.current);
+            setDone(true);
+            setGenerating(false);
+            onGenerated?.();
+          }
+        } catch (_) {}
+      }, 1500);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "Generation failed");
+      setGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (logBoxRef.current) logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+  }, [logs]);
+
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box",
+    background: T.bg, border: `1px solid ${T.border}`,
+    borderRadius: 8, padding: "8px 12px",
+    color: T.text, fontSize: 11, fontFamily: "monospace",
+    outline: "none", resize: "vertical",
+  };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={(e) => e.target === e.currentTarget && !generating && onClose()}
+    >
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: 28, width: 480, maxWidth: "92vw", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: T.text, letterSpacing: "0.06em" }}>
+          GENERATE STICKFIGURE(S)
+        </div>
+        <div style={{ fontSize: 10, color: T.textDim }}>
+          One pair per generation. Format:<br />
+          <span style={{ fontFamily: "monospace", color: T.textFaint }}>Action: walking forward slowly<br />Environment: dark alley</span>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 9, color: T.textDim, marginBottom: 4, letterSpacing: "0.1em" }}>
+            PROMPTS ({pairs.length} pair{pairs.length !== 1 ? "s" : ""} detected)
+          </div>
+          <textarea
+            rows={8}
+            value={promptsText}
+            onChange={(e) => setPromptsText(e.target.value)}
+            placeholder={"Action: walking forward slowly\nEnvironment: dark alley\n\nAction: jumping over obstacle\nEnvironment: industrial zone"}
+            style={inputStyle}
+            disabled={generating}
+          />
+        </div>
+
+        {logs.length > 0 && (
+          <div
+            ref={logBoxRef}
+            style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", maxHeight: 160, overflowY: "auto", fontSize: 10, fontFamily: "monospace", color: T.textFaint, whiteSpace: "pre-wrap" }}
+          >
+            {logs.join("\n")}
+          </div>
+        )}
+
+        {error && (
+          <div style={{ fontSize: 11, color: "#ef4444", padding: "6px 10px", background: "rgba(239,68,68,0.08)", borderRadius: 7, whiteSpace: "pre-line" }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <button
+            onClick={handleGenerate}
+            disabled={generating || done || pairs.length === 0}
+            style={{ flex: 1, padding: "8px 0", fontSize: 10, borderRadius: 8, cursor: generating || done || pairs.length === 0 ? "not-allowed" : "pointer", border: `1px solid ${T.accent}55`, background: generating || done ? "transparent" : `${T.accent}15`, color: T.accent, fontFamily: "inherit", fontWeight: 700, letterSpacing: "0.08em", opacity: generating || done || pairs.length === 0 ? 0.5 : 1 }}
+          >
+            {generating ? "GENERATING…" : done ? "DONE" : "GENERATE"}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={generating}
+            style={{ padding: "8px 16px", fontSize: 10, borderRadius: 8, cursor: generating ? "not-allowed" : "pointer", border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontFamily: "inherit", opacity: generating ? 0.4 : 1 }}
+          >
+            CLOSE
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Upload modal ──────────────────────────────────────────────────────────────
 function UploadModal({ T, onClose, onUploaded }) {
   const [file, setFile] = useState(null);
@@ -523,8 +668,9 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [showGenModal, setShowGenModal] = useState(false);
   const [search, setSearch] = useState("");
-  const [filterEnabled, setFilterEnabled] = useState("all"); // "all" | "on" | "off"
+  const [filterEnabled, setFilterEnabled] = useState("all"); // "all" | "on" | "off" | "generated"
   const sentinelRef = useRef(null);
   const skipRef = useRef(0);
   const hasMoreRef = useRef(true);
@@ -627,6 +773,7 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
   const displayed = clips.filter((c) => {
     if (filterEnabled === "on" && !c.enabled) return false;
     if (filterEnabled === "off" && c.enabled !== false) return false;
+    if (filterEnabled === "generated" && c.source !== "generated") return false;
     if (searchLower) {
       const inLabel = (c.label || "").toLowerCase().includes(searchLower);
       const inFilename = (c.filename || "").toLowerCase().includes(searchLower);
@@ -641,6 +788,9 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
     <div style={{ paddingTop: 8 }}>
       {showUpload && (
         <UploadModal T={T} onClose={() => setShowUpload(false)} onUploaded={handleUploaded} />
+      )}
+      {showGenModal && (
+        <GenerateModal T={T} onClose={() => setShowGenModal(false)} onGenerated={handleRefresh} />
       )}
 
       {/* ── Header ── */}
@@ -665,6 +815,23 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
           </div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setShowGenModal(true)}
+            style={{
+              padding: "7px 14px",
+              borderRadius: 8,
+              border: `1px solid ${T.accent}55`,
+              background: `${T.accent}15`,
+              color: T.accent,
+              fontSize: 10,
+              letterSpacing: "0.1em",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            + GENERATE
+          </button>
           <button
             onClick={() => setShowUpload(true)}
             style={{
@@ -741,7 +908,7 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
             outline: "none",
           }}
         />
-        {["all", "on", "off"].map((f) => (
+        {["all", "on", "off", "generated"].map((f) => (
           <button
             key={f}
             onClick={() => setFilterEnabled(f)}
@@ -759,7 +926,7 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
               transition: "all 0.15s",
             }}
           >
-            {f === "all" ? "ALL" : f === "on" ? "ENABLED" : "DISABLED"}
+            {f === "all" ? "ALL" : f === "on" ? "ENABLED" : f === "off" ? "DISABLED" : "GENERATED"}
           </button>
         ))}
       </div>

@@ -38,8 +38,11 @@ for d in [VIDEOS_OUTPUT_DIR, AUDIO_OUTPUT_DIR, TEMP_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # ── LLM (Groq) ───────────────────────────────────────────────────────────────
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Secondary Groq key used exclusively for stickfigure image generation
+GROQ_API_KEY_2     = os.getenv("GROQ_API_KEY_2", "")
+GROQ_IMAGE_MODEL   = os.getenv("GROQ_IMAGE_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 
 # ── Stock Media ──────────────────────────────────────────────────────────────
 PEXELS_API_KEY  = os.getenv("PEXELS_API_KEY", "")
