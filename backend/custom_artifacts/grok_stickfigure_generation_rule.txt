@@ -1,0 +1,30 @@
+Character:
+- Minimal white stick figure (#FFFFFF), thin stroke, consistent proportions
+- Use same facial features as provided
+- Smooth, slightly slowed motion (subtle weight)
+
+Pose override priority:
+- Action instructions have absolute priority over any default pose learned from reference images.
+- The model must NOT default to standing, idle, or neutral humanoid posture at any time.
+- The character must begin each scene already in the exact pose/state described in Action (no transition from a default stance).
+- Reference image defines identity only (face, proportions, style), not posture or stance.
+
+Environment:
+- Fullscreen dark background: rgba(0,0,0,0.4)
+- Background must extend edge-to-edge with no empty margins
+- Add visual background depending on the action
+
+Audio:
+- No music
+- Only subtle sound effects tied to actions (wind, footsteps, etc.)
+
+Rendering:
+- 16:9 aspect ratio
+- Tight cinematic framing
+- Subject must occupy 85–95% of frame width
+- Medium-close camera distance (zoomed in, not distant)
+- Centered composition but not isolated or small
+- Minimal negative space around subject
+- No letterboxing or unused borders
+- High contrast (white on dark)
+

@@ -1,0 +1,266 @@
+
+### Feature
+
+Introduce a configurable Delay Slider for the background soundtrack.
+
+### Behavior
+
+* Allows setting a delay before narration starts after the video begins.
+* Allows setting a delay after narration ends before the background track stops.
+* Purpose: enable the background audio to play briefly before narration begins and continue briefly after narration finishes.
+
+### Default state
+
+* Delay is disabled by default (0s / OFF).
+* No impact on current timing unless explicitly enabled.
+
+### Usage
+
+* When enabled, the slider value defines the delay duration in seconds.
+* The same value applies to both:
+
+  * pre-narration delay
+  * post-narration delay
+
+### Goal
+
+Ensure smoother audio transitions by allowing background music to start slightly earlier and end slightly later than narration, improving perceived flow and atmosphere.
+
+____________________________________________________________________________________
+
+
+# Feature: Stickfigure Generation Pipeline Extension
+
+## 1. UI Additions
+
+### 1.1 New Button
+
+Add a new button in the Stickfigure pipeline UI:
+
+* Label: “Generate Stickfigure(s)”
+* Placement: alongside existing stickfigure controls
+
+---
+
+### 1.2 New Filter Tab / View
+
+Add a new filter option:
+
+* Name: Generated Stickfigure Videos
+* Behavior:
+
+  * Displays only newly generated stickfigure videos
+  * These items must support all existing stickfigure video functionalities, including:
+
+    * playback
+    * download
+    * metadata display
+    * existing actions/tools
+
+---
+
+### 1.3 Input Form Behavior
+
+When Generate Stickfigure(s) is clicked:
+
+* Open a modal or form containing:
+
+  * Multi-line text area input
+  * Submit button
+
+---
+
+## 2. Input Format Specification
+
+The text input must be parsed into structured prompts.
+
+### Format rules
+
+Input will contain repeated blocks:
+
+```text
+Action: <action text>
+Environment: <environment text>
+```
+
+### Parsing rules
+
+* Each Action + Environment pair = one prompt unit
+* The parser must:
+
+  * Split by occurrences of `Action:` and `Environment:`
+  * Treat everything between `Action:` and `Environment:` as action text
+  * Treat everything between `Environment:` and next `Action:` as environment text
+* Ignore:
+
+  * extra whitespace
+  * empty lines
+* Multiple prompts may exist in a single submission
+
+### Example input
+
+```text
+Action: walking forward slowly
+Environment: dark alley
+
+Action: jumping over obstacle
+Environment: industrial zone
+```
+
+---
+
+## 3. API Key Routing Logic
+
+### Existing behavior
+
+* Current system continues using:
+
+  * `GROQ_API_KEY`
+
+### New behavior (Stickfigure pipeline only)
+
+* Use:
+
+  * `GROQ_API_KEY_2`
+
+### Implementation requirement
+
+* Copy `GROQ_API_KEY_2` into server secrets/config
+* Ensure it is available at runtime
+
+### Key separation rule
+
+* ALL existing non-stickfigure features:
+
+  * continue using `GROQ_API_KEY`
+* ALL stickfigure generation requests:
+
+  * must use `GROQ_API_KEY_2`
+
+---
+
+## 4. Prompt Construction
+
+Before sending any request to the Groq Text-to-Image model:
+
+### Required preprocessing
+
+For EACH parsed prompt:
+
+1. Load file:
+
+```
+backend/custom_artifacts/grok_stickfigure_generation_rule.txt
+```
+
+2. Prepend its content to the prompt
+
+### Final payload format per request:
+
+```
+<contents of grok_stickfigure_generation_rule.txt>
+
+Action: ...
+Environment: ...
+```
+
+---
+
+## 5. API Execution Rules
+
+### Request handling
+
+* Each prompt = one API request
+* Must support multiple sequential requests
+
+### Rate limiting
+
+* Must respect Groq API timeout / rate limits
+* Prevent `TOO_MANY_REQUEST` errors by:
+
+  * throttling requests
+  * sequential execution (no parallel burst calls)
+
+---
+
+## 6. File Handling / Output Safety
+
+### Requirement
+
+Prevent data loss during generation.
+
+### Rules
+
+* Each generated MP4 must be:
+
+  * saved immediately after creation
+  * persisted before next request starts OR safely queued with durable storage
+
+### Recommendation constraint
+
+System must choose ONE safe strategy:
+
+* Either:
+
+  * save immediately per file (preferred)
+* OR:
+
+  * queue + atomic batch save with retry protection
+
+---
+
+## 7. Logging
+
+* Integrate with existing log monitoring system
+* Log events for:
+
+  * form submission
+  * parsed prompt count
+  * API request start/end
+  * failures / retries
+  * file save completion
+
+---
+
+## 8. Validation Rules
+
+Before processing:
+
+### Required validation
+
+* Input must contain at least:
+
+  * one `Action:` block
+  * one corresponding `Environment:` block
+
+### Invalid cases
+
+* missing Action or Environment
+* malformed ordering
+* empty prompt pairs
+
+---
+
+## 9. Processing Summary Flow
+
+1. User clicks Generate Stickfigure(s)
+2. Input form opens
+3. User submits raw text
+4. System parses into prompt list
+5. For each prompt:
+
+   * prepend rules file
+   * send request using `GROQ_API_KEY_2`
+   * wait for completion (rate-limited)
+   * save MP4 safely
+   * log result
+6. Newly generated videos appear under Generated Stickfigure Videos filter
+7. All videos support existing functionality + download
+
+---
+
+If you want, I can convert this into:
+
+* a system design diagram
+* a backend task breakdown (tickets)
+* or a TypeScript / C# implementation scaffold
