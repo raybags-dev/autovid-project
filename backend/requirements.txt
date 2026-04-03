@@ -44,7 +44,7 @@ numpy==1.26.4
 oauthlib==3.3.1
 orjson==3.11.7
 packaging>=25.0,<26
-pillow==10.3.0
+pillow==12.1.1
 postgrest==0.16.11
 proglog==0.1.12
 proto-plus==1.27.1
