@@ -86,3 +86,4 @@ pyttsx3==2.98
 celery==5.4.0
 redis==5.0.8
 better-profanity==0.7.0
+xai-sdk
