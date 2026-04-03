@@ -29,6 +29,7 @@ const MUSIC = [
   { id: "Laidback_Fevorite",      emoji: "🎹", label: "Laidback Fav",   desc: "Smooth laidback favourite" },
   { id: "Pads_EPiano",            emoji: "🎧", label: "Pads & EPiano",  desc: "Deep smooth pads + e-piano" },
   { id: "Pads",                   emoji: "🎵", label: "Pads",           desc: "Chill heavy pads" },
+  { id: "swingPiano",             emoji: "🎷", label: "Swing Piano",    desc: "Upbeat swing piano" },
   { id: "none",                   emoji: "🔇", label: "No Music",       desc: "Voice only" },
 ];
 
@@ -58,6 +59,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
   });
   const [music, setMusic]         = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_style || "Laidback_Fevorite"; } catch { return "Laidback_Fevorite"; } });
   const [musicVolume, setMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
+  const [musicDelay, setMusicDelay] = useState(0.0);
   const [useStickfigures, setUseStickfigures] = useState(false);
   const [sfClipCount, setSfClipCount] = useState(null);
   const [running, setRunning] = useState(false);
@@ -119,6 +121,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
         visual_mood:     useStickfigures ? "rain" : mood,
         music_style:     music,
         music_volume:    musicVolume,
+        music_delay:     musicDelay,
         use_stickfigures: useStickfigures,
       });
       const vid = data.video_id;
@@ -775,6 +778,18 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
               />
               <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round(musicVolume * 100)}%</div>
             </div>
+            {music !== "none" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0, letterSpacing: "0.08em" }}>DELAY</div>
+                <input type="range" min={0} max={5} step={0.1}
+                  value={musicDelay}
+                  onChange={e => setMusicDelay(parseFloat(e.target.value))}
+                  disabled={running}
+                  style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+                />
+                <div style={{ fontSize: 9, color: T.textFaint, width: 32, textAlign: "right" }}>{musicDelay.toFixed(1)}s</div>
+              </div>
+            )}
           </div>
 
           {/* Stickfigure toggle */}
