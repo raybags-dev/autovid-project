@@ -54,6 +54,7 @@ export const generateVideo = async (
   visualMood = "inspirational",
   musicStyle = "ambient",
   musicVolume = 0.06,
+  musicDelay = 0.0,
   useStickfigures = false,
 ) => {
   const { data } = await api.post("/videos/generate", {
@@ -63,6 +64,7 @@ export const generateVideo = async (
     visual_mood: visualMood,
     music_style: musicStyle,
     music_volume: musicVolume,
+    music_delay: musicDelay,
     use_stickfigures: useStickfigures,
   });
   return data;
@@ -187,6 +189,16 @@ export const deleteStickFigure = async (id, deleteFile = false) => {
   return data;
 };
 
+export const generateStickfigures = async (promptsText) => {
+  const { data } = await api.post("/stickfigures/generate", { prompts_text: promptsText }, { timeout: 30000 });
+  return data; // { job_id, pair_count }
+};
+
+export const getStickfigureGenLogs = async (jobId, since = 0) => {
+  const { data } = await api.get(`/stickfigures/generate/${jobId}/logs`, { params: { since } });
+  return data; // { lines, total, done }
+};
+
 export const startComposite = async (videoId, overlays, options = {}) => {
   const { data } = await api.post(`/videos/${videoId}/composite`, {
     overlays,
@@ -265,8 +277,8 @@ export const createShortFromVideo = async (id) => {
   return data;
 };
 
-export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, custom_script = "", use_stickfigures = false) => {
-  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, custom_script, use_stickfigures });
+export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, music_delay = 0.0, custom_script = "", use_stickfigures = false) => {
+  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, music_delay, custom_script, use_stickfigures });
   return data;
 };
 

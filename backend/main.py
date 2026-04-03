@@ -263,6 +263,7 @@ class GenerateRequest(BaseModel):
     visual_mood: Optional[str] = None
     music_style: str = "ambient"
     music_volume: float = 0.06
+    music_delay: float = 0.0
     use_stickfigures: bool = False
 
 
@@ -346,6 +347,7 @@ def generate_video(
                 visual_mood=req.visual_mood,
                 music_style=req.music_style,
                 music_volume=req.music_volume,
+                music_delay=req.music_delay,
                 progress_callback=_cb,
                 video_id=video_id,
                 use_stickfigures=req.use_stickfigures,
@@ -954,6 +956,7 @@ class ScriptStudioRequest(BaseModel):
     visual_mood:      Optional[str] = None   # ocean|candle|forest|stars|hands|mountains|None=auto
     music_style:      str = "ambient"
     music_volume:     float = 0.06
+    music_delay:      float = 0.0
     use_stickfigures: bool = False
 
 
@@ -994,6 +997,7 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
                 visual_mood=req.visual_mood,
                 music_style=req.music_style,
                 music_volume=req.music_volume,
+                music_delay=req.music_delay,
                 use_stickfigures=req.use_stickfigures,
                 cb=_cb,
             )
@@ -1166,6 +1170,7 @@ class AutoShortSettings(BaseModel):
     ambience:     str = "rain"
     music_style:  str = "Laidback_Fevorite"
     music_volume: float = 0.04
+    music_delay:  float = 0.0
 
 @app.get("/auto-short/settings")
 def get_auto_short_settings_endpoint(user: str = Depends(verify_token)):
@@ -1183,6 +1188,7 @@ def save_auto_short_settings_endpoint(req: AutoShortSettings, user: str = Depend
         "ambience":     req.ambience,
         "music_style":  req.music_style,
         "music_volume": req.music_volume,
+        "music_delay":  req.music_delay,
     }
     save_auto_short_settings(settings)
     return {"message": "Auto-short settings saved", "settings": settings}
@@ -1202,6 +1208,7 @@ def trigger_auto_short(user: str = Depends(verify_token)):
     ambience     = settings.get("ambience", "rain")
     music_style  = settings.get("music_style", "Laidback_Fevorite")
     music_volume = float(settings.get("music_volume", 0.04))
+    music_delay  = float(settings.get("music_delay", 0.0))
 
     record   = db.create_video(f"[Short] {topic}")
     video_id = record["id"]
@@ -1215,7 +1222,7 @@ def trigger_auto_short(user: str = Depends(verify_token)):
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline
-            run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, angle=angle)
+            run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, angle=angle)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -1242,6 +1249,7 @@ class PodcastGenerateRequest(BaseModel):
     essay:        Optional[str] = None
     music_style:  str = "ambient"
     music_volume: float = 0.06
+    music_delay:  float = 0.0
 
 
 @app.get("/podcast-episode/settings")
@@ -1322,6 +1330,7 @@ def generate_podcast_episode(req: PodcastGenerateRequest, user: str = Depends(ve
             essay=req.essay,
             music_style=req.music_style,
             music_volume=req.music_volume,
+            music_delay=req.music_delay,
             video_id=video_id,
             push_log_fn=_push_log,
             unregister_fn=_unregister_pipeline,
@@ -2092,6 +2101,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     ambience         = body.get("ambience", "rain")
     music_style      = body.get("music_style", "Laidback_Fevorite")
     music_volume     = float(body.get("music_volume", 0.04))
+    music_delay      = float(body.get("music_delay", 0.0))
     custom_script    = body.get("custom_script", "").strip() if body.get("custom_script") else ""
     use_stickfigures = bool(body.get("use_stickfigures", False))
     if not prompt and not custom_script:
@@ -2120,7 +2130,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, custom_script=custom_script or None, use_stickfigures=use_stickfigures)
+            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -2166,6 +2176,16 @@ def clear_cache(user: str = Depends(verify_token)):
 # ── Pipeline registry — active pipelines for cancel + log streaming ──────────
 _active_pipelines: dict = {}
 _pipeline_lock = _threading.Lock()
+
+# ── Stickfigure generation jobs ───────────────────────────────────────────────
+_sf_gen_jobs: dict = {}   # job_id → {"log": [], "done": bool}
+_sf_gen_lock = _threading.Lock()
+
+def _push_sf_log(job_id: str, msg: str):
+    with _sf_gen_lock:
+        entry = _sf_gen_jobs.get(job_id)
+        if entry is not None:
+            entry["log"].append(msg)
 
 # ── Serial pipeline queue ─────────────────────────────────────────────────────
 # max_workers=1 means only ONE pipeline runs at a time across ALL job types
@@ -3639,6 +3659,176 @@ async def upload_stickfigure(
     )
     row["preview_url"] = public_url or f"/stickfigures-assets/{safe_name}"
     return row
+
+
+# ── Stickfigure Generation (AI image → MP4) ───────────────────────────────────
+
+class StickfigureGenerateRequest(BaseModel):
+    prompts_text: str
+
+
+def _parse_action_env_pairs(text: str) -> list[dict]:
+    """Parse raw text into Action/Environment prompt pairs."""
+    pairs = []
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    i = 0
+    while i < len(lines) - 1:
+        action_match = lines[i].lower().startswith("action:")
+        env_match    = lines[i + 1].lower().startswith("environment:")
+        if action_match and env_match:
+            action = lines[i][len("action:"):].strip()
+            env    = lines[i + 1][len("environment:"):].strip()
+            if action and env:
+                pairs.append({"action": action, "environment": env})
+            i += 2
+        else:
+            i += 1
+    return pairs
+
+
+def _run_sf_generation(job_id: str, pairs: list[dict]):
+    """Background task: generate stickfigure images via Groq API and save as MP4s."""
+    import subprocess as _sp
+    import uuid as _uuid
+    import requests as _req
+    import base64 as _b64
+    import time as _t
+    from pathlib import Path as _P
+
+    rule_path = _P(__file__).parent / "custom_artifacts" / "grok_stickfigure_generation_rule.txt"
+    try:
+        rule_text = rule_path.read_text()
+    except Exception as e:
+        _push_sf_log(job_id, f"[ERROR] Could not read rules file: {e}")
+        with _sf_gen_lock:
+            _sf_gen_jobs[job_id]["done"] = True
+        return
+
+    if not config.GROQ_API_KEY_2:
+        _push_sf_log(job_id, "[ERROR] GROQ_API_KEY_2 is not configured")
+        with _sf_gen_lock:
+            _sf_gen_jobs[job_id]["done"] = True
+        return
+
+    total = len(pairs)
+    for i, pair in enumerate(pairs):
+        action = pair["action"]
+        env    = pair["environment"]
+        _push_sf_log(job_id, f"[{i+1}/{total}] Generating: {action[:60]}...")
+
+        try:
+            prompt = f"{rule_text}\n\nAction: {action}\nEnvironment: {env}"
+
+            resp = _req.post(
+                "https://api.groq.com/openai/v1/images/generations",
+                headers={
+                    "Authorization": f"Bearer {config.GROQ_API_KEY_2}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": config.GROQ_IMAGE_MODEL,
+                    "prompt": prompt,
+                    "n": 1,
+                    "response_format": "b64_json",
+                },
+                timeout=90,
+            )
+            resp.raise_for_status()
+            img_b64   = resp.json()["data"][0]["b64_json"]
+            img_bytes = _b64.b64decode(img_b64)
+
+            slug     = f"sf_gen_{job_id[:8]}_{i+1:03d}"
+            png_path = _STICK_FIGURE_DIR / f"{slug}.png"
+            mp4_name = f"{slug}.mp4"
+            mp4_path = _STICK_FIGURE_DIR / mp4_name
+
+            png_path.write_bytes(img_bytes)
+            _push_sf_log(job_id, f"[{i+1}/{total}] Image received — converting to MP4...")
+
+            enc = _sp.run([
+                "ffmpeg", "-y",
+                "-loop", "1", "-i", str(png_path),
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                "-pix_fmt", "yuv420p", "-t", "5",
+                "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+                "-movflags", "+faststart",
+                str(mp4_path),
+            ], capture_output=True)
+            png_path.unlink(missing_ok=True)
+
+            if enc.returncode != 0:
+                _push_sf_log(job_id, f"[{i+1}/{total}] ERROR: FFmpeg failed — {enc.stderr[-200:]}")
+                continue
+
+            from pipeline.stickfigure_compositor import get_video_info
+            info     = get_video_info(str(mp4_path))
+            keywords = [w.lower() for w in action.split() if len(w) > 3]
+            db.upsert_stickfigure_clip(
+                filename  = mp4_name,
+                label     = action[:60],
+                keywords  = keywords,
+                file_path = str(mp4_path),
+                duration  = round(info["duration"], 2),
+                width     = info["width"],
+                height    = info["height"],
+                has_alpha = False,
+                has_audio = False,
+                source    = "generated",
+            )
+            _push_sf_log(job_id, f"[{i+1}/{total}] Saved: {mp4_name}")
+
+        except Exception as e:
+            _push_sf_log(job_id, f"[{i+1}/{total}] ERROR: {e}")
+
+        # Rate-limit: 1s between Groq requests
+        if i < total - 1:
+            _t.sleep(1.0)
+
+    _push_sf_log(job_id, "__DONE__")
+    with _sf_gen_lock:
+        _sf_gen_jobs[job_id]["done"] = True
+
+
+@app.post("/stickfigures/generate")
+def start_stickfigure_generation(
+    req: StickfigureGenerateRequest,
+    background_tasks: BackgroundTasks,
+    _u: str = Depends(verify_token),
+):
+    """
+    Parse Action+Environment pairs from raw text, then call Groq image generation
+    (GROQ_API_KEY_2) for each pair and save results as MP4 stickfigure clips.
+    """
+    import uuid as _uuid
+    pairs = _parse_action_env_pairs(req.prompts_text)
+    if not pairs:
+        raise HTTPException(
+            400,
+            "No valid Action+Environment pairs found. "
+            "Format: 'Action: <text>' on one line, 'Environment: <text>' on the next."
+        )
+
+    job_id = str(_uuid.uuid4())
+    with _sf_gen_lock:
+        _sf_gen_jobs[job_id] = {"log": [], "done": False}
+
+    background_tasks.add_task(_run_sf_generation, job_id, pairs)
+    return {"job_id": job_id, "pair_count": len(pairs)}
+
+
+@app.get("/stickfigures/generate/{job_id}/logs")
+def get_stickfigure_gen_logs(
+    job_id: str,
+    since: int = Query(default=0),
+    _u: str = Depends(verify_token),
+):
+    """Poll generation progress. Returns log lines since the given offset."""
+    with _sf_gen_lock:
+        entry = _sf_gen_jobs.get(job_id)
+    if not entry:
+        return {"lines": [], "total": 0, "done": True}
+    lines = entry.get("log", [])
+    return {"lines": lines[since:], "total": len(lines), "done": entry.get("done", False)}
 
 
 @app.post("/videos/{video_id}/composite")

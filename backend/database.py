@@ -55,10 +55,13 @@ CREATE TABLE IF NOT EXISTS stickfigure_clips (
     has_alpha   BOOLEAN DEFAULT FALSE,
     has_audio   BOOLEAN DEFAULT FALSE,
     enabled     BOOLEAN DEFAULT TRUE,          -- can be toggled off without deleting
+    source      TEXT DEFAULT 'library',        -- 'library' | 'generated'
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_sfclips_enabled ON stickfigure_clips(enabled);
+CREATE INDEX IF NOT EXISTS idx_sfclips_source  ON stickfigure_clips(source);
 ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS public_url TEXT DEFAULT '';
+ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'library';
 ─────────────────────────────────────────────────
 -- Subscription users (exclusive content access) — run once in Supabase SQL Editor:
 ─────────────────────────────────────────────────
@@ -356,6 +359,7 @@ def upsert_stickfigure_clip(
     height: int = 0,
     has_alpha: bool = False,
     has_audio: bool = False,
+    source: str = "library",
 ) -> dict:
     """Insert or update a clip record, keyed on filename."""
     db = get_client()
@@ -371,6 +375,7 @@ def upsert_stickfigure_clip(
         "has_alpha": has_alpha,
         "has_audio": has_audio,
         "enabled":   True,
+        "source":    source,
     }
     r = db.table("stickfigure_clips").upsert(row, on_conflict="filename").execute()
     return r.data[0]

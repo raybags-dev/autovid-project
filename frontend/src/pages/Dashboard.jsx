@@ -1269,6 +1269,7 @@ export default function Dashboard() {
   const [shortAmbience, setShortAmbience] = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").ambience || "rain"; } catch { return "rain"; } });
   const [shortMusicStyle, setShortMusicStyle] = useState(() => { try { return JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_style || "Laidback_Fevorite"; } catch { return "Laidback_Fevorite"; } });
   const [shortMusicVolume, setShortMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
+  const [shortMusicDelay, setShortMusicDelay] = useState(0.0);
   const [shortGenerating, setShortGenerating] = useState(false);
   const [shortGenError, setShortGenError] = useState("");
   const [shortLogs, setShortLogs] = useState([]);
@@ -1730,7 +1731,7 @@ export default function Dashboard() {
       const res = await generateShortFromScratch(
         shortScriptMode === "custom" ? shortCustomScript.trim().slice(0, 200) : shortPrompt.trim(),
         shortUseStickfigures ? "rain" : shortAmbience,
-        shortMusicStyle, shortMusicVolume,
+        shortMusicStyle, shortMusicVolume, shortMusicDelay,
         shortScriptMode === "custom" ? shortCustomScript.trim() : "",
         shortUseStickfigures,
       );
@@ -2131,6 +2132,7 @@ export default function Dashboard() {
   const [manualPodcastTopic, setManualPodcastTopic] = useState("");
   const [manualPodcastEssay, setManualPodcastEssay] = useState("");
   const [manualPodcastMusic, setManualPodcastMusic] = useState("Birds_Atmosphere_Piano");
+  const [podcastMusicDelay, setPodcastMusicDelay] = useState(0.0);
   const [podcastMusicVolume, setPodcastMusicVolume] = useState(0.01);
   const [showTopicsPanel, setShowTopicsPanel] = useState(false);
   const [topicsInputText, setTopicsInputText] = useState("");
@@ -5602,6 +5604,7 @@ export default function Dashboard() {
                     { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav" },
                     { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
                     { id: "Pads",                   label: "🎵 Pads" },
+                    { id: "swingPiano",             label: "🎷 Swing Piano" },
                     { id: "none",                   label: "🔇 None" },
                   ].map(m => (
                     <button key={m.id} onClick={() => setShortMusicStyle(m.id)}
@@ -5624,6 +5627,17 @@ export default function Dashboard() {
                   />
                   <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round(shortMusicVolume * 100)}%</div>
                 </div>
+                {shortMusicStyle !== "none" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>DELAY</div>
+                    <input type="range" min={0} max={5} step={0.1}
+                      value={shortMusicDelay}
+                      onChange={e => setShortMusicDelay(parseFloat(e.target.value))}
+                      style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+                    />
+                    <div style={{ fontSize: 9, color: T.textFaint, width: 32, textAlign: "right" }}>{shortMusicDelay.toFixed(1)}s</div>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -9055,6 +9069,7 @@ export default function Dashboard() {
                             { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav" },
                             { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
                             { id: "Pads",                   label: "🎵 Pads" },
+                            { id: "swingPiano",             label: "🎷 Swing Piano" },
                             { id: "none",                   label: "🔇 None" },
                           ].map(m => (
                             <button key={m.id}
@@ -9078,6 +9093,17 @@ export default function Dashboard() {
                           />
                           <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round((autoShortSettings.music_volume ?? 0.04) * 100)}%</div>
                         </div>
+                        {(autoShortSettings.music_style || "Laidback_Fevorite") !== "none" && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                            <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>DELAY</div>
+                            <input type="range" min={0} max={5} step={0.1}
+                              value={autoShortSettings.music_delay ?? 0}
+                              onChange={e => setAutoShortSettings(s => ({ ...s, music_delay: parseFloat(e.target.value) }))}
+                              style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+                            />
+                            <div style={{ fontSize: 9, color: T.textFaint, width: 32, textAlign: "right" }}>{(autoShortSettings.music_delay ?? 0).toFixed(1)}s</div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Save + Run Now */}
@@ -9321,7 +9347,7 @@ export default function Dashboard() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>BACKGROUND MUSIC</div>
                           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                            {["Birds_Atmosphere_Piano","Birds_Atmosphere_Wing","Laidback_Fevorite","Pads_EPiano","Pads","none"].map(s => (
+                            {["Birds_Atmosphere_Piano","Birds_Atmosphere_Wing","Laidback_Fevorite","Pads_EPiano","Pads","swingPiano","none"].map(s => (
                               <button key={s}
                                 onClick={() => setPodcastSettings(ps => ({ ...ps, music_style: s }))}
                                 style={{
@@ -9347,6 +9373,20 @@ export default function Dashboard() {
                               {Math.round(podcastMusicVolume * 100)}%
                             </div>
                           </div>
+                          {podcastSettings?.music_style !== "none" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                              <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>DELAY</div>
+                              <input
+                                type="range" min={0} max={5} step={0.1}
+                                value={podcastMusicDelay}
+                                onChange={e => setPodcastMusicDelay(parseFloat(e.target.value))}
+                                style={{ flex: 1, accentColor: T.accent, cursor: "pointer" }}
+                              />
+                              <div style={{ fontSize: 9, color: T.textFaint, width: 32, textAlign: "right" }}>
+                                {podcastMusicDelay.toFixed(1)}s
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -9582,6 +9622,7 @@ export default function Dashboard() {
                               { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav" },
                               { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
                               { id: "Pads",                   label: "🎵 Pads" },
+                              { id: "swingPiano",             label: "🎷 Swing Piano" },
                               { id: "none",                   label: "🔇 None" },
                             ].map(m => (
                               <button key={m.id}
@@ -9597,7 +9638,7 @@ export default function Dashboard() {
                             ))}
                           </div>
                           {/* Music volume */}
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                             <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>VOL</div>
                             <input
                               type="range" min={0} max={0.5} step={0.01}
@@ -9609,6 +9650,20 @@ export default function Dashboard() {
                               {Math.round(podcastMusicVolume * 100)}%
                             </div>
                           </div>
+                          {manualPodcastMusic !== "none" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                              <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", flexShrink: 0 }}>DELAY</div>
+                              <input
+                                type="range" min={0} max={5} step={0.1}
+                                value={podcastMusicDelay}
+                                onChange={e => setPodcastMusicDelay(parseFloat(e.target.value))}
+                                style={{ flex: 1, accentColor: T.accent, cursor: "pointer" }}
+                              />
+                              <div style={{ fontSize: 9, color: T.textFaint, width: 32, textAlign: "right" }}>
+                                {podcastMusicDelay.toFixed(1)}s
+                              </div>
+                            </div>
+                          )}
                           <div style={{ display: "flex", justifyContent: "flex-end" }}>
                             <button
                               disabled={podcastRunning || (!manualPodcastTopic.trim() && !manualPodcastEssay.trim())}
@@ -9619,6 +9674,7 @@ export default function Dashboard() {
                                     essay: manualPodcastEssay || null,
                                     music_style: manualPodcastMusic,
                                     music_volume: podcastMusicVolume,
+                                    music_delay: podcastMusicDelay,
                                   });
                                   if (!res?.video_id) { showToast("No video ID returned", "error"); return; }
                                   _startPodcastPolling(res.video_id, manualPodcastTopic);

@@ -92,6 +92,7 @@ def run_script_pipeline(
     visual_mood:     str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
     music_style:     str = "ambient",
     music_volume:    float = 0.06,
+    music_delay:     float = 0.0,
     use_stickfigures: bool = False,
     cb=None,
 ):
@@ -192,7 +193,7 @@ def run_script_pipeline(
         # ── Step 3: Background music ──────────────────────────────────────────
         _log("MUSIC", f"Generating {music_style} background track...", cb)
         try:
-            music_path = generate_music(music_style, duration, video_id)
+            music_path = generate_music(music_style, duration, video_id, music_delay=music_delay)
         except Exception as e:
             print(f"⚠️  Music generation error (non-fatal): {e} — continuing voice-only")
             music_path = None
@@ -200,7 +201,7 @@ def run_script_pipeline(
         # ── Step 4: Mix audio ─────────────────────────────────────────────────
         _log("MIXING", "Mixing voice + music...", cb)
         mixed_path_str = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_mixed.mp3")
-        mixed_path = mix_audio(voice_path, music_path, mixed_path_str, music_volume=music_volume)
+        mixed_path = mix_audio(voice_path, music_path, mixed_path_str, music_volume=music_volume, music_delay=music_delay)
 
         # ── Step 5: Combine visual + audio ───────────────────────────────────
         _log("ASSEMBLE", "Combining visual video with mixed audio...", cb)

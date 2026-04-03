@@ -310,6 +310,7 @@ def run_podcast_episode(
     essay: str = None,
     music_style: str = None,
     music_volume: float = None,
+    music_delay: float = 0.0,
     video_id: str = None,
     push_log_fn=None,
     unregister_fn=None,
@@ -370,11 +371,11 @@ def run_podcast_episode(
         # ── Step 3: Background music ───────────────────────────────────────────
         chosen_style = music_style or DEFAULT_MUSIC_STYLE
         _log(f"[3/5] Generating {chosen_style} background music...")
-        music_path = generate_music(chosen_style, _get_duration(raw_mp3_path) + 10, video_id)
+        music_path = generate_music(chosen_style, _get_duration(raw_mp3_path) + 10, video_id, music_delay=music_delay)
 
         vol = music_volume if music_volume is not None else PODCAST_MUSIC_VOLUME
         mixed_mp3 = config.AUDIO_OUTPUT_DIR / f"{video_id}_podcast.mp3"
-        mix_audio(raw_mp3_path, music_path, str(mixed_mp3), music_volume=vol)
+        mix_audio(raw_mp3_path, music_path, str(mixed_mp3), music_volume=vol, music_delay=music_delay)
         _log(f"[3/5] Music mixed at {int(vol*100)}% — {mixed_mp3.name}")
         db.update_video(video_id, status="assembled")
 

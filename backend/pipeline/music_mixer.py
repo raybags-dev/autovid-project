@@ -24,6 +24,7 @@ MUSIC_STYLES = {
     "Laidback_Fevorite":       "Laidback_Fevorite.mp3",
     "Pads_EPiano":             "Pads_EPiano.mp3",
     "Pads":                    "Pads.mp3",
+    "swingPiano":              "swingPiano.mp3",
     # legacy keys kept for backwards-compatibility
     "ambient":    "Birds_Atmosphere_Piano.mp3",
     "wilderness": "Birds_Atmosphere_Wing.mp3",
@@ -38,10 +39,12 @@ _DEFAULT_STYLE = "Birds_Atmosphere_Piano"
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def generate_music(style: str, duration: float, video_id: str) -> str | None:
+def generate_music(style: str, duration: float, video_id: str,
+                   music_delay: float = 0.0) -> str | None:
     """
     Prepare a background music track of the given duration.
     Loops / trims the source MP3 file with FFmpeg.
+    music_delay: extra seconds added so the looped track covers the pre-delay offset.
     Returns path to the prepared MP3, or None if style is 'none' or file missing.
     """
     if style == "none":
@@ -57,7 +60,7 @@ def generate_music(style: str, duration: float, video_id: str) -> str | None:
         return None
 
     out_path = config.AUDIO_OUTPUT_DIR / f"{video_id}_music.mp3"
-    target_dur = duration + 2.0  # slight tail so mix doesn't clip
+    target_dur = duration + 2.0 + music_delay  # slight tail + pre-delay offset
 
     print(f"🎵  Preparing {style} music ({target_dur:.0f}s) from {filename}...")
 
@@ -92,24 +95,31 @@ def generate_music(style: str, duration: float, video_id: str) -> str | None:
 
 
 def mix_audio(voice_path: str, music_path: str | None, output_path: str,
-              music_volume: float = 0.10) -> str:
+              music_volume: float = 0.10, music_delay: float = 0.0) -> str:
     """
     Mix narration voice with background music.
     music_volume: 0.0–1.0 relative to voice (0.10 = music at 10% of voice level)
+    music_delay:  seconds to delay the music track (pre-narration breathing room)
     Returns output_path.
     """
     if not music_path:
         shutil.copy2(voice_path, output_path)
         return output_path
 
-    print(f"🎚  Mixing voice + music (music @ {int(music_volume * 100)}%)...")
+    print(f"🎚  Mixing voice + music (music @ {int(music_volume * 100)}%, delay {music_delay:.1f}s)...")
+
+    if music_delay > 0:
+        delay_ms = int(music_delay * 1000)
+        music_filter = f"[1:a]adelay={delay_ms}|{delay_ms},volume={music_volume}[music]"
+    else:
+        music_filter = f"[1:a]volume={music_volume}[music]"
 
     subprocess.run([
         "ffmpeg", "-y",
         "-i", voice_path,
         "-i", music_path,
         "-filter_complex",
-        f"[1:a]volume={music_volume}[music];[0:a][music]amix=inputs=2:duration=first:normalize=0[out]",
+        f"{music_filter};[0:a][music]amix=inputs=2:duration=first:normalize=0[out]",
         "-map", "[out]",
         "-q:a", "3",
         output_path,
@@ -120,9 +130,11 @@ def mix_audio(voice_path: str, music_path: str | None, output_path: str,
 
 
 def mix_background_music(video_path: str, style: str, video_id: str,
-                          music_volume: float = 0.08) -> str:
+                          music_volume: float = 0.08,
+                          music_delay: float = 0.0) -> str:
     """
     High-level helper: prepare background music and mix it into a video file.
+    music_delay: seconds to delay the music track (pre-narration breathing room)
     Returns path to the output video. Falls back to original on any error.
     """
     out_path = Path(video_path)
@@ -141,9 +153,15 @@ def mix_background_music(video_path: str, style: str, video_id: str,
         print(f"⚠️  Could not get video duration: {e}")
         return video_path
 
-    music_path = generate_music(style, duration, f"{video_id}_bg")
+    music_path = generate_music(style, duration, f"{video_id}_bg", music_delay=music_delay)
     if not music_path:
         return video_path
+
+    if music_delay > 0:
+        delay_ms = int(music_delay * 1000)
+        bg_filter = f"[1:a]adelay={delay_ms}|{delay_ms},volume={music_volume}[bg]"
+    else:
+        bg_filter = f"[1:a]volume={music_volume}[bg]"
 
     tmp = str(out_path).replace(".mp4", "_musixed.mp4")
     try:
@@ -152,7 +170,7 @@ def mix_background_music(video_path: str, style: str, video_id: str,
             "-i", video_path,
             "-i", music_path,
             "-filter_complex",
-            f"[1:a]volume={music_volume}[bg];[0:a][bg]amix=inputs=2:duration=first:normalize=0[aout]",
+            f"{bg_filter};[0:a][bg]amix=inputs=2:duration=first:normalize=0[aout]",
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "copy",
