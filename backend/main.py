@@ -3687,13 +3687,12 @@ def _parse_action_env_pairs(text: str) -> list[dict]:
 
 
 def _run_sf_generation(job_id: str, pairs: list[dict]):
-    """Background task: generate stickfigure images via Groq API and save as MP4s."""
-    import subprocess as _sp
-    import uuid as _uuid
+    """Background task: generate stickfigure videos via xAI grok-imagine-video and save as MP4s."""
     import requests as _req
-    import base64 as _b64
     import time as _t
+    from datetime import timedelta as _td
     from pathlib import Path as _P
+    import xai_sdk
 
     rule_path = _P(__file__).parent / "custom_artifacts" / "grok_stickfigure_generation_rule.txt"
     try:
@@ -3705,10 +3704,12 @@ def _run_sf_generation(job_id: str, pairs: list[dict]):
         return
 
     if not config.GROQ_API_KEY_2:
-        _push_sf_log(job_id, "[ERROR] GROQ_API_KEY_2 is not configured")
+        _push_sf_log(job_id, "[ERROR] XAI_API_KEY (GROQ_API_KEY_2) is not configured")
         with _sf_gen_lock:
             _sf_gen_jobs[job_id]["done"] = True
         return
+
+    xai_client = xai_sdk.Client(api_key=config.GROQ_API_KEY_2)
 
     total = len(pairs)
     for i, pair in enumerate(pairs):
@@ -3719,58 +3720,36 @@ def _run_sf_generation(job_id: str, pairs: list[dict]):
         try:
             prompt = f"{rule_text}\n\nAction: {action}\nEnvironment: {env}"
 
-            resp = _req.post(
-                "https://api.groq.com/openai/v1/images/generations",
-                headers={
-                    "Authorization": f"Bearer {config.GROQ_API_KEY_2}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": config.GROQ_IMAGE_MODEL,
-                    "prompt": prompt,
-                    "n": 1,
-                    "response_format": "b64_json",
-                },
-                timeout=90,
+            video_resp = xai_client.video.generate(
+                prompt=prompt,
+                model="grok-imagine-video",
+                duration=5,
+                aspect_ratio="16:9",
+                resolution="720p",
+                timeout=_td(minutes=10),
+                interval=_td(seconds=5),
             )
-            resp.raise_for_status()
-            img_b64   = resp.json()["data"][0]["b64_json"]
-            img_bytes = _b64.b64decode(img_b64)
+
+            video_url = video_resp.url
+            _push_sf_log(job_id, f"[{i+1}/{total}] Video ready — downloading...")
 
             slug     = f"sf_gen_{job_id[:8]}_{i+1:03d}"
-            png_path = _STICK_FIGURE_DIR / f"{slug}.png"
             mp4_name = f"{slug}.mp4"
             mp4_path = _STICK_FIGURE_DIR / mp4_name
 
-            png_path.write_bytes(img_bytes)
-            _push_sf_log(job_id, f"[{i+1}/{total}] Image received — converting to MP4...")
+            dl = _req.get(video_url, timeout=120)
+            dl.raise_for_status()
+            mp4_path.write_bytes(dl.content)
 
-            enc = _sp.run([
-                "ffmpeg", "-y",
-                "-loop", "1", "-i", str(png_path),
-                "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-                "-pix_fmt", "yuv420p", "-t", "5",
-                "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
-                "-movflags", "+faststart",
-                str(mp4_path),
-            ], capture_output=True)
-            png_path.unlink(missing_ok=True)
-
-            if enc.returncode != 0:
-                _push_sf_log(job_id, f"[{i+1}/{total}] ERROR: FFmpeg failed — {enc.stderr[-200:]}")
-                continue
-
-            from pipeline.stickfigure_compositor import get_video_info
-            info     = get_video_info(str(mp4_path))
             keywords = [w.lower() for w in action.split() if len(w) > 3]
             db.upsert_stickfigure_clip(
                 filename  = mp4_name,
                 label     = action[:60],
                 keywords  = keywords,
                 file_path = str(mp4_path),
-                duration  = round(info["duration"], 2),
-                width     = info["width"],
-                height    = info["height"],
+                duration  = round(getattr(video_resp, "duration", 5), 2),
+                width     = 1280,
+                height    = 720,
                 has_alpha = False,
                 has_audio = False,
                 source    = "generated",
@@ -3779,10 +3758,6 @@ def _run_sf_generation(job_id: str, pairs: list[dict]):
 
         except Exception as e:
             _push_sf_log(job_id, f"[{i+1}/{total}] ERROR: {e}")
-
-        # Rate-limit: 1s between Groq requests
-        if i < total - 1:
-            _t.sleep(1.0)
 
     _push_sf_log(job_id, "__DONE__")
     with _sf_gen_lock:
