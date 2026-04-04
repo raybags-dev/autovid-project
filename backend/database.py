@@ -513,3 +513,63 @@ def delete_custom_content(item_id: str) -> bool:
     client = get_client()
     client.table("custom_content").delete().eq("id", item_id).execute()
     return True
+
+
+# ── Prompt Pool ───────────────────────────────────────────────────────────────
+
+def get_next_unused_prompt(pipeline: str = "long") -> Optional[dict]:
+    """Return the oldest unused prompt for the given pipeline, or None if exhausted."""
+    db = get_client()
+    result = (
+        db.table("prompt_pool")
+        .select("*")
+        .eq("pipeline", pipeline)
+        .is_("used_at", "null")
+        .order("created_at")
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def mark_prompt_used(prompt_id: str):
+    db = get_client()
+    db.table("prompt_pool").update({"used_at": datetime.now(timezone.utc).isoformat()}).eq("id", prompt_id).execute()
+
+
+def add_prompts_to_pool(prompts: list, pipeline: str = "long", source: str = "manual") -> int:
+    """Insert prompts, skipping exact duplicates. Returns count inserted."""
+    db = get_client()
+    rows = [{"prompt": p.strip(), "pipeline": pipeline, "source": source} for p in prompts if p.strip()]
+    if not rows:
+        return 0
+    result = db.table("prompt_pool").upsert(rows, on_conflict="prompt,pipeline").execute()
+    return len(result.data)
+
+
+def count_prompt_pool(pipeline: str = "long") -> dict:
+    db = get_client()
+    total_r  = db.table("prompt_pool").select("id", count="exact").eq("pipeline", pipeline).execute()
+    unused_r = db.table("prompt_pool").select("id", count="exact").eq("pipeline", pipeline).is_("used_at", "null").execute()
+    return {"total": total_r.count or 0, "unused": unused_r.count or 0}
+
+
+def reset_prompt_pool(pipeline: str = "long"):
+    """Mark all prompts in the pool as unused (reset cycle)."""
+    db = get_client()
+    db.table("prompt_pool").update({"used_at": None}).eq("pipeline", pipeline).execute()
+
+
+def list_recent_prompts(pipeline: str = "long", limit: int = 50) -> list:
+    """Return recently used prompts (for semantic deduplication)."""
+    db = get_client()
+    result = (
+        db.table("prompt_pool")
+        .select("prompt")
+        .eq("pipeline", pipeline)
+        .not_.is_("used_at", "null")
+        .order("used_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return [r["prompt"] for r in (result.data or [])]

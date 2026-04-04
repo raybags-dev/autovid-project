@@ -68,6 +68,10 @@ import api, {
   generateThumbnail,
   deleteSubscriptionUser,
   uploadExclusivePreviewVideo,
+  getPromptsStatus,
+  addPrompts,
+  resetPrompts,
+  generatePromptsModeA,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
@@ -1221,7 +1225,9 @@ export default function Dashboard() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const [genError, setGenError] = useState("");
   const [useStickfigures, setUseStickfigures] = useState(false);
+  const [useStockFootage, setUseStockFootage] = useState(true);
   const [shortUseStickfigures, setShortUseStickfigures] = useState(false);
+  const [shortUseStockFootage, setShortUseStockFootage] = useState(true);
   const [sfClipCount, setSfClipCount] = useState(null); // null = not loaded yet
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
@@ -1541,6 +1547,7 @@ export default function Dashboard() {
         musicVolume,
         musicDelay,
         useStickfigures,
+        useStockFootage,
       );
       const vid = data.video_id;
       setGenJobId(vid);
@@ -1736,6 +1743,7 @@ export default function Dashboard() {
         shortMusicStyle, shortMusicVolume, shortMusicDelay,
         shortScriptMode === "custom" ? shortCustomScript.trim() : "",
         shortUseStickfigures,
+        shortUseStockFootage,
       );
       const vid = res?.video_id;
       saveRecentPrompt(hasInput);
@@ -2073,6 +2081,9 @@ export default function Dashboard() {
   const [autoReplyStatus, setAutoReplyStatus] = useState(null);
   const [autoGenSettings, setAutoGenSettings] = useState(null);
   const [autoGenSaving, setAutoGenSaving] = useState(false);
+  const [promptPool, setPromptPool] = useState(null);
+  const [promptInput, setPromptInput] = useState("");
+  const [promptPipeline, setPromptPipeline] = useState("long");
   const [autoGenJobId, setAutoGenJobId] = useState(null);
   const [autoGenRunning, setAutoGenRunning] = useState(false);
   const [autoGenStep, setAutoGenStep] = useState(0);
@@ -3562,31 +3573,43 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* ── Stickfigure toggle ── */}
-                  <div style={{ marginTop: 12, padding: "10px 14px", background: useStickfigures ? `${T.accentPurple}10` : T.bg, border: `1px solid ${useStickfigures ? T.accentPurple + "50" : T.border}`, borderRadius: 10, transition: "all 0.2s" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                      <input type="checkbox" checked={useStickfigures}
-                        onChange={e => {
-                          const on = e.target.checked;
-                          setUseStickfigures(on);
-                          if (on && sfClipCount === 0) {
-                            addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
-                            showToast("No stickfigures in DB — add clips first", "error");
-                          }
-                        }}
-                        style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
-                      />
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: useStickfigures ? T.accentPurple : T.textMid, letterSpacing: "0.04em" }}>
-                          🕹 USE STICKFIGURES
+                  {/* ── Background mode toggles ── */}
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    {/* Stock Footage */}
+                    <div style={{ flex: 1, padding: "10px 14px", background: useStockFootage && !useStickfigures ? `${T.accent}10` : T.bg, border: `1px solid ${useStockFootage && !useStickfigures ? T.accent + "60" : T.border}`, borderRadius: 10, transition: "all 0.2s", opacity: useStickfigures ? 0.4 : 1 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: useStickfigures ? "not-allowed" : "pointer" }}>
+                        <input type="checkbox" checked={useStockFootage && !useStickfigures} disabled={useStickfigures}
+                          onChange={e => setUseStockFootage(e.target.checked)}
+                          style={{ accentColor: T.accent, width: 14, height: 14 }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: useStockFootage && !useStickfigures ? T.accent : T.textMid, letterSpacing: "0.04em" }}>📹 STOCK FOOTAGE</div>
+                          <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>Pexels clips matched to script</div>
                         </div>
-                        <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>
-                          {useStickfigures
-                            ? `Rain background + auto-matched overlays — ${sfClipCount ?? "?"} clips in DB`
-                            : "Use animated stickfigure overlays instead of stock footage"}
+                      </label>
+                    </div>
+                    {/* Stickfigures */}
+                    <div style={{ flex: 1, padding: "10px 14px", background: useStickfigures ? `${T.accentPurple}10` : T.bg, border: `1px solid ${useStickfigures ? T.accentPurple + "50" : T.border}`, borderRadius: 10, transition: "all 0.2s" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                        <input type="checkbox" checked={useStickfigures}
+                          onChange={e => {
+                            const on = e.target.checked;
+                            setUseStickfigures(on);
+                            if (on) setUseStockFootage(false);
+                            else setUseStockFootage(true);
+                            if (on && sfClipCount === 0) {
+                              addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
+                              showToast("No stickfigures in DB — add clips first", "error");
+                            }
+                          }}
+                          style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: useStickfigures ? T.accentPurple : T.textMid, letterSpacing: "0.04em" }}>🕹 STICKFIGURES</div>
+                          <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>{useStickfigures ? `Rain bg + overlays — ${sfClipCount ?? "?"} clips` : "Rain bg + stickfigure overlays"}</div>
                         </div>
-                      </div>
-                    </label>
+                      </label>
+                    </div>
                   </div>
 
                   <div
@@ -5659,31 +5682,41 @@ export default function Dashboard() {
               </div>
             </>
           )}
-          {/* ── Stickfigure toggle (Shorts) ── */}
-          <div style={{ marginBottom: 10, padding: "10px 14px", background: shortUseStickfigures ? `${T.accentPurple}10` : T.bg, border: `1px solid ${shortUseStickfigures ? T.accentPurple + "50" : T.border}`, borderRadius: 10, transition: "all 0.2s" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <input type="checkbox" checked={shortUseStickfigures}
-                onChange={e => {
-                  const on = e.target.checked;
-                  setShortUseStickfigures(on);
-                  if (on && sfClipCount === 0) {
-                    addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
-                    showToast("No stickfigures in DB — add clips first", "error");
-                  }
-                }}
-                style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
-              />
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: shortUseStickfigures ? T.accentPurple : T.textMid, letterSpacing: "0.04em" }}>
-                  🕹 USE STICKFIGURES
+          {/* ── Background mode toggles (Shorts) ── */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <div style={{ flex: 1, padding: "10px 14px", background: shortUseStockFootage && !shortUseStickfigures ? `${T.accent}10` : T.bg, border: `1px solid ${shortUseStockFootage && !shortUseStickfigures ? T.accent + "60" : T.border}`, borderRadius: 10, transition: "all 0.2s", opacity: shortUseStickfigures ? 0.4 : 1 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: shortUseStickfigures ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={shortUseStockFootage && !shortUseStickfigures} disabled={shortUseStickfigures}
+                  onChange={e => setShortUseStockFootage(e.target.checked)}
+                  style={{ accentColor: T.accent, width: 14, height: 14 }}
+                />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: shortUseStockFootage && !shortUseStickfigures ? T.accent : T.textMid, letterSpacing: "0.04em" }}>📹 STOCK FOOTAGE</div>
+                  <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>Pexels clips per segment</div>
                 </div>
-                <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>
-                  {shortUseStickfigures
-                    ? `Rain background + auto-matched overlays — ${sfClipCount ?? "?"} clips in DB`
-                    : "Use animated stickfigure overlays instead of stock footage"}
+              </label>
+            </div>
+            <div style={{ flex: 1, padding: "10px 14px", background: shortUseStickfigures ? `${T.accentPurple}10` : T.bg, border: `1px solid ${shortUseStickfigures ? T.accentPurple + "50" : T.border}`, borderRadius: 10, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="checkbox" checked={shortUseStickfigures}
+                  onChange={e => {
+                    const on = e.target.checked;
+                    setShortUseStickfigures(on);
+                    if (on) setShortUseStockFootage(false);
+                    else setShortUseStockFootage(true);
+                    if (on && sfClipCount === 0) {
+                      addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
+                      showToast("No stickfigures in DB — add clips first", "error");
+                    }
+                  }}
+                  style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
+                />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: shortUseStickfigures ? T.accentPurple : T.textMid, letterSpacing: "0.04em" }}>🕹 STICKFIGURES</div>
+                  <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>{shortUseStickfigures ? `Rain bg + ${sfClipCount ?? "?"} clips` : "Rain bg + stickfigure overlays"}</div>
                 </div>
-              </div>
-            </label>
+              </label>
+            </div>
           </div>
 
           {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
@@ -8680,6 +8713,50 @@ export default function Dashboard() {
                         >
                           {autoGenRunning ? "⚙ Running..." : "▶ Run Now"}
                         </button>
+                      </div>
+
+                      {/* ── Prompt Pool Panel ── */}
+                      <div style={{ marginTop: 16, borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: T.textMid, letterSpacing: "0.08em" }}>📋 PROMPT POOL</div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {["long", "short"].map(p => (
+                              <button key={p} onClick={() => setPromptPipeline(p)} style={{ padding: "3px 10px", borderRadius: 5, border: `1px solid ${promptPipeline === p ? T.accent + "80" : T.border}`, background: promptPipeline === p ? `${T.accent}15` : "transparent", color: promptPipeline === p ? T.accent : T.textFaint, fontSize: 10, fontFamily: "inherit", cursor: "pointer" }}>{p}</button>
+                            ))}
+                            <button onClick={async () => { try { const s = await getPromptsStatus(); setPromptPool(s); } catch {} }} style={{ padding: "3px 10px", borderRadius: 5, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, fontFamily: "inherit", cursor: "pointer" }}>↻ Refresh</button>
+                          </div>
+                        </div>
+                        {promptPool && (
+                          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                            {["long", "short"].map(p => (
+                              <div key={p} style={{ flex: 1, padding: "8px 10px", background: T.inputBg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                                <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 4, letterSpacing: "0.06em" }}>{p.toUpperCase()} PIPELINE</div>
+                                <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{promptPool[p]?.unused ?? "?"} <span style={{ fontWeight: 400, color: T.textFaint, fontSize: 10 }}>/ {promptPool[p]?.total ?? "?"} unused</span></div>
+                                <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>mode: {promptPool[`exhaustion_mode_${p}`] || "A"}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <textarea
+                          value={promptInput}
+                          onChange={e => setPromptInput(e.target.value)}
+                          placeholder={`Add prompts for [${promptPipeline}] pipeline — one per line or comma-separated`}
+                          rows={3}
+                          style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 11, padding: "8px 10px", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                        />
+                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                          <button onClick={async () => {
+                            const items = promptInput.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+                            if (!items.length) return;
+                            try { await addPrompts(items, promptPipeline); setPromptInput(""); const s = await getPromptsStatus(); setPromptPool(s); showToast(`Added ${items.length} prompt(s)`); } catch { showToast("Failed to add prompts", "error"); }
+                          }} style={{ flex: 1, padding: "7px 0", borderRadius: 7, border: `1px solid ${T.accent}50`, background: `${T.accent}10`, color: T.accent, fontSize: 10, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.05em" }}>+ ADD PROMPTS</button>
+                          <button onClick={async () => {
+                            try { const r = await generatePromptsModeA(promptPipeline); showToast(`Generated ${r.generated} prompts`); const s = await getPromptsStatus(); setPromptPool(s); } catch { showToast("Mode A generation failed", "error"); }
+                          }} style={{ flex: 1, padding: "7px 0", borderRadius: 7, border: `1px solid ${T.accentGreen}50`, background: `${T.accentGreen}10`, color: T.accentGreen, fontSize: 10, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.05em" }}>✨ AUTO-GENERATE (A)</button>
+                          <button onClick={async () => {
+                            try { await resetPrompts(promptPipeline); const s = await getPromptsStatus(); setPromptPool(s); showToast(`Reset ${promptPipeline} pool`); } catch { showToast("Reset failed", "error"); }
+                          }} style={{ padding: "7px 12px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, fontFamily: "inherit", cursor: "pointer" }}>↺ RESET</button>
+                        </div>
                       </div>
 
                       {/* Progress panel — appears when auto-generate is running */}

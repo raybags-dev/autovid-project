@@ -61,6 +61,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
   const [musicVolume, setMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
   const [musicDelay, setMusicDelay] = useState(0.0);
   const [useStickfigures, setUseStickfigures] = useState(false);
+  const [useStockFootage, setUseStockFootage] = useState(true);
   const [sfClipCount, setSfClipCount] = useState(null);
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep]   = useState(0);
@@ -118,11 +119,12 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
         title:           title.trim(),
         script:          script.trim(),
         profile,
-        visual_mood:     useStickfigures ? "rain" : mood,
-        music_style:     music,
-        music_volume:    musicVolume,
-        music_delay:     musicDelay,
-        use_stickfigures: useStickfigures,
+        visual_mood:       useStickfigures ? "rain" : mood,
+        music_style:       music,
+        music_volume:      musicVolume,
+        music_delay:       musicDelay,
+        use_stickfigures:  useStickfigures,
+        use_stock_footage: useStockFootage,
       });
       const vid = data.video_id;
       setJobId(vid);
@@ -792,39 +794,41 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
             )}
           </div>
 
-          {/* Stickfigure toggle */}
-          <div style={{
-            padding: "10px 14px", borderRadius: 10,
-            background: useStickfigures ? `${T.accentPurple || "#a060ff"}10` : T.bgCard,
-            border: `1px solid ${useStickfigures ? (T.accentPurple || "#a060ff") + "50" : T.border}`,
-            transition: "all 0.2s",
-          }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: running ? "not-allowed" : "pointer" }}>
-              <input
-                type="checkbox"
-                checked={useStickfigures}
-                disabled={running}
-                onChange={e => {
-                  const on = e.target.checked;
-                  setUseStickfigures(on);
-                  if (on && sfClipCount === 0) {
-                    showToast("No stickfigures in DB — add clips first", "error");
-                    if (addNotification) addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before enabling this option.", "error");
-                  }
-                }}
-                style={{ accentColor: T.accentPurple || "#a060ff", cursor: "pointer" }}
-              />
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: useStickfigures ? (T.accentPurple || "#a060ff") : T.text, letterSpacing: "0.05em" }}>
-                  🕹 USE STICKFIGURES
+          {/* Background mode toggles */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1, padding: "10px 14px", borderRadius: 10, background: useStockFootage && !useStickfigures ? `${T.accent || "#0090d0"}10` : T.bgCard, border: `1px solid ${useStockFootage && !useStickfigures ? (T.accent || "#0090d0") + "60" : T.border}`, transition: "all 0.2s", opacity: useStickfigures ? 0.4 : 1 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: running || useStickfigures ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={useStockFootage && !useStickfigures} disabled={running || useStickfigures}
+                  onChange={e => setUseStockFootage(e.target.checked)}
+                  style={{ accentColor: T.accent || "#0090d0", cursor: "pointer" }}
+                />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: useStockFootage && !useStickfigures ? (T.accent || "#0090d0") : T.textMid, letterSpacing: "0.05em" }}>📹 STOCK FOOTAGE</div>
+                  <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>Pexels clips matched to script</div>
                 </div>
-                <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>
-                  {useStickfigures
-                    ? `Rain background + auto-matched overlays — ${sfClipCount ?? "?"} clips in DB`
-                    : "Overlay animated stickfigures on rain background"}
+              </label>
+            </div>
+            <div style={{ flex: 1, padding: "10px 14px", borderRadius: 10, background: useStickfigures ? `${T.accentPurple || "#a060ff"}10` : T.bgCard, border: `1px solid ${useStickfigures ? (T.accentPurple || "#a060ff") + "50" : T.border}`, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: running ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={useStickfigures} disabled={running}
+                  onChange={e => {
+                    const on = e.target.checked;
+                    setUseStickfigures(on);
+                    if (on) setUseStockFootage(false);
+                    else setUseStockFootage(true);
+                    if (on && sfClipCount === 0) {
+                      showToast("No stickfigures in DB — add clips first", "error");
+                      if (addNotification) addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before enabling this option.", "error");
+                    }
+                  }}
+                  style={{ accentColor: T.accentPurple || "#a060ff", cursor: "pointer" }}
+                />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: useStickfigures ? (T.accentPurple || "#a060ff") : T.textMid, letterSpacing: "0.05em" }}>🕹 STICKFIGURES</div>
+                  <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>{useStickfigures ? `Rain bg + ${sfClipCount ?? "?"} clips` : "Rain bg + stickfigure overlays"}</div>
                 </div>
-              </div>
-            </label>
+              </label>
+            </div>
           </div>
 
           {/* Generate / Cancel buttons */}

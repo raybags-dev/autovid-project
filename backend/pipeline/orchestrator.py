@@ -379,6 +379,7 @@ def run_pipeline(
     progress_callback: Optional[Callable] = None,
     video_id: str = None,   # pre-created DB record ID (optional)
     use_stickfigures: bool = False,
+    use_stock_footage: bool = True,
 ) -> dict:
     """
     Run the full AutoVid pipeline from prompt → final video → YouTube.
@@ -426,6 +427,8 @@ def run_pipeline(
         # Stickfigure mode forces the rain procedural background
         if use_stickfigures:
             _mood = "rain"
+        elif not use_stock_footage:
+            _mood = "aurora_dark"  # CSS-only animated background, no Pexels fetch
         else:
             _mood = visual_mood or video_fetcher.get_mood_for_topic(prompt)
 
@@ -552,7 +555,7 @@ def retry_failed(video_id: str, cb=None) -> dict:
 SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
 
 
-def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False, use_stock_footage: bool = True) -> dict:
     """
     YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
@@ -625,7 +628,12 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
             _log("VOICE", f"⚠️ Narration upload skipped: {e}", cb)
 
         # 4. Generate portrait 9:16 visual — capped at SHORT_MAX_DURATION + 2s buffer
-        _ambience = "rain" if use_stickfigures else ambience
+        if use_stickfigures:
+            _ambience = "rain"
+        elif not use_stock_footage:
+            _ambience = "aurora_dark"
+        else:
+            _ambience = ambience
         visual_duration = min(int(duration) + 2, SHORT_MAX_DURATION + 2)
         _log("VISUALS", f"Generating portrait visual: {_ambience} ({visual_duration}s)...", cb)
         visual_path = generate_short_visual(duration=visual_duration, ambience=_ambience)

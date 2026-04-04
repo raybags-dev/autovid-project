@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import database as db
+import config
 
 # Days of week: 0=Monday ... 6=Sunday
 DEFAULT_DAYS = [1, 3, 5, 6]   # Tue, Thu, Sat, Sun = 4x per week
@@ -151,11 +152,109 @@ def save_settings(settings: dict):
     db.set_setting("auto_generate_hour",     str(settings.get("hour", DEFAULT_HOUR)))
 
 
-def _pick_next_prompt(prompts: list) -> str:
-    """Pick the next unused prompt, cycling through the list."""
+def _jaccard_similarity(a: str, b: str) -> float:
+    """Simple word-overlap similarity in [0, 1]."""
+    sa = set(a.lower().split())
+    sb = set(b.lower().split())
+    if not sa or not sb:
+        return 0.0
+    return len(sa & sb) / len(sa | sb)
+
+
+def _is_semantically_duplicate(candidate: str, existing: list, threshold: float = 0.45) -> bool:
+    """Return True if candidate is too similar to any prompt in existing."""
+    return any(_jaccard_similarity(candidate, e) >= threshold for e in existing)
+
+
+def _auto_generate_prompts(pipeline: str = "long", count: int = 20) -> list:
+    """
+    Mode A: Use Groq LLM to generate a fresh batch of prompts.
+    Themes: dark, philosophical, existential — meaning, death, love, absurdism, isolation, purpose.
+    """
     try:
-        last_idx_raw = db.get_setting("auto_generate_last_idx", default="-1")
-        last_idx = int(last_idx_raw)
+        from groq import Groq
+        client = Groq(api_key=config.GROQ_API_KEY)
+        recent = db.list_recent_prompts(pipeline, limit=50)
+        recent_sample = "\n".join(f"- {p}" for p in recent[:20]) if recent else "(none yet)"
+        system = (
+            "You generate video titles for a philosophical YouTube channel. "
+            "Themes: dark, existential, absurdist — death, meaning, love, isolation, "
+            "purpose, human condition, aging, impermanence, absurdism. "
+            "Never repeat themes already covered. Keep each title under 12 words. "
+            "Output ONLY a JSON array of strings, no other text."
+        )
+        user = (
+            f"Generate exactly {count} unique video titles. "
+            f"Avoid any topic similar to these already-used titles:\n{recent_sample}\n\n"
+            "Return ONLY a JSON array."
+        )
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.9,
+            max_tokens=800,
+        )
+        raw = resp.choices[0].message.content.strip()
+        # Extract JSON array from response
+        start = raw.find("[")
+        end = raw.rfind("]") + 1
+        if start == -1 or end == 0:
+            return []
+        prompts = json.loads(raw[start:end])
+        # Semantic deduplication against recent
+        unique = [p for p in prompts if isinstance(p, str) and p.strip() and not _is_semantically_duplicate(p, recent)]
+        return unique[:count]
+    except Exception as e:
+        print(f"⚠️  Mode A prompt generation failed: {e}")
+        return []
+
+
+def _ensure_pool_seeded(pipeline: str, defaults: list):
+    """Seed the prompt_pool from the defaults list if the pool is empty."""
+    counts = db.count_prompt_pool(pipeline)
+    if counts["total"] == 0:
+        print(f"🌱 Seeding prompt pool ({pipeline}) from {len(defaults)} defaults")
+        db.add_prompts_to_pool(defaults, pipeline=pipeline, source="default")
+
+
+def _pick_next_prompt(prompts: list) -> str:
+    """
+    Pick the next unused prompt from the DB pool (pipeline='long').
+    Falls back to old index-based cycling if DB is unavailable.
+    On exhaustion: Mode A auto-generates new prompts, Mode B falls back to reset.
+    """
+    pipeline = "long"
+    try:
+        _ensure_pool_seeded(pipeline, prompts)
+        row = db.get_next_unused_prompt(pipeline)
+        if row is None:
+            # Pool exhausted — check exhaustion mode
+            mode = db.get_setting("auto_generate_exhaustion_mode", default="A")
+            if mode in ("A", "hybrid"):
+                print("🔄 Prompt pool exhausted — running Mode A auto-generation")
+                new_prompts = _auto_generate_prompts(pipeline=pipeline, count=20)
+                if new_prompts:
+                    db.add_prompts_to_pool(new_prompts, pipeline=pipeline, source="generated")
+                    row = db.get_next_unused_prompt(pipeline)
+                else:
+                    print("⚠️  Mode A generation failed — resetting pool")
+                    db.reset_prompt_pool(pipeline)
+                    row = db.get_next_unused_prompt(pipeline)
+            else:
+                # Mode B: reset and cycle from existing
+                print("🔄 Prompt pool exhausted — resetting (Mode B)")
+                db.reset_prompt_pool(pipeline)
+                row = db.get_next_unused_prompt(pipeline)
+
+        if row:
+            db.mark_prompt_used(row["id"])
+            return row["prompt"]
+    except Exception as e:
+        print(f"⚠️  Prompt pool DB error, falling back to index: {e}")
+
+    # Fallback: old index-based cycling
+    try:
+        last_idx = int(db.get_setting("auto_generate_last_idx", default="-1"))
     except Exception:
         last_idx = -1
     next_idx = (last_idx + 1) % len(prompts)
@@ -400,24 +499,51 @@ def save_auto_short_settings(settings: dict):
 
 def _pick_next_short_topic(topics: list) -> tuple:
     """
-    Pick the next unused topic+angle combo, never repeating.
-    Each topic gets cycled through all SHORT_ANGLES before any combo repeats.
+    Pick the next unused topic from the DB pool (pipeline='short'), then pick an
+    angle deterministically. Falls back to in-memory combo cycling if DB fails.
     Returns (topic, angle).
     """
     from pipeline.script_gen import SHORT_ANGLES
 
+    pipeline = "short"
+    try:
+        _ensure_pool_seeded(pipeline, topics)
+        row = db.get_next_unused_prompt(pipeline)
+        if row is None:
+            mode = db.get_setting("auto_short_exhaustion_mode", default="A")
+            if mode in ("A", "hybrid"):
+                print("🔄 Short topic pool exhausted — running Mode A auto-generation")
+                new_topics = _auto_generate_prompts(pipeline=pipeline, count=20)
+                if new_topics:
+                    db.add_prompts_to_pool(new_topics, pipeline=pipeline, source="generated")
+                    row = db.get_next_unused_prompt(pipeline)
+                else:
+                    db.reset_prompt_pool(pipeline)
+                    row = db.get_next_unused_prompt(pipeline)
+            else:
+                db.reset_prompt_pool(pipeline)
+                row = db.get_next_unused_prompt(pipeline)
+
+        if row:
+            db.mark_prompt_used(row["id"])
+            topic_str = row["prompt"]
+            # Pick angle deterministically from used-count so we cycle through them
+            counts = db.count_prompt_pool(pipeline)
+            angle_idx = (counts["total"] - counts["unused"]) % len(SHORT_ANGLES)
+            return topic_str, SHORT_ANGLES[angle_idx]
+    except Exception as e:
+        print(f"⚠️  Short topic pool DB error, falling back: {e}")
+
+    # Fallback: old combo-set cycling
     try:
         used_raw = db.get_setting("auto_short_used_topics", default="[]")
         used = set(json.loads(used_raw))
     except Exception:
         used = set()
 
-    # Build all possible combos — topic::angle_index
     all_combos = [f"{t}::{i}" for t in topics for i in range(len(SHORT_ANGLES))]
     available  = [c for c in all_combos if c not in used]
-
     if not available:
-        # Full cycle exhausted — reset
         used = set()
         available = list(all_combos)
         print("🔄 Auto-short: all topic+angle combos used, resetting")
@@ -427,8 +553,7 @@ def _pick_next_short_topic(topics: list) -> tuple:
     db.set_setting("auto_short_used_topics", json.dumps(list(used)))
 
     topic_str, angle_idx = combo.rsplit("::", 1)
-    angle = SHORT_ANGLES[int(angle_idx)]
-    return topic_str, angle
+    return topic_str, SHORT_ANGLES[int(angle_idx)]
 
 
 def run_auto_short(push_log_fn=None, unregister_fn=None):

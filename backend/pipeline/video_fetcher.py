@@ -29,12 +29,16 @@ PEXELS_HEADERS = {"Authorization": config.PEXELS_API_KEY}
 PIXABAY_SEARCH_URL = "https://pixabay.com/api/videos/"
 
 
-def _search_pexels(query: str, duration_hint: float = 10, result_offset: int = 0) -> Optional[str]:
+def _search_pexels(
+    query: str,
+    duration_hint: float = 10,
+    result_offset: int = 0,
+    exclude_ids: set = None,
+) -> tuple:
     """
     Search Pexels for a video matching the query.
-    result_offset: index into the candidate list, so different video_ids get different clips
-                   for the same query rather than always the first result.
-    Returns the download URL of the best match, or None.
+    exclude_ids: set of Pexels video IDs already used — skipped to ensure diversity.
+    Returns (download_url, pexels_video_id) or (None, None).
     """
     params = {
         "query": query,
@@ -47,24 +51,29 @@ def _search_pexels(query: str, duration_hint: float = 10, result_offset: int = 0
         resp.raise_for_status()
         videos = resp.json().get("videos", [])
         if not videos:
-            return None
+            return None, None
 
-        # Collect all videos long enough for this segment
-        candidates = [v for v in videos if v["duration"] >= max(duration_hint - 1, 3)]
-        if not candidates:
-            candidates = videos  # relax duration filter if nothing qualifies
+        # Filter out already-used clips
+        if exclude_ids:
+            fresh = [v for v in videos if v["id"] not in exclude_ids]
+            candidates = fresh if fresh else videos  # relax dedup if nothing fresh
+        else:
+            candidates = videos
 
-        # Use offset to pick a different result per script/segment
+        # Prefer clips long enough for this segment
+        long_enough = [v for v in candidates if v["duration"] >= max(duration_hint - 1, 3)]
+        candidates = long_enough if long_enough else candidates
+
         video = candidates[result_offset % len(candidates)]
         files = sorted(video["video_files"], key=lambda f: f.get("width", 0), reverse=True)
         for f in files:
             if f.get("width", 0) >= 1280:
-                return f["link"]
-        return files[0]["link"] if files else None
+                return f["link"], video["id"]
+        return (files[0]["link"], video["id"]) if files else (None, None)
 
     except Exception as e:
         print(f"⚠️  Pexels search failed for '{query}': {e}")
-        return None
+        return None, None
 
 
 def _search_pixabay(query: str, result_offset: int = 0) -> Optional[str]:
@@ -296,31 +305,33 @@ def _expand_query(query: str) -> list[str]:
     return []
 
 
-def fetch_clip(query: str, duration_hint: float, video_id: str, segment_index: int) -> Optional[str]:
+def fetch_clip(
+    query: str,
+    duration_hint: float,
+    video_id: str,
+    segment_index: int,
+    used_ids: set = None,
+) -> Optional[str]:
     """
     Fetch a stock video clip for a script segment.
 
-    Args:
-        query: Visual description to search for (from script segment)
-        duration_hint: Approximate seconds this clip needs to fill
-        video_id: Parent video ID (for file naming)
-        segment_index: Position in the video (for file naming)
-
-    Returns:
-        Local file path to downloaded clip, or None if fetch failed
+    used_ids: mutable set of Pexels video IDs already downloaded in this run.
+              Updated in-place when a new clip is fetched.
+    Returns local file path to downloaded clip, or None if fetch failed.
     """
+    if used_ids is None:
+        used_ids = set()
+
     clip_dir = config.TEMP_DIR / video_id / "clips"
     clip_dir.mkdir(parents=True, exist_ok=True)
 
-    # Derive a per-video variation offset so different scripts get different
-    # clips for the same query instead of always the first API result.
-    vid_hash     = int(hashlib.md5(video_id.encode()).hexdigest()[:4], 16)
+    vid_hash      = int(hashlib.md5(video_id.encode()).hexdigest()[:4], 16)
     result_offset = (vid_hash + segment_index) % 15
 
     cache_key = _cache_key(query)
     clip_path = clip_dir / f"seg_{segment_index:02d}_{cache_key}.mp4"
 
-    # Within a single video run, reuse already-downloaded clips for the same query
+    # Within a single run, reuse already-downloaded clips for the same query
     cached = list(clip_dir.glob(f"seg_*_{cache_key}.mp4"))
     if cached:
         print(f"📦 Cache hit for '{query}'")
@@ -328,25 +339,21 @@ def fetch_clip(query: str, duration_hint: float, video_id: str, segment_index: i
 
     print(f"🎬 Fetching clip for: '{query}' (~{duration_hint:.0f}s needed, offset={result_offset})")
 
-    # Try Pexels with original query
-    url = _search_pexels(query, duration_hint, result_offset=result_offset)
+    url, pexels_id = _search_pexels(query, duration_hint, result_offset=result_offset, exclude_ids=used_ids)
 
-    # Try expanded/conceptual fallback queries
     if not url:
-        expansions = _expand_query(query)
-        for alt_query in expansions:
+        for alt_query in _expand_query(query):
             print(f"   Trying expanded query: '{alt_query}'")
-            url = _search_pexels(alt_query, duration_hint, result_offset=result_offset)
+            url, pexels_id = _search_pexels(alt_query, duration_hint, result_offset=result_offset, exclude_ids=used_ids)
             if url:
                 print(f"   ✅ Expansion matched: '{alt_query}'")
                 break
 
-    # Fallback to Pixabay with original query
     if not url:
         print(f"   Pexels empty, trying Pixabay...")
         url = _search_pixabay(query, result_offset=result_offset)
+        pexels_id = None
 
-    # Pixabay with expanded queries
     if not url:
         for alt_query in _expand_query(query)[:2]:
             url = _search_pixabay(alt_query, result_offset=result_offset)
@@ -361,33 +368,48 @@ def fetch_clip(query: str, duration_hint: float, video_id: str, segment_index: i
     if not success:
         return None
 
+    if pexels_id:
+        used_ids.add(pexels_id)
+
     print(f"✅ Clip saved: {clip_path.name}")
     return str(clip_path)
 
 
 def fetch_all_clips(segments: list[dict], video_id: str) -> list[dict]:
     """
-    Fetch clips for all script segments.
-    Skips empty visual_query (outro/hook), uses a simple fallback.
+    Fetch clips for all script segments with cross-segment deduplication.
+    Retries failed segments with broader queries to enforce coverage.
 
-    Args:
-        segments: List of timed segments from align_segments_to_audio()
-        video_id: Parent video ID
-
-    Returns:
-        segments list with 'clip_path' added to each item
+    Returns segments list with 'clip_path' added to each item.
     """
     print(f"\n🎬 Fetching {len(segments)} clips...")
+    used_ids: set = set()  # Pexels video IDs used in this run
+
     enriched = []
     for i, seg in enumerate(segments):
-        query = seg.get("visual_query", "").strip()
+        query    = seg.get("visual_query", "").strip()
         duration = seg.get("duration", 8)
-
         clip_path = None
         if query:
-            clip_path = fetch_clip(query, duration, video_id, i)
-
+            clip_path = fetch_clip(query, duration, video_id, i, used_ids=used_ids)
         enriched.append({**seg, "clip_path": clip_path})
+
+    # ── Coverage enforcement: retry failed segments with broader queries ────────
+    failed = [i for i, s in enumerate(enriched) if s.get("visual_query") and not s["clip_path"]]
+    if failed:
+        print(f"⚠️  {len(failed)} segment(s) have no clip — retrying with broader queries...")
+        for i in failed:
+            seg   = enriched[i]
+            query = seg.get("mood_hint") or seg.get("visual_query", "")
+            # Try a shorter, simpler version of the query
+            words = query.split()
+            broad = " ".join(words[:3]) if len(words) > 3 else query
+            clip_path = fetch_clip(broad, seg.get("duration", 8), video_id, i + 1000, used_ids=used_ids)
+            if not clip_path:
+                # Last resort: generic cinematic query
+                clip_path = fetch_clip("cinematic nature landscape", seg.get("duration", 8), video_id, i + 2000, used_ids=used_ids)
+            if clip_path:
+                enriched[i] = {**seg, "clip_path": clip_path}
 
     found = sum(1 for s in enriched if s["clip_path"])
     print(f"✅ Clips ready: {found}/{len(segments)}")
