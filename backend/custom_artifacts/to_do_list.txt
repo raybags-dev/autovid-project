@@ -1,266 +1,147 @@
+We currently define prompt lists in code:
 
-### Feature
+- DEFAULT_SHORT_TOPICS
+- DEFAULT_PROMPTS
 
-Introduce a configurable Delay Slider for the background soundtrack.
+These are used by an auto-generation pipeline. The issue is that prompts are randomly selected, which causes repeated selections and results in duplicate or highly similar generated videos.
 
-### Behavior
+Additionally, we have a stock footage pipeline (using the Pexels API), but it has the following issues:
+- It frequently reuses the same footage clips
+- It sometimes fails to retrieve enough footage to cover the full script duration
+- Footage selection is not well aligned with script segments
 
-* Allows setting a delay before narration starts after the video begins.
-* Allows setting a delay after narration ends before the background track stops.
-* Purpose: enable the background audio to play briefly before narration begins and continue briefly after narration finishes.
-
-### Default state
-
-* Delay is disabled by default (0s / OFF).
-* No impact on current timing unless explicitly enabled.
-
-### Usage
-
-* When enabled, the slider value defines the delay duration in seconds.
-* The same value applies to both:
-
-  * pre-narration delay
-  * post-narration delay
-
-### Goal
-
-Ensure smoother audio transitions by allowing background music to start slightly earlier and end slightly later than narration, improving perceived flow and atmosphere.
-
-____________________________________________________________________________________
-
-
-# Feature: Stickfigure Generation Pipeline Extension
-
-## 1. UI Additions
-
-### 1.1 New Button
-
-Add a new button in the Stickfigure pipeline UI:
-
-* Label: “Generate Stickfigure(s)”
-* Placement: alongside existing stickfigure controls
+We also have a UI issue:
+- The option to use footage as a background is no longer clearly available across all MP4 generation pipelines
+- If it exists, it is unclear or inconsistently exposed
+- This option should be clearly available and consistently named **"Stock Footage"**
 
 ---
 
-### 1.2 New Filter Tab / View
+## Requirements
 
-Add a new filter option:
+### 1. Prompt Uniqueness System
+Design a deterministic system that ensures:
 
-* Name: Generated Stickfigure Videos
-* Behavior:
+- No prompt is reused until all prompts are exhausted
+- State persists across runs
+- Supports:
+  a) finite list cycling (no repetition)
+  b) dynamic prompt generation when exhausted
 
-  * Displays only newly generated stickfigure videos
-  * These items must support all existing stickfigure video functionalities, including:
+If using Supabase, define:
+- schema for prompts
+- tracking usage (used, unused, timestamps)
+- safe reset or expansion strategy
 
-    * playback
-    * download
-    * metadata display
-    * existing actions/tools
-
----
-
-### 1.3 Input Form Behavior
-
-When Generate Stickfigure(s) is clicked:
-
-* Open a modal or form containing:
-
-  * Multi-line text area input
-  * Submit button
+Also include:
+- semantic deduplication (avoid similar prompts, not just exact matches)
 
 ---
 
-## 2. Input Format Specification
+### 2. Stock Footage Pipeline Fix
 
-The text input must be parsed into structured prompts.
+Redesign the stock footage pipeline to:
 
-### Format rules
+- Ensure **diversity of footage** (avoid reusing the same clips)
+- Retrieve **sufficient footage to match script duration**
+- Improve **semantic matching** between script segments and footage
 
-Input will contain repeated blocks:
+The solution must include:
 
-```text
-Action: <action text>
-Environment: <environment text>
-```
+#### a) Footage selection strategy
+- Break script into segments (per sentence or time block)
+- Generate search queries per segment
+- Fetch multiple candidate clips per query
+- Rank and select best matches
 
-### Parsing rules
+#### b) De-duplication
+- Track previously used video IDs
+- Prevent reuse within:
+  - same video
+  - recent history (configurable window)
 
-* Each Action + Environment pair = one prompt unit
-* The parser must:
+#### c) Coverage enforcement
+- Ensure total footage duration >= narration duration
+- If insufficient footage:
+  - fallback strategies (reuse with variation, extend clips, or fetch broader queries)
 
-  * Split by occurrences of `Action:` and `Environment:`
-  * Treat everything between `Action:` and `Environment:` as action text
-  * Treat everything between `Environment:` and next `Action:` as environment text
-* Ignore:
+#### d) Variation strategy
+- Use multiple queries per segment (synonyms, paraphrases)
+- Avoid repeating identical search terms
 
-  * extra whitespace
-  * empty lines
-* Multiple prompts may exist in a single submission
+### 1.1 Prompt Exhaustion Handling (MANDATORY)
 
-### Example input
+When all prompts in a list are exhausted, the system must support TWO explicit modes:
 
-```text
-Action: walking forward slowly
-Environment: dark alley
+#### Mode A — Automatic Prompt Generation
+- The system should generate a new batch of prompts automatically
+- These prompts must follow a consistent thematic direction based on:
 
-Action: jumping over obstacle
-Environment: industrial zone
-```
+  → dark, philosophical, and existential themes  
+  → including (but not limited to): meaning of life, death, love, absurdism, isolation, purpose, and human condition  
+
+- Generated prompts must:
+  - be semantically unique from previous prompts
+  - avoid repetition in structure and wording
+  - maintain variety while staying within the theme
+
+#### Mode B — Manual Input
+- The user must be able to:
+  - upload a new list of prompts (file input), OR
+  - enter prompts as a comma-separated string:
+
+    Example:
+    "prompt 1, prompt 2, prompt 3"
+
+- The system must:
+  - validate and parse input
+  - deduplicate against existing prompts
+  - store them in the database for future use
+
+#### Mode Selection
+- The system should allow configuration to:
+  - automatically choose Mode A, OR
+  - require user input (Mode B), OR
+  - support a hybrid fallback:
+    → try auto-generation, fallback to manual if generation fails or is disabled
+    
+---
+
+### 3. UI / Feature Consistency
+
+Fix the UI and pipeline integration:
+
+- Ensure the option to use footage as a background is:
+  - available in ALL MP4 generation pipelines
+  - clearly visible and selectable
+
+- Rename this option consistently to:
+  → **"Stock Footage"**
+
+- Ensure behavior is consistent across:
+  - short generation
+  - long-form generation
+  - stickfigure/video pipelines
 
 ---
 
-## 3. API Key Routing Logic
+### 4. Output Requirements
 
-### Existing behavior
+Provide:
 
-* Current system continues using:
-
-  * `GROQ_API_KEY`
-
-### New behavior (Stickfigure pipeline only)
-
-* Use:
-
-  * `GROQ_API_KEY_2`
-
-### Implementation requirement
-
-* Copy `GROQ_API_KEY_2` into server secrets/config
-* Ensure it is available at runtime
-
-### Key separation rule
-
-* ALL existing non-stickfigure features:
-
-  * continue using `GROQ_API_KEY`
-* ALL stickfigure generation requests:
-
-  * must use `GROQ_API_KEY_2`
+- System architecture (prompt + footage pipeline)
+- Database schema (Supabase)
+- Algorithm / flow for:
+  - prompt selection
+  - footage selection
+- Example implementation (Python preferred)
+- Strategy for scaling (multiple concurrent pipelines)
 
 ---
 
-## 4. Prompt Construction
+## Goal
 
-Before sending any request to the Groq Text-to-Image model:
-
-### Required preprocessing
-
-For EACH parsed prompt:
-
-1. Load file:
-
-```
-backend/custom_artifacts/grok_stickfigure_generation_rule.txt
-```
-
-2. Prepend its content to the prompt
-
-### Final payload format per request:
-
-```
-<contents of grok_stickfigure_generation_rule.txt>
-
-Action: ...
-Environment: ...
-```
-
----
-
-## 5. API Execution Rules
-
-### Request handling
-
-* Each prompt = one API request
-* Must support multiple sequential requests
-
-### Rate limiting
-
-* Must respect Groq API timeout / rate limits
-* Prevent `TOO_MANY_REQUEST` errors by:
-
-  * throttling requests
-  * sequential execution (no parallel burst calls)
-
----
-
-## 6. File Handling / Output Safety
-
-### Requirement
-
-Prevent data loss during generation.
-
-### Rules
-
-* Each generated MP4 must be:
-
-  * saved immediately after creation
-  * persisted before next request starts OR safely queued with durable storage
-
-### Recommendation constraint
-
-System must choose ONE safe strategy:
-
-* Either:
-
-  * save immediately per file (preferred)
-* OR:
-
-  * queue + atomic batch save with retry protection
-
----
-
-## 7. Logging
-
-* Integrate with existing log monitoring system
-* Log events for:
-
-  * form submission
-  * parsed prompt count
-  * API request start/end
-  * failures / retries
-  * file save completion
-
----
-
-## 8. Validation Rules
-
-Before processing:
-
-### Required validation
-
-* Input must contain at least:
-
-  * one `Action:` block
-  * one corresponding `Environment:` block
-
-### Invalid cases
-
-* missing Action or Environment
-* malformed ordering
-* empty prompt pairs
-
----
-
-## 9. Processing Summary Flow
-
-1. User clicks Generate Stickfigure(s)
-2. Input form opens
-3. User submits raw text
-4. System parses into prompt list
-5. For each prompt:
-
-   * prepend rules file
-   * send request using `GROQ_API_KEY_2`
-   * wait for completion (rate-limited)
-   * save MP4 safely
-   * log result
-6. Newly generated videos appear under Generated Stickfigure Videos filter
-7. All videos support existing functionality + download
-
----
-
-If you want, I can convert this into:
-
-* a system design diagram
-* a backend task breakdown (tickets)
-* or a TypeScript / C# implementation scaffold
+Ensure:
+- Every generated video uses a **unique prompt**
+- Every video uses **diverse, relevant, and sufficient stock footage**
+- UI is **clear, consistent, and aligned with backend capabilities**
