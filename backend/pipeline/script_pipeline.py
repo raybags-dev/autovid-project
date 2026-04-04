@@ -56,6 +56,9 @@ def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public
         visual_path,
         str(config.AUDIO_OUTPUT_DIR / f"{video_id}_music.mp3"),
         str(config.AUDIO_OUTPUT_DIR / f"{video_id}_music.raw"),
+        str(config.AUDIO_OUTPUT_DIR / f"{video_id}_delayed.mp3"),
+        str(config.AUDIO_OUTPUT_DIR / f"{video_id}.mp3"),   # original TTS output
+        str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4"),
         str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_captioned.mp4"),
         str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_thumb.jpg"),
     ]
@@ -131,56 +134,68 @@ def run_script_pipeline(
         duration     = voice_result["duration"]
         print(f"   Duration: {duration:.1f}s ({duration/60:.1f} min)")
 
-        # ── Step 2: Visual background ─────────────────────────────────────────
+        # ── Step 1b: Narration delay — prepend silence to voice audio ────────
+        if music_delay > 0:
+            from pipeline.music_mixer import apply_narration_delay
+            _log("DELAY", f"Delaying narration by {music_delay:.1f}s...", cb)
+            delayed_voice = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_delayed.mp3")
+            voice_path    = apply_narration_delay(voice_path, music_delay, delayed_voice)
+
+        total_duration = duration + music_delay + 2.0
+
+        # ── Step 2: Animated background (always the base layer) ───────────────
+        from pipeline.visual_generator import generate_visual
         from pipeline.video_fetcher import MOOD_QUERIES, get_mood_for_topic
-        from pipeline.video_assembler import assemble_video as _assemble
 
         if use_stickfigures:
-            _mood = "rain"
-        elif not use_stock_footage:
-            _mood = "aurora_dark"
+            _bg_mood = "rain"
+        elif visual_mood and visual_mood in GENERATED_VISUAL_MOODS:
+            _bg_mood = visual_mood
         else:
-            _mood = visual_mood or get_mood_for_topic(title)
+            _bg_mood = "aurora_dark"
 
-        if _mood in GENERATED_VISUAL_MOODS:
-            # Generated animation mood — render numpy frames directly, skip Pexels
-            from pipeline.visual_generator import generate_visual
-            _log("VISUAL", f"Rendering {_mood} animation ({duration:.0f}s)...", cb)
-            db.set_status(video_id, "scripted")
-            visual_path = generate_visual(_mood, duration, video_id)
-            db.set_status(video_id, "assembled")
-        else:
-            # Stock footage mood — fetch clips from Pexels and assemble
-            _log("VISUAL", f"Fetching Pexels footage (mood: {_mood or 'generic'}, {duration:.0f}s)...", cb)
-            db.set_status(video_id, "scripted")
+        _log("VISUAL", f"Rendering {_bg_mood} background ({total_duration:.0f}s)...", cb)
+        db.set_status(video_id, "scripted")
+        visual_path = generate_visual(_bg_mood, total_duration, video_id)
+        db.set_status(video_id, "assembled")
 
-            queries = MOOD_QUERIES.get(_mood, [
+        # ── Step 2b: Composite stock footage on background (if requested) ──────
+        if use_stock_footage and not use_stickfigures:
+            _stock_mood = (
+                visual_mood
+                if visual_mood and visual_mood not in GENERATED_VISUAL_MOODS
+                else get_mood_for_topic(title)
+            )
+            _log("VISUAL", f"Fetching Pexels footage (mood: {_stock_mood or 'generic'})...", cb)
+
+            queries = MOOD_QUERIES.get(_stock_mood, [
                 "cinematic nature peaceful",
                 "calm landscape sunrise",
                 "soft light bokeh",
-            ]) if _mood else ["peaceful cinematic nature", "calm light bokeh", "landscape sunrise"]
+            ]) if _stock_mood else ["peaceful cinematic nature", "calm light bokeh", "landscape sunrise"]
 
             num_segs = max(3, int(duration / 12))
             seg_dur  = duration / num_segs
-            synth_segments = []
-            for i in range(num_segs):
-                synth_segments.append({
+            synth_segments = [
+                {
                     "text":         "",
                     "visual_query": queries[i % len(queries)],
-                    "start":        round(i * seg_dur, 2),
-                    "end":          round((i + 1) * seg_dur, 2),
+                    "start":        round(i * seg_dur + music_delay, 2),
+                    "end":          round((i + 1) * seg_dur + music_delay, 2),
                     "duration":     round(seg_dur, 2),
                     "clip_path":    None,
-                })
+                }
+                for i in range(num_segs)
+            ]
 
             import pipeline.video_fetcher as _vf
             synth_segments = _vf.fetch_all_clips(synth_segments, video_id)
 
             import pipeline.video_assembler as _va
-            visual_path = _va.assemble_video(synth_segments, voice_path, video_id)
-            db.set_status(video_id, "assembled")
+            composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
+            visual_path = _va.composite_stock_on_background(visual_path, synth_segments, composited_path)
 
-        # ── Step 2b: Stickfigure overlay (only when requested) ────────────────
+        # ── Step 2c: Stickfigure overlay (only when requested) ────────────────
         if use_stickfigures:
             try:
                 from pipeline.stickfigure_matcher import match_clips_to_script
@@ -199,15 +214,15 @@ def run_script_pipeline(
         # ── Step 3: Background music ──────────────────────────────────────────
         _log("MUSIC", f"Generating {music_style} background track...", cb)
         try:
-            music_path = generate_music(music_style, duration, video_id, music_delay=music_delay)
+            music_path = generate_music(music_style, total_duration, video_id, music_delay=music_delay)
         except Exception as e:
             print(f"⚠️  Music generation error (non-fatal): {e} — continuing voice-only")
             music_path = None
 
-        # ── Step 4: Mix audio ─────────────────────────────────────────────────
+        # ── Step 4: Mix audio — voice (with delay baked in) + music at t=0 ───
         _log("MIXING", "Mixing voice + music...", cb)
         mixed_path_str = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_mixed.mp3")
-        mixed_path = mix_audio(voice_path, music_path, mixed_path_str, music_volume=music_volume, music_delay=music_delay)
+        mixed_path = mix_audio(voice_path, music_path, mixed_path_str, music_volume=music_volume)
 
         # ── Step 5: Combine visual + audio ───────────────────────────────────
         _log("ASSEMBLE", "Combining visual video with mixed audio...", cb)

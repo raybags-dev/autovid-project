@@ -270,8 +270,10 @@ def cleanup(video_id: str, audio_path=None, captioned_path=None, delete_final: b
         _rm(audio_path)
 
     # Intermediate videos
-    for suffix in ["_raw.mp4", "_captioned.mp4", "_musixed.mp4"]:
+    for suffix in ["_raw.mp4", "_captioned.mp4", "_musixed.mp4", "_comp.mp4"]:
         _rm(config.VIDEOS_OUTPUT_DIR / f"{video_id}{suffix}")
+    # Delayed narration audio
+    _rm(config.AUDIO_OUTPUT_DIR / f"{video_id}_delayed.mp3")
     if captioned_path:
         _rm(captioned_path)
 
@@ -423,25 +425,49 @@ def run_pipeline(
         # ── 4. Align ──────────────────────────────────────────────────────────
         segments = step_align_segments(script_data, audio_result, cb)
 
-        # ── 5 & 6. Fetch clips OR generate animation ──────────────────────────
-        # Stickfigure mode forces the rain procedural background
+        # ── 4a. Narration delay — prepend silence to audio, shift segment timestamps
+        if music_delay > 0:
+            from pipeline.music_mixer import apply_narration_delay
+            _log("DELAY", f"Delaying narration by {music_delay:.1f}s...", cb)
+            delayed_voice = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_delayed.mp3")
+            audio_path    = apply_narration_delay(audio_path, music_delay, delayed_voice)
+            segments = [
+                {**s, "start": round(s["start"] + music_delay, 3),
+                       "end":   round(s["end"]   + music_delay, 3)}
+                for s in segments
+            ]
+
+        total_duration = audio_result["duration"] + music_delay + 2.0
+
+        # ── 5. Always generate animated background ────────────────────────────
+        # Ambience is always the base layer.  Stock footage is composited on top.
+        from pipeline.visual_generator import generate_visual
         if use_stickfigures:
-            _mood = "rain"
-        elif not use_stock_footage:
-            _mood = "aurora_dark"  # CSS-only animated background, no Pexels fetch
+            _bg_mood = "rain"
+        elif visual_mood and visual_mood in GENERATED_VISUAL_MOODS:
+            _bg_mood = visual_mood
         else:
-            _mood = visual_mood or video_fetcher.get_mood_for_topic(prompt)
+            _bg_mood = "aurora_dark"
 
-        if _mood in GENERATED_VISUAL_MOODS:
-            from pipeline.visual_generator import generate_visual
-            _log("VISUALS", f"Generating {_mood} animation ({audio_result['duration']:.0f}s)...", cb)
-            raw_video_path = generate_visual(_mood, audio_result["duration"], video_id)
+        _log("VISUALS", f"Generating {_bg_mood} background ({total_duration:.0f}s)...", cb)
+        raw_video_path = generate_visual(_bg_mood, total_duration, video_id)
+        db.set_video_assembled(video_id, raw_video_path, resolution="1920x1080")
+
+        # ── 5a. Composite stock footage on top of background ──────────────────
+        if use_stock_footage and not use_stickfigures:
+            _stock_mood = (
+                visual_mood
+                if visual_mood and visual_mood not in GENERATED_VISUAL_MOODS
+                else None
+            )
+            segments = step_fetch_clips(segments, video_id, mood=_stock_mood, cb=cb)
+            _log("VISUALS", "Compositing stock footage on background...", cb)
+            composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
+            from pipeline.video_assembler import composite_stock_on_background
+            raw_video_path = composite_stock_on_background(raw_video_path, segments, composited_path)
             db.set_video_assembled(video_id, raw_video_path, resolution="1920x1080")
-        else:
-            segments = step_fetch_clips(segments, video_id, mood=_mood, cb=cb)
-            raw_video_path = step_assemble_video(segments, audio_result, video_id, cb)
 
-        # ── 6b. Stickfigure overlay (only when requested) ─────────────────────
+        # ── 5b. Stickfigure overlay (only when requested) ─────────────────────
         if use_stickfigures:
             script_text = script_data.get("full_narration", prompt)
             raw_video_path = _step_stickfigure_composite(
@@ -464,7 +490,7 @@ def run_pipeline(
             try:
                 from pipeline.music_mixer import mix_background_music
                 _log("MUSIC", f"Mixing background music ({music_style}) @ {int(music_volume*100)}%...", cb)
-                mixed = mix_background_music(final_path, music_style, video_id, music_volume=music_volume, music_delay=music_delay)
+                mixed = mix_background_music(final_path, music_style, video_id, music_volume=music_volume)
                 if mixed and mixed != final_path:
                     final_path = mixed
                     _log("MUSIC", "✅ Background music mixed", cb)
@@ -627,14 +653,16 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         except Exception as e:
             _log("VOICE", f"⚠️ Narration upload skipped: {e}", cb)
 
+        # 3c. Narration delay — prepend silence to audio
+        if music_delay > 0:
+            from pipeline.music_mixer import apply_narration_delay
+            _log("DELAY", f"Delaying narration by {music_delay:.1f}s...", cb)
+            delayed_voice = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_delayed.mp3")
+            audio_path    = apply_narration_delay(audio_path, music_delay, delayed_voice)
+
         # 4. Generate portrait 9:16 visual — capped at SHORT_MAX_DURATION + 2s buffer
-        if use_stickfigures:
-            _ambience = "rain"
-        elif not use_stock_footage:
-            _ambience = "aurora_dark"
-        else:
-            _ambience = ambience
-        visual_duration = min(int(duration) + 2, SHORT_MAX_DURATION + 2)
+        _ambience       = "rain" if use_stickfigures else ambience
+        visual_duration = min(int(duration + music_delay) + 2, SHORT_MAX_DURATION + 2)
         _log("VISUALS", f"Generating portrait visual: {_ambience} ({visual_duration}s)...", cb)
         visual_path = generate_short_visual(duration=visual_duration, ambience=_ambience)
         db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
@@ -661,7 +689,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
             try:
                 from pipeline.music_mixer import mix_background_music
                 _log("MUSIC", f"Mixing background music ({music_style}) @ {int(music_volume*100)}%...", cb)
-                mixed = mix_background_music(final_path, music_style, video_id, music_volume=music_volume, music_delay=music_delay)
+                mixed = mix_background_music(final_path, music_style, video_id, music_volume=music_volume)
                 if mixed and mixed != final_path:
                     final_path = mixed
                     _log("MUSIC", "✅ Background music mixed", cb)

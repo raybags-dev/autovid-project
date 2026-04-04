@@ -189,6 +189,99 @@ def assemble_video(segments: list[dict], audio_path: str, video_id: str) -> str:
     return str(output_path)
 
 
+def composite_stock_on_background(background_path: str, segments: list, output_path: str) -> str:
+    """
+    Composite Pexels stock footage clips on top of an animated background video at exact
+    segment timestamps.  Segments without a valid clip_path show the background only.
+
+    Each clip is normalised to its segment duration (looped if shorter) and overlaid at
+    the correct time window using FFmpeg's overlay filter with enable='between(t,start,end)'.
+
+    Returns output_path on success, or a copy of background_path on failure.
+    """
+    import shutil as _shutil
+
+    W, H, FPS = 1920, 1080, 30
+
+    valid = [
+        (seg["start"], seg["end"], seg["duration"], seg["clip_path"])
+        for seg in segments
+        if seg.get("clip_path") and Path(seg["clip_path"]).exists()
+    ]
+
+    if not valid:
+        _shutil.copy2(background_path, output_path)
+        return output_path
+
+    print(f"🎬 Compositing {len(valid)} stock clip(s) on animated background...")
+
+    # ── Step 1: Normalise each clip to segment duration ──────────────────────
+    tmp_dir = Path(output_path).parent / f"comp_tmp_{Path(output_path).stem}"
+    tmp_dir.mkdir(exist_ok=True)
+
+    normalised = []
+    for i, (start, end, dur, clip_path) in enumerate(valid):
+        norm = str(tmp_dir / f"norm_{i:03d}.mp4")
+        r = subprocess.run([
+            "ffmpeg", "-y",
+            "-stream_loop", "-1",
+            "-i", clip_path,
+            "-t", str(dur),
+            "-vf", (
+                f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+                f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS}"
+            ),
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-an", norm,
+        ], capture_output=True)
+        if r.returncode == 0 and Path(norm).exists():
+            normalised.append((start, end, norm))
+        else:
+            print(f"  ⚠️  Clip normalise failed for seg starting {start:.1f}s — skipped")
+
+    if not normalised:
+        import shutil as _sh
+        _sh.rmtree(tmp_dir, ignore_errors=True)
+        _shutil.copy2(background_path, output_path)
+        return output_path
+
+    # ── Step 2: Build overlay filter_complex chain ───────────────────────────
+    cmd = ["ffmpeg", "-y", "-i", background_path]
+    for _, _, norm_path in normalised:
+        cmd += ["-i", norm_path]
+
+    filters = []
+    prev = "0:v"
+    for i, (start, end, _) in enumerate(normalised):
+        out_lbl = f"ov{i}"
+        filters.append(
+            f"[{prev}][{i + 1}:v]overlay=0:0:"
+            f"enable='between(t,{start:.3f},{end:.3f})'[{out_lbl}]"
+        )
+        prev = out_lbl
+
+    cmd += [
+        "-filter_complex", ";".join(filters),
+        "-map", f"[{prev}]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-an",
+        output_path,
+    ]
+
+    result = subprocess.run(cmd, capture_output=True)
+    import shutil as _sh2
+    _sh2.rmtree(tmp_dir, ignore_errors=True)
+
+    if result.returncode != 0 or not Path(output_path).exists():
+        print(f"⚠️  Stock composite FFmpeg error: {result.stderr.decode()[-400:]}")
+        _shutil.copy2(background_path, output_path)
+    else:
+        size_mb = Path(output_path).stat().st_size / (1024 * 1024)
+        print(f"✅ Stock composited: {Path(output_path).name} ({size_mb:.1f} MB)")
+
+    return output_path
+
+
 def _make_black_clip(output_path: str, duration: float, w: int, h: int, fps: int):
     """Generate a plain black fallback clip."""
     subprocess.run([
