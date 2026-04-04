@@ -265,6 +265,7 @@ class GenerateRequest(BaseModel):
     music_volume: float = 0.06
     music_delay: float = 0.0
     use_stickfigures: bool = False
+    use_stock_footage: bool = True
 
 
 class VideoResponse(BaseModel):
@@ -351,6 +352,7 @@ def generate_video(
                 progress_callback=_cb,
                 video_id=video_id,
                 use_stickfigures=req.use_stickfigures,
+                use_stock_footage=req.use_stock_footage,
             )
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -950,14 +952,15 @@ def moderate_comment_endpoint(video_id: str, comment_id: str, body: dict, user: 
 # ── Script Studio ─────────────────────────────────────────────────────────────
 
 class ScriptStudioRequest(BaseModel):
-    title:            str
-    script:           str
-    profile:          str = "educational"
-    visual_mood:      Optional[str] = None   # ocean|candle|forest|stars|hands|mountains|None=auto
-    music_style:      str = "ambient"
-    music_volume:     float = 0.06
-    music_delay:      float = 0.0
-    use_stickfigures: bool = False
+    title:             str
+    script:            str
+    profile:           str = "educational"
+    visual_mood:       Optional[str] = None   # ocean|candle|forest|stars|hands|mountains|None=auto
+    music_style:       str = "ambient"
+    music_volume:      float = 0.06
+    music_delay:       float = 0.0
+    use_stickfigures:  bool = False
+    use_stock_footage: bool = True
 
 
 @app.post("/script-studio/generate")
@@ -999,6 +1002,7 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
                 music_volume=req.music_volume,
                 music_delay=req.music_delay,
                 use_stickfigures=req.use_stickfigures,
+                use_stock_footage=req.use_stock_footage,
                 cb=_cb,
             )
         except Exception as e:
@@ -2103,7 +2107,8 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     music_volume     = float(body.get("music_volume", 0.04))
     music_delay      = float(body.get("music_delay", 0.0))
     custom_script    = body.get("custom_script", "").strip() if body.get("custom_script") else ""
-    use_stickfigures = bool(body.get("use_stickfigures", False))
+    use_stickfigures  = bool(body.get("use_stickfigures", False))
+    use_stock_footage = bool(body.get("use_stock_footage", True))
     if not prompt and not custom_script:
         raise HTTPException(status_code=400, detail="Prompt or custom_script required")
 
@@ -2130,7 +2135,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures)
+            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures, use_stock_footage=use_stock_footage)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -4523,6 +4528,71 @@ def get_cc(item_id: str, user: str = Depends(verify_token)):
 
 
 # ── end Custom Content ─────────────────────────────────────────────────────────
+
+
+# ── Prompt Pool Management ────────────────────────────────────────────────────
+
+class PromptAddRequest(BaseModel):
+    prompts: list  # list of strings, or a single comma-separated string
+    pipeline: str = "long"  # "long" or "short"
+
+
+@app.get("/prompts/status")
+def prompts_status(user: str = Depends(verify_token)):
+    """Return used/total counts for both pipelines."""
+    return {
+        "long":  db.count_prompt_pool("long"),
+        "short": db.count_prompt_pool("short"),
+        "exhaustion_mode_long":  db.get_setting("auto_generate_exhaustion_mode", default="A"),
+        "exhaustion_mode_short": db.get_setting("auto_short_exhaustion_mode", default="A"),
+    }
+
+
+@app.post("/prompts/add")
+def prompts_add(req: PromptAddRequest, user: str = Depends(verify_token)):
+    """Add prompts manually (Mode B). Accepts a list or a comma-separated string."""
+    raw = req.prompts
+    if len(raw) == 1 and isinstance(raw[0], str) and "," in raw[0]:
+        # comma-separated string passed as single-element list
+        raw = [p.strip() for p in raw[0].split(",")]
+    inserted = db.add_prompts_to_pool(raw, pipeline=req.pipeline, source="manual")
+    return {"inserted": inserted, "pipeline": req.pipeline}
+
+
+@app.post("/prompts/reset/{pipeline}")
+def prompts_reset(pipeline: str, user: str = Depends(verify_token)):
+    """Reset all prompts to unused so the cycle restarts."""
+    if pipeline not in ("long", "short"):
+        raise HTTPException(status_code=400, detail="pipeline must be 'long' or 'short'")
+    db.reset_prompt_pool(pipeline)
+    return {"reset": True, "pipeline": pipeline}
+
+
+@app.post("/prompts/generate/{pipeline}")
+def prompts_generate_mode_a(pipeline: str, user: str = Depends(verify_token)):
+    """Mode A: auto-generate a batch of new prompts via LLM and add them to the pool."""
+    if pipeline not in ("long", "short"):
+        raise HTTPException(status_code=400, detail="pipeline must be 'long' or 'short'")
+    from pipeline.auto_generator import _auto_generate_prompts
+    new_prompts = _auto_generate_prompts(pipeline=pipeline, count=20)
+    if not new_prompts:
+        raise HTTPException(status_code=500, detail="LLM generation failed — check GROQ_API_KEY")
+    inserted = db.add_prompts_to_pool(new_prompts, pipeline=pipeline, source="generated")
+    return {"generated": len(new_prompts), "inserted": inserted, "pipeline": pipeline, "prompts": new_prompts}
+
+
+@app.patch("/prompts/settings")
+def prompts_set_settings(body: dict, user: str = Depends(verify_token)):
+    """Set exhaustion mode: A (auto-generate), B (reset+cycle), hybrid."""
+    mode_long  = body.get("exhaustion_mode_long")
+    mode_short = body.get("exhaustion_mode_short")
+    if mode_long  and mode_long  in ("A", "B", "hybrid"):
+        db.set_setting("auto_generate_exhaustion_mode", mode_long)
+    if mode_short and mode_short in ("A", "B", "hybrid"):
+        db.set_setting("auto_short_exhaustion_mode", mode_short)
+    return {"ok": True}
+
+# ── end Prompt Pool Management ────────────────────────────────────────────────
 
 
 if __name__ == "__main__":

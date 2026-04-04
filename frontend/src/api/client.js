@@ -56,6 +56,7 @@ export const generateVideo = async (
   musicVolume = 0.06,
   musicDelay = 0.0,
   useStickfigures = false,
+  useStockFootage = true,
 ) => {
   const { data } = await api.post("/videos/generate", {
     prompt,
@@ -66,6 +67,7 @@ export const generateVideo = async (
     music_volume: musicVolume,
     music_delay: musicDelay,
     use_stickfigures: useStickfigures,
+    use_stock_footage: useStockFootage,
   });
   return data;
 };
@@ -277,8 +279,25 @@ export const createShortFromVideo = async (id) => {
   return data;
 };
 
-export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, music_delay = 0.0, custom_script = "", use_stickfigures = false) => {
-  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, music_delay, custom_script, use_stickfigures });
+export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, music_delay = 0.0, custom_script = "", use_stickfigures = false, use_stock_footage = true) => {
+  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, music_delay, custom_script, use_stickfigures, use_stock_footage });
+  return data;
+};
+
+export const getPromptsStatus = async () => {
+  const { data } = await api.get("/prompts/status");
+  return data;
+};
+export const addPrompts = async (prompts, pipeline = "long") => {
+  const { data } = await api.post("/prompts/add", { prompts, pipeline });
+  return data;
+};
+export const resetPrompts = async (pipeline) => {
+  const { data } = await api.post(`/prompts/reset/${pipeline}`);
+  return data;
+};
+export const generatePromptsModeA = async (pipeline) => {
+  const { data } = await api.post(`/prompts/generate/${pipeline}`);
   return data;
 };
 

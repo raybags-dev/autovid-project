@@ -85,15 +85,16 @@ def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public
 
 
 def run_script_pipeline(
-    video_id:        str,
-    title:           str,
-    script:          str,
-    profile:         str = "educational",
-    visual_mood:     str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
-    music_style:     str = "ambient",
-    music_volume:    float = 0.06,
-    music_delay:     float = 0.0,
-    use_stickfigures: bool = False,
+    video_id:          str,
+    title:             str,
+    script:            str,
+    profile:           str = "educational",
+    visual_mood:       str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
+    music_style:       str = "ambient",
+    music_volume:      float = 0.06,
+    music_delay:       float = 0.0,
+    use_stickfigures:  bool = False,
+    use_stock_footage: bool = True,
     cb=None,
 ):
     """
@@ -134,7 +135,12 @@ def run_script_pipeline(
         from pipeline.video_fetcher import MOOD_QUERIES, get_mood_for_topic
         from pipeline.video_assembler import assemble_video as _assemble
 
-        _mood = "rain" if use_stickfigures else (visual_mood or get_mood_for_topic(title))
+        if use_stickfigures:
+            _mood = "rain"
+        elif not use_stock_footage:
+            _mood = "aurora_dark"
+        else:
+            _mood = visual_mood or get_mood_for_topic(title)
 
         if _mood in GENERATED_VISUAL_MOODS:
             # Generated animation mood — render numpy frames directly, skip Pexels
