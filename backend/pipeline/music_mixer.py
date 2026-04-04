@@ -94,25 +94,37 @@ def generate_music(style: str, duration: float, video_id: str,
     return None
 
 
+def apply_narration_delay(voice_path: str, delay_s: float, output_path: str) -> str:
+    """
+    Prepend silence to a narration audio file so the spoken content starts at delay_s.
+    Video + ambience + music begin at t=0; narration begins at t=delay_s.
+    Returns output_path.
+    """
+    delay_ms = int(delay_s * 1000)
+    print(f"⏱  Delaying narration by {delay_s:.1f}s ({delay_ms}ms)...")
+    subprocess.run([
+        "ffmpeg", "-y", "-i", voice_path,
+        "-af", f"adelay={delay_ms}:all=1",
+        "-q:a", "3", output_path,
+    ], capture_output=True, check=True)
+    return output_path
+
+
 def mix_audio(voice_path: str, music_path: str | None, output_path: str,
               music_volume: float = 0.10, music_delay: float = 0.0) -> str:
     """
     Mix narration voice with background music.
     music_volume: 0.0–1.0 relative to voice (0.10 = music at 10% of voice level)
-    music_delay:  seconds to delay the music track (pre-narration breathing room)
+    music_delay:  unused — narration delay is applied upstream via apply_narration_delay().
     Returns output_path.
     """
     if not music_path:
         shutil.copy2(voice_path, output_path)
         return output_path
 
-    print(f"🎚  Mixing voice + music (music @ {int(music_volume * 100)}%, delay {music_delay:.1f}s)...")
+    print(f"🎚  Mixing voice + music (music @ {int(music_volume * 100)}%)...")
 
-    if music_delay > 0:
-        delay_ms = int(music_delay * 1000)
-        music_filter = f"[1:a]adelay={delay_ms}|{delay_ms},volume={music_volume}[music]"
-    else:
-        music_filter = f"[1:a]volume={music_volume}[music]"
+    music_filter = f"[1:a]volume={music_volume}[music]"
 
     subprocess.run([
         "ffmpeg", "-y",
@@ -134,7 +146,7 @@ def mix_background_music(video_path: str, style: str, video_id: str,
                           music_delay: float = 0.0) -> str:
     """
     High-level helper: prepare background music and mix it into a video file.
-    music_delay: seconds to delay the music track (pre-narration breathing room)
+    music_delay: unused — narration delay is applied upstream via apply_narration_delay().
     Returns path to the output video. Falls back to original on any error.
     """
     out_path = Path(video_path)
@@ -157,11 +169,7 @@ def mix_background_music(video_path: str, style: str, video_id: str,
     if not music_path:
         return video_path
 
-    if music_delay > 0:
-        delay_ms = int(music_delay * 1000)
-        bg_filter = f"[1:a]adelay={delay_ms}|{delay_ms},volume={music_volume}[bg]"
-    else:
-        bg_filter = f"[1:a]volume={music_volume}[bg]"
+    bg_filter = f"[1:a]volume={music_volume}[bg]"
 
     tmp = str(out_path).replace(".mp4", "_musixed.mp4")
     try:
