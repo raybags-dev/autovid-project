@@ -402,6 +402,10 @@ export const disconnectSpotify   = async () => { const { data } = await api.post
 export const getSpotifyTopTracks = async (limit = 10, range = "long_term") => { const { data } = await api.get("/spotify/top-tracks", { params: { limit, time_range: range } }); return data; };
 export const getSpotifyTopArtists = async (limit = 10, range = "long_term") => { const { data } = await api.get("/spotify/top-artists", { params: { limit, time_range: range } }); return data; };
 
+// ── Buy Me a Coffee ───────────────────────────────────────────────────────────
+export const getBmcSettings  = async ()       => { const { data } = await api.get("/settings/bmc");        return data; };
+export const saveBmcSettings = async (payload) => { const { data } = await api.post("/settings/bmc", payload); return data; };
+
 export const updateVideoMeta = async (id, fields) => {
   const { data } = await api.patch(`/videos/${id}`, fields);
   return data;

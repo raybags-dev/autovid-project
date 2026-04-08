@@ -1819,7 +1819,7 @@ def set_video_exclusive(video_id: str, req: SetExclusiveRequest, _u: str = Depen
     return {"ok": True, "video": result}
 
 
-_ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url"}
+_ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url", "bmc_url"}
 
 
 @app.get("/app-settings/{key}")
@@ -1829,6 +1829,23 @@ def get_app_setting_public(key: str):
         raise HTTPException(status_code=404, detail="Not found")
     value = db.get_setting(key)
     return {"key": key, "value": value}
+
+
+@app.get("/settings/bmc")
+def get_bmc_settings(_u: str = Depends(verify_token)):
+    return {
+        "url":      db.get_setting("bmc_url", default=""),
+        "platform": db.get_setting("bmc_platform", default=""),
+    }
+
+
+@app.post("/settings/bmc")
+def save_bmc_settings(body: dict, _u: str = Depends(verify_token)):
+    url      = str(body.get("url", "")).strip()
+    platform = str(body.get("platform", "")).strip()
+    db.set_setting("bmc_url", url)
+    db.set_setting("bmc_platform", platform)
+    return {"ok": True}
 
 
 class ExclusiveVideoUrlRequest(BaseModel):

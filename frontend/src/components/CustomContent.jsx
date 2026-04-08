@@ -11,6 +11,7 @@ import {
   generateCCMp3,
   getCCLogs,
   getCustomContentItem,
+  setVideoExclusive,
 } from "../api/client";
 
 const CATEGORIES = [
@@ -690,6 +691,18 @@ export default function CustomContent({ T, showToast, addNotification }) {
     }
   };
 
+  const handleToggleExclusive = async (item) => {
+    const next = !item.is_exclusive;
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_exclusive: next } : i));
+    try {
+      await setVideoExclusive(item.id, next);
+      showToast(next ? "Added to Exclusive" : "Removed from Exclusive", "success");
+    } catch {
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_exclusive: !next } : i));
+      showToast("Action failed", "error");
+    }
+  };
+
   const handleGenerateMp3 = async (item) => {
     try {
       await generateCCMp3(item.id);
@@ -804,6 +817,7 @@ export default function CustomContent({ T, showToast, addNotification }) {
                 onArchive={() => handleArchive(item)}
                 onGenerateMp3={() => handleGenerateMp3(item)}
                 onViewLogs={() => setLogModal(item)}
+                onToggleExclusive={() => handleToggleExclusive(item)}
                 btnSm={btnSm}
               />
             ))}
@@ -843,7 +857,7 @@ export default function CustomContent({ T, showToast, addNotification }) {
 }
 
 // ── Video Card ─────────────────────────────────────────────────────────────────
-function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive, onGenerateMp3, onViewLogs, btnSm }) {
+function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive, onGenerateMp3, onViewLogs, onToggleExclusive, btnSm }) {
   const isUploading = item.status === "uploading";
   const isPosted    = item.status === "posted";
   const isArchived  = item.archived;
@@ -851,7 +865,7 @@ function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive,
   return (
     <div
       style={{
-        background: T.bgCard, border: `1px solid ${isArchived ? T.border : T.border}`,
+        background: T.bgCard, border: `1px solid ${item.is_exclusive ? "rgba(167,139,250,0.35)" : T.border}`,
         borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 10,
         opacity: isArchived ? 0.65 : 1, transition: "opacity 0.2s",
         position: "relative",
@@ -908,7 +922,14 @@ function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive,
           <div style={{ fontSize: 12, fontWeight: 600, color: T.text, lineHeight: 1.4, flex: 1 }}>
             {item.title}
           </div>
-          <StatusBadge status={isArchived ? "archived" : item.status} T={T} />
+          <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+            {item.is_exclusive && (
+              <span style={{ padding: "2px 6px", borderRadius: 4, background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.35)", color: "#a78bfa", fontSize: 9, letterSpacing: "0.07em", fontWeight: 700 }}>
+                EXCLUSIVE
+              </span>
+            )}
+            <StatusBadge status={isArchived ? "archived" : item.status} T={T} />
+          </div>
         </div>
         {item.description && (
           <div style={{ fontSize: 10, color: T.textFaint, marginTop: 4, lineHeight: 1.5,
@@ -974,6 +995,20 @@ function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive,
             style={btnSm({ color: "#ff4444", borderColor: "rgba(255,68,68,0.3)", background: "rgba(255,68,68,0.06)" })}
           >
             ▶ YOUTUBE
+          </button>
+        )}
+
+        {/* Exclusive toggle */}
+        {item.file_path && (
+          <button
+            onClick={onToggleExclusive}
+            style={btnSm(item.is_exclusive
+              ? { color: "#a78bfa", borderColor: "rgba(167,139,250,0.4)", background: "rgba(167,139,250,0.12)" }
+              : { color: T.textFaint }
+            )}
+            title={item.is_exclusive ? "Remove from Exclusive content" : "Add to Exclusive content"}
+          >
+            {item.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
           </button>
         )}
 

@@ -74,6 +74,8 @@ import api, {
   generatePromptsModeA,
   extractVideoMp3,
   addCaptionsToVideo,
+  getBmcSettings,
+  saveBmcSettings,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
@@ -1949,6 +1951,7 @@ export default function Dashboard() {
     }))).catch(() => {});
     getSubscriptions().then(r => setSubscriptions(Array.isArray(r) ? r : [])).catch(() => {});
     listStickFiguresPaged(0, 1, false).then(r => setSfClipCount(r.total ?? 0)).catch(() => setSfClipCount(0));
+    getBmcSettings().then(r => { setBmcUrl(r.url || ""); setBmcPlatform(r.platform || "kofi"); }).catch(() => {});
 
     // ── Batch 2: external-API status checks — staggered to avoid thread exhaustion ──
     const t1 = setTimeout(() => getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {}), 200);
@@ -2106,6 +2109,9 @@ export default function Dashboard() {
   const [autoShortRunning, setAutoShortRunning] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [tiktokLoading, setTiktokLoading] = useState(false);
+  const [bmcUrl, setBmcUrl] = useState("");
+  const [bmcPlatform, setBmcPlatform] = useState("kofi");
+  const [bmcSaving, setBmcSaving] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyProfile, setSpotifyProfile] = useState(null);
@@ -9974,6 +9980,60 @@ export default function Dashboard() {
                     <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(225,48,108,0.1)", border: "1px solid rgba(225,48,108,0.2)", color: "#e1306c", fontSize: 10, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
                       SOON
                     </span>
+                  </div>
+                </div>
+
+                {/* ── Buy Me a Coffee ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>BUY ME A COFFEE</div>
+                  <div style={{ background: T.bgCard, border: `1px solid ${bmcUrl ? "rgba(255,180,60,0.35)" : T.border}`, borderRadius: 10, padding: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>☕ Support Link</span>
+                      {bmcUrl && <span style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(255,180,60,0.12)", border: "1px solid rgba(255,180,60,0.3)", color: "#ffb43c", fontSize: 9, letterSpacing: "0.07em" }}>ACTIVE</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 12 }}>
+                      Shown on the public website next to "Join the Community". Leave blank to hide.
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 5 }}>PLATFORM</div>
+                      <select
+                        value={bmcPlatform}
+                        onChange={e => setBmcPlatform(e.target.value)}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${T.border}`, background: T.bgBase, color: T.text, fontSize: 12, fontFamily: "inherit" }}
+                      >
+                        <option value="kofi">Ko-fi</option>
+                        <option value="bmc">Buy Me a Coffee</option>
+                        <option value="paypal">PayPal</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 5 }}>LINK URL</div>
+                      <input
+                        type="url"
+                        placeholder="https://ko-fi.com/yourname"
+                        value={bmcUrl}
+                        onChange={e => setBmcUrl(e.target.value)}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${T.border}`, background: T.bgBase, color: T.text, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <button
+                      disabled={bmcSaving}
+                      onClick={async () => {
+                        setBmcSaving(true);
+                        try {
+                          await saveBmcSettings({ url: bmcUrl, platform: bmcPlatform });
+                          showToast("Support link saved", "success");
+                        } catch {
+                          showToast("Failed to save", "error");
+                        } finally {
+                          setBmcSaving(false);
+                        }
+                      }}
+                      style={{ padding: "7px 18px", borderRadius: 7, border: "1px solid rgba(255,180,60,0.4)", background: "rgba(255,180,60,0.1)", color: "#ffb43c", fontSize: 11, cursor: bmcSaving ? "default" : "pointer", fontFamily: "inherit", letterSpacing: "0.06em", opacity: bmcSaving ? 0.6 : 1 }}
+                    >
+                      {bmcSaving ? "SAVING..." : "SAVE"}
+                    </button>
                   </div>
                 </div>
 
