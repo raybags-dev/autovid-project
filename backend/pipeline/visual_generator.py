@@ -452,6 +452,57 @@ def _rain_frame(t: float) -> np.ndarray:
     return np.clip(frame, 0, 255).astype(np.uint8)
 
 
+def _flythrough_stars_frame(t: float) -> np.ndarray:
+    """Camera flying forward through a star field — stars zoom toward the viewer."""
+    rng = np.random.default_rng(77)
+    n   = 600
+    cx, cy = WIDTH / 2, HEIGHT / 2
+
+    # Initial 3D positions: x, y in [-1.5, 1.5], z in (0, 1]
+    xs_base = rng.uniform(-1.5, 1.5, n).astype(np.float32)
+    ys_base = rng.uniform(-1.5, 1.5, n).astype(np.float32)
+    zs_base = rng.uniform(0.02, 1.0, n).astype(np.float32)
+    # Stagger initial z so stars are spread through depth
+    phase   = rng.uniform(0, 1.0, n).astype(np.float32)
+
+    SPEED = 0.12  # forward flight speed
+
+    # z decreases as we fly forward; wrap so stars reappear from far away
+    zs = ((zs_base - (t * SPEED + phase) % 1.0) % 1.0) + 0.005
+
+    # Perspective projection
+    fov = WIDTH * 0.45
+    screen_x = xs_base / zs * fov + cx
+    screen_y = ys_base / zs * fov + cy
+
+    # Size and brightness increase as star approaches (z → 0)
+    sizes      = np.clip(0.04 / zs, 1, 12).astype(np.float32)
+    brightness = np.clip(0.08 / zs, 0, 1).astype(np.float32)
+
+    frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
+
+    for i in range(n):
+        px = int(screen_x[i])
+        py = int(screen_y[i])
+        if not (0 <= px < WIDTH and 0 <= py < HEIGHT):
+            continue
+        r = int(sizes[i])
+        b = float(brightness[i])
+        z = float(zs[i])
+        y0 = max(0, py - r); y1 = min(HEIGHT, py + r + 1)
+        x0 = max(0, px - r); x1 = min(WIDTH, px + r + 1)
+        # Slightly warmer (orange-white) for very close stars, blue-white for far
+        col = np.array([0.95 + 0.05 * (z < 0.15), 0.90 + 0.08 * (z < 0.15), 1.0], np.float32)
+        frame[y0:y1, x0:x1] += col * b
+
+    # Subtle central blue glow (motion blur feel)
+    X, Y   = np.meshgrid(np.arange(WIDTH, dtype=np.float32), np.arange(HEIGHT, dtype=np.float32))
+    dist_c = np.sqrt(((X - cx) / cx) ** 2 + ((Y - cy) / cy) ** 2)
+    frame[:, :, 2] += np.exp(-dist_c * 4) * 0.06
+
+    return (frame.clip(0, 1) * 255).astype(np.uint8)
+
+
 FRAME_FUNCS = {
     # Original generators
     'gradient_wave':   _gradient_wave_frame,
@@ -473,6 +524,8 @@ FRAME_FUNCS = {
     'ember_glow':      _ember_glow_frame,
     # Rain — city lights blurred through rainy window
     'rain':            _rain_frame,
+    # Flythrough star field — stars zoom toward viewer
+    'flythrough_stars': _flythrough_stars_frame,
 }
 
 

@@ -266,6 +266,7 @@ class GenerateRequest(BaseModel):
     music_delay: float = 0.0
     use_stickfigures: bool = False
     use_stock_footage: bool = True
+    use_captions: bool = True
 
 
 class VideoResponse(BaseModel):
@@ -353,6 +354,7 @@ def generate_video(
                 video_id=video_id,
                 use_stickfigures=req.use_stickfigures,
                 use_stock_footage=req.use_stock_footage,
+                use_captions=req.use_captions,
             )
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -961,6 +963,7 @@ class ScriptStudioRequest(BaseModel):
     music_delay:       float = 0.0
     use_stickfigures:  bool = False
     use_stock_footage: bool = True
+    use_captions:      bool = True
 
 
 @app.post("/script-studio/generate")
@@ -1003,6 +1006,7 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
                 music_delay=req.music_delay,
                 use_stickfigures=req.use_stickfigures,
                 use_stock_footage=req.use_stock_footage,
+                use_captions=req.use_captions,
                 cb=_cb,
             )
         except Exception as e:
@@ -2109,6 +2113,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     custom_script    = body.get("custom_script", "").strip() if body.get("custom_script") else ""
     use_stickfigures  = bool(body.get("use_stickfigures", False))
     use_stock_footage = bool(body.get("use_stock_footage", True))
+    use_captions      = bool(body.get("use_captions", True))
     if not prompt and not custom_script:
         raise HTTPException(status_code=400, detail="Prompt or custom_script required")
 
@@ -2135,7 +2140,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures, use_stock_footage=use_stock_footage)
+            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures, use_stock_footage=use_stock_footage, use_captions=use_captions)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -4593,6 +4598,115 @@ def prompts_set_settings(body: dict, user: str = Depends(verify_token)):
     return {"ok": True}
 
 # ── end Prompt Pool Management ────────────────────────────────────────────────
+
+
+# ── On-demand captioning ───────────────────────────────────────────────────────
+
+@app.post("/videos/{video_id}/add-captions")
+def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+    """Download video from storage, burn captions onto it, re-upload."""
+    import requests as _req
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    file_path = video.get("file_path")
+    if not file_path:
+        raise HTTPException(status_code=400, detail="Video has no file path")
+
+    _register_pipeline(video_id)
+
+    def _run():
+        local_video = local_audio = captioned = None
+        try:
+            import pipeline.caption as captioner
+            from pipeline.storage import upload_to_storage
+
+            # Download video if hosted remotely
+            if file_path.startswith("http"):
+                local_video = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_cap_dl.mp4")
+                r = _req.get(file_path, stream=True, timeout=180)
+                with open(local_video, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 256):
+                        f.write(chunk)
+                src = local_video
+            else:
+                src = file_path
+
+            # Audio source for transcription (narration_url preferred)
+            audio_src = video.get("narration_url") or src
+            if audio_src and audio_src.startswith("http"):
+                local_audio = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_cap_audio.mp3")
+                r = _req.get(audio_src, stream=True, timeout=60)
+                with open(local_audio, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 256):
+                        f.write(chunk)
+                audio_src = local_audio
+
+            captioned = captioner.add_captions(src, audio_src, f"{video_id}_recap")
+            new_url   = upload_to_storage(captioned, video_id)
+            db.update_video(video_id, file_path=new_url)
+            print(f"✅ Captions added and re-uploaded: {video_id[:8]}")
+        except Exception as e:
+            print(f"❌ add-captions failed for {video_id[:8]}: {e}")
+        finally:
+            for p in [local_video, local_audio, captioned]:
+                if p:
+                    from pathlib import Path
+                    Path(p).unlink(missing_ok=True)
+            _unregister_pipeline(video_id)
+
+    background_tasks.add_task(_run)
+    return {"message": "Captioning started in background", "video_id": video_id}
+
+
+@app.post("/videos/{video_id}/extract-mp3")
+def extract_video_mp3(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+    """Extract audio from a video file and save it as the narration MP3."""
+    import requests as _req
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    file_path = video.get("file_path")
+    if not file_path:
+        raise HTTPException(status_code=400, detail="Video has no file path")
+
+    def _run():
+        import subprocess as _sub
+        local_video = local_mp3 = None
+        try:
+            from pipeline.storage import upload_narration_to_storage
+            from pathlib import Path
+
+            if file_path.startswith("http"):
+                local_video = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_mp3dl.mp4")
+                r = _req.get(file_path, stream=True, timeout=180)
+                with open(local_video, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 256):
+                        f.write(chunk)
+                src = local_video
+            else:
+                src = file_path
+
+            local_mp3 = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_extracted.mp3")
+            _sub.run([
+                "ffmpeg", "-y", "-i", src,
+                "-vn", "-acodec", "libmp3lame", "-q:a", "2",
+                local_mp3,
+            ], capture_output=True, check=True)
+
+            url = upload_narration_to_storage(local_mp3, video_id)
+            db.update_video(video_id, narration_url=url)
+            print(f"✅ MP3 extracted and uploaded: {video_id[:8]}")
+        except Exception as e:
+            print(f"❌ extract-mp3 failed for {video_id[:8]}: {e}")
+        finally:
+            for p in [local_video, local_mp3]:
+                if p:
+                    from pathlib import Path
+                    Path(p).unlink(missing_ok=True)
+
+    background_tasks.add_task(_run)
+    return {"message": "MP3 extraction started", "video_id": video_id}
 
 
 if __name__ == "__main__":

@@ -57,6 +57,7 @@ export const generateVideo = async (
   musicDelay = 0.0,
   useStickfigures = false,
   useStockFootage = true,
+  useCaptions = true,
 ) => {
   const { data } = await api.post("/videos/generate", {
     prompt,
@@ -68,6 +69,7 @@ export const generateVideo = async (
     music_delay: musicDelay,
     use_stickfigures: useStickfigures,
     use_stock_footage: useStockFootage,
+    use_captions: useCaptions,
   });
   return data;
 };
@@ -279,8 +281,18 @@ export const createShortFromVideo = async (id) => {
   return data;
 };
 
-export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, music_delay = 0.0, custom_script = "", use_stickfigures = false, use_stock_footage = true) => {
-  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, music_delay, custom_script, use_stickfigures, use_stock_footage });
+export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, music_delay = 0.0, custom_script = "", use_stickfigures = false, use_stock_footage = true, use_captions = true) => {
+  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, music_delay, custom_script, use_stickfigures, use_stock_footage, use_captions });
+  return data;
+};
+
+export const extractVideoMp3 = async (videoId) => {
+  const { data } = await api.post(`/videos/${videoId}/extract-mp3`);
+  return data;
+};
+
+export const addCaptionsToVideo = async (videoId) => {
+  const { data } = await api.post(`/videos/${videoId}/add-captions`);
   return data;
 };
 

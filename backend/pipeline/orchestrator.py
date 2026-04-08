@@ -51,6 +51,7 @@ GENERATED_VISUAL_MOODS = {
     "colour_wash", "particle_field",
     "neon_purple", "cosmic_dust", "ember_glow",
     "rain",   # ← rain animation; also the mandatory background for stickfigure mode
+    "flythrough_stars",
 }
 
 
@@ -89,11 +90,11 @@ def step_align_segments(script_data: dict, audio_result: dict, cb=None) -> list:
 
 
 def step_fetch_clips(segments: list, video_id: str, mood: str = None, cb=None) -> list:
-    _log("CLIPS", f"Fetching {len(segments)} stock video clips...", cb)
+    _log("CLIPS", f"Fetching clips for {len(segments)} segment(s) (multi-clip per sentence)...", cb)
     if mood:
         segments = video_fetcher.enrich_segments_with_mood(segments, mood)
         _log("CLIPS", f"Visual mood: {mood}", cb)
-    return video_fetcher.fetch_all_clips(segments, video_id)
+    return video_fetcher.fetch_all_clips_multi(segments, video_id)
 
 
 def step_assemble_video(segments: list, audio_result: dict, video_id: str, cb=None) -> str:
@@ -382,6 +383,7 @@ def run_pipeline(
     video_id: str = None,   # pre-created DB record ID (optional)
     use_stickfigures: bool = False,
     use_stock_footage: bool = True,
+    use_captions: bool = True,
 ) -> dict:
     """
     Run the full AutoVid pipeline from prompt → final video → YouTube.
@@ -479,7 +481,11 @@ def run_pipeline(
         thumb_path = step_generate_thumbnail(raw_video_path, video_id, cb)
 
         # ── 8. Burn captions ──────────────────────────────────────────────────
-        captioned_path = step_burn_captions(raw_video_path, audio_path, video_id, cb)
+        if use_captions:
+            captioned_path = step_burn_captions(raw_video_path, audio_path, video_id, cb)
+        else:
+            _log("CAPTIONS", "Captions disabled — skipping", cb)
+            captioned_path = raw_video_path
 
         # ── 9. Merge audio into final video ───────────────────────────────────
         # This is the definitive final file — captions + guaranteed audio
@@ -581,7 +587,7 @@ def retry_failed(video_id: str, cb=None) -> dict:
 SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
 
 
-def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False, use_stock_footage: bool = True) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False, use_stock_footage: bool = True, use_captions: bool = True) -> dict:
     """
     YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
@@ -679,7 +685,11 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         thumb_path = step_generate_thumbnail(visual_path, video_id, cb)
 
         # 6. Burn captions
-        captioned_path = step_burn_captions(visual_path, audio_path, video_id, cb, is_short=True)
+        if use_captions:
+            captioned_path = step_burn_captions(visual_path, audio_path, video_id, cb, is_short=True)
+        else:
+            _log("CAPTIONS", "Captions disabled — skipping", cb)
+            captioned_path = visual_path
 
         # 7. Merge audio
         final_path = step_merge_audio(captioned_path, audio_path, video_id, cb)

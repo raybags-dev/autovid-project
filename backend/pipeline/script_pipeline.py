@@ -37,6 +37,7 @@ GENERATED_VISUAL_MOODS = {
     "colour_wash", "particle_field",
     "neon_purple", "cosmic_dust", "ember_glow",
     "rain",
+    "flythrough_stars",
 }
 
 
@@ -98,6 +99,7 @@ def run_script_pipeline(
     music_delay:       float = 0.0,
     use_stickfigures:  bool = False,
     use_stock_footage: bool = True,
+    use_captions:      bool = True,
     cb=None,
 ):
     """
@@ -161,37 +163,34 @@ def run_script_pipeline(
 
         # ── Step 2b: Composite stock footage on background (if requested) ──────
         if use_stock_footage and not use_stickfigures:
-            _stock_mood = (
-                visual_mood
-                if visual_mood and visual_mood not in GENERATED_VISUAL_MOODS
-                else get_mood_for_topic(title)
-            )
-            _log("VISUAL", f"Fetching Pexels footage (mood: {_stock_mood or 'generic'})...", cb)
+            import re as _re
+            import pipeline.video_fetcher as _vf
+            import pipeline.video_assembler as _va
 
-            queries = MOOD_QUERIES.get(_stock_mood, [
-                "cinematic nature peaceful",
-                "calm landscape sunrise",
-                "soft light bokeh",
-            ]) if _stock_mood else ["peaceful cinematic nature", "calm light bokeh", "landscape sunrise"]
+            _log("VISUAL", "Breaking script into sentences for stock footage search...", cb)
 
-            num_segs = max(3, int(duration / 12))
-            seg_dur  = duration / num_segs
+            # Split script into individual sentences
+            raw_sentences = _re.split(r'(?<=[.!?])\s+', script.strip())
+            sentences = [s.strip() for s in raw_sentences if s.strip()]
+            if not sentences:
+                sentences = [script[:200]]
+
+            seg_dur = duration / len(sentences)
             synth_segments = [
                 {
-                    "text":         "",
-                    "visual_query": queries[i % len(queries)],
+                    "text":         sent,
+                    "visual_query": sent[:80].strip(),
                     "start":        round(i * seg_dur + music_delay, 2),
                     "end":          round((i + 1) * seg_dur + music_delay, 2),
                     "duration":     round(seg_dur, 2),
                     "clip_path":    None,
                 }
-                for i in range(num_segs)
+                for i, sent in enumerate(sentences)
             ]
 
-            import pipeline.video_fetcher as _vf
-            synth_segments = _vf.fetch_all_clips(synth_segments, video_id)
+            _log("VISUAL", f"Fetching clips for {len(sentences)} sentence(s)...", cb)
+            synth_segments = _vf.fetch_all_clips_multi(synth_segments, video_id)
 
-            import pipeline.video_assembler as _va
             composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
             visual_path = _va.composite_stock_on_background(visual_path, synth_segments, composited_path)
 
@@ -257,13 +256,15 @@ def run_script_pipeline(
         ], capture_output=True)
 
         # ── Step 7: Burn captions ─────────────────────────────────────────────
-        _log("CAPTIONS", "Transcribing and burning captions...", cb)
-        try:
-            captioned_path = captioner.add_captions(final_path, mixed_path, video_id)
-            final_path     = captioned_path
-        except Exception as e:
-            print(f"⚠️  Captions failed (non-fatal): {e}")
-            # Continue without captions
+        if use_captions:
+            _log("CAPTIONS", "Transcribing and burning captions...", cb)
+            try:
+                captioned_path = captioner.add_captions(final_path, mixed_path, video_id)
+                final_path     = captioned_path
+            except Exception as e:
+                print(f"⚠️  Captions failed (non-fatal): {e}")
+        else:
+            _log("CAPTIONS", "Captions disabled — skipping", cb)
 
         # ── Step 8: Upload to Supabase Storage ───────────────────────────────
         _log("STORAGE", "Uploading to Supabase Storage...", cb)
