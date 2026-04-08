@@ -305,6 +305,89 @@ def _expand_query(query: str) -> list[str]:
     return []
 
 
+_STOP_WORDS = {
+    'the','a','an','and','or','but','in','on','at','to','for','of','with','by',
+    'is','are','was','were','be','been','being','have','has','had','do','does',
+    'did','will','would','could','should','may','might','this','that','these',
+    'those','it','its','we','you','they','he','she','i','me','him','her','us',
+    'them','my','your','our','their','not','no','so','as','if','when','where',
+    'what','who','how','why','which','there','here','very','just','also','about',
+    'up','out','all','any','more','most','into','than','then','from','after',
+    'before','over','under','each','every','can','let','get','now','still',
+}
+
+def _sentence_to_queries(text: str) -> list:
+    """
+    Extract 2-3 distinct search queries from a sentence.
+    Returns a list of short query strings.
+    """
+    import re
+    words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+    content = [w for w in words if w not in _STOP_WORDS]
+    if not content:
+        return [text[:60].strip()]
+    # Deduplicate while preserving order
+    seen, unique = set(), []
+    for w in content:
+        if w not in seen:
+            seen.add(w); unique.append(w)
+    queries = []
+    if unique:
+        queries.append(' '.join(unique[:min(4, len(unique))]))
+    if len(unique) >= 6:
+        queries.append(' '.join(unique[3:min(7, len(unique))]))
+    elif len(unique) >= 4:
+        queries.append(' '.join(unique[3:]))
+    if len(unique) >= 9:
+        queries.append(' '.join(unique[6:min(10, len(unique))]))
+    return queries or [text[:60].strip()]
+
+
+def _search_pexels_multi(
+    query: str,
+    duration_hint: float = 8,
+    exclude_ids: set = None,
+    max_clips: int = 4,
+) -> list:
+    """
+    Search Pexels and return multiple (url, pexels_id) tuples for one query.
+    Returns up to max_clips results, filtered by exclude_ids.
+    """
+    params = {
+        "query":       query,
+        "per_page":    15,
+        "orientation": "landscape",
+        "size":        "medium",
+    }
+    try:
+        resp = requests.get(PEXELS_SEARCH_URL, headers=PEXELS_HEADERS, params=params, timeout=10)
+        resp.raise_for_status()
+        videos = resp.json().get("videos", [])
+        if not videos:
+            return []
+        if exclude_ids:
+            fresh = [v for v in videos if v["id"] not in exclude_ids]
+            candidates = fresh if fresh else videos
+        else:
+            candidates = videos
+        long_enough = [v for v in candidates if v["duration"] >= max(duration_hint - 1, 3)]
+        pool = long_enough if long_enough else candidates
+        results = []
+        for video in pool[:max_clips]:
+            files = sorted(video["video_files"], key=lambda f: f.get("width", 0), reverse=True)
+            for f in files:
+                if f.get("width", 0) >= 1280:
+                    results.append((f["link"], video["id"]))
+                    break
+            else:
+                if files:
+                    results.append((files[0]["link"], video["id"]))
+        return results
+    except Exception as e:
+        print(f"⚠️  Pexels multi-search '{query}': {e}")
+        return []
+
+
 def fetch_clip(
     query: str,
     duration_hint: float,
@@ -375,6 +458,66 @@ def fetch_clip(
     return str(clip_path)
 
 
+def fetch_clips_for_sentence(
+    text: str,
+    visual_query: str,
+    duration: float,
+    video_id: str,
+    seg_index: int,
+    used_ids: set = None,
+) -> list:
+    """
+    Fetch multiple short clips for a single sentence/segment.
+    Generates multiple search queries from the sentence text, searches Pexels
+    with each, and downloads clips to fill the segment's time window.
+
+    Returns list of (clip_path, clip_duration) tuples whose durations sum to <= duration.
+    """
+    if used_ids is None:
+        used_ids = set()
+
+    clip_dir = config.TEMP_DIR / video_id / "clips"
+    clip_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build queries: visual_query first, then keyword extractions
+    queries = []
+    if visual_query and visual_query.strip():
+        queries.append(visual_query.strip())
+    for q in _sentence_to_queries(text):
+        if q not in queries:
+            queries.append(q)
+
+    clip_dur_target = min(max(3.0, duration / max(len(queries), 1)), 8.0)
+    result_clips    = []
+    total_time      = 0.0
+
+    for q_idx, query in enumerate(queries):
+        if total_time >= duration:
+            break
+        remaining = duration - total_time
+        multi = _search_pexels_multi(query, duration_hint=clip_dur_target, exclude_ids=used_ids, max_clips=3)
+        for url, pexels_id in multi:
+            if total_time >= duration:
+                break
+            ck    = _cache_key(f"{query}_{pexels_id}")
+            cpath = clip_dir / f"seg_{seg_index:03d}_{q_idx:02d}_{ck}.mp4"
+            # Reuse already-downloaded file if present
+            existing = list(clip_dir.glob(f"*_{ck}.mp4"))
+            if existing:
+                slot = min(clip_dur_target, duration - total_time)
+                result_clips.append((str(existing[0]), slot))
+                total_time += slot
+                continue
+            if _download_clip(url, cpath):
+                used_ids.add(pexels_id)
+                slot = min(clip_dur_target, duration - total_time)
+                result_clips.append((str(cpath), slot))
+                total_time += slot
+
+    print(f"  Seg {seg_index}: {len(result_clips)} clip(s), {total_time:.1f}/{duration:.1f}s covered")
+    return result_clips
+
+
 def fetch_all_clips(segments: list[dict], video_id: str) -> list[dict]:
     """
     Fetch clips for all script segments with cross-segment deduplication.
@@ -414,6 +557,49 @@ def fetch_all_clips(segments: list[dict], video_id: str) -> list[dict]:
     found = sum(1 for s in enriched if s["clip_path"])
     print(f"✅ Clips ready: {found}/{len(segments)}")
     return enriched
+
+
+def fetch_all_clips_multi(segments: list, video_id: str) -> list:
+    """
+    Fetch multiple clips per segment (per sentence).
+    Returns an expanded list of sub-segments with precise timestamps,
+    each carrying one clip_path. Segments with no clips pass through unchanged.
+    """
+    print(f"\n🎬 Multi-clip fetch for {len(segments)} segment(s)...")
+    used_ids: set = set()
+    expanded = []
+
+    for i, seg in enumerate(segments):
+        text     = seg.get("text", "")
+        vq       = seg.get("visual_query", text[:60])
+        s_start  = seg.get("start", 0.0)
+        s_end    = seg.get("end",   seg.get("duration", 8.0))
+        s_dur    = s_end - s_start
+
+        clips = fetch_clips_for_sentence(text, vq, s_dur, video_id, i, used_ids)
+
+        if not clips:
+            expanded.append({**seg, "clip_path": None})
+            continue
+
+        t = s_start
+        for clip_path, clip_dur in clips:
+            actual_end = min(round(t + clip_dur, 3), s_end)
+            if actual_end <= t:
+                break
+            expanded.append({
+                "text":         text,
+                "visual_query": vq,
+                "start":        round(t, 3),
+                "end":          actual_end,
+                "duration":     round(actual_end - t, 3),
+                "clip_path":    clip_path,
+            })
+            t = actual_end
+
+    found = sum(1 for s in expanded if s.get("clip_path"))
+    print(f"✅ Multi-clips: {found} clips across {len(expanded)} sub-segments (from {len(segments)} segments)")
+    return expanded
 
 
 # ── Quick test ────────────────────────────────────────────────────────────────

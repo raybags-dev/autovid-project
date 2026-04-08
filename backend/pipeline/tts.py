@@ -111,6 +111,15 @@ def _synthesize_gtts(text: str, mp3_path: Path) -> bool:
         tts.save(str(mp3_path))
         if mp3_path.exists() and mp3_path.stat().st_size > 0:
             print("✅ gTTS synthesis successful")
+            # Normalize gTTS speed — gTTS runs ~12% faster than natural narration
+            _tmp = mp3_path.with_suffix(".speed_tmp.mp3")
+            subprocess.run([
+                "ffmpeg", "-y", "-i", str(mp3_path),
+                "-af", "atempo=0.88",
+                "-q:a", "3", str(_tmp),
+            ], capture_output=True)
+            if _tmp.exists() and _tmp.stat().st_size > 0:
+                _tmp.replace(mp3_path)
             return True
         return False
     except ImportError:

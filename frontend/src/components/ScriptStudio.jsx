@@ -15,12 +15,13 @@ const PROFILES = [
 ];
 
 const MOODS = [
-  { id: "starfield",   emoji: "⭐", label: "Stars",  desc: "Deep space drift" },
-  { id: "aurora",      emoji: "🌌", label: "Aurora", desc: "Northern lights" },
-  { id: "ocean",       emoji: "🌊", label: "Ocean",  desc: "Underwater rays" },
-  { id: "ember_glow",  emoji: "🔥", label: "Fire",   desc: "Floating embers" },
-  { id: "rain",        emoji: "🌧", label: "Rain",   desc: "Night city window" },
-  { id: "cosmic_dust", emoji: "🌀", label: "Galaxy", desc: "Cosmic nebula" },
+  { id: "starfield",        emoji: "⭐", label: "Stars",       desc: "Deep space drift" },
+  { id: "aurora",           emoji: "🌌", label: "Aurora",      desc: "Northern lights" },
+  { id: "ocean",            emoji: "🌊", label: "Ocean",       desc: "Underwater rays" },
+  { id: "ember_glow",       emoji: "🔥", label: "Fire",        desc: "Floating embers" },
+  { id: "rain",             emoji: "🌧", label: "Rain",        desc: "Night city window" },
+  { id: "cosmic_dust",      emoji: "🌀", label: "Galaxy",      desc: "Cosmic nebula" },
+  { id: "flythrough_stars", emoji: "🚀", label: "Fly Through", desc: "Zoom through starfield" },
 ];
 
 const MUSIC = [
@@ -62,6 +63,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
   const [musicDelay, setMusicDelay] = useState(0.0);
   const [useStickfigures, setUseStickfigures] = useState(false);
   const [useStockFootage, setUseStockFootage] = useState(true);
+  const [useCaptions, setUseCaptions] = useState(true);
   const [sfClipCount, setSfClipCount] = useState(null);
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep]   = useState(0);
@@ -125,6 +127,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
         music_delay:       musicDelay,
         use_stickfigures:  useStickfigures,
         use_stock_footage: useStockFootage,
+        use_captions:      useCaptions,
       });
       const vid = data.video_id;
       setJobId(vid);
@@ -829,6 +832,18 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
                 </div>
               </label>
             </div>
+          </div>
+
+          {/* Caption toggle */}
+          <div style={{ marginTop: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={useCaptions} onChange={e => setUseCaptions(e.target.checked)} disabled={running}
+                style={{ accentColor: T.accent || "#0090d0", width: 14, height: 14 }} />
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: useCaptions ? (T.accent || "#0090d0") : T.textMid, letterSpacing: "0.05em" }}>💬 CAPTIONS</span>
+                <span style={{ fontSize: 10, color: T.textFaint, marginLeft: 6 }}>{useCaptions ? "Whisper transcription + burned subtitles" : "No subtitles"}</span>
+              </div>
+            </label>
           </div>
 
           {/* Generate / Cancel buttons */}

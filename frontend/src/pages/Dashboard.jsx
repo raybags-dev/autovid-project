@@ -72,6 +72,8 @@ import api, {
   addPrompts,
   resetPrompts,
   generatePromptsModeA,
+  extractVideoMp3,
+  addCaptionsToVideo,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
@@ -88,12 +90,13 @@ import { useAuth } from "../context/AuthContext";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const AMBIENCE_OPTIONS = [
-  { id: "stars",  emoji: "⭐", label: "Stars",  desc: "Deep space drift" },
-  { id: "aurora", emoji: "🌌", label: "Aurora", desc: "Northern lights" },
-  { id: "ocean",  emoji: "🌊", label: "Ocean",  desc: "Underwater rays" },
-  { id: "fire",   emoji: "🔥", label: "Fire",   desc: "Floating embers" },
-  { id: "rain",   emoji: "🌧", label: "Rain",   desc: "Night city window" },
-  { id: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
+  { id: "stars",            emoji: "⭐", label: "Stars",       desc: "Deep space drift" },
+  { id: "aurora",           emoji: "🌌", label: "Aurora",      desc: "Northern lights" },
+  { id: "ocean",            emoji: "🌊", label: "Ocean",       desc: "Underwater rays" },
+  { id: "fire",             emoji: "🔥", label: "Fire",        desc: "Floating embers" },
+  { id: "rain",             emoji: "🌧", label: "Rain",        desc: "Night city window" },
+  { id: "galaxy",           emoji: "🌀", label: "Galaxy",      desc: "Spiral rotation" },
+  { id: "flythrough_stars", emoji: "🚀", label: "Fly Through", desc: "Zoom through starfield" },
 ];
 const STEPS = [
   "Script",
@@ -1226,8 +1229,10 @@ export default function Dashboard() {
   const [genError, setGenError] = useState("");
   const [useStickfigures, setUseStickfigures] = useState(false);
   const [useStockFootage, setUseStockFootage] = useState(true);
+  const [useCaptions, setUseCaptions] = useState(true);
   const [shortUseStickfigures, setShortUseStickfigures] = useState(false);
   const [shortUseStockFootage, setShortUseStockFootage] = useState(true);
+  const [shortUseCaptions, setShortUseCaptions] = useState(true);
   const [sfClipCount, setSfClipCount] = useState(null); // null = not loaded yet
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
@@ -1548,6 +1553,7 @@ export default function Dashboard() {
         musicDelay,
         useStickfigures,
         useStockFootage,
+        useCaptions,
       );
       const vid = data.video_id;
       setGenJobId(vid);
@@ -1744,6 +1750,7 @@ export default function Dashboard() {
         shortScriptMode === "custom" ? shortCustomScript.trim() : "",
         shortUseStickfigures,
         shortUseStockFootage,
+        shortUseCaptions,
       );
       const vid = res?.video_id;
       saveRecentPrompt(hasInput);
@@ -3612,6 +3619,18 @@ export default function Dashboard() {
                     </div>
                   </div>
 
+                  {/* Caption toggle */}
+                  <div style={{ marginTop: 10 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={useCaptions} onChange={e => setUseCaptions(e.target.checked)}
+                        style={{ accentColor: T.accent, width: 14, height: 14 }} />
+                      <div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: useCaptions ? T.accent : T.textMid, letterSpacing: "0.04em" }}>💬 CAPTIONS</span>
+                        <span style={{ fontSize: 10, color: T.textDim, marginLeft: 6 }}>{useCaptions ? "Whisper transcription + burned subtitles" : "No subtitles"}</span>
+                      </div>
+                    </label>
+                  </div>
+
                   <div
                     style={{ fontSize: 10, color: T.textFaint, marginTop: 8 }}
                   >
@@ -5083,6 +5102,34 @@ export default function Dashboard() {
                               🎙 MP3
                             </button>
                           )}
+                          {/* Extract MP3 from video — show for any video with a file */}
+                          {(v.status === "ready" || v.status === "posted") && v.file_path && (
+                            <button
+                              className="btn-sm"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await extractVideoMp3(v.id);
+                                  showToast("MP3 extraction started — refresh in a moment");
+                                } catch (err) {
+                                  showToast(err?.response?.data?.detail || "MP3 extraction failed", "error");
+                                }
+                              }}
+                              title="Extract audio as MP3 podcast"
+                              style={{
+                                fontSize: 10,
+                                color: "#60c0a0",
+                                padding: "4px 10px",
+                                background: "rgba(96,192,160,0.07)",
+                                borderRadius: 5,
+                                border: "1px solid rgba(96,192,160,0.25)",
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              🎙 EXTRACT MP3
+                            </button>
+                          )}
                           {/* TikTok upload button — show for ready/posted videos when connected */}
                           {tiktokConnected && (v.status === "ready" || v.status === "posted") && v.file_path && (
                             <button
@@ -5717,6 +5764,18 @@ export default function Dashboard() {
                 </div>
               </label>
             </div>
+          </div>
+
+          {/* Caption toggle — Shorts */}
+          <div style={{ marginTop: 10 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={shortUseCaptions} onChange={e => setShortUseCaptions(e.target.checked)}
+                style={{ accentColor: T.accent, width: 14, height: 14 }} />
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: shortUseCaptions ? T.accent : T.textMid, letterSpacing: "0.04em" }}>💬 CAPTIONS</span>
+                <span style={{ fontSize: 10, color: T.textDim, marginLeft: 6 }}>{shortUseCaptions ? "Whisper transcription + burned subtitles" : "No subtitles"}</span>
+              </div>
+            </label>
           </div>
 
           {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
@@ -12389,6 +12448,38 @@ export default function Dashboard() {
         {showDangerZone && (
           <DangerZone onClose={() => setShowDangerZone(false)} />
         )}
+
+        {/* ── Buy Me a Coffee ───────────────────────────────────────────────────── */}
+        <a
+          href="https://ko-fi.com/autovid"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Buy me a coffee ☕"
+          style={{
+            position: "fixed",
+            bottom: 72,
+            right: 18,
+            zIndex: 9000,
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "9px 14px",
+            borderRadius: 24,
+            background: "linear-gradient(135deg, #ff5e5e 0%, #ff9a3c 100%)",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            fontFamily: "inherit",
+            textDecoration: "none",
+            boxShadow: "0 4px 18px rgba(255,90,60,0.45)",
+            letterSpacing: "0.04em",
+            transition: "transform 0.15s, box-shadow 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.boxShadow = "0 6px 24px rgba(255,90,60,0.6)"; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(255,90,60,0.45)"; }}
+        >
+          ☕ BUY ME A COFFEE
+        </a>
 
         {/* ── Mobile Bottom Nav ──────────────────────────────────────────────────── */}
         <nav className="mobile-bottom-nav">
