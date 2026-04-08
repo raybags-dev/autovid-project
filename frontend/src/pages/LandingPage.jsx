@@ -4448,13 +4448,41 @@ export default function LandingPage() {
           >
             Every mystery starts with a question. Join the community.
           </p>
-          <button
-            onClick={() => scrollTo("community")}
-            className="lp-btn lp-btn-fire"
-            style={{ marginTop: 8 }}
-          >
-            JOIN THE COMMUNITY
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => scrollTo("community")}
+              className="lp-btn lp-btn-fire"
+            >
+              JOIN THE COMMUNITY
+            </button>
+            <a
+              href="https://ko-fi.com/autovid"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "11px 20px",
+                borderRadius: 8,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                color: "rgba(230,220,200,0.9)",
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: "inherit",
+                letterSpacing: "0.06em",
+                textDecoration: "none",
+                backdropFilter: "blur(6px)",
+                transition: "background 0.2s, border-color 0.2s",
+                cursor: "pointer",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,180,60,0.12)"; e.currentTarget.style.borderColor = "rgba(255,180,60,0.35)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; }}
+            >
+              ☕ BUY ME A COFFEE
+            </a>
+          </div>
         </div>
       </div>
 

@@ -12449,38 +12449,6 @@ export default function Dashboard() {
           <DangerZone onClose={() => setShowDangerZone(false)} />
         )}
 
-        {/* ── Buy Me a Coffee ───────────────────────────────────────────────────── */}
-        <a
-          href="https://ko-fi.com/autovid"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Buy me a coffee ☕"
-          style={{
-            position: "fixed",
-            bottom: 72,
-            right: 18,
-            zIndex: 9000,
-            display: "flex",
-            alignItems: "center",
-            gap: 7,
-            padding: "9px 14px",
-            borderRadius: 24,
-            background: "linear-gradient(135deg, #ff5e5e 0%, #ff9a3c 100%)",
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: 700,
-            fontFamily: "inherit",
-            textDecoration: "none",
-            boxShadow: "0 4px 18px rgba(255,90,60,0.45)",
-            letterSpacing: "0.04em",
-            transition: "transform 0.15s, box-shadow 0.15s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.boxShadow = "0 6px 24px rgba(255,90,60,0.6)"; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(255,90,60,0.45)"; }}
-        >
-          ☕ BUY ME A COFFEE
-        </a>
-
         {/* ── Mobile Bottom Nav ──────────────────────────────────────────────────── */}
         <nav className="mobile-bottom-nav">
           {[
