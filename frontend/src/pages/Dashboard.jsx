@@ -1238,7 +1238,7 @@ export default function Dashboard() {
   const [sfClipCount, setSfClipCount] = useState(null); // null = not loaded yet
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
-  const [exclusiveYtModal, setExclusiveYtModal] = useState(null); // {videoId, youtubeId, onSkip} — prompt to unlist/private on YT
+  const [exclusiveYtModal, setExclusiveYtModal] = useState(null); // unused — kept to avoid ref errors during refactor
   const [syncing, setSyncing] = useState(false);
   const [globalLoading, setGlobalLoading] = useState(null); // string message or null
   const [ytModal, setYtModal] = useState(null); // video being managed on YT
@@ -4986,26 +4986,32 @@ export default function Dashboard() {
                                 if (goingExclusive && !v.thumbnail_url) {
                                   generateThumbnail(v.id).catch(() => {});
                                 }
-                                showToast(goingExclusive ? "Added to Library" : "Removed from Library");
-                                refresh();
-                                // If video is on YouTube and we're making it exclusive, prompt to update privacy
+                                // Auto-make private on YouTube when adding to exclusive
                                 if (goingExclusive && v.youtube_id) {
-                                  setExclusiveYtModal({ videoId: v.id, youtubeId: v.youtube_id });
+                                  try {
+                                    await api.patch(`/videos/${v.id}/youtube-settings`, { privacy: "private" });
+                                    showToast("Added to Exclusive — YouTube video made private");
+                                  } catch {
+                                    showToast("Added to Exclusive (YouTube privacy update failed — update manually)", "error");
+                                  }
+                                } else {
+                                  showToast(goingExclusive ? "Added to Exclusive" : "Removed from Exclusive");
                                 }
+                                refresh();
                               } catch (err) {
-                                showToast("Failed to update library", "error");
+                                showToast("Failed to update exclusive status", "error");
                               }
                             }}
                             className="btn-sm"
-                            title={v.is_exclusive ? "In Library — click to remove" : "Add to Member Library"}
+                            title={v.is_exclusive ? "In Exclusive — click to remove" : "Add to Exclusive content"}
                             style={{
-                              color: v.is_exclusive ? "#3dd68c" : T.textFaint,
-                              borderColor: v.is_exclusive ? "rgba(61,214,140,0.4)" : T.border,
-                              background: v.is_exclusive ? "rgba(61,214,140,0.08)" : "transparent",
+                              color: v.is_exclusive ? "#a78bfa" : T.textFaint,
+                              borderColor: v.is_exclusive ? "rgba(167,139,250,0.4)" : T.border,
+                              background: v.is_exclusive ? "rgba(167,139,250,0.12)" : "transparent",
                               fontWeight: v.is_exclusive ? 700 : 400,
                             }}
                           >
-                            {v.is_exclusive ? "✓ IN LIBRARY" : "+ LIBRARY"}
+                            {v.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
                           </button>
 
                           {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && (
@@ -5459,7 +5465,7 @@ export default function Dashboard() {
             const isOnYt = !!s.youtube_video_id;
             const isOnTt = s.tiktok_status === "published";
             const isReady = s.status === "ready";
-            const isUnposted = isReady && !isOnYt;
+            const isUnposted = isReady && !isOnYt && !s.is_exclusive;
             const uploadingYt = shortsUploading[`yt_${s.id}`];
             const uploadingTt = shortsUploading[`tt_${s.id}`];
             const canPlay = !!getVideoUrl(s.file_path);
@@ -5528,6 +5534,41 @@ export default function Dashboard() {
                       )}
                     </div>
                     {/* Action buttons for unposted ready shorts */}
+                    {/* Exclusive toggle — always visible for ready shorts with a file */}
+                    {isReady && s.file_path && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const goingExclusive = !s.is_exclusive;
+                          try {
+                            await setVideoExclusive(s.id, goingExclusive);
+                            if (goingExclusive && s.youtube_video_id) {
+                              try {
+                                await api.patch(`/videos/${s.id}/youtube-settings`, { privacy: "private" });
+                                showToast("Added to Exclusive — YouTube video made private");
+                              } catch {
+                                showToast("Added to Exclusive (YouTube privacy update failed — update manually)", "error");
+                              }
+                            } else {
+                              showToast(goingExclusive ? "Added to Exclusive" : "Removed from Exclusive");
+                            }
+                            loadShorts(true);
+                          } catch {
+                            showToast("Failed to update exclusive status", "error");
+                          }
+                        }}
+                        style={{
+                          padding: "4px 8px", borderRadius: 6, fontSize: 9, fontWeight: s.is_exclusive ? 700 : 400, letterSpacing: "0.05em",
+                          border: s.is_exclusive ? "1px solid rgba(167,139,250,0.4)" : `1px solid ${T.border}`,
+                          background: s.is_exclusive ? "rgba(167,139,250,0.12)" : "transparent",
+                          color: s.is_exclusive ? "#a78bfa" : T.textFaint,
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                        title={s.is_exclusive ? "In Exclusive — click to remove" : "Add to Exclusive content"}
+                      >
+                        {s.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
+                      </button>
+                    )}
                     {isUnposted && (
                       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                         <button
@@ -11564,57 +11605,6 @@ export default function Dashboard() {
         )}
 
 
-        {/* ── YouTube Privacy Prompt (when adding video to Library) ────────────────── */}
-        {exclusiveYtModal && (
-          <div className="modal-bg" onClick={() => setExclusiveYtModal(null)}>
-            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380, padding: 28 }}>
-              <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8 }}>
-                🔐 Update YouTube Privacy?
-              </div>
-              <div style={{ fontSize: 12, color: T.textMid, marginBottom: 20, lineHeight: 1.7 }}>
-                This video is on YouTube. Since you're making it exclusive, would you like to update its visibility?
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button
-                  onClick={async () => {
-                    const { videoId } = exclusiveYtModal;
-                    setExclusiveYtModal(null);
-                    try {
-                      await api.patch(`/videos/${videoId}/youtube-settings`, { privacy: "unlisted" });
-                      showToast("YouTube video set to Unlisted");
-                    } catch (err) {
-                      showToast("Library updated, but YouTube privacy change failed: " + (err?.response?.data?.detail || err.message), "error");
-                    }
-                  }}
-                  style={{ padding: "11px 16px", borderRadius: 8, border: "1px solid rgba(255,176,32,0.35)", background: "rgba(255,176,32,0.08)", color: "#ffb020", fontSize: 12, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}
-                >
-                  🔗 Unlist — keep URL working but hide from search
-                </button>
-                <button
-                  onClick={async () => {
-                    const { videoId } = exclusiveYtModal;
-                    setExclusiveYtModal(null);
-                    try {
-                      await api.patch(`/videos/${videoId}/youtube-settings`, { privacy: "private" });
-                      showToast("YouTube video set to Private");
-                    } catch (err) {
-                      showToast("Library updated, but YouTube privacy change failed: " + (err?.response?.data?.detail || err.message), "error");
-                    }
-                  }}
-                  style={{ padding: "11px 16px", borderRadius: 8, border: "1px solid rgba(255,92,108,0.35)", background: "rgba(255,92,108,0.08)", color: "#ff5c6c", fontSize: 12, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}
-                >
-                  🔒 Make Private — only you can see it
-                </button>
-                <button
-                  onClick={() => setExclusiveYtModal(null)}
-                  style={{ padding: "11px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 12, fontFamily: "inherit", cursor: "pointer" }}
-                >
-                  Keep As Is — don't change YouTube privacy
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── Generic Confirm Modal ────────────────────────────────────────────────── */}
         {confirmModal && (
