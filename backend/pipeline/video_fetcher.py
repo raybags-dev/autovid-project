@@ -566,6 +566,169 @@ def fetch_all_clips(segments: list[dict], video_id: str) -> list[dict]:
     return enriched
 
 
+def generate_visual_plan(script_text: str) -> list:
+    """
+    Ask Groq to produce a visual plan: break the script into 4–8 sections and
+    generate 3–5 concrete, visually-specific Pexels search queries per section.
+    Returns list of dicts: [{section, text_snippet, queries}, ...]
+    Empty list on failure (caller falls back to keyword extraction).
+    """
+    import json
+    try:
+        from groq import Groq
+        import config as _cfg
+        client = Groq(api_key=_cfg.GROQ_API_KEY)
+        system = (
+            "You are a video production assistant. Given a narration script, break it "
+            "into 4–8 sequential sections and generate 3–5 Pexels stock-footage search "
+            "queries per section.\n\n"
+            "RULES:\n"
+            "- Queries must describe VISIBLE, concrete scenes — never abstract concepts\n"
+            "- Good: 'elderly man walking foggy street', 'stars night sky milky way', 'ocean waves crashing rocks'\n"
+            "- Bad: 'existential dread', 'the meaning of time', 'consciousness'\n"
+            "- Each section must have UNIQUE queries — never repeat across sections\n"
+            "- Sections must cover the ENTIRE script in order\n\n"
+            "Respond ONLY with a JSON array:\n"
+            '[{"section":1,"text_snippet":"first 60 chars…","queries":["…","…","…"]},…]'
+        )
+        resp = client.chat.completions.create(
+            model=_cfg.GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user",   "content": f"Script:\n\n{script_text[:5000]}"},
+            ],
+            temperature=0.35,
+            max_tokens=1000,
+            response_format={"type": "json_object"},
+        )
+        raw = resp.choices[0].message.content.strip()
+        data = json.loads(raw)
+        # Accept both {sections:[...]} wrapper and bare array
+        sections = data if isinstance(data, list) else next(
+            (v for v in data.values() if isinstance(v, list)), []
+        )
+        valid = [s for s in sections if isinstance(s, dict) and s.get("queries")]
+        print(f"🎬 Visual plan: {len(valid)} section(s) with queries")
+        return valid
+    except Exception as e:
+        print(f"⚠️  Visual plan generation failed: {e}")
+        return []
+
+
+def fetch_clips_for_plan(plan: list, segments: list, video_id: str) -> list:
+    """
+    Fetch stock clips according to an LLM-generated visual plan and map them to
+    the correct time windows derived from the aligned segment timing.
+
+    plan      – output of generate_visual_plan()
+    segments  – time-aligned segments (each has start, end, text)
+    video_id  – used for the local clip download directory
+
+    Returns an expanded list of sub-segments [{start, end, duration, clip_path, text}, ...]
+    suitable for composite_stock_on_background().
+    """
+    if not plan or not segments:
+        return []
+
+    # ── Map plan sections to time windows via character-offset proportion ──────
+    full_text  = " ".join(s.get("text", "") for s in segments)
+    total_dur  = max((s.get("end", 0) for s in segments), default=60.0)
+    total_chars = max(len(full_text), 1)
+
+    # Find character position of each section's text_snippet in the full text
+    offsets = []
+    search_from = 0
+    for sect in plan:
+        snippet = sect.get("text_snippet", "")[:50].strip()
+        idx = full_text.find(snippet, search_from) if snippet else -1
+        if idx >= 0:
+            offsets.append(idx)
+            search_from = idx + 1
+        else:
+            # Evenly distribute if snippet not found
+            offsets.append(int(search_from + total_chars / max(len(plan), 1)))
+
+    # Build time-windowed plan entries
+    timed = []
+    for i, (sect, off) in enumerate(zip(plan, offsets)):
+        next_off = offsets[i + 1] if i + 1 < len(offsets) else total_chars
+        t_start  = round(off / total_chars * total_dur, 3)
+        t_end    = round(next_off / total_chars * total_dur, 3)
+        if t_end <= t_start:
+            t_end = min(t_start + (total_dur / len(plan)), total_dur)
+        timed.append({**sect, "t_start": t_start, "t_end": t_end})
+
+    # ── Fetch & map clips per section ─────────────────────────────────────────
+    clip_dir = config.TEMP_DIR / video_id / "clips"
+    clip_dir.mkdir(parents=True, exist_ok=True)
+
+    used_ids: set = set()
+    result: list  = []
+
+    for sect in timed:
+        t_start  = sect["t_start"]
+        t_end    = sect["t_end"]
+        s_dur    = t_end - t_start
+        queries  = sect.get("queries", [])
+        max_clips = min(len(queries), 4)   # one clip per query, max 4
+
+        if s_dur <= 0 or not queries:
+            result.append({"start": t_start, "end": t_end, "duration": s_dur,
+                           "clip_path": None, "text": sect.get("text_snippet", "")})
+            continue
+
+        slot_dur = min(max(s_dur / max(max_clips, 1), 3.0), 12.0)
+
+        clips_fetched = []
+        for query in queries:
+            if sum(c[1] for c in clips_fetched) >= s_dur:
+                break
+            multi = _search_pexels_multi(query, duration_hint=slot_dur,
+                                         exclude_ids=used_ids, max_clips=2)
+            for url, pexels_id in multi:
+                if sum(c[1] for c in clips_fetched) >= s_dur:
+                    break
+                ck    = _cache_key(f"{query}_{pexels_id}")
+                # Reuse if already downloaded
+                existing = list(clip_dir.glob(f"*_{ck}.mp4"))
+                if existing:
+                    clips_fetched.append((str(existing[0]), slot_dur))
+                    used_ids.add(pexels_id)
+                    continue
+                cpath = clip_dir / f"plan_{ck}.mp4"
+                if _download_clip(url, cpath):
+                    used_ids.add(pexels_id)
+                    clips_fetched.append((str(cpath), slot_dur))
+
+        if not clips_fetched:
+            result.append({"start": t_start, "end": t_end, "duration": s_dur,
+                           "clip_path": None, "text": sect.get("text_snippet", "")})
+            continue
+
+        # Assign clips sequentially within this section's window
+        t = t_start
+        for clip_path, clip_dur in clips_fetched:
+            actual_end = min(round(t + clip_dur, 3), t_end)
+            if actual_end <= t:
+                break
+            result.append({
+                "start":        round(t, 3),
+                "end":          actual_end,
+                "duration":     round(actual_end - t, 3),
+                "clip_path":    clip_path,
+                "text":         sect.get("text_snippet", ""),
+                "visual_query": queries[0] if queries else "",
+            })
+            t = actual_end
+
+        print(f"  Section [{t_start:.1f}–{t_end:.1f}s]: {len(clips_fetched)} clip(s), "
+              f"{sum(c[1] for c in clips_fetched):.1f}/{s_dur:.1f}s covered")
+
+    found = sum(1 for s in result if s.get("clip_path"))
+    print(f"✅ Visual plan: {found} clips across {len(result)} sub-segments")
+    return result
+
+
 def fetch_all_clips_multi(segments: list, video_id: str) -> list:
     """
     Fetch multiple clips per segment (per sentence).

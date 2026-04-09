@@ -89,8 +89,16 @@ def step_align_segments(script_data: dict, audio_result: dict, cb=None) -> list:
     return tts.align_segments_to_audio(script_data, audio_result["path"])
 
 
-def step_fetch_clips(segments: list, video_id: str, mood: str = None, cb=None) -> list:
-    _log("CLIPS", f"Fetching clips for {len(segments)} segment(s) (multi-clip per sentence)...", cb)
+def step_fetch_clips(segments: list, video_id: str, script_text: str = None,
+                     mood: str = None, cb=None) -> list:
+    _log("CLIPS", f"Fetching clips for {len(segments)} segment(s)...", cb)
+    # Prefer LLM-planned visual mapping when full script text is available
+    if script_text:
+        plan = video_fetcher.generate_visual_plan(script_text)
+        if plan:
+            _log("CLIPS", f"Using LLM visual plan ({len(plan)} sections)...", cb)
+            return video_fetcher.fetch_clips_for_plan(plan, segments, video_id)
+        _log("CLIPS", "Visual plan failed — falling back to keyword extraction", cb)
     if mood:
         segments = video_fetcher.enrich_segments_with_mood(segments, mood)
         _log("CLIPS", f"Visual mood: {mood}", cb)
@@ -462,7 +470,7 @@ def run_pipeline(
                 if visual_mood and visual_mood not in GENERATED_VISUAL_MOODS
                 else None
             )
-            segments = step_fetch_clips(segments, video_id, mood=_stock_mood, cb=cb)
+            segments = step_fetch_clips(segments, video_id, script_text=script_data.get("full_narration", prompt), mood=_stock_mood, cb=cb)
             _log("VISUALS", "Compositing stock footage on background...", cb)
             composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
             from pipeline.video_assembler import composite_stock_on_background
