@@ -114,9 +114,16 @@ def _download_clip(url: str, dest_path: Path) -> bool:
             with open(dest_path, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=1024 * 256):
                     f.write(chunk)
+        size = dest_path.stat().st_size if dest_path.exists() else 0
+        if size < 1024:
+            print(f"⚠️  Download produced empty/corrupt file ({size} bytes): {dest_path.name}")
+            dest_path.unlink(missing_ok=True)
+            return False
+        print(f"  ✅ Downloaded {dest_path.name} ({size // 1024}KB)")
         return True
     except Exception as e:
         print(f"⚠️  Download failed: {e}")
+        dest_path.unlink(missing_ok=True)
         return False
 
 

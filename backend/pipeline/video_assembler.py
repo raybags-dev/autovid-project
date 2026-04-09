@@ -207,15 +207,18 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
         (seg["start"], seg["end"], seg["duration"], seg["clip_path"])
         for seg in segments
         if seg.get("clip_path") and Path(seg["clip_path"]).exists()
+           and Path(seg["clip_path"]).stat().st_size > 1024  # skip empty/corrupt files
     ]
 
+    total_segs = len([s for s in segments if s.get("clip_path")])
     if not valid:
+        print(f"⚠️  No valid stock clips to composite (checked {total_segs} clip path(s)) — using background only")
         _shutil.copy2(background_path, output_path)
         return output_path
 
     print(f"🎬 Compositing {len(valid)} stock clip(s) on animated background...")
 
-    # ── Step 1: Normalise each clip to segment duration ──────────────────────
+    # ── Step 1: Normalise each clip — crop-fill to {W}x{H} ──────────────────
     tmp_dir = Path(output_path).parent / f"comp_tmp_{Path(output_path).stem}"
     tmp_dir.mkdir(exist_ok=True)
 
@@ -228,24 +231,29 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
             "-i", clip_path,
             "-t", str(dur),
             "-vf", (
-                f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
-                f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS}"
+                # Scale to fill the full frame (crop rather than letterbox)
+                f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+                f"crop={W}:{H},setsar=1,fps={FPS}"
             ),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-an", norm,
         ], capture_output=True)
-        if r.returncode == 0 and Path(norm).exists():
+        if r.returncode == 0 and Path(norm).exists() and Path(norm).stat().st_size > 0:
             normalised.append((start, end, norm))
+            print(f"  ✅ Clip {i} normalised ({start:.1f}–{end:.1f}s)")
         else:
-            print(f"  ⚠️  Clip normalise failed for seg starting {start:.1f}s — skipped")
+            err = r.stderr.decode()[-300:] if r.returncode != 0 else "empty output"
+            print(f"  ⚠️  Clip {i} normalise failed ({start:.1f}s): {err}")
 
     if not normalised:
         import shutil as _sh
         _sh.rmtree(tmp_dir, ignore_errors=True)
+        print("⚠️  All clip normalisations failed — using background only")
         _shutil.copy2(background_path, output_path)
         return output_path
 
     # ── Step 2: Build overlay filter_complex chain ───────────────────────────
+    # Use gte(t,s)*lte(t,e) instead of between() to avoid FFmpeg expression parser issues
     cmd = ["ffmpeg", "-y", "-i", background_path]
     for _, _, norm_path in normalised:
         cmd += ["-i", norm_path]
@@ -256,7 +264,7 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
         out_lbl = f"ov{i}"
         filters.append(
             f"[{prev}][{i + 1}:v]overlay=0:0:"
-            f"enable='between(t,{start:.3f},{end:.3f})'[{out_lbl}]"
+            f"enable=gte(t\\,{start:.3f})*lte(t\\,{end:.3f})[{out_lbl}]"
         )
         prev = out_lbl
 
@@ -268,16 +276,17 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
         output_path,
     ]
 
+    print(f"  Running FFmpeg composite with {len(normalised)} overlay(s)...")
     result = subprocess.run(cmd, capture_output=True)
     import shutil as _sh2
     _sh2.rmtree(tmp_dir, ignore_errors=True)
 
     if result.returncode != 0 or not Path(output_path).exists():
-        print(f"⚠️  Stock composite FFmpeg error: {result.stderr.decode()[-400:]}")
+        print(f"⚠️  Stock composite FFmpeg error:\n{result.stderr.decode()[-600:]}")
         _shutil.copy2(background_path, output_path)
     else:
         size_mb = Path(output_path).stat().st_size / (1024 * 1024)
-        print(f"✅ Stock composited: {Path(output_path).name} ({size_mb:.1f} MB)")
+        print(f"✅ Stock composited: {Path(output_path).name} ({size_mb:.1f} MB, {len(normalised)} clips)")
 
     return output_path
 
