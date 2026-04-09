@@ -163,18 +163,16 @@ def run_script_pipeline(
 
         # ── Step 2b: Composite stock footage on background (if requested) ──────
         if use_stock_footage and not use_stickfigures:
-            import re as _re
             import pipeline.video_fetcher as _vf
             import pipeline.video_assembler as _va
 
-            _log("VISUAL", "Breaking script into sentences for stock footage search...", cb)
+            _log("VISUAL", "Generating LLM visual plan for stock footage...", cb)
+            plan = _vf.generate_visual_plan(script)
 
-            # Split script into individual sentences
+            # Build synthetic segments for timing reference (even distribution)
+            import re as _re
             raw_sentences = _re.split(r'(?<=[.!?])\s+', script.strip())
-            sentences = [s.strip() for s in raw_sentences if s.strip()]
-            if not sentences:
-                sentences = [script[:200]]
-
+            sentences = [s.strip() for s in raw_sentences if s.strip()] or [script[:200]]
             seg_dur = duration / len(sentences)
             synth_segments = [
                 {
@@ -188,11 +186,15 @@ def run_script_pipeline(
                 for i, sent in enumerate(sentences)
             ]
 
-            _log("VISUAL", f"Fetching clips for {len(sentences)} sentence(s)...", cb)
-            synth_segments = _vf.fetch_all_clips_multi(synth_segments, video_id)
+            if plan:
+                _log("VISUAL", f"Fetching clips for {len(plan)} sections...", cb)
+                fetched_segments = _vf.fetch_clips_for_plan(plan, synth_segments, video_id)
+            else:
+                _log("VISUAL", "LLM plan unavailable — using keyword extraction...", cb)
+                fetched_segments = _vf.fetch_all_clips_multi(synth_segments, video_id)
 
             composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
-            visual_path = _va.composite_stock_on_background(visual_path, synth_segments, composited_path)
+            visual_path = _va.composite_stock_on_background(visual_path, fetched_segments, composited_path)
 
         # ── Step 2c: Stickfigure overlay (only when requested) ────────────────
         if use_stickfigures:
