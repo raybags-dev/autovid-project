@@ -271,12 +271,19 @@ def _synthesize_essay(essay: str, video_id: str, log_fn=None) -> str:
 
         ok = _synthesize_elevenlabs(chunk, chunk_path, voice_id=voice_id)
         if not ok:
-            # Try fallback ElevenLabs voice before giving up
             ok = _synthesize_elevenlabs(chunk, chunk_path, voice_id=ELEVENLABS_FALLBACK_VOICE_ID)
         if not ok:
+            # gTTS fallback — free, no quota
+            if log_fn:
+                log_fn(f"[2/5] ElevenLabs unavailable — using gTTS for chunk {i}...")
+            try:
+                from pipeline.tts import _synthesize_gtts
+                ok = _synthesize_gtts(chunk, chunk_path)
+            except Exception as _gtts_err:
+                print(f"⚠️  gTTS fallback also failed: {_gtts_err}")
+        if not ok:
             raise RuntimeError(
-                f"ElevenLabs failed on chunk {i} — check quota at elevenlabs.io. "
-                f"Voice ID attempted: {voice_id}"
+                f"All TTS engines failed on chunk {i} — check ElevenLabs quota and gTTS availability"
             )
         chunk_paths.append(str(chunk_path))
 
