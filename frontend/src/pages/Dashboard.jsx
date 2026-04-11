@@ -1216,7 +1216,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [dropdownRect, setDropdownRect] = useState(null);
+
   const [pageReady, setPageReady] = useState(false); // true after first data load
   const [videos, setVideos] = useState([]);
   const [stats, setStats] = useState({});
@@ -4088,7 +4088,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Video list */}
-                <div style={{ flex: 1, overflowY: "auto", paddingRight: 2 }}>
+                <div style={{ flex: 1, overflowY: "auto", paddingRight: 2 }} onScroll={() => openDropdown && setOpenDropdown(null)}>
                 {!pageReady && videos.length === 0 ? (
                   [0,1,2,3].map(i => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", marginBottom: 8, background: T.bgCard, borderRadius: 10, border: `1px solid ${T.border}` }}>
@@ -5107,10 +5107,7 @@ export default function Dashboard() {
                               className="btn-sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (openDropdown === v.id) { setOpenDropdown(null); return; }
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setDropdownRect({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-                                setOpenDropdown(v.id);
+                                setOpenDropdown(openDropdown === v.id ? null : v.id);
                               }}
                               style={{ color: T.textMid, borderColor: T.border, background: T.bgCard }}
                             >
@@ -5119,9 +5116,9 @@ export default function Dashboard() {
                             {openDropdown === v.id && (
                               <div
                                 style={{
-                                  position: "fixed",
-                                  top: dropdownRect ? dropdownRect.top : 0,
-                                  right: dropdownRect ? dropdownRect.right : 0,
+                                  position: "absolute",
+                                  top: "calc(100% + 4px)",
+                                  right: 0,
                                   zIndex: 9999,
                                   background: T.bgCard,
                                   border: `1px solid ${T.border}`,
