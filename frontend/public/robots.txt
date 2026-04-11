@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Allow: /blog
 Disallow: /dashboard
 Disallow: /login
 
