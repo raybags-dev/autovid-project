@@ -80,6 +80,9 @@ ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
 
 -- Captions-disabled flag — run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS captions_disabled BOOLEAN DEFAULT FALSE;
+
+-- Blog post link — run once in Supabase SQL Editor:
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS blog_post_id UUID;
 ─────────────────────────────────────────────────
 """
 import uuid

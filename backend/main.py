@@ -4693,33 +4693,57 @@ def admin_delete_blog_post(post_id: str, _u: str = Depends(verify_token)):
 
 @app.post("/videos/{video_id}/post-to-blog")
 def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_token)):
-    """Create a blog post from a video's script and YouTube link."""
+    """Create a blog post from a video (works for all videos, not just YouTube-posted).
+    If the video already has a blog_post_id, returns the existing post instead."""
     import re, unicodedata
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
+
+    # Return existing post if already linked
+    if video.get("blog_post_id"):
+        try:
+            existing = db.get_blog_post(video["blog_post_id"])
+            if existing:
+                return existing
+        except Exception:
+            pass  # post was deleted — proceed to recreate
+
     title    = video.get("title") or video.get("prompt", "Untitled")
-    desc     = video.get("description", "")
-    script   = video.get("script", "")
-    yt_url   = video.get("youtube_url", "")
+    desc     = video.get("description", "") or ""
+    script   = video.get("script", "") or ""
+    yt_url   = video.get("youtube_url", "") or ""
     labels   = video.get("labels") or []
-    # Build body
-    embed_block = f'\n\n<div class="blog-video-embed"><iframe src="https://www.youtube.com/embed/{video.get("youtube_id")}" frameborder="0" allowfullscreen></iframe></div>\n' if video.get("youtube_id") else ""
-    body_text = f"{desc}\n\n{embed_block}\n\n## Full Script\n\n{script}" if script else desc
-    # Auto-slug
-    slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()).strip("-")
+
+    # Build rich body
+    embed_block = (
+        f'\n\n<div class="blog-video-embed">'
+        f'<iframe src="https://www.youtube.com/embed/{video["youtube_id"]}" '
+        f'frameborder="0" allowfullscreen></iframe></div>\n'
+    ) if video.get("youtube_id") else ""
+
+    # Use description as intro; append script as full content
+    intro = f"<p>{desc}</p>" if desc else ""
+    script_section = f"<h2>Full Script</h2>\n<p>{script.replace(chr(10), '</p><p>')}</p>" if script else ""
+    body_text = f"{intro}{embed_block}\n{script_section}".strip()
+
+    # Auto-slug from title
+    slug = re.sub(r"[^a-z0-9]+", "-",
+                  unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()
+                  ).strip("-") or f"post-{int(datetime.now().timestamp())}"
     try:
         db.get_blog_post_by_slug(slug)
         slug = f"{slug}-{int(datetime.now().timestamp())}"
     except Exception:
         pass
-    status_val  = body.get("status", "published")
+
+    status_val = body.get("status", "published")
     data = {
         "title":           title,
         "slug":            slug,
-        "excerpt":         desc[:300] if desc else script[:300],
+        "excerpt":         (desc or script)[:300],
         "body":            body_text,
-        "cover_image_url": video.get("thumbnail_url", ""),
+        "cover_image_url": video.get("thumbnail_url", "") or "",
         "tags":            labels,
         "status":          status_val,
         "video_id":        video_id,
@@ -4727,6 +4751,11 @@ def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_
         "published_at":    datetime.now(timezone.utc).isoformat() if status_val == "published" else None,
     }
     post = db.create_blog_post(data)
+    # Write blog_post_id back onto the video so the UI can show "Edit Blog"
+    try:
+        db.update_video(video_id, blog_post_id=post["id"])
+    except Exception as e:
+        print(f"⚠️  Could not set blog_post_id on video {video_id[:8]}: {e}")
     return post
 
 
