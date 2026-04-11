@@ -4617,6 +4617,119 @@ def prompts_set_settings(body: dict, user: str = Depends(verify_token)):
 # ── end Prompt Pool Management ────────────────────────────────────────────────
 
 
+# ── Blog Post Management ───────────────────────────────────────────────────────
+
+@app.get("/blog/posts")
+def get_blog_posts_public(limit: int = 20, offset: int = 0):
+    """Public: list published posts."""
+    return db.list_blog_posts(status="published", limit=limit, offset=offset)
+
+@app.get("/blog/posts/{slug}")
+def get_blog_post_public(slug: str):
+    """Public: get a single published post by slug."""
+    post = db.get_blog_post_by_slug(slug)
+    if not post or post.get("status") != "published":
+        raise HTTPException(status_code=404, detail="Post not found")
+    db.increment_blog_post_views(post["id"])
+    return post
+
+@app.get("/admin/blog/posts")
+def admin_list_blog_posts(status: str = None, limit: int = 50, _u: str = Depends(verify_token)):
+    """Admin: list all posts (drafts + published)."""
+    return db.list_blog_posts(status=status, limit=limit)
+
+@app.post("/admin/blog/posts")
+def admin_create_blog_post(body: dict, _u: str = Depends(verify_token)):
+    """Admin: create a new blog post."""
+    import re, unicodedata
+    title = str(body.get("title", "")).strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title required")
+    # Auto-generate slug from title
+    slug = body.get("slug") or re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()).strip("-")
+    # Ensure unique slug
+    existing = db.list_blog_posts(limit=1)  # just to test DB connection
+    try:
+        db.get_blog_post_by_slug(slug)
+        # Slug exists — append timestamp
+        slug = f"{slug}-{int(datetime.now().timestamp())}"
+    except Exception:
+        pass  # slug doesn't exist, good
+    status_val = body.get("status", "draft")
+    published_at = datetime.now(timezone.utc).isoformat() if status_val == "published" else None
+    data = {
+        "title":           title,
+        "slug":            slug,
+        "excerpt":         body.get("excerpt", ""),
+        "body":            body.get("body", ""),
+        "cover_image_url": body.get("cover_image_url", ""),
+        "tags":            body.get("tags", []),
+        "status":          status_val,
+        "video_id":        body.get("video_id"),
+        "youtube_url":     body.get("youtube_url", ""),
+        "published_at":    published_at,
+    }
+    return db.create_blog_post(data)
+
+@app.put("/admin/blog/posts/{post_id}")
+@app.patch("/admin/blog/posts/{post_id}")
+def admin_update_blog_post(post_id: str, body: dict, _u: str = Depends(verify_token)):
+    """Admin: update a blog post."""
+    fields = {}
+    for f in ["title", "slug", "excerpt", "body", "cover_image_url", "tags", "status", "youtube_url", "video_id"]:
+        if f in body:
+            fields[f] = body[f]
+    if body.get("status") == "published" and not body.get("published_at"):
+        existing = db.get_blog_post(post_id)
+        if not existing.get("published_at"):
+            fields["published_at"] = datetime.now(timezone.utc).isoformat()
+    return db.update_blog_post(post_id, **fields)
+
+@app.delete("/admin/blog/posts/{post_id}")
+def admin_delete_blog_post(post_id: str, _u: str = Depends(verify_token)):
+    """Admin: delete a blog post."""
+    db.delete_blog_post(post_id)
+    return {"ok": True}
+
+@app.post("/videos/{video_id}/post-to-blog")
+def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_token)):
+    """Create a blog post from a video's script and YouTube link."""
+    import re, unicodedata
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    title    = video.get("title") or video.get("prompt", "Untitled")
+    desc     = video.get("description", "")
+    script   = video.get("script", "")
+    yt_url   = video.get("youtube_url", "")
+    labels   = video.get("labels") or []
+    # Build body
+    embed_block = f'\n\n<div class="blog-video-embed"><iframe src="https://www.youtube.com/embed/{video.get("youtube_id")}" frameborder="0" allowfullscreen></iframe></div>\n' if video.get("youtube_id") else ""
+    body_text = f"{desc}\n\n{embed_block}\n\n## Full Script\n\n{script}" if script else desc
+    # Auto-slug
+    slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()).strip("-")
+    try:
+        db.get_blog_post_by_slug(slug)
+        slug = f"{slug}-{int(datetime.now().timestamp())}"
+    except Exception:
+        pass
+    status_val  = body.get("status", "published")
+    data = {
+        "title":           title,
+        "slug":            slug,
+        "excerpt":         desc[:300] if desc else script[:300],
+        "body":            body_text,
+        "cover_image_url": video.get("thumbnail_url", ""),
+        "tags":            labels,
+        "status":          status_val,
+        "video_id":        video_id,
+        "youtube_url":     yt_url,
+        "published_at":    datetime.now(timezone.utc).isoformat() if status_val == "published" else None,
+    }
+    post = db.create_blog_post(data)
+    return post
+
+
 # ── On-demand captioning ───────────────────────────────────────────────────────
 
 @app.post("/videos/{video_id}/add-captions")
@@ -4661,7 +4774,7 @@ def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user
 
             captioned = captioner.add_captions(src, audio_src, f"{video_id}_recap")
             new_url   = upload_to_storage(captioned, video_id)
-            db.update_video(video_id, file_path=new_url)
+            db.update_video(video_id, file_path=new_url, captions_disabled=False)
             print(f"✅ Captions added and re-uploaded: {video_id[:8]}")
         except Exception as e:
             print(f"❌ add-captions failed for {video_id[:8]}: {e}")

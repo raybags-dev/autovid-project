@@ -105,6 +105,12 @@ def create_short_from_video(video_path: str, video_id: str) -> str:
 
 # ── Mode 2: Generate portrait visual from scratch ─────────────────────────────
 
+_CUSTOM_MP4_MAP = {
+    "nebular":         Path(__file__).parent.parent / "custom_artifacts" / "nebular.mp4",
+    "galaxy_spinning": Path(__file__).parent.parent / "custom_artifacts" / "gaxy_spining.mp4",
+}
+
+
 def generate_short_visual(duration: int = 45, ambience: str = "stars") -> str:
     """
     Generates a looping portrait (9:16) visual for a YouTube Short.
@@ -115,9 +121,24 @@ def generate_short_visual(duration: int = 45, ambience: str = "stars") -> str:
     output_path = str(Path(tempfile.gettempdir()) / f"short_visual_{uuid.uuid4().hex[:8]}.mp4")
     loop_frames = LOOP_SECONDS * FPS
 
-    print(f"🎬 Generating Short visual: {ambience} ({duration}s, {loop_frames} frames + FFmpeg loop)")
-
     style = ambience.lower()
+
+    # Custom mp4 backgrounds — loop the file, crop/scale to portrait 9:16
+    if style in _CUSTOM_MP4_MAP and _CUSTOM_MP4_MAP[style].exists():
+        print(f"🎬 Using custom background: {style} ({duration}s, portrait)")
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-stream_loop", "-1",
+            "-i", str(_CUSTOM_MP4_MAP[style]),
+            "-t", str(duration),
+            "-vf", f"scale={SHORT_WIDTH}:{SHORT_HEIGHT}:force_original_aspect_ratio=increase,crop={SHORT_WIDTH}:{SHORT_HEIGHT},setsar=1,fps={FPS}",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-an", output_path,
+        ], check=True, capture_output=True)
+        print(f"✅ Short visual ready: {output_path}")
+        return output_path
+
+    print(f"🎬 Generating Short visual: {ambience} ({duration}s, {loop_frames} frames + FFmpeg loop)")
 
     if style == "stars":
         frames = _gen_star_zoom(loop_frames)

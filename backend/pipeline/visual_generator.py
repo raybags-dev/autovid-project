@@ -531,18 +531,46 @@ FRAME_FUNCS = {
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+_CUSTOM_MP4_MAP = {
+    "nebular":         Path(__file__).parent.parent / "custom_artifacts" / "nebular.mp4",
+    "galaxy_spinning": Path(__file__).parent.parent / "custom_artifacts" / "gaxy_spining.mp4",
+}
+
+
+def _generate_from_custom_mp4(source: Path, duration: float, video_id: str) -> str:
+    """Loop a custom mp4 file to the target duration, scaled to 1920x1080."""
+    import subprocess
+    out_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_visual.mp4")
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-stream_loop", "-1",
+        "-i", str(source),
+        "-t", str(duration),
+        "-vf", f"scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-an", out_path,
+    ], check=True, capture_output=True)
+    size_mb = Path(out_path).stat().st_size / (1024 * 1024)
+    print(f"✅ Custom background ready: {Path(out_path).name} ({size_mb:.1f}MB)")
+    return out_path
+
+
 def generate_visual(style: str, duration: float, video_id: str) -> str:
     """
     Generate a looping visual animation video.
 
     Args:
-        style:     One of FRAME_FUNCS keys
+        style:     One of FRAME_FUNCS keys (or a custom mp4 id)
         duration:  Total seconds of video to generate
         video_id:  For file naming
 
     Returns:
         Path to the generated MP4 file
     """
+    # Custom mp4 backgrounds — loop the file instead of generating frames
+    if style in _CUSTOM_MP4_MAP and _CUSTOM_MP4_MAP[style].exists():
+        return _generate_from_custom_mp4(_CUSTOM_MP4_MAP[style], duration, video_id)
+
     from moviepy.editor import VideoClip
 
     frame_fn = FRAME_FUNCS.get(style, _colour_wash_frame)

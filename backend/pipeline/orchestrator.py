@@ -52,6 +52,8 @@ GENERATED_VISUAL_MOODS = {
     "neon_purple", "cosmic_dust", "ember_glow",
     "rain",   # ← rain animation; also the mandatory background for stickfigure mode
     "flythrough_stars",
+    "nebular",         # custom mp4 background files
+    "galaxy_spinning",
 }
 
 
@@ -494,6 +496,7 @@ def run_pipeline(
         else:
             _log("CAPTIONS", "Captions disabled — skipping", cb)
             captioned_path = raw_video_path
+            db.update_video(video_id, captions_disabled=True)
 
         # ── 9. Merge audio into final video ───────────────────────────────────
         # This is the definitive final file — captions + guaranteed audio
@@ -698,6 +701,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         else:
             _log("CAPTIONS", "Captions disabled — skipping", cb)
             captioned_path = visual_path
+            db.update_video(video_id, captions_disabled=True)
 
         # 7. Merge audio
         final_path = step_merge_audio(captioned_path, audio_path, video_id, cb)
