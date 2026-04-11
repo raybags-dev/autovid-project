@@ -2612,6 +2612,14 @@ export default function LandingPage() {
               {label}
             </button>
           ))}
+          <Link
+            to="/blog"
+            className="mob-navlink"
+            style={{ color: c.textM, textDecoration: "none" }}
+            onClick={() => setMenuOpen(false)}
+          >
+            BLOG
+          </Link>
           <div style={{ display: "flex", gap: 14, marginTop: 16 }}>
             <a
               href={SOCIAL.youtube}
@@ -2701,6 +2709,13 @@ export default function LandingPage() {
                 {label}
               </button>
             ))}
+            <Link
+              to="/blog"
+              className="lp-navlink"
+              style={{ "--text-m": c.textM, textDecoration: "none" }}
+            >
+              BLOG
+            </Link>
             {subUser ? (
               <button
                 onClick={() => setShowLibrary(true)}
@@ -5113,6 +5128,7 @@ export default function LandingPage() {
             </div>
             <div style={{ display: "flex", gap: 20 }}>
               {[
+                ["Blog", "/blog"],
                 ["Privacy", "/privacy-policy"],
                 ["Terms", "/terms-of-service"],
                 ["Cookies", "/cookie-policy"],

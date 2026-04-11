@@ -2024,6 +2024,13 @@ export default function Dashboard() {
     }
   };
 
+  useEffect(() => {
+    if (!openDropdown) return;
+    const close = () => setOpenDropdown(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [openDropdown]);
+
   const loadShorts = async (reset = false) => {
     if (shortsLoading) return;
     if (!reset && !shortsHasMore) return;
@@ -2323,6 +2330,7 @@ export default function Dashboard() {
   const [podbeanSaving, setPodbeanSaving] = useState(false);
   const [podbeanTesting, setPodbeanTesting] = useState(false);
   const [podbeanUploading, setPodbeanUploading] = useState({});
+  const [openDropdown, setOpenDropdown] = useState(null);
   // Subscriptions / expenditure tracker
   const [subscriptions, setSubscriptions] = useState([]);
   const [subsSaving, setSubsSaving] = useState(false);
@@ -4237,6 +4245,27 @@ export default function Dashboard() {
                   </button>
                 </div>
 
+                {/* Bulk actions row */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                  <button
+                    className="btn-sm"
+                    onClick={async () => {
+                      const eligible = videos.filter(v => v.file_path && !v.blog_post_id && (v.status === "ready" || v.status === "posted"));
+                      if (!eligible.length) { showToast("All videos already have blog posts"); return; }
+                      let done = 0;
+                      for (const v of eligible) {
+                        try { await postVideoToBlog(v.id); done++; } catch {}
+                      }
+                      showToast(`Created ${done} blog post(s)`);
+                      refresh();
+                    }}
+                    style={{ color: "#60a5fa", borderColor: "rgba(96,165,250,0.3)", background: "rgba(96,165,250,0.07)", fontSize: 10 }}
+                    title="Create blog posts for all videos that don't have one yet"
+                  >
+                    📝 POST ALL TO BLOG
+                  </button>
+                </div>
+
                 {/* Video list */}
                 <div style={{ flex: 1, overflowY: "auto", paddingRight: 2 }}>
                 {!pageReady && videos.length === 0 ? (
@@ -5118,12 +5147,10 @@ export default function Dashboard() {
                             display: "flex",
                             gap: 8,
                             alignItems: "center",
-                            flexWrap: "nowrap",
-                            overflowX: "auto",
-                            scrollbarWidth: "none",
+                            flexWrap: "wrap",
                           }}
                         >
-                          {/* Preview button — show for ready videos always, posted if has URL */}
+                          {/* Preview button — always visible if URL exists */}
                           {vUrl ? (
                             <button
                               className="btn-sm"
@@ -5140,6 +5167,7 @@ export default function Dashboard() {
                               ▶ PREVIEW
                             </button>
                           ) : null}
+                          {/* Download — always visible if URL exists */}
                           {vUrl ? (
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDownload(vUrl, `${v.title || v.id}.mp4`); }}
@@ -5157,144 +5185,41 @@ export default function Dashboard() {
                               ↓ DOWNLOAD
                             </button>
                           ) : null}
-                          {!vUrl && v.status === "ready" ? (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                color: T.textFaint,
-                                padding: "4px 10px",
-                                border: `1px solid ${T.border}`,
-                                borderRadius: 5,
-                                cursor: "default",
-                              }}
-                              title="Video file not in storage yet — regenerate to get preview"
-                            >
-                              🎬 No Preview
-                            </span>
-                          ) : null}
-                          {/* Library toggle */}
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const goingExclusive = !v.is_exclusive;
-                              try {
-                                await setVideoExclusive(v.id, goingExclusive);
-                                if (goingExclusive && !v.thumbnail_url) {
-                                  generateThumbnail(v.id).catch(() => {});
-                                }
-                                // Auto-make private on YouTube when adding to exclusive
-                                if (goingExclusive && v.youtube_id) {
-                                  try {
-                                    await api.patch(`/videos/${v.id}/youtube-settings`, { privacy: "private" });
-                                    showToast("Added to Exclusive — YouTube video made private");
-                                  } catch {
-                                    showToast("Added to Exclusive (YouTube privacy update failed — update manually)", "error");
-                                  }
-                                } else {
-                                  showToast(goingExclusive ? "Added to Exclusive" : "Removed from Exclusive");
-                                }
-                                refresh();
-                              } catch (err) {
-                                showToast("Failed to update exclusive status", "error");
-                              }
-                            }}
-                            className="btn-sm"
-                            title={v.is_exclusive ? "In Exclusive — click to remove" : "Add to Exclusive content"}
-                            style={{
-                              color: v.is_exclusive ? "#a78bfa" : T.textFaint,
-                              borderColor: v.is_exclusive ? "rgba(167,139,250,0.4)" : T.border,
-                              background: v.is_exclusive ? "rgba(167,139,250,0.12)" : "transparent",
-                              fontWeight: v.is_exclusive ? 700 : 400,
-                            }}
-                          >
-                            {v.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
-                          </button>
-
-                          {/* Add Captioning — shown when video was generated without captions */}
-                          {v.captions_disabled && (v.status === "ready" || v.status === "posted") && (
-                            <button
-                              className="btn-sm"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  await addCaptionsToVideo(v.id);
-                                  showToast("Captioning started — refresh in a moment");
-                                } catch (err) {
-                                  showToast(err?.response?.data?.detail || "Captioning failed", "error");
-                                }
-                              }}
-                              style={{
-                                color: "#fbbf24",
-                                borderColor: "rgba(251,191,36,0.35)",
-                                background: "rgba(251,191,36,0.08)",
-                              }}
-                              title="This video was generated without captions — click to add them"
-                            >
-                              💬 ADD CAPTIONS
-                            </button>
-                          )}
-
+                          {/* Upload to YouTube / Podbean — primary action, always visible */}
                           {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && (
-                            /* Audio-only (podcast/MP3) → Podbean; video → YouTube upload */
                             isPodcast(v) ? (
-                              <>
-                                {/* Podbean upload / status */}
-                                {v.podbean_episode_id ? (
-                                  <a
-                                    href={v.podbean_url || "https://www.podbean.com"}
-                                    target="_blank" rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    className="btn-sm"
-                                    style={{ color: "#f26522", borderColor: "rgba(242,101,34,0.35)", background: "rgba(242,101,34,0.08)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
-                                    title="View on Podbean"
-                                  >
-                                    ✓ PODBEAN ↗
-                                  </a>
-                                ) : (
-                                  <button
-                                    className="btn-sm"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      if (!podbeanStatus?.connected) {
-                                        showToast("Configure Podbean in Settings first", "error"); return;
-                                      }
-                                      setPodbeanUploading(p => ({ ...p, [v.id]: true }));
-                                      try {
-                                        await uploadToPodbean(v.id);
-                                        showToast("Uploading to Podbean — distributing to Spotify, Apple & more");
-                                        setTimeout(refresh, 5000);
-                                      } catch (err) {
-                                        showToast(err?.response?.data?.detail || "Podbean upload failed", "error");
-                                      } finally {
-                                        setPodbeanUploading(p => ({ ...p, [v.id]: false }));
-                                      }
-                                    }}
-                                    disabled={podbeanUploading[v.id]}
-                                    style={{
-                                      color: "#f26522",
-                                      borderColor: "rgba(242,101,34,0.3)",
-                                      background: "rgba(242,101,34,0.07)",
-                                      opacity: podbeanUploading[v.id] ? 0.6 : 1,
-                                      cursor: podbeanUploading[v.id] ? "default" : "pointer",
-                                    }}
-                                    title={podbeanStatus?.connected ? "Publish to Podbean → auto-distributes to Spotify, Apple, Amazon" : "Connect Podbean in Settings"}
-                                  >
-                                    {podbeanUploading[v.id] ? "⟳ Publishing..." : "🎙 PODBEAN"}
-                                  </button>
-                                )}
-                                {/* Buzzsprout badge (if also uploaded there) */}
-                                {v.buzzsprout_episode_id && (
-                                  <a
-                                    href={v.buzzsprout_url || "https://www.buzzsprout.com"}
-                                    target="_blank" rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    className="btn-sm"
-                                    style={{ color: "#1db954", borderColor: "rgba(29,185,84,0.35)", background: "rgba(29,185,84,0.08)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
-                                  >
-                                    ✓ BUZZSPROUT ↗
-                                  </a>
-                                )}
-                              </>
+                              !v.podbean_episode_id && (
+                                <button
+                                  className="btn-sm"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (!podbeanStatus?.connected) {
+                                      showToast("Configure Podbean in Settings first", "error"); return;
+                                    }
+                                    setPodbeanUploading(p => ({ ...p, [v.id]: true }));
+                                    try {
+                                      await uploadToPodbean(v.id);
+                                      showToast("Uploading to Podbean — distributing to Spotify, Apple & more");
+                                      setTimeout(refresh, 5000);
+                                    } catch (err) {
+                                      showToast(err?.response?.data?.detail || "Podbean upload failed", "error");
+                                    } finally {
+                                      setPodbeanUploading(p => ({ ...p, [v.id]: false }));
+                                    }
+                                  }}
+                                  disabled={podbeanUploading[v.id]}
+                                  style={{
+                                    color: "#f26522",
+                                    borderColor: "rgba(242,101,34,0.3)",
+                                    background: "rgba(242,101,34,0.07)",
+                                    opacity: podbeanUploading[v.id] ? 0.6 : 1,
+                                    cursor: podbeanUploading[v.id] ? "default" : "pointer",
+                                  }}
+                                  title={podbeanStatus?.connected ? "Publish to Podbean → auto-distributes to Spotify, Apple, Amazon" : "Connect Podbean in Settings"}
+                                >
+                                  {podbeanUploading[v.id] ? "⟳ Publishing..." : "🎙 PODBEAN"}
+                                </button>
+                              )
                             ) : (
                               <button
                                 className="btn-sm"
@@ -5315,105 +5240,7 @@ export default function Dashboard() {
                               </button>
                             )
                           )}
-                          {/* MP3 narration download — show for any video with a narration (not exclusive) */}
-                          {v.narration_url && !v.is_exclusive && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`); }}
-                              title="Download narration MP3"
-                              style={{
-                                fontSize: 10,
-                                color: "#a0d090",
-                                padding: "4px 10px",
-                                background: "#a0d09010",
-                                borderRadius: 5,
-                                border: "1px solid #a0d09030",
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              🎙 MP3
-                            </button>
-                          )}
-                          {/* Extract MP3 from video — show for any video with a file */}
-                          {(v.status === "ready" || v.status === "posted") && v.file_path && (
-                            <button
-                              className="btn-sm"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  await extractVideoMp3(v.id);
-                                  showToast("MP3 extraction started — refresh in a moment");
-                                } catch (err) {
-                                  showToast(err?.response?.data?.detail || "MP3 extraction failed", "error");
-                                }
-                              }}
-                              title="Extract audio as MP3 podcast"
-                              style={{
-                                fontSize: 10,
-                                color: "#60c0a0",
-                                padding: "4px 10px",
-                                background: "rgba(96,192,160,0.07)",
-                                borderRadius: 5,
-                                border: "1px solid rgba(96,192,160,0.25)",
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              🎙 EXTRACT MP3
-                            </button>
-                          )}
-                          {/* TikTok upload button — show for ready/posted videos when connected */}
-                          {tiktokConnected && (v.status === "ready" || v.status === "posted") && v.file_path && (
-                            <button
-                              className="btn-sm"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                setTiktokUploading(prev => ({ ...prev, [v.id]: true }));
-                                try {
-                                  await uploadToTikTok(v.id, "SELF_ONLY");
-                                  showToast("TikTok upload started — will be private until you publish");
-                                } catch (err) {
-                                  showToast(err?.response?.data?.detail || "TikTok upload failed");
-                                } finally {
-                                  setTiktokUploading(prev => ({ ...prev, [v.id]: false }));
-                                }
-                              }}
-                              disabled={tiktokUploading[v.id] || v.tiktok_status === "uploading"}
-                              style={{
-                                color: v.tiktok_status === "posted" ? "#4ade80" : "#ee4466",
-                                borderColor: v.tiktok_status === "posted" ? "rgba(74,222,128,0.3)" : "rgba(238,68,102,0.3)",
-                                background: v.tiktok_status === "posted" ? "rgba(74,222,128,0.07)" : "rgba(238,68,102,0.07)",
-                                opacity: tiktokUploading[v.id] ? 0.6 : 1,
-                                cursor: tiktokUploading[v.id] ? "default" : "pointer",
-                              }}
-                            >
-                              {tiktokUploading[v.id] || v.tiktok_status === "uploading"
-                                ? "⟳ TikTok..."
-                                : v.tiktok_status === "posted"
-                                ? "✓ ON TIKTOK"
-                                : "🎵 TIKTOK"}
-                            </button>
-                          )}
-                          {/* Instagram — ready for when verification completes */}
-                          {(v.status === "ready" || v.status === "posted") && v.file_path && (
-                            <button
-                              className="btn-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                showToast("Instagram verification in progress — this will go live once approved", "info");
-                              }}
-                              style={{
-                                color: "#e1306c",
-                                borderColor: "rgba(225,48,108,0.25)",
-                                background: "rgba(225,48,108,0.06)",
-                                opacity: 0.65,
-                                cursor: "pointer",
-                              }}
-                              title="Instagram — verification in progress"
-                            >
-                              📸 INSTAGRAM
-                            </button>
-                          )}
+                          {/* LIVE badge + YouTube link for posted videos */}
                           {v.status === "posted" && (
                             <>
                               <span
@@ -5428,46 +5255,6 @@ export default function Dashboard() {
                               >
                                 ● LIVE
                               </span>
-                              <button
-                                className="btn-sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openYtModal(v);
-                                }}
-                                style={{
-                                  color: "#a060ff",
-                                  borderColor: "#a060ff40",
-                                  background: "#a060ff0d",
-                                }}
-                              >
-                                ⚙ MANAGE
-                              </button>
-                              <button
-                                className="btn-sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleComments(v.id);
-                                }}
-                                style={{
-                                  color:
-                                    openComments === v.id
-                                      ? T.accentGreen
-                                      : T.textMid,
-                                  borderColor:
-                                    openComments === v.id
-                                      ? `${T.accentGreen}50`
-                                      : T.border,
-                                  background:
-                                    openComments === v.id
-                                      ? `${T.accentGreen}0d`
-                                      : "transparent",
-                                }}
-                              >
-                                💬{" "}
-                                {openComments === v.id
-                                  ? "HIDE"
-                                  : `COMMENTS${v.youtube_id ? "" : ""}`}
-                              </button>
                               {v.youtube_url && (
                                 <a
                                   href={v.youtube_url}
@@ -5487,95 +5274,392 @@ export default function Dashboard() {
                                   ▶ YouTube
                                 </a>
                               )}
-                              {/* Post to Blog — for videos posted on YouTube */}
-                              {v.youtube_id && (
-                                <button
-                                  className="btn-sm"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    try {
-                                      await postVideoToBlog(v.id);
-                                      showToast("Posted to blog!");
-                                    } catch (err) {
-                                      showToast(err?.response?.data?.detail || "Failed to post to blog", "error");
-                                    }
-                                  }}
-                                  style={{
-                                    color: "#60a5fa",
-                                    borderColor: "rgba(96,165,250,0.3)",
-                                    background: "rgba(96,165,250,0.07)",
-                                    flexShrink: 0,
-                                  }}
-                                  title="Create a blog post from this video's script and YouTube link"
-                                >
-                                  📝 POST TO BLOG
-                                </button>
-                              )}
                               <span style={{ fontSize: 10, color: T.textFaint, whiteSpace: "nowrap", flexShrink: 0 }}>
                                 👁 {fmtNum(v.views_count)} · ♥ {fmtNum(v.likes_count)} · {timeAgo(v.posted_at)}
                               </span>
-                              <button
-                                className="btn-sm"
-                                onClick={(e) => { e.stopPropagation(); setYtSettingsModal(v); }}
-                                style={{ color: T.textFaint, borderColor: T.border, background: "transparent", flexShrink: 0 }}
-                              >
-                                ⚙ Settings
-                              </button>
-                              {v.resolution !== "1080x1920" && (
-                                <button
-                                  className="btn-sm"
-                                  onClick={(e) => { e.stopPropagation(); setShortsModal(v); }}
-                                  style={{ color: T.textFaint, borderColor: T.border, background: "transparent", flexShrink: 0 }}
-                                >
-                                  📱 Make Short
-                                </button>
-                              )}
                             </>
                           )}
-                          {/* Make Short — available for ready long-form videos only */}
-                          {v.status === "ready" && v.file_path && v.resolution !== "1080x1920" && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setShortsModal(v); }}
-                              style={{
-                                fontSize: 10,
-                                color: T.textFaint,
-                                padding: "4px 10px",
-                                background: "transparent",
-                                borderRadius: 5,
-                                border: `1px solid ${T.border}`,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              📱 Make Short
-                            </button>
-                          )}
-                          {v.status === "uploading" && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                color: "#9060e0",
-                                letterSpacing: "0.08em",
-                              }}
-                            >
-                              ⟳ Uploading to YouTube...
-                            </span>
-                          )}
-                          {/* Force-reset for stuck videos not started in this session */}
-                          {IN_PROGRESS.includes(v.status) && !(generating && genJobId === v.id) && (
+
+                          {/* ⋯ ACTIONS dropdown */}
+                          <div style={{ position: "relative", marginLeft: "auto" }}>
                             <button
                               className="btn-sm"
-                              onClick={(e) => handleForceReset(v.id, e)}
-                              style={{
-                                color: T.accentYellow,
-                                borderColor: `${T.accentYellow}40`,
-                                background: `${T.accentYellow}0d`,
-                              }}
-                              title="Video appears stuck — click to resolve its status based on available output"
+                              onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === v.id ? null : v.id); }}
+                              style={{ color: T.textMid, borderColor: T.border }}
                             >
-                              ↺ RESET
+                              ⋯ ACTIONS
                             </button>
-                          )}
+                            {openDropdown === v.id && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  bottom: "calc(100% + 4px)",
+                                  right: 0,
+                                  zIndex: 50,
+                                  background: "#0d1117",
+                                  border: `1px solid ${T.border}`,
+                                  borderRadius: 8,
+                                  minWidth: 200,
+                                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                                  overflow: "hidden",
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {/* ADD CAPTIONS */}
+                                {v.captions_disabled && (v.status === "ready" || v.status === "posted") && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      try {
+                                        await addCaptionsToVideo(v.id);
+                                        showToast("Captioning started — refresh in a moment");
+                                      } catch (err) {
+                                        showToast(err?.response?.data?.detail || "Captioning failed", "error");
+                                      }
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: "#fbbf24", fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                    title="This video was generated without captions — click to add them"
+                                  >
+                                    💬 ADD CAPTIONS
+                                  </button>
+                                )}
+                                {/* EXCLUSIVE toggle */}
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setOpenDropdown(null);
+                                    const goingExclusive = !v.is_exclusive;
+                                    try {
+                                      await setVideoExclusive(v.id, goingExclusive);
+                                      if (goingExclusive && !v.thumbnail_url) {
+                                        generateThumbnail(v.id).catch(() => {});
+                                      }
+                                      if (goingExclusive && v.youtube_id) {
+                                        try {
+                                          await api.patch(`/videos/${v.id}/youtube-settings`, { privacy: "private" });
+                                          showToast("Added to Exclusive — YouTube video made private");
+                                        } catch {
+                                          showToast("Added to Exclusive (YouTube privacy update failed — update manually)", "error");
+                                        }
+                                      } else {
+                                        showToast(goingExclusive ? "Added to Exclusive" : "Removed from Exclusive");
+                                      }
+                                      refresh();
+                                    } catch (err) {
+                                      showToast("Failed to update exclusive status", "error");
+                                    }
+                                  }}
+                                  style={{
+                                    display: "block", width: "100%", textAlign: "left",
+                                    padding: "9px 14px", background: "none", border: "none",
+                                    color: v.is_exclusive ? "#a78bfa" : T.textMid, fontSize: 11, fontFamily: "monospace",
+                                    letterSpacing: "0.06em", cursor: "pointer",
+                                    borderBottom: `1px solid ${T.border}`,
+                                    fontWeight: v.is_exclusive ? 700 : 400,
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  title={v.is_exclusive ? "In Exclusive — click to remove" : "Add to Exclusive content"}
+                                >
+                                  {v.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
+                                </button>
+                                {/* CREATE BLOG / EDIT BLOG — for all videos */}
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setOpenDropdown(null);
+                                    if (v.blog_post_id) {
+                                      window.open(`/blog`, "_blank");
+                                    } else {
+                                      try {
+                                        await postVideoToBlog(v.id);
+                                        showToast("Blog post created!");
+                                        refresh();
+                                      } catch (err) {
+                                        showToast(err?.response?.data?.detail || "Failed to create blog post", "error");
+                                      }
+                                    }
+                                  }}
+                                  style={{
+                                    display: "block", width: "100%", textAlign: "left",
+                                    padding: "9px 14px", background: "none", border: "none",
+                                    color: "#60a5fa", fontSize: 11, fontFamily: "monospace",
+                                    letterSpacing: "0.06em", cursor: "pointer",
+                                    borderBottom: `1px solid ${T.border}`,
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                >
+                                  {v.blog_post_id ? "✎ EDIT BLOG" : "📝 CREATE BLOG"}
+                                </button>
+                                {/* MP3 narration download */}
+                                {v.narration_url && !v.is_exclusive && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`);
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: "#a0d090", fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                    title="Download narration MP3"
+                                  >
+                                    🎙 MP3
+                                  </button>
+                                )}
+                                {/* EXTRACT MP3 */}
+                                {(v.status === "ready" || v.status === "posted") && v.file_path && !v.is_exclusive && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      try {
+                                        await extractVideoMp3(v.id);
+                                        showToast("MP3 extraction started — refresh in a moment");
+                                      } catch (err) {
+                                        showToast(err?.response?.data?.detail || "MP3 extraction failed", "error");
+                                      }
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: "#60c0a0", fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                    title="Extract audio as MP3 podcast"
+                                  >
+                                    🎙 EXTRACT MP3
+                                  </button>
+                                )}
+                                {/* TIKTOK */}
+                                {tiktokConnected && (v.status === "ready" || v.status === "posted") && v.file_path && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      setTiktokUploading(prev => ({ ...prev, [v.id]: true }));
+                                      try {
+                                        await uploadToTikTok(v.id, "SELF_ONLY");
+                                        showToast("TikTok upload started — will be private until you publish");
+                                      } catch (err) {
+                                        showToast(err?.response?.data?.detail || "TikTok upload failed");
+                                      } finally {
+                                        setTiktokUploading(prev => ({ ...prev, [v.id]: false }));
+                                      }
+                                    }}
+                                    disabled={tiktokUploading[v.id] || v.tiktok_status === "uploading"}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: v.tiktok_status === "posted" ? "#4ade80" : "#ee4466",
+                                      fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: tiktokUploading[v.id] ? "default" : "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                      opacity: tiktokUploading[v.id] ? 0.6 : 1,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  >
+                                    {tiktokUploading[v.id] || v.tiktok_status === "uploading"
+                                      ? "⟳ TikTok..."
+                                      : v.tiktok_status === "posted"
+                                      ? "✓ ON TIKTOK"
+                                      : "🎵 TIKTOK"}
+                                  </button>
+                                )}
+                                {/* INSTAGRAM */}
+                                {(v.status === "ready" || v.status === "posted") && v.file_path && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      showToast("Instagram verification in progress — this will go live once approved", "info");
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: "#e1306c", fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                      opacity: 0.65,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                    title="Instagram — verification in progress"
+                                  >
+                                    📸 INSTAGRAM
+                                  </button>
+                                )}
+                                {/* MANAGE (posted only) */}
+                                {v.status === "posted" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      openYtModal(v);
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: "#a060ff", fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  >
+                                    ⚙ MANAGE
+                                  </button>
+                                )}
+                                {/* COMMENTS (posted only) */}
+                                {v.status === "posted" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      toggleComments(v.id);
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: openComments === v.id ? T.accentGreen : T.textMid,
+                                      fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  >
+                                    💬 {openComments === v.id ? "HIDE COMMENTS" : "COMMENTS"}
+                                  </button>
+                                )}
+                                {/* YT Settings (posted only) */}
+                                {v.status === "posted" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      setYtSettingsModal(v);
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: T.textMid, fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  >
+                                    ⚙ Settings
+                                  </button>
+                                )}
+                                {/* Make Short */}
+                                {(v.status === "ready" || v.status === "posted") && v.file_path && v.resolution !== "1080x1920" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                      setShortsModal(v);
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: T.textMid, fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  >
+                                    📱 Make Short
+                                  </button>
+                                )}
+                                {/* RESET — for stuck in-progress videos */}
+                                {IN_PROGRESS.includes(v.status) && !(generating && genJobId === v.id) && (
+                                  <button
+                                    onClick={(e) => {
+                                      setOpenDropdown(null);
+                                      handleForceReset(v.id, e);
+                                    }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none", border: "none",
+                                      color: T.accentYellow, fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                    title="Video appears stuck — click to resolve its status based on available output"
+                                  >
+                                    ↺ RESET
+                                  </button>
+                                )}
+                                {/* Podbean link (if published) */}
+                                {v.podbean_episode_id && (
+                                  <a
+                                    href={v.podbean_url || "https://www.podbean.com"}
+                                    target="_blank" rel="noopener noreferrer"
+                                    onClick={e => { e.stopPropagation(); setOpenDropdown(null); }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none",
+                                      color: "#f26522", fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                      textDecoration: "none",
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  >
+                                    ✓ PODBEAN ↗
+                                  </a>
+                                )}
+                                {/* Buzzsprout link (if published) */}
+                                {v.buzzsprout_episode_id && (
+                                  <a
+                                    href={v.buzzsprout_url || "https://www.buzzsprout.com"}
+                                    target="_blank" rel="noopener noreferrer"
+                                    onClick={e => { e.stopPropagation(); setOpenDropdown(null); }}
+                                    style={{
+                                      display: "block", width: "100%", textAlign: "left",
+                                      padding: "9px 14px", background: "none",
+                                      color: "#1db954", fontSize: 11, fontFamily: "monospace",
+                                      letterSpacing: "0.06em", cursor: "pointer",
+                                      borderBottom: `1px solid ${T.border}`,
+                                      textDecoration: "none",
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                                  >
+                                    ✓ BUZZSPROUT ↗
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* DELETE — always at end */}
                           <button
                             className="btn-sm"
                             onClick={(e) => {
@@ -5588,7 +5672,6 @@ export default function Dashboard() {
                               });
                             }}
                             style={{
-                              marginLeft: "auto",
                               color: T.textFaint,
                               borderColor: T.border,
                               background: "transparent",
