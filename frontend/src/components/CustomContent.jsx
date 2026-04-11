@@ -12,6 +12,7 @@ import {
   getCCLogs,
   getCustomContentItem,
   setVideoExclusive,
+  addCaptionsToVideo,
 } from "../api/client";
 
 const CATEGORIES = [
@@ -818,6 +819,14 @@ export default function CustomContent({ T, showToast, addNotification }) {
                 onGenerateMp3={() => handleGenerateMp3(item)}
                 onViewLogs={() => setLogModal(item)}
                 onToggleExclusive={() => handleToggleExclusive(item)}
+                onAddCaptions={async () => {
+                  try {
+                    await addCaptionsToVideo(item.id);
+                    showToast("Captioning started — check logs for progress");
+                  } catch (err) {
+                    showToast(err?.response?.data?.detail || "Captioning failed", "error");
+                  }
+                }}
                 btnSm={btnSm}
               />
             ))}
@@ -857,7 +866,7 @@ export default function CustomContent({ T, showToast, addNotification }) {
 }
 
 // ── Video Card ─────────────────────────────────────────────────────────────────
-function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive, onGenerateMp3, onViewLogs, onToggleExclusive, btnSm }) {
+function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive, onGenerateMp3, onViewLogs, onToggleExclusive, onAddCaptions, btnSm }) {
   const isUploading = item.status === "uploading";
   const isPosted    = item.status === "posted";
   const isArchived  = item.archived;
@@ -968,6 +977,17 @@ function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive,
 
       {/* Action buttons */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: "auto" }}>
+        {/* Add Captions */}
+        {item.file_path && (
+          <button
+            onClick={onAddCaptions}
+            style={btnSm({ color: "#fbbf24", borderColor: "rgba(251,191,36,0.35)", background: "rgba(251,191,36,0.06)" })}
+            title="Generate captions for this video"
+          >
+            💬 ADD CAPTIONS
+          </button>
+        )}
+
         {/* Preview */}
         {item.file_path && (
           <button onClick={onPreview} style={btnSm({ color: T.accent, borderColor: `${T.accent}40`, background: `${T.accent}08` })}>
