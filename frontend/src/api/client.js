@@ -458,6 +458,22 @@ export const adminDeleteComment = async (id) =>
 export const adminReplyComment = async (id, content) =>
   (await api.post(`/admin/blog/comments/${id}/reply`, { content })).data;
 
+// ── Blog Posts (admin CRUD) ───────────────────────────────────────────────────
+export const adminListBlogPosts = async (limit = 50, offset = 0) =>
+  (await api.get("/admin/blog/posts", { params: { limit, offset } })).data;
+
+export const adminCreateBlogPost = async (payload) =>
+  (await api.post("/admin/blog/posts", payload)).data;
+
+export const adminUpdateBlogPost = async (id, payload) =>
+  (await api.patch(`/admin/blog/posts/${id}`, payload)).data;
+
+export const adminDeleteBlogPost = async (id) =>
+  (await api.delete(`/admin/blog/posts/${id}`)).data;
+
+export const postVideoToBlog = async (videoId) =>
+  (await api.post(`/videos/${videoId}/post-to-blog`)).data;
+
 // ── Pipeline Metrics ──────────────────────────────────────────────────────────
 export const getPipelineMetrics = async () => { const { data } = await api.get("/pipeline/metrics"); return data; };
 
@@ -605,3 +621,14 @@ export const dangerClearStorage = async (dangerToken) => {
   });
   return data;
 };
+
+export const addCaptionsToVideo    = async (videoId)           => { const { data } = await api.post(`/videos/${videoId}/add-captions`); return data; };
+
+// ── Blog ─────────────────────────────────────────────────────────────────────
+export const listBlogPosts         = async (params = {})       => { const { data } = await api.get("/blog/posts", { params }); return data; };
+export const getBlogPost           = async (slug)              => { const { data } = await api.get(`/blog/posts/${slug}`); return data; };
+export const adminListBlogPosts    = async (params = {})       => { const { data } = await api.get("/admin/blog/posts", { params }); return data; };
+export const adminCreateBlogPost   = async (body)              => { const { data } = await api.post("/admin/blog/posts", body); return data; };
+export const adminUpdateBlogPost   = async (id, body)          => { const { data } = await api.put(`/admin/blog/posts/${id}`, body); return data; };
+export const adminDeleteBlogPost   = async (id)                => { const { data } = await api.delete(`/admin/blog/posts/${id}`); return data; };
+export const postVideoToBlog       = async (videoId, body={})  => { const { data } = await api.post(`/videos/${videoId}/post-to-blog`, body); return data; };

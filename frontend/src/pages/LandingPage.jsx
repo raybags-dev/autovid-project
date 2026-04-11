@@ -1840,6 +1840,7 @@ export default function LandingPage() {
   const [subUser, setSubUser] = useState(null); // { email, status } if token valid
   const [showLibrary, setShowLibrary] = useState(false);
   const [bmcUrl, setBmcUrl] = useState("");
+  const [bmcMsg, setBmcMsg] = useState(false);
   const wrapperRef = useRef(null);
   const autoRef = useRef(null);
   const heroVidRef = useRef(null);
@@ -4464,34 +4465,43 @@ export default function LandingPage() {
             >
               JOIN THE COMMUNITY
             </button>
-            {bmcUrl && (
-              <a
-                href={bmcUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 7,
-                  padding: "11px 20px",
-                  borderRadius: 8,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  color: "rgba(230,220,200,0.9)",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                  letterSpacing: "0.06em",
-                  textDecoration: "none",
-                  backdropFilter: "blur(6px)",
-                  transition: "background 0.2s, border-color 0.2s",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,180,60,0.12)"; e.currentTarget.style.borderColor = "rgba(255,180,60,0.35)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; }}
-              >
-                ☕ BUY ME A COFFEE
-              </a>
+            <button
+              onClick={() => setBmcMsg(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "11px 20px",
+                borderRadius: 8,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                color: "rgba(230,220,200,0.9)",
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: "inherit",
+                letterSpacing: "0.06em",
+                backdropFilter: "blur(6px)",
+                cursor: "pointer",
+                opacity: 0.85,
+                transition: "background 0.2s, border-color 0.2s",
+              }}
+              title="Support coming soon!"
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,180,60,0.12)"; e.currentTarget.style.borderColor = "rgba(255,180,60,0.35)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; }}
+            >
+              ☕ BUY ME A COFFEE
+            </button>
+            {bmcMsg && (
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "9px 14px", borderRadius: 8,
+                background: "rgba(255,180,60,0.1)", border: "1px solid rgba(255,180,60,0.3)",
+                color: "rgba(255,210,120,0.95)", fontSize: 12, fontFamily: "inherit",
+                animation: "fadeIn 0.2s",
+              }}>
+                💛 Thank you so much! Support functionality is coming very soon — stay tuned!
+                <button onClick={() => setBmcMsg(false)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0, fontSize: 14, opacity: 0.7 }}>✕</button>
+              </div>
             )}
           </div>
         </div>

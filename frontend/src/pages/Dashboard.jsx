@@ -76,6 +76,11 @@ import api, {
   addCaptionsToVideo,
   getBmcSettings,
   saveBmcSettings,
+  adminListBlogPosts,
+  adminCreateBlogPost,
+  adminUpdateBlogPost,
+  adminDeleteBlogPost,
+  postVideoToBlog,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
@@ -99,6 +104,8 @@ const AMBIENCE_OPTIONS = [
   { id: "rain",             emoji: "🌧", label: "Rain",        desc: "Night city window" },
   { id: "galaxy",           emoji: "🌀", label: "Galaxy",      desc: "Spiral rotation" },
   { id: "flythrough_stars", emoji: "🚀", label: "Fly Through", desc: "Zoom through starfield" },
+  { id: "nebular",          emoji: "🌑", label: "Nebular",     desc: "Nebula film loop" },
+  { id: "galaxy_spinning",  emoji: "💫", label: "Galaxy Spin", desc: "Spinning galaxy loop" },
 ];
 const STEPS = [
   "Script",
@@ -1325,6 +1332,13 @@ export default function Dashboard() {
   });
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
+  // ── Blog state ─────────────────────────────────────────────────────────────
+  const [blogPosts, setBlogPosts] = useState([]);
+  const [blogLoading, setBlogLoading] = useState(false);
+  const [blogForm, setBlogForm] = useState(null); // null or post object being edited
+  const [blogFormOpen, setBlogFormOpen] = useState(false);
+  const [blogSaving, setBlogSaving] = useState(false);
+  const [blogDeleteConfirm, setBlogDeleteConfirm] = useState(null); // post id
   const T = THEMES.dark;
 
   const showToast = (msg, type = "success") => {
@@ -2901,6 +2915,7 @@ export default function Dashboard() {
               { id: "subscribers", icon: "🔐", label: "Subscribers" },
               { id: "editor", icon: "✂", label: "Video Editor" },
               { id: "stickfigures", icon: "🕹", label: "Stickfigures" },
+              { id: "blog", icon: "✏", label: "Blog" },
               { id: "settings", icon: "◎", label: "Settings" },
             ].map((n) => (
               <div
@@ -3152,6 +3167,8 @@ export default function Dashboard() {
                 ? "Stickfigure Manager"
                 : tab === "custom_content"
                 ? "Custom Content"
+                : tab === "blog"
+                ? "Blog Manager"
                 : "Settings"}
             </div>
             <div
@@ -5014,6 +5031,30 @@ export default function Dashboard() {
                             {v.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
                           </button>
 
+                          {/* Add Captioning — shown when video was generated without captions */}
+                          {v.captions_disabled && (v.status === "ready" || v.status === "posted") && (
+                            <button
+                              className="btn-sm"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await addCaptionsToVideo(v.id);
+                                  showToast("Captioning started — refresh in a moment");
+                                } catch (err) {
+                                  showToast(err?.response?.data?.detail || "Captioning failed", "error");
+                                }
+                              }}
+                              style={{
+                                color: "#fbbf24",
+                                borderColor: "rgba(251,191,36,0.35)",
+                                background: "rgba(251,191,36,0.08)",
+                              }}
+                              title="This video was generated without captions — click to add them"
+                            >
+                              💬 ADD CAPTIONS
+                            </button>
+                          )}
+
                           {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && (
                             /* Audio-only (podcast/MP3) → Podbean; video → YouTube upload */
                             isPodcast(v) ? (
@@ -5266,6 +5307,30 @@ export default function Dashboard() {
                                 >
                                   ▶ YouTube
                                 </a>
+                              )}
+                              {/* Post to Blog — for videos posted on YouTube */}
+                              {v.youtube_id && (
+                                <button
+                                  className="btn-sm"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await postVideoToBlog(v.id);
+                                      showToast("Posted to blog!");
+                                    } catch (err) {
+                                      showToast(err?.response?.data?.detail || "Failed to post to blog", "error");
+                                    }
+                                  }}
+                                  style={{
+                                    color: "#60a5fa",
+                                    borderColor: "rgba(96,165,250,0.3)",
+                                    background: "rgba(96,165,250,0.07)",
+                                    flexShrink: 0,
+                                  }}
+                                  title="Create a blog post from this video's script and YouTube link"
+                                >
+                                  📝 POST TO BLOG
+                                </button>
                               )}
                               <span style={{ fontSize: 10, color: T.textFaint, whiteSpace: "nowrap", flexShrink: 0 }}>
                                 👁 {fmtNum(v.views_count)} · ♥ {fmtNum(v.likes_count)} · {timeAgo(v.posted_at)}
@@ -10719,6 +10784,11 @@ export default function Dashboard() {
               <CustomContent T={T} showToast={showToast} addNotification={addNotification} />
             )}
 
+            {/* ── BLOG MANAGER TAB ─────────────────────────────────────────────── */}
+            {tab === "blog" && (
+              <BlogManager T={T} showToast={showToast} />
+            )}
+
             {tab === "reviews" && (
               <div style={{ padding: "28px 0", display: "flex", gap: 20, alignItems: "flex-start" }}>
 
@@ -12520,5 +12590,213 @@ export default function Dashboard() {
         </nav>
       </div>
     </>
+  );
+}
+
+// ── Blog Manager ──────────────────────────────────────────────────────────────
+
+function BlogManager({ T, showToast }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [delConfirm, setDelConfirm] = useState(null);
+  const EMPTY = { title: "", excerpt: "", body: "", cover_image_url: "", tags: "", status: "draft", youtube_url: "" };
+  const [form, setForm] = useState(EMPTY);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await adminListBlogPosts();
+      setPosts(data);
+    } catch { showToast("Failed to load blog posts", "error"); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const openNew  = () => { setForm(EMPTY); setEditing(null); setFormOpen(true); };
+  const openEdit = (p) => { setForm({ ...p, tags: (p.tags || []).join(", ") }); setEditing(p.id); setFormOpen(true); };
+  const closeForm = () => { setFormOpen(false); setEditing(null); };
+
+  const save = async () => {
+    if (!form.title.trim()) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const payload = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean) };
+      if (editing) await adminUpdateBlogPost(editing, payload);
+      else         await adminCreateBlogPost(payload);
+      showToast(editing ? "Post updated" : "Post created");
+      closeForm(); load();
+    } catch (err) {
+      showToast(err?.response?.data?.detail || "Save failed", "error");
+    } finally { setSaving(false); }
+  };
+
+  const toggleStatus = async (p) => {
+    const newStatus = p.status === "published" ? "draft" : "published";
+    try {
+      await adminUpdateBlogPost(p.id, { status: newStatus });
+      showToast(newStatus === "published" ? "Post published" : "Post set to draft");
+      load();
+    } catch { showToast("Update failed", "error"); }
+  };
+
+  const remove = async (id) => {
+    try {
+      await adminDeleteBlogPost(id);
+      showToast("Post deleted"); setDelConfirm(null); load();
+    } catch { showToast("Delete failed", "error"); }
+  };
+
+  const fld = (key) => ({
+    value: form[key],
+    onChange: (e) => setForm(f => ({ ...f, [key]: e.target.value })),
+  });
+
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box", background: T.bgCard, border: `1px solid ${T.border}`,
+    borderRadius: 6, color: T.text, padding: "8px 12px", fontSize: 12, fontFamily: "monospace",
+    outline: "none",
+  };
+
+  return (
+    <div style={{ padding: "24px 0" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, letterSpacing: "0.05em" }}>BLOG MANAGER</div>
+          <div style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>{posts.length} post(s) · <a href="/blog" target="_blank" rel="noopener noreferrer" style={{ color: T.accent, textDecoration: "none" }}>View Blog ↗</a></div>
+        </div>
+        <button
+          onClick={openNew}
+          style={{ background: T.accent, border: "none", borderRadius: 7, color: "#000", fontSize: 11, fontWeight: 700, padding: "8px 18px", cursor: "pointer", fontFamily: "monospace", letterSpacing: "0.06em" }}
+        >
+          + NEW POST
+        </button>
+      </div>
+
+      {/* Post list */}
+      {loading ? (
+        <div style={{ color: T.textDim, fontSize: 12, textAlign: "center", padding: 40 }}>Loading...</div>
+      ) : posts.length === 0 ? (
+        <div style={{ color: T.textDim, fontSize: 12, textAlign: "center", padding: 40 }}>No posts yet. Create your first one!</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {posts.map(p => (
+            <div key={p.id} style={{
+              background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8,
+              padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+            }}>
+              {/* Status badge */}
+              <span style={{
+                fontSize: 9, padding: "2px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: "0.1em",
+                background: p.status === "published" ? "rgba(61,214,140,0.12)" : "rgba(255,255,255,0.06)",
+                color: p.status === "published" ? "#3dd68c" : T.textDim,
+                border: `1px solid ${p.status === "published" ? "rgba(61,214,140,0.3)" : T.border}`,
+              }}>
+                {p.status.toUpperCase()}
+              </span>
+              {/* Title */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {p.title}
+                </div>
+                <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>
+                  {new Date(p.created_at).toLocaleDateString()} · /blog/{p.slug}
+                </div>
+              </div>
+              {/* Actions */}
+              <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
+                <button onClick={() => toggleStatus(p)} className="btn-sm"
+                  style={{ color: p.status === "published" ? "#f59e0b" : T.accentGreen, borderColor: p.status === "published" ? "rgba(245,158,11,0.3)" : "rgba(61,214,140,0.3)" }}>
+                  {p.status === "published" ? "⬇ UNPUBLISH" : "▲ PUBLISH"}
+                </button>
+                <a href={`/blog/${p.slug}`} target="_blank" rel="noopener noreferrer" className="btn-sm"
+                  style={{ color: T.accent, borderColor: `${T.accent}30`, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                  ↗ VIEW
+                </a>
+                <button onClick={() => openEdit(p)} className="btn-sm" style={{ color: T.textMid }}>✎ EDIT</button>
+                <button onClick={() => setDelConfirm(p.id)} className="btn-sm" style={{ color: "#ef4444", borderColor: "rgba(239,68,68,0.3)" }}>✕ DELETE</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {delConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, maxWidth: 380, width: "90%" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>Delete Post?</div>
+            <div style={{ fontSize: 12, color: T.textMid, marginBottom: 20 }}>This cannot be undone.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => remove(delConfirm)} style={{ flex: 1, background: "#ef4444", border: "none", borderRadius: 7, color: "#fff", padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>DELETE</button>
+              <button onClick={() => setDelConfirm(null)} style={{ flex: 1, background: "none", border: `1px solid ${T.border}`, borderRadius: 7, color: T.textMid, padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create/Edit form modal */}
+      {formOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#0d1117", border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 20 }}>{editing ? "EDIT POST" : "NEW POST"}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>TITLE *</div>
+                <input {...fld("title")} placeholder="Post title" style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>EXCERPT</div>
+                <textarea {...fld("excerpt")} rows={2} placeholder="Short summary..." style={{ ...inputStyle, resize: "vertical" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>BODY (HTML / MARKDOWN)</div>
+                <textarea {...fld("body")} rows={8} placeholder="Full post content..." style={{ ...inputStyle, resize: "vertical" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>COVER IMAGE URL</div>
+                <input {...fld("cover_image_url")} placeholder="https://..." style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>YOUTUBE URL</div>
+                <input {...fld("youtube_url")} placeholder="https://youtube.com/watch?v=..." style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>TAGS (comma-separated)</div>
+                <input {...fld("tags")} placeholder="Philosophy, Mental Health, Mystery" style={inputStyle} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 10, color: T.textDim, letterSpacing: "0.08em" }}>STATUS</div>
+                <button
+                  onClick={() => setForm(f => ({ ...f, status: f.status === "published" ? "draft" : "published" }))}
+                  style={{
+                    background: form.status === "published" ? "rgba(61,214,140,0.12)" : "rgba(255,255,255,0.06)",
+                    border: `1px solid ${form.status === "published" ? "rgba(61,214,140,0.35)" : T.border}`,
+                    color: form.status === "published" ? "#3dd68c" : T.textMid,
+                    borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", fontWeight: 700,
+                  }}
+                >
+                  {form.status === "published" ? "● PUBLISHED" : "○ DRAFT"}
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                <button onClick={save} disabled={saving}
+                  style={{ flex: 1, background: T.accent, border: "none", borderRadius: 7, color: "#000", padding: "10px 0", cursor: saving ? "default" : "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, opacity: saving ? 0.7 : 1 }}>
+                  {saving ? "SAVING..." : editing ? "SAVE CHANGES" : "CREATE POST"}
+                </button>
+                <button onClick={closeForm}
+                  style={{ flex: 1, background: "none", border: `1px solid ${T.border}`, borderRadius: 7, color: T.textMid, padding: "10px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>
+                  CANCEL
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

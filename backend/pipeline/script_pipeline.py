@@ -267,6 +267,7 @@ def run_script_pipeline(
                 print(f"⚠️  Captions failed (non-fatal): {e}")
         else:
             _log("CAPTIONS", "Captions disabled — skipping", cb)
+            db.update_video(video_id, captions_disabled=True)
 
         # ── Step 8: Upload to Supabase Storage ───────────────────────────────
         _log("STORAGE", "Uploading to Supabase Storage...", cb)

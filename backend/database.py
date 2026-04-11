@@ -77,6 +77,9 @@ CREATE INDEX IF NOT EXISTS idx_subu_status ON subscription_users(status);
 
 -- Exclusive videos flag — run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
+
+-- Captions-disabled flag — run once in Supabase SQL Editor:
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS captions_disabled BOOLEAN DEFAULT FALSE;
 ─────────────────────────────────────────────────
 """
 import uuid
@@ -303,6 +306,27 @@ def list_compilations(limit: int = 50) -> list[dict]:
 # SQL migration required (run once in Supabase SQL Editor):
 #   ALTER TABLE videos ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;
 #   CREATE INDEX IF NOT EXISTS idx_videos_archived ON videos(archived);
+
+# Blog posts table — run once in Supabase SQL Editor:
+# CREATE TABLE IF NOT EXISTS blog_posts (
+#     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+#     title         TEXT NOT NULL,
+#     slug          TEXT UNIQUE NOT NULL,
+#     excerpt       TEXT DEFAULT '',
+#     body          TEXT DEFAULT '',
+#     cover_image_url TEXT DEFAULT '',
+#     tags          TEXT[] DEFAULT '{}',
+#     status        TEXT NOT NULL DEFAULT 'draft',  -- 'draft' | 'published'
+#     video_id      UUID REFERENCES videos(id) ON DELETE SET NULL,
+#     youtube_url   TEXT DEFAULT '',
+#     views         INTEGER DEFAULT 0,
+#     created_at    TIMESTAMPTZ DEFAULT NOW(),
+#     updated_at    TIMESTAMPTZ DEFAULT NOW(),
+#     published_at  TIMESTAMPTZ
+# );
+# CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts(status);
+# CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts(slug);
+# CREATE INDEX IF NOT EXISTS idx_blog_posts_video_id ON blog_posts(video_id);
 
 def archive_video(video_id: str) -> dict:
     """Mark a video as archived (hidden from normal listings)."""
@@ -573,3 +597,45 @@ def list_recent_prompts(pipeline: str = "long", limit: int = 50) -> list:
         .execute()
     )
     return [r["prompt"] for r in (result.data or [])]
+
+
+# ── Blog Posts ────────────────────────────────────────────────────────────────
+
+def create_blog_post(data: dict) -> dict:
+    db = get_client()
+    result = db.table("blog_posts").insert(data).execute()
+    return result.data[0]
+
+def update_blog_post(post_id: str, **fields) -> dict:
+    fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    db = get_client()
+    result = db.table("blog_posts").update(fields).eq("id", post_id).execute()
+    return result.data[0]
+
+def delete_blog_post(post_id: str):
+    db = get_client()
+    db.table("blog_posts").delete().eq("id", post_id).execute()
+
+def get_blog_post(post_id: str) -> dict:
+    db = get_client()
+    result = db.table("blog_posts").select("*").eq("id", post_id).single().execute()
+    return result.data
+
+def get_blog_post_by_slug(slug: str) -> dict:
+    db = get_client()
+    result = db.table("blog_posts").select("*").eq("slug", slug).single().execute()
+    return result.data
+
+def list_blog_posts(status: str = None, limit: int = 50, offset: int = 0) -> list:
+    db = get_client()
+    query = db.table("blog_posts").select("*").order("created_at", desc=True).limit(limit).offset(offset)
+    if status:
+        query = query.eq("status", status)
+    return query.execute().data
+
+def increment_blog_post_views(post_id: str):
+    try:
+        db = get_client()
+        db.rpc("increment_blog_views", {"post_id": post_id}).execute()
+    except Exception:
+        pass  # non-critical
