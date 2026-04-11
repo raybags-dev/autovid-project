@@ -4764,9 +4764,15 @@ def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_
 
 @app.post("/videos/{video_id}/add-captions")
 def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
-    """Download video from storage, burn captions onto it, re-upload."""
+    """Download video from storage, burn captions onto it, re-upload.
+    Works for both pipeline videos (videos table) and custom content (custom_content table)."""
     import requests as _req
+    # Try videos table first, then custom_content
     video = db.get_video(video_id)
+    is_custom = False
+    if not video:
+        video = db.get_custom_content(video_id)
+        is_custom = True
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     file_path = video.get("file_path")
@@ -4804,7 +4810,10 @@ def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user
 
             captioned = captioner.add_captions(src, audio_src, f"{video_id}_recap")
             new_url   = upload_to_storage(captioned, video_id)
-            db.update_video(video_id, file_path=new_url, captions_disabled=False)
+            if is_custom:
+                db.update_custom_content(video_id, file_path=new_url)
+            else:
+                db.update_video(video_id, file_path=new_url, captions_disabled=False)
             print(f"✅ Captions added and re-uploaded: {video_id[:8]}")
         except Exception as e:
             print(f"❌ add-captions failed for {video_id[:8]}: {e}")
