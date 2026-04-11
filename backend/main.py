@@ -4767,12 +4767,16 @@ def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user
     """Download video from storage, burn captions onto it, re-upload.
     Works for both pipeline videos (videos table) and custom content (custom_content table)."""
     import requests as _req
-    # Try videos table first, then custom_content
-    video = db.get_video(video_id)
+    # Try videos table first (may throw if not found), then custom_content
+    video = None
     is_custom = False
+    try:
+        video = db.get_video(video_id)
+    except Exception:
+        pass
     if not video:
         video = db.get_custom_content(video_id)
-        is_custom = True
+        is_custom = bool(video)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     file_path = video.get("file_path")
