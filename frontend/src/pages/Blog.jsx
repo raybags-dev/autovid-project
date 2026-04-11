@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import freedomImg from "../assets/static/freedom.jpg";
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 const DARK = {
@@ -47,14 +48,17 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-function GradientPlaceholder({ title, style = {} }) {
+function GradientPlaceholder({ title, isDark = true, style = {} }) {
   const hue = title ? (title.charCodeAt(0) * 37 + title.charCodeAt(1 % title.length) * 13) % 360 : 200;
+  const bg = isDark
+    ? `linear-gradient(135deg, hsl(${hue},40%,14%) 0%, hsl(${(hue + 60) % 360},50%,20%) 100%)`
+    : `linear-gradient(135deg, hsl(${hue},30%,88%) 0%, hsl(${(hue + 60) % 360},40%,82%) 100%)`;
   return (
     <div
       style={{
         width: "100%",
         aspectRatio: "16/9",
-        background: `linear-gradient(135deg, hsl(${hue},40%,14%) 0%, hsl(${(hue + 60) % 360},50%,20%) 100%)`,
+        background: bg,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -163,6 +167,8 @@ export default function Blog() {
       color: T.text,
       fontFamily: "'JetBrains Mono', 'Fira Mono', 'Courier New', monospace",
       transition: "background 0.2s, color 0.2s",
+      overflowY: "auto",
+      maxHeight: "98vh",
     },
     nav: {
       position: "sticky",
@@ -426,23 +432,32 @@ export default function Blog() {
         </button>
       </nav>
 
-      {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section style={styles.hero}>
-        <span style={styles.heroBadge}>◈ THE BLOG</span>
-        <h1 style={styles.heroTitle}>
-          <span style={{ background: "linear-gradient(135deg,#e8eef5,#a0b0c4)", WebkitBackgroundClip: "text", WebkitTextFillColor: isDark ? "transparent" : undefined, color: isDark ? undefined : T.text }}>
-            Mysteries Worth
-          </span>
-          <br />
-          <span style={{ background: "linear-gradient(135deg,#3dd68c,#60a5fa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            Exploring
-          </span>
-        </h1>
-        <p style={styles.heroDesc}>
-          Thought-provoking articles on consciousness, philosophy, mental health,
-          relationships, and the deeper questions of existence.
-        </p>
-      </section>
+      {/* ── Parallax hero banner ── */}
+      <div style={{ position: "relative", height: 320, overflow: "hidden", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{
+          position: "absolute", inset: "-40% 0",
+          backgroundImage: `url(${freedomImg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center 45%",
+          opacity: isDark ? 0.38 : 0.22,
+          willChange: "transform",
+          transform: "scale(1.35)",
+          pointerEvents: "none",
+        }} />
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          background: isDark
+            ? "linear-gradient(160deg,rgba(3,6,15,0.65) 0%,rgba(3,6,15,0.35) 50%,rgba(3,6,15,0.65) 100%)"
+            : "linear-gradient(160deg,rgba(245,245,245,0.7) 0%,rgba(245,245,245,0.3) 50%,rgba(245,245,245,0.7) 100%)",
+        }} />
+        <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: T.accentGreen, fontWeight: 700, marginBottom: 12, textTransform: "uppercase" }}>4Life Mystery</div>
+          <div style={{ fontSize: "clamp(26px,4vw,48px)", fontWeight: 800, color: T.text, letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 14 }}>Explore the Unknown</div>
+          <div style={{ fontSize: 13, color: T.textMid, maxWidth: 500, lineHeight: 1.7 }}>
+            Thought-provoking articles on consciousness, philosophy, and the mysteries of life.
+          </div>
+        </div>
+      </div>
 
       {/* ── Post Grid ─────────────────────────────────────────────────────── */}
       {loading ? (
@@ -502,7 +517,7 @@ export default function Blog() {
                       onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
                     />
                   ) : null}
-                  {!post.cover_image_url && <GradientPlaceholder title={post.title || "Post"} />}
+                  {!post.cover_image_url && <GradientPlaceholder title={post.title || "Post"} isDark={isDark} />}
 
                   <div style={styles.cardBody}>
                     {/* Tags */}

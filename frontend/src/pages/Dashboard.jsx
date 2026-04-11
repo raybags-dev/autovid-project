@@ -1216,7 +1216,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [dropdownAbove, setDropdownAbove] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState(null);
   const [pageReady, setPageReady] = useState(false); // true after first data load
   const [videos, setVideos] = useState([]);
   const [stats, setStats] = useState({});
@@ -5109,7 +5109,7 @@ export default function Dashboard() {
                                 e.stopPropagation();
                                 if (openDropdown === v.id) { setOpenDropdown(null); return; }
                                 const rect = e.currentTarget.getBoundingClientRect();
-                                setDropdownAbove(window.innerHeight - rect.bottom < 320);
+                                setDropdownRect({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
                                 setOpenDropdown(v.id);
                               }}
                               style={{ color: T.textMid, borderColor: T.border, background: T.bgCard }}
@@ -5119,12 +5119,10 @@ export default function Dashboard() {
                             {openDropdown === v.id && (
                               <div
                                 style={{
-                                  position: "absolute",
-                                  ...(dropdownAbove
-                                    ? { bottom: "calc(100% + 4px)" }
-                                    : { top: "calc(100% + 4px)" }),
-                                  right: 0,
-                                  zIndex: 200,
+                                  position: "fixed",
+                                  top: dropdownRect ? dropdownRect.top : 0,
+                                  right: dropdownRect ? dropdownRect.right : 0,
+                                  zIndex: 9999,
                                   background: T.bgCard,
                                   border: `1px solid ${T.border}`,
                                   borderRadius: 8,
@@ -5724,6 +5722,28 @@ export default function Dashboard() {
                         title={s.is_exclusive ? "In Exclusive — click to remove" : "Add to Exclusive content"}
                       >
                         {s.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
+                      </button>
+                    )}
+                    {/* ADD CAPTIONS — for shorts generated without captions */}
+                    {s.captions_disabled && isReady && s.file_path && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await addCaptionsToVideo(s.id);
+                            showToast("Captioning started — refresh in a moment");
+                          } catch (err) {
+                            showToast(err?.response?.data?.detail || "Captioning failed", "error");
+                          }
+                        }}
+                        style={{
+                          padding: "4px 8px", borderRadius: 6, fontSize: 9, letterSpacing: "0.05em",
+                          border: "1px solid rgba(251,191,36,0.35)", background: "rgba(251,191,36,0.08)",
+                          color: "#fbbf24", cursor: "pointer", fontFamily: "inherit", marginTop: 4,
+                        }}
+                        title="Add captions to this short"
+                      >
+                        💬 ADD CAPTIONS
                       </button>
                     )}
                     {isUnposted && (
