@@ -189,7 +189,7 @@ def assemble_video(segments: list[dict], audio_path: str, video_id: str) -> str:
     return str(output_path)
 
 
-def composite_stock_on_background(background_path: str, segments: list, output_path: str) -> str:
+def composite_stock_on_background(background_path: str, segments: list, output_path: str, width: int = 1920, height: int = 1080) -> str:
     """
     Composite Pexels stock footage clips on top of an animated background video at exact
     segment timestamps.  Segments without a valid clip_path show the background only.
@@ -201,7 +201,7 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
     """
     import shutil as _shutil
 
-    W, H, FPS = 1920, 1080, 30
+    W, H, FPS = width, height, 30
 
     valid = [
         (seg["start"], seg["end"], seg["duration"], seg["clip_path"])

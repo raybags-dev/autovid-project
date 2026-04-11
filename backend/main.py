@@ -4696,6 +4696,7 @@ def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_
     """Create a blog post from a video (works for all videos, not just YouTube-posted).
     If the video already has a blog_post_id, returns the existing post instead."""
     import re, unicodedata
+    from datetime import datetime, timezone
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")

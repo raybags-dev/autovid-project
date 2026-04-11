@@ -1216,6 +1216,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [dropdownAbove, setDropdownAbove] = useState(false);
   const [pageReady, setPageReady] = useState(false); // true after first data load
   const [videos, setVideos] = useState([]);
   const [stats, setStats] = useState({});
@@ -5104,8 +5105,14 @@ export default function Dashboard() {
                           <div style={{ position: "relative", marginLeft: "auto" }}>
                             <button
                               className="btn-sm"
-                              onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === v.id ? null : v.id); }}
-                              style={{ color: T.textMid, borderColor: T.border }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (openDropdown === v.id) { setOpenDropdown(null); return; }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setDropdownAbove(window.innerHeight - rect.bottom < 320);
+                                setOpenDropdown(v.id);
+                              }}
+                              style={{ color: T.textMid, borderColor: T.border, background: T.bgCard }}
                             >
                               ⋯ ACTIONS
                             </button>
@@ -5113,15 +5120,18 @@ export default function Dashboard() {
                               <div
                                 style={{
                                   position: "absolute",
-                                  bottom: "calc(100% + 4px)",
+                                  ...(dropdownAbove
+                                    ? { bottom: "calc(100% + 4px)" }
+                                    : { top: "calc(100% + 4px)" }),
                                   right: 0,
-                                  zIndex: 50,
-                                  background: "#0d1117",
+                                  zIndex: 200,
+                                  background: T.bgCard,
                                   border: `1px solid ${T.border}`,
                                   borderRadius: 8,
                                   minWidth: 200,
-                                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-                                  overflow: "hidden",
+                                  maxHeight: 320,
+                                  overflowY: "auto",
+                                  boxShadow: "0 8px 32px rgba(0,0,0,0.7)",
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               >
@@ -5192,8 +5202,8 @@ export default function Dashboard() {
                                 >
                                   {v.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
                                 </button>
-                                {/* CREATE BLOG / EDIT BLOG — for all videos */}
-                                <button
+                                {/* CREATE BLOG / EDIT BLOG — MP4 only */}
+                                {!isPodcast(v) && <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     setOpenDropdown(null);
@@ -5220,7 +5230,7 @@ export default function Dashboard() {
                                   onMouseLeave={e => e.currentTarget.style.background = "none"}
                                 >
                                   {v.blog_post_id ? "✎ EDIT BLOG" : "📝 CREATE BLOG"}
-                                </button>
+                                </button>}
                                 {/* MP3 narration download */}
                                 {v.narration_url && !v.is_exclusive && (
                                   <button
