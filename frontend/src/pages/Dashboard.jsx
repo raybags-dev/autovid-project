@@ -1215,6 +1215,7 @@ function SubscribersTabContent({ T, showToast }) {
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [openDropdown, setOpenDropdown] = useState(null);
   const [pageReady, setPageReady] = useState(false); // true after first data load
   const [videos, setVideos] = useState([]);
   const [stats, setStats] = useState({});
@@ -2150,7 +2151,6 @@ export default function Dashboard() {
   const [podbeanSaving, setPodbeanSaving] = useState(false);
   const [podbeanTesting, setPodbeanTesting] = useState(false);
   const [podbeanUploading, setPodbeanUploading] = useState({});
-  const [openDropdown, setOpenDropdown] = useState(null);
   // Subscriptions / expenditure tracker
   const [subscriptions, setSubscriptions] = useState([]);
   const [subsSaving, setSubsSaving] = useState(false);
