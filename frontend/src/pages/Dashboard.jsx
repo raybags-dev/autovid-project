@@ -1213,6 +1213,185 @@ function SubscribersTabContent({ T, showToast }) {
 }
 
 
+function BlogManagerTab({ T, showToast }) {
+  const [posts, setPosts] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [form, setForm] = React.useState(null);
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [deleteConfirm, setDeleteConfirm] = React.useState(null);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await adminListBlogPosts();
+      setPosts(Array.isArray(d.posts) ? d.posts : (Array.isArray(d) ? d : []));
+    } catch { showToast("Failed to load blog posts", "error"); }
+    finally { setLoading(false); }
+  }, [showToast]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const openNew = () => { setForm({ title: "", excerpt: "", body: "", cover_image_url: "", tags: "", status: "draft", video_link: "" }); setFormOpen(true); };
+  const openEdit = (p) => { setForm({ ...p, tags: Array.isArray(p.tags) ? p.tags.join(", ") : (p.tags || "") }); setFormOpen(true); };
+
+  const savePost = async () => {
+    if (!form.title.trim()) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const payload = { ...form };
+      if (form.id) { await adminUpdateBlogPost(form.id, payload); showToast("Post updated"); }
+      else { await adminCreateBlogPost(payload); showToast("Post created"); }
+      setFormOpen(false); setForm(null); load();
+    } catch (e) { showToast(e?.response?.data?.detail || "Save failed", "error"); }
+    finally { setSaving(false); }
+  };
+
+  const toggleStatus = async (p) => {
+    try {
+      await adminUpdateBlogPost(p.id, { status: p.status === "published" ? "draft" : "published" });
+      showToast(p.status === "published" ? "Set to draft" : "Published");
+      load();
+    } catch { showToast("Failed to update status", "error"); }
+  };
+
+  const deletePost = async (id) => {
+    try { await adminDeleteBlogPost(id); showToast("Post deleted"); setDeleteConfirm(null); load(); }
+    catch { showToast("Delete failed", "error"); }
+  };
+
+  const inputSt = { width: "100%", padding: "8px 12px", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: "inherit", fontSize: 12, outline: "none", boxSizing: "border-box" };
+  const labelSt = { fontSize: 10, color: T.textDim, letterSpacing: "0.1em", display: "block", marginBottom: 4, fontWeight: 700 };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Blog Manager</div>
+          <div style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>{posts.length} posts total</div>
+        </div>
+        <button
+          onClick={openNew}
+          style={{ marginLeft: "auto", padding: "8px 18px", borderRadius: 8, border: `1px solid ${T.accentGreen}50`, background: `${T.accentGreen}12`, color: T.accentGreen, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer", fontFamily: "inherit" }}
+        >
+          + NEW POST
+        </button>
+        <a href="/blog" target="_blank" rel="noopener noreferrer" style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.accent, fontSize: 11, textDecoration: "none", letterSpacing: "0.08em" }}>
+          ↗ VIEW BLOG
+        </a>
+      </div>
+
+      {/* Post list */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 60, color: T.textDim, fontSize: 11, letterSpacing: "0.12em" }}>LOADING…</div>
+      ) : posts.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 60, color: T.textDim, fontSize: 12 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>✏</div>
+          No blog posts yet. Create your first one.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {posts.map(p => (
+            <div key={p.id} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              {p.cover_image_url && (
+                <img src={p.cover_image_url} alt="" style={{ width: 52, height: 38, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} onError={e => { e.currentTarget.style.display = "none"; }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+                <div style={{ fontSize: 10, color: T.textDim, marginTop: 3 }}>
+                  {p.slug && <span style={{ marginRight: 10 }}>/{p.slug}</span>}
+                  {p.published_at ? new Date(p.published_at).toLocaleDateString() : (p.created_at ? new Date(p.created_at).toLocaleDateString() : "")}
+                </div>
+              </div>
+              <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 20, fontWeight: 700, letterSpacing: "0.1em", background: p.status === "published" ? "rgba(61,214,140,0.15)" : "rgba(255,176,32,0.12)", color: p.status === "published" ? T.accentGreen : "#ffb020", border: `1px solid ${p.status === "published" ? T.accentGreen + "40" : "#ffb02040"}` }}>
+                {(p.status || "draft").toUpperCase()}
+              </span>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button className="btn-sm" onClick={() => toggleStatus(p)} style={{ color: p.status === "published" ? "#ffb020" : T.accentGreen, borderColor: p.status === "published" ? "#ffb02040" : `${T.accentGreen}40`, background: "transparent" }}>
+                  {p.status === "published" ? "⬇ DRAFT" : "▲ PUBLISH"}
+                </button>
+                <button className="btn-sm" onClick={() => openEdit(p)} style={{ color: T.accent, borderColor: `${T.accent}40`, background: "transparent" }}>
+                  ✎ EDIT
+                </button>
+                {deleteConfirm === p.id ? (
+                  <>
+                    <button className="btn-sm" onClick={() => deletePost(p.id)} style={{ color: T.accentRed, borderColor: `${T.accentRed}40`, background: `${T.accentRed}0d` }}>CONFIRM</button>
+                    <button className="btn-sm" onClick={() => setDeleteConfirm(null)} style={{ color: T.textDim, borderColor: T.border, background: "transparent" }}>✕</button>
+                  </>
+                ) : (
+                  <button className="btn-sm" onClick={() => setDeleteConfirm(p.id)} style={{ color: T.accentRed, borderColor: `${T.accentRed}30`, background: "transparent" }}>
+                    ✕ DELETE
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      {formOpen && form && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: T.bgSub, border: `1px solid ${T.border}`, borderRadius: 14, width: "100%", maxWidth: 660, maxHeight: "90vh", overflowY: "auto", padding: 28 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 22 }}>
+              {form.id ? "EDIT POST" : "NEW POST"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={labelSt}>TITLE *</label>
+                <input style={inputSt} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Post title" />
+              </div>
+              <div>
+                <label style={labelSt}>EXCERPT</label>
+                <textarea style={{ ...inputSt, resize: "vertical", minHeight: 64 }} value={form.excerpt || ""} onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))} placeholder="Short summary shown in listing" />
+              </div>
+              <div>
+                <label style={labelSt}>BODY (HTML)</label>
+                <textarea
+                  style={{ ...inputSt, resize: "vertical", minHeight: 200, fontFamily: "monospace", fontSize: 11 }}
+                  value={form.body || ""}
+                  onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                  placeholder={'Full post content — HTML supported.\nUse <div class="blog-video-embed"><iframe ...></iframe></div> for video embeds.'}
+                />
+              </div>
+              <div>
+                <label style={labelSt}>COVER IMAGE URL</label>
+                <input style={inputSt} value={form.cover_image_url || ""} onChange={e => setForm(f => ({ ...f, cover_image_url: e.target.value }))} placeholder="https://..." />
+              </div>
+              <div>
+                <label style={labelSt}>TAGS (comma-separated)</label>
+                <input style={inputSt} value={form.tags || ""} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="Philosophy, Consciousness, Life" />
+              </div>
+              <div>
+                <label style={labelSt}>VIDEO LINK (optional)</label>
+                <input style={inputSt} value={form.video_link || ""} onChange={e => setForm(f => ({ ...f, video_link: e.target.value }))} placeholder="https://youtube.com/..." />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <label style={{ ...labelSt, marginBottom: 0 }}>STATUS</label>
+                <button
+                  onClick={() => setForm(f => ({ ...f, status: f.status === "published" ? "draft" : "published" }))}
+                  style={{ padding: "4px 14px", borderRadius: 6, border: `1px solid ${form.status === "published" ? T.accentGreen + "50" : "#ffb02040"}`, background: form.status === "published" ? `${T.accentGreen}12` : "rgba(255,176,32,0.1)", color: form.status === "published" ? T.accentGreen : "#ffb020", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {form.status === "published" ? "PUBLISHED" : "DRAFT"}
+                </button>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
+              <button onClick={() => { setFormOpen(false); setForm(null); }} style={{ padding: "9px 20px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                CANCEL
+              </button>
+              <button onClick={savePost} disabled={saving} style={{ padding: "9px 22px", borderRadius: 8, border: `1px solid ${T.accentGreen}55`, background: `${T.accentGreen}15`, color: T.accentGreen, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.6 : 1 }}>
+                {saving ? "SAVING…" : "SAVE POST"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();

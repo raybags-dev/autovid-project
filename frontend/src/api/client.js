@@ -622,13 +622,6 @@ export const dangerClearStorage = async (dangerToken) => {
   return data;
 };
 
-export const addCaptionsToVideo    = async (videoId)           => { const { data } = await api.post(`/videos/${videoId}/add-captions`); return data; };
-
-// ── Blog ─────────────────────────────────────────────────────────────────────
-export const listBlogPosts         = async (params = {})       => { const { data } = await api.get("/blog/posts", { params }); return data; };
-export const getBlogPost           = async (slug)              => { const { data } = await api.get(`/blog/posts/${slug}`); return data; };
-export const adminListBlogPosts    = async (params = {})       => { const { data } = await api.get("/admin/blog/posts", { params }); return data; };
-export const adminCreateBlogPost   = async (body)              => { const { data } = await api.post("/admin/blog/posts", body); return data; };
-export const adminUpdateBlogPost   = async (id, body)          => { const { data } = await api.put(`/admin/blog/posts/${id}`, body); return data; };
-export const adminDeleteBlogPost   = async (id)                => { const { data } = await api.delete(`/admin/blog/posts/${id}`); return data; };
-export const postVideoToBlog       = async (videoId, body={})  => { const { data } = await api.post(`/videos/${videoId}/post-to-blog`, body); return data; };
+// ── Blog (public) ─────────────────────────────────────────────────────────────
+export const listBlogPosts = async (params = {}) => { const { data } = await api.get("/blog/posts", { params }); return data; };
+export const getBlogPost   = async (slug)        => { const { data } = await api.get(`/blog/posts/${slug}`); return data; };
