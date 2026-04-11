@@ -684,7 +684,27 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         visual_path = generate_short_visual(duration=visual_duration, ambience=_ambience)
         db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
 
-        # 4b. Stickfigure overlay (only when requested)
+        # 4b. Stock footage overlay (portrait 1080x1920)
+        if use_stock_footage and not use_stickfigures:
+            _stock_mood = ambience if ambience not in GENERATED_VISUAL_MOODS else None
+            _seg_dur = max(4, int(duration / 4))
+            _short_segments = [
+                {"start": i * _seg_dur, "end": min((i + 1) * _seg_dur, int(duration)),
+                 "duration": min(_seg_dur, int(duration) - i * _seg_dur)}
+                for i in range(4)
+                if i * _seg_dur < int(duration)
+            ]
+            _short_segments = step_fetch_clips(_short_segments, video_id,
+                                               script_text=script_data.get("full_narration", prompt),
+                                               mood=_stock_mood, cb=cb)
+            composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
+            _log("VISUALS", "Compositing stock footage on short background...", cb)
+            from pipeline.video_assembler import composite_stock_on_background
+            visual_path = composite_stock_on_background(visual_path, _short_segments, composited_path,
+                                                        width=1080, height=1920)
+            db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
+
+        # 4c. Stickfigure overlay (only when requested)
         if use_stickfigures:
             script_text = script_data.get("full_narration", prompt)
             visual_path = _step_stickfigure_composite(
