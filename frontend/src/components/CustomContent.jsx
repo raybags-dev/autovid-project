@@ -866,6 +866,16 @@ export default function CustomContent({ T, showToast, addNotification }) {
 }
 
 // ── Video Card ─────────────────────────────────────────────────────────────────
+async function _downloadBlob(url, filename) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
 function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive, onGenerateMp3, onViewLogs, onToggleExclusive, onAddCaptions, btnSm }) {
   const isUploading = item.status === "uploading";
   const isPosted    = item.status === "posted";
@@ -997,15 +1007,12 @@ function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive,
 
         {/* Download */}
         {item.file_path && (
-          <a
-            href={item.file_path}
-            download
-            target="_blank"
-            rel="noreferrer"
-            style={btnSm({ textDecoration: "none", display: "inline-block" })}
+          <button
+            onClick={() => _downloadBlob(item.file_path, `${item.title || item.id}.mp4`)}
+            style={btnSm()}
           >
             ⬇ DOWNLOAD
-          </a>
+          </button>
         )}
 
         {/* YouTube upload */}
@@ -1049,15 +1056,12 @@ function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive,
 
         {/* Download MP3 */}
         {item.mp3_url && (
-          <a
-            href={item.mp3_url}
-            download
-            target="_blank"
-            rel="noreferrer"
-            style={btnSm({ color: T.accentGreen, borderColor: `${T.accentGreen}40`, textDecoration: "none", display: "inline-block" })}
+          <button
+            onClick={() => _downloadBlob(item.mp3_url, `${item.title || item.id}.mp3`)}
+            style={btnSm({ color: T.accentGreen, borderColor: `${T.accentGreen}40` })}
           >
             ⬇ MP3
-          </a>
+          </button>
         )}
 
         {/* View logs */}

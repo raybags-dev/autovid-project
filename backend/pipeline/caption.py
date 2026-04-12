@@ -47,7 +47,6 @@ def transcribe_audio(audio_path: str, model_size: str = "base") -> dict:
         audio_path,
         word_timestamps=True,
         language="en",
-        vad_filter=True,
     )
 
     # Flatten to word-level timestamps

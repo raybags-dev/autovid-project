@@ -153,7 +153,8 @@ export default function BlogPost() {
   // ── Styles ─────────────────────────────────────────────────────────────────
   const st = {
     page: {
-      minHeight: "100vh",
+      height: "100%",
+      overflowY: "auto",
       background: T.bg,
       color: T.text,
       fontFamily: "'JetBrains Mono', 'Fira Mono', 'Courier New', monospace",
