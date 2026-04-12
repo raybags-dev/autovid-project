@@ -822,7 +822,8 @@ export default function CustomContent({ T, showToast, addNotification }) {
                 onAddCaptions={async () => {
                   try {
                     await addCaptionsToVideo(item.id);
-                    showToast("Captioning started — check logs for progress");
+                    setLogModal(item);
+                    showToast("Captioning started — watching logs...");
                   } catch (err) {
                     showToast(err?.response?.data?.detail || "Captioning failed", "error");
                   }

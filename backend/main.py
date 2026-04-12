@@ -4763,10 +4763,10 @@ def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_
 # ── On-demand captioning ───────────────────────────────────────────────────────
 
 @app.post("/videos/{video_id}/add-captions")
-def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
+def add_captions_to_video(video_id: str, user: str = Depends(verify_token)):
     """Download video from storage, burn captions onto it, re-upload.
     Works for both pipeline videos (videos table) and custom content (custom_content table)."""
-    import requests as _req
+    import requests as _req, uuid as _uuid
     # Try videos table first (may throw if not found), then custom_content
     video = None
     is_custom = False
@@ -4783,6 +4783,9 @@ def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user
     if not file_path:
         raise HTTPException(status_code=400, detail="Video has no file path")
 
+    # Use a unique suffix so concurrent runs on different backends don't share temp files
+    _run_id = _uuid.uuid4().hex[:8]
+
     _register_pipeline(video_id)
 
     def _run():
@@ -4791,44 +4794,57 @@ def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user
             import pipeline.caption as captioner
             from pipeline.storage import upload_to_storage
 
+            _push_log(video_id, "[caption] Starting captioning pipeline...")
+
             # Download video if hosted remotely
             if file_path.startswith("http"):
-                local_video = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_cap_dl.mp4")
+                local_video = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_cap_{_run_id}.mp4")
+                _push_log(video_id, "[caption] Downloading video file...")
                 r = _req.get(file_path, stream=True, timeout=(30, 1800))
+                total = 0
                 with open(local_video, "wb") as f:
                     for chunk in r.iter_content(chunk_size=1024 * 512):
                         f.write(chunk)
+                        total += len(chunk)
+                size_mb = total / (1024 * 1024)
+                _push_log(video_id, f"[caption] Downloaded {size_mb:.1f} MB")
                 src = local_video
             else:
                 src = file_path
 
             # Audio source for transcription (narration_url preferred)
             audio_src = video.get("narration_url") or src
-            if audio_src and audio_src.startswith("http"):
-                local_audio = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_cap_audio.mp3")
+            if audio_src and audio_src != src and audio_src.startswith("http"):
+                local_audio = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_cap_{_run_id}.mp3")
+                _push_log(video_id, "[caption] Downloading audio track...")
                 r = _req.get(audio_src, stream=True, timeout=(30, 600))
                 with open(local_audio, "wb") as f:
                     for chunk in r.iter_content(chunk_size=1024 * 512):
                         f.write(chunk)
                 audio_src = local_audio
 
+            _push_log(video_id, "[caption] Transcribing audio with Whisper (base model)...")
             captioned = captioner.add_captions(src, audio_src, f"{video_id}_recap")
-            new_url   = upload_to_storage(captioned, video_id)
+            _push_log(video_id, "[caption] Captions burned — uploading to storage...")
+            new_url = upload_to_storage(captioned, video_id)
             if is_custom:
                 db.update_custom_content(video_id, file_path=new_url)
             else:
                 db.update_video(video_id, file_path=new_url, captions_disabled=False)
+            _push_log(video_id, f"[caption] ✅ Done — captioned video uploaded")
             print(f"✅ Captions added and re-uploaded: {video_id[:8]}")
         except Exception as e:
+            _push_log(video_id, f"[caption] ❌ Failed: {e}")
             print(f"❌ add-captions failed for {video_id[:8]}: {e}")
         finally:
             for p in [local_video, local_audio, captioned]:
                 if p:
                     from pathlib import Path
                     Path(p).unlink(missing_ok=True)
+            _push_log(video_id, "__DONE__")
             _unregister_pipeline(video_id)
 
-    background_tasks.add_task(_run)
+    _queue_pipeline(_run, job_id=video_id, job_type="caption", prompt="add captions")
     return {"message": "Captioning started in background", "video_id": video_id}
 
 
