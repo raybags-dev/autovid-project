@@ -4794,9 +4794,9 @@ def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user
             # Download video if hosted remotely
             if file_path.startswith("http"):
                 local_video = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_cap_dl.mp4")
-                r = _req.get(file_path, stream=True, timeout=180)
+                r = _req.get(file_path, stream=True, timeout=(30, 1800))
                 with open(local_video, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=1024 * 256):
+                    for chunk in r.iter_content(chunk_size=1024 * 512):
                         f.write(chunk)
                 src = local_video
             else:
@@ -4806,9 +4806,9 @@ def add_captions_to_video(video_id: str, background_tasks: BackgroundTasks, user
             audio_src = video.get("narration_url") or src
             if audio_src and audio_src.startswith("http"):
                 local_audio = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_cap_audio.mp3")
-                r = _req.get(audio_src, stream=True, timeout=60)
+                r = _req.get(audio_src, stream=True, timeout=(30, 600))
                 with open(local_audio, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=1024 * 256):
+                    for chunk in r.iter_content(chunk_size=1024 * 512):
                         f.write(chunk)
                 audio_src = local_audio
 
