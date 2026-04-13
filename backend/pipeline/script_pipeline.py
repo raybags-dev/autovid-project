@@ -189,10 +189,10 @@ def run_script_pipeline(
 
             if plan:
                 _log("VISUAL", f"Fetching clips for {len(plan)} sections...", cb)
-                fetched_segments = _vf.fetch_clips_for_plan(plan, synth_segments, video_id)
+                fetched_segments = _vf.fetch_clips_for_plan(plan, synth_segments, video_id, orientation="landscape")
             else:
                 _log("VISUAL", "LLM plan unavailable — using keyword extraction...", cb)
-                fetched_segments = _vf.fetch_all_clips_multi(synth_segments, video_id)
+                fetched_segments = _vf.fetch_all_clips_multi(synth_segments, video_id, orientation="landscape")
 
             composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
             visual_path = _va.composite_stock_on_background(visual_path, fetched_segments, composited_path)

@@ -1,14 +1,14 @@
 """
-AutoVid Pipeline — Step 3: Stock Video Fetcher
+AutoVid Pipeline — Step 3: Stock Image Fetcher (Ken Burns)
 
-Fetches relevant video clips from Pexels (primary) and Pixabay (fallback).
-Both APIs are free — no credit card required.
+Fetches relevant still images from Pexels and animates them with a slow,
+gentle Ken Burns zoom-in effect using FFmpeg's zoompan filter.  Each image
+is converted to an MP4 clip so the rest of the pipeline receives the same
+MP4 file paths as before — no other changes required downstream.
 
-Strategy:
-  - For each script segment, search using the segment's visual_query
-  - Download the best matching clip
-  - Trim/resize to match segment duration
-  - Cache downloads to avoid re-fetching the same clips
+Orientation:
+  - landscape (16:9) — Video Studio and Script Studio pipelines
+  - portrait  (9:16) — Shorts / TikTok pipeline
 """
 import sys
 from pathlib import Path
@@ -17,114 +17,177 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
 import hashlib
 import requests
+import subprocess
 from pathlib import Path
 from typing import Optional
 import config
 
-# ── Pexels ────────────────────────────────────────────────────────────────────
+# ── Pexels Images API ─────────────────────────────────────────────────────────
 
-PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search"
-PEXELS_HEADERS = {"Authorization": config.PEXELS_API_KEY}
+PEXELS_IMAGE_URL = "https://api.pexels.com/v1/search"
+PEXELS_HEADERS   = {"Authorization": config.PEXELS_API_KEY}
 
-PIXABAY_SEARCH_URL = "https://pixabay.com/api/videos/"
+_DARK_SUFFIX = " dark emotional theme"
 
 
-def _search_pexels(
+def _enrich_query(query: str) -> str:
+    """Append the dark-theme suffix to every Pexels query."""
+    q = query.strip()
+    return q if q.endswith(_DARK_SUFFIX) else q + _DARK_SUFFIX
+
+
+# ── Image search ──────────────────────────────────────────────────────────────
+
+def _search_pexels_image(
     query: str,
-    duration_hint: float = 10,
+    orientation: str = "landscape",
     result_offset: int = 0,
     exclude_ids: set = None,
 ) -> tuple:
     """
-    Search Pexels for a video matching the query.
-    exclude_ids: set of Pexels video IDs already used — skipped to ensure diversity.
-    Returns (download_url, pexels_video_id) or (None, None).
+    Search Pexels Images API.
+    Returns (image_url, photo_id) or (None, None).
+    orientation: "landscape" | "portrait" | "square"
     """
     params = {
-        "query": query,
-        "per_page": 15,
-        "orientation": "landscape",
-        "size": "medium",
+        "query":       _enrich_query(query),
+        "per_page":    15,
+        "orientation": orientation,
     }
     try:
-        resp = requests.get(PEXELS_SEARCH_URL, headers=PEXELS_HEADERS, params=params, timeout=10)
+        resp = requests.get(PEXELS_IMAGE_URL, headers=PEXELS_HEADERS, params=params, timeout=10)
         resp.raise_for_status()
-        videos = resp.json().get("videos", [])
-        if not videos:
+        photos = resp.json().get("photos", [])
+        if not photos:
             return None, None
 
-        # Filter out already-used clips
         if exclude_ids:
-            fresh = [v for v in videos if v["id"] not in exclude_ids]
-            candidates = fresh if fresh else videos  # relax dedup if nothing fresh
+            fresh = [p for p in photos if p["id"] not in exclude_ids]
+            candidates = fresh if fresh else photos
         else:
-            candidates = videos
+            candidates = photos
 
-        # Prefer clips long enough for this segment
-        long_enough = [v for v in candidates if v["duration"] >= max(duration_hint - 1, 3)]
-        candidates = long_enough if long_enough else candidates
-
-        video = candidates[result_offset % len(candidates)]
-        files = sorted(video["video_files"], key=lambda f: f.get("width", 0), reverse=True)
-        for f in files:
-            if f.get("width", 0) >= 1280:
-                return f["link"], video["id"]
-        return (files[0]["link"], video["id"]) if files else (None, None)
+        photo = candidates[result_offset % len(candidates)]
+        src   = photo.get("src", {})
+        url   = src.get("large2x") or src.get("large") or src.get("original")
+        return url, photo["id"]
 
     except Exception as e:
-        print(f"⚠️  Pexels search failed for '{query}': {e}")
+        print(f"⚠️  Pexels image search failed for '{query}': {e}")
         return None, None
 
 
-def _search_pixabay(query: str, result_offset: int = 0) -> Optional[str]:
+def _search_pexels_images_multi(
+    query: str,
+    orientation: str = "landscape",
+    exclude_ids: set = None,
+    max_images: int = 4,
+) -> list:
     """
-    Fallback to Pixabay if Pexels fails or returns nothing.
-    result_offset: selects a different hit so different scripts get different clips.
+    Search Pexels for multiple images.
+    Returns list of (image_url, photo_id) tuples.
     """
     params = {
-        "key": config.PIXABAY_API_KEY,
-        "q": query,
-        "video_type": "film",
-        "per_page": 10,
+        "query":       _enrich_query(query),
+        "per_page":    15,
+        "orientation": orientation,
     }
     try:
-        resp = requests.get(PIXABAY_SEARCH_URL, params=params, timeout=10)
+        resp = requests.get(PEXELS_IMAGE_URL, headers=PEXELS_HEADERS, params=params, timeout=10)
         resp.raise_for_status()
-        hits = resp.json().get("hits", [])
-        if not hits:
-            return None
+        photos = resp.json().get("photos", [])
+        if not photos:
+            return []
 
-        # Use offset so different scripts pick different hits
-        hit = hits[result_offset % len(hits)]
-        videos = hit.get("videos", {})
-        for quality in ["large", "medium", "small", "tiny"]:
-            url = videos.get(quality, {}).get("url")
+        if exclude_ids:
+            fresh = [p for p in photos if p["id"] not in exclude_ids]
+            candidates = fresh if fresh else photos
+        else:
+            candidates = photos
+
+        results = []
+        for photo in candidates[:max_images]:
+            src = photo.get("src", {})
+            url = src.get("large2x") or src.get("large") or src.get("original")
             if url:
-                return url
+                results.append((url, photo["id"]))
+        return results
+
     except Exception as e:
-        print(f"⚠️  Pixabay fallback failed for '{query}': {e}")
-    return None
+        print(f"⚠️  Pexels multi-image search '{query}': {e}")
+        return []
 
 
-def _download_clip(url: str, dest_path: Path) -> bool:
-    """Download a video file to dest_path. Returns True on success."""
+# ── Download & Ken Burns conversion ──────────────────────────────────────────
+
+def _download_image(url: str, dest_path: Path) -> bool:
+    """Download an image (JPEG/PNG) to dest_path.  Returns True on success."""
     try:
-        with requests.get(url, stream=True, timeout=60) as resp:
+        with requests.get(url, stream=True, timeout=30) as resp:
             resp.raise_for_status()
             with open(dest_path, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=1024 * 256):
                     f.write(chunk)
         size = dest_path.stat().st_size if dest_path.exists() else 0
         if size < 1024:
-            print(f"⚠️  Download produced empty/corrupt file ({size} bytes): {dest_path.name}")
+            print(f"⚠️  Image download produced empty file ({size}B): {dest_path.name}")
             dest_path.unlink(missing_ok=True)
             return False
-        print(f"  ✅ Downloaded {dest_path.name} ({size // 1024}KB)")
         return True
     except Exception as e:
-        print(f"⚠️  Download failed: {e}")
+        print(f"⚠️  Image download failed: {e}")
         dest_path.unlink(missing_ok=True)
         return False
+
+
+def _image_to_ken_burns_clip(
+    image_path: Path,
+    output_path: Path,
+    duration: float,
+    width: int = 1920,
+    height: int = 1080,
+) -> bool:
+    """
+    Animate a static image as an MP4 clip with a slow, gentle Ken Burns
+    zoom-in from the center (zoom 1.0 → ~1.18 over the clip duration).
+
+    The image is pre-scaled to 1.3× the target size so zoompan never runs
+    out of pixels.  Returns True on success.
+    """
+    frames  = max(int(duration * 30), 30)
+    pad_w   = int(width  * 1.3)
+    pad_h   = int(height * 1.3)
+
+    vf = (
+        # Scale to fill the padded canvas, crop to exact padded size
+        f"scale={pad_w}:{pad_h}:force_original_aspect_ratio=increase,"
+        f"crop={pad_w}:{pad_h},"
+        f"setsar=1,"
+        # Slow gentle zoom: 0.0006 per frame → ~18% zoom at 30fps over 10s
+        f"zoompan=z='min(zoom+0.0006,1.2)':d={frames}"
+        f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height},"
+        f"fps=30"
+    )
+    result = subprocess.run([
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-i", str(image_path),
+        "-t", str(duration),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-an",
+        str(output_path),
+    ], capture_output=True)
+
+    if result.returncode != 0 or not output_path.exists() or output_path.stat().st_size < 1024:
+        err = result.stderr.decode()[-300:] if result.returncode != 0 else "empty output"
+        print(f"⚠️  Ken Burns conversion failed ({image_path.name}): {err}")
+        output_path.unlink(missing_ok=True)
+        return False
+
+    size_kb = output_path.stat().st_size // 1024
+    print(f"  ✅ Ken Burns clip: {output_path.name} ({size_kb}KB, {duration:.1f}s)")
+    return True
 
 
 def _cache_key(query: str) -> str:
@@ -132,11 +195,8 @@ def _cache_key(query: str) -> str:
     return hashlib.md5(query.lower().strip().encode()).hexdigest()[:12]
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
-
 # ── Query Expansion ──────────────────────────────────────────────────────────
 # Fallback queries when the LLM's visual_query returns no results.
-# Maps conceptual/abstract terms to concrete visual alternatives.
 
 CONCEPT_EXPANSIONS = {
     # Philosophy / meaning
@@ -165,10 +225,7 @@ CONCEPT_EXPANSIONS = {
 }
 
 
-
 # ── Visual Mood Overrides ─────────────────────────────────────────────────────
-# When user picks a mood, each segment's visual_query is enriched with these
-# cinematic Pexels search terms to guarantee beautiful, on-brand footage.
 
 MOOD_QUERIES = {
     "ocean": [
@@ -227,7 +284,6 @@ MOOD_QUERIES = {
         "shadow dark dramatic cinematic",
         "dark night minimal abstract",
     ],
-
 }
 
 # Topic keywords that map to a mood automatically
@@ -274,7 +330,6 @@ def enrich_segments_with_mood(segments: list, mood: str) -> list:
     Cycles through the mood's query list so each segment gets variety.
     Falls back gracefully if mood is unknown or CSS-only.
     """
-    # CSS-only moods have no associated footage — use topic queries as-is
     if mood in CSS_ONLY_MOODS:
         return segments
 
@@ -285,27 +340,22 @@ def enrich_segments_with_mood(segments: list, mood: str) -> list:
     enriched = []
     for i, seg in enumerate(segments):
         new_seg = dict(seg)
-        # Blend original query with mood query for best results
-        original = seg.get("visual_query", "")
-        mood_q   = queries[i % len(queries)]
-        # Use mood query as primary, original as context hint
+        mood_q  = queries[i % len(queries)]
         new_seg["visual_query"] = mood_q
-        new_seg["mood_hint"]    = original   # keep original for fallback
+        new_seg["mood_hint"]    = seg.get("visual_query", "")
         enriched.append(new_seg)
 
     return enriched
 
+
 def _expand_query(query: str) -> list[str]:
     """Return a list of fallback search queries for abstract/conceptual topics."""
     q = query.lower().strip()
-    # Direct match
     if q in CONCEPT_EXPANSIONS:
         return CONCEPT_EXPANSIONS[q]
-    # Partial match
     for key, expansions in CONCEPT_EXPANSIONS.items():
         if key in q or q in key:
             return expansions
-    # Generic expansion: strip adjectives and try noun only
     words = q.split()
     if len(words) > 2:
         return [" ".join(words[-2:]), " ".join(words[:2])]
@@ -323,17 +373,14 @@ _STOP_WORDS = {
     'before','over','under','each','every','can','let','get','now','still',
 }
 
+
 def _sentence_to_queries(text: str) -> list:
-    """
-    Extract 2-3 distinct search queries from a sentence.
-    Returns a list of short query strings.
-    """
+    """Extract 2-3 distinct search queries from a sentence."""
     import re
     words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
     content = [w for w in words if w not in _STOP_WORDS]
     if not content:
         return [text[:60].strip()]
-    # Deduplicate while preserving order
     seen, unique = set(), []
     for w in content:
         if w not in seen:
@@ -350,221 +397,7 @@ def _sentence_to_queries(text: str) -> list:
     return queries or [text[:60].strip()]
 
 
-def _search_pexels_multi(
-    query: str,
-    duration_hint: float = 8,
-    exclude_ids: set = None,
-    max_clips: int = 4,
-) -> list:
-    """
-    Search Pexels and return multiple (url, pexels_id) tuples for one query.
-    Returns up to max_clips results, filtered by exclude_ids.
-    """
-    params = {
-        "query":       query,
-        "per_page":    15,
-        "orientation": "landscape",
-        "size":        "medium",
-    }
-    try:
-        resp = requests.get(PEXELS_SEARCH_URL, headers=PEXELS_HEADERS, params=params, timeout=10)
-        resp.raise_for_status()
-        videos = resp.json().get("videos", [])
-        if not videos:
-            return []
-        if exclude_ids:
-            fresh = [v for v in videos if v["id"] not in exclude_ids]
-            candidates = fresh if fresh else videos
-        else:
-            candidates = videos
-        long_enough = [v for v in candidates if v["duration"] >= max(duration_hint - 1, 3)]
-        pool = long_enough if long_enough else candidates
-        results = []
-        for video in pool[:max_clips]:
-            files = sorted(video["video_files"], key=lambda f: f.get("width", 0), reverse=True)
-            for f in files:
-                if f.get("width", 0) >= 1280:
-                    results.append((f["link"], video["id"]))
-                    break
-            else:
-                if files:
-                    results.append((files[0]["link"], video["id"]))
-        return results
-    except Exception as e:
-        print(f"⚠️  Pexels multi-search '{query}': {e}")
-        return []
-
-
-def fetch_clip(
-    query: str,
-    duration_hint: float,
-    video_id: str,
-    segment_index: int,
-    used_ids: set = None,
-) -> Optional[str]:
-    """
-    Fetch a stock video clip for a script segment.
-
-    used_ids: mutable set of Pexels video IDs already downloaded in this run.
-              Updated in-place when a new clip is fetched.
-    Returns local file path to downloaded clip, or None if fetch failed.
-    """
-    if used_ids is None:
-        used_ids = set()
-
-    clip_dir = config.TEMP_DIR / video_id / "clips"
-    clip_dir.mkdir(parents=True, exist_ok=True)
-
-    vid_hash      = int(hashlib.md5(video_id.encode()).hexdigest()[:4], 16)
-    result_offset = (vid_hash + segment_index) % 15
-
-    cache_key = _cache_key(query)
-    clip_path = clip_dir / f"seg_{segment_index:02d}_{cache_key}.mp4"
-
-    # Within a single run, reuse already-downloaded clips for the same query
-    cached = list(clip_dir.glob(f"seg_*_{cache_key}.mp4"))
-    if cached:
-        print(f"📦 Cache hit for '{query}'")
-        return str(cached[0])
-
-    print(f"🎬 Fetching clip for: '{query}' (~{duration_hint:.0f}s needed, offset={result_offset})")
-
-    url, pexels_id = _search_pexels(query, duration_hint, result_offset=result_offset, exclude_ids=used_ids)
-
-    if not url:
-        for alt_query in _expand_query(query):
-            print(f"   Trying expanded query: '{alt_query}'")
-            url, pexels_id = _search_pexels(alt_query, duration_hint, result_offset=result_offset, exclude_ids=used_ids)
-            if url:
-                print(f"   ✅ Expansion matched: '{alt_query}'")
-                break
-
-    if not url:
-        print(f"   Pexels empty, trying Pixabay...")
-        url = _search_pixabay(query, result_offset=result_offset)
-        pexels_id = None
-
-    if not url:
-        for alt_query in _expand_query(query)[:2]:
-            url = _search_pixabay(alt_query, result_offset=result_offset)
-            if url:
-                break
-
-    if not url:
-        print(f"❌ No clip found for '{query}' — will use fallback color")
-        return None
-
-    success = _download_clip(url, clip_path)
-    if not success:
-        return None
-
-    if pexels_id:
-        used_ids.add(pexels_id)
-
-    print(f"✅ Clip saved: {clip_path.name}")
-    return str(clip_path)
-
-
-def fetch_clips_for_sentence(
-    text: str,
-    visual_query: str,
-    duration: float,
-    video_id: str,
-    seg_index: int,
-    used_ids: set = None,
-) -> list:
-    """
-    Fetch multiple short clips for a single sentence/segment.
-    Generates multiple search queries from the sentence text, searches Pexels
-    with each, and downloads clips to fill the segment's time window.
-
-    Returns list of (clip_path, clip_duration) tuples whose durations sum to <= duration.
-    """
-    if used_ids is None:
-        used_ids = set()
-
-    clip_dir = config.TEMP_DIR / video_id / "clips"
-    clip_dir.mkdir(parents=True, exist_ok=True)
-
-    # Build queries: visual_query first, then keyword extractions
-    queries = []
-    if visual_query and visual_query.strip():
-        queries.append(visual_query.strip())
-    for q in _sentence_to_queries(text):
-        if q not in queries:
-            queries.append(q)
-
-    clip_dur_target = min(max(3.0, duration / max(len(queries), 1)), 8.0)
-    result_clips    = []
-    total_time      = 0.0
-
-    for q_idx, query in enumerate(queries):
-        if total_time >= duration:
-            break
-        remaining = duration - total_time
-        multi = _search_pexels_multi(query, duration_hint=clip_dur_target, exclude_ids=used_ids, max_clips=3)
-        for url, pexels_id in multi:
-            if total_time >= duration:
-                break
-            ck    = _cache_key(f"{query}_{pexels_id}")
-            cpath = clip_dir / f"seg_{seg_index:03d}_{q_idx:02d}_{ck}.mp4"
-            # Reuse already-downloaded file if present
-            existing = list(clip_dir.glob(f"*_{ck}.mp4"))
-            if existing:
-                slot = min(clip_dur_target, duration - total_time)
-                result_clips.append((str(existing[0]), slot))
-                total_time += slot
-                continue
-            if _download_clip(url, cpath):
-                used_ids.add(pexels_id)
-                slot = min(clip_dur_target, duration - total_time)
-                result_clips.append((str(cpath), slot))
-                total_time += slot
-
-    print(f"  Seg {seg_index}: {len(result_clips)} clip(s), {total_time:.1f}/{duration:.1f}s covered")
-    return result_clips
-
-
-def fetch_all_clips(segments: list[dict], video_id: str) -> list[dict]:
-    """
-    Fetch clips for all script segments with cross-segment deduplication.
-    Retries failed segments with broader queries to enforce coverage.
-
-    Returns segments list with 'clip_path' added to each item.
-    """
-    print(f"\n🎬 Fetching {len(segments)} clips...")
-    used_ids: set = set()  # Pexels video IDs used in this run
-
-    enriched = []
-    for i, seg in enumerate(segments):
-        query    = seg.get("visual_query", "").strip()
-        duration = seg.get("duration", 8)
-        clip_path = None
-        if query:
-            clip_path = fetch_clip(query, duration, video_id, i, used_ids=used_ids)
-        enriched.append({**seg, "clip_path": clip_path})
-
-    # ── Coverage enforcement: retry failed segments with broader queries ────────
-    failed = [i for i, s in enumerate(enriched) if s.get("visual_query") and not s["clip_path"]]
-    if failed:
-        print(f"⚠️  {len(failed)} segment(s) have no clip — retrying with broader queries...")
-        for i in failed:
-            seg   = enriched[i]
-            query = seg.get("mood_hint") or seg.get("visual_query", "")
-            # Try a shorter, simpler version of the query
-            words = query.split()
-            broad = " ".join(words[:3]) if len(words) > 3 else query
-            clip_path = fetch_clip(broad, seg.get("duration", 8), video_id, i + 1000, used_ids=used_ids)
-            if not clip_path:
-                # Last resort: generic cinematic query
-                clip_path = fetch_clip("cinematic nature landscape", seg.get("duration", 8), video_id, i + 2000, used_ids=used_ids)
-            if clip_path:
-                enriched[i] = {**seg, "clip_path": clip_path}
-
-    found = sum(1 for s in enriched if s["clip_path"])
-    print(f"✅ Clips ready: {found}/{len(segments)}")
-    return enriched
-
+# ── Public API ────────────────────────────────────────────────────────────────
 
 def generate_visual_plan(script_text: str) -> list:
     """
@@ -580,7 +413,7 @@ def generate_visual_plan(script_text: str) -> list:
         client = Groq(api_key=_cfg.GROQ_API_KEY)
         system = (
             "You are a video production assistant. Given a narration script, break it "
-            "into 4–8 sequential sections and generate 3–5 Pexels stock-footage search "
+            "into 4–8 sequential sections and generate 3–5 Pexels stock-image search "
             "queries per section.\n\n"
             "RULES:\n"
             "- Queries must describe VISIBLE, concrete scenes — never abstract concepts\n"
@@ -601,9 +434,8 @@ def generate_visual_plan(script_text: str) -> list:
             max_tokens=1000,
             response_format={"type": "json_object"},
         )
-        raw = resp.choices[0].message.content.strip()
+        raw  = resp.choices[0].message.content.strip()
         data = json.loads(raw)
-        # Accept both {sections:[...]} wrapper and bare array
         sections = data if isinstance(data, list) else next(
             (v for v in data.values() if isinstance(v, list)), []
         )
@@ -615,27 +447,196 @@ def generate_visual_plan(script_text: str) -> list:
         return []
 
 
-def fetch_clips_for_plan(plan: list, segments: list, video_id: str) -> list:
+def fetch_clip(
+    query: str,
+    duration_hint: float,
+    video_id: str,
+    segment_index: int,
+    used_ids: set = None,
+    orientation: str = "landscape",
+) -> Optional[str]:
     """
-    Fetch stock clips according to an LLM-generated visual plan and map them to
-    the correct time windows derived from the aligned segment timing.
+    Fetch a Pexels stock image and animate it with a Ken Burns zoom-in effect.
+    Returns path to the generated MP4 clip, or None on failure.
 
-    plan      – output of generate_visual_plan()
-    segments  – time-aligned segments (each has start, end, text)
-    video_id  – used for the local clip download directory
+    used_ids: mutable set of Pexels photo IDs already used — updated in-place.
+    """
+    if used_ids is None:
+        used_ids = set()
 
-    Returns an expanded list of sub-segments [{start, end, duration, clip_path, text}, ...]
-    suitable for composite_stock_on_background().
+    clip_dir = config.TEMP_DIR / video_id / "clips"
+    clip_dir.mkdir(parents=True, exist_ok=True)
+
+    vid_hash      = int(hashlib.md5(video_id.encode()).hexdigest()[:4], 16)
+    result_offset = (vid_hash + segment_index) % 15
+
+    cache_key = _cache_key(query)
+    clip_path = clip_dir / f"seg_{segment_index:02d}_{cache_key}.mp4"
+
+    # Reuse already-generated Ken Burns clip for the same query
+    cached = list(clip_dir.glob(f"seg_*_{cache_key}.mp4"))
+    if cached:
+        print(f"📦 Cache hit for '{query}'")
+        return str(cached[0])
+
+    print(f"🖼️  Fetching image: '{query}' ({orientation}, ~{duration_hint:.0f}s)")
+
+    url, photo_id = _search_pexels_image(query, orientation, result_offset=result_offset, exclude_ids=used_ids)
+
+    if not url:
+        for alt_query in _expand_query(query):
+            print(f"   Trying expanded query: '{alt_query}'")
+            url, photo_id = _search_pexels_image(alt_query, orientation, result_offset=result_offset, exclude_ids=used_ids)
+            if url:
+                print(f"   ✅ Expansion matched: '{alt_query}'")
+                break
+
+    if not url:
+        print(f"❌ No image found for '{query}' — will use fallback color")
+        return None
+
+    W = 1920 if orientation != "portrait" else 1080
+    H = 1080 if orientation != "portrait" else 1920
+
+    img_path = clip_dir / f"img_{segment_index:02d}_{cache_key}.jpg"
+    if not _download_image(url, img_path):
+        return None
+
+    if not _image_to_ken_burns_clip(img_path, clip_path, duration_hint, W, H):
+        img_path.unlink(missing_ok=True)
+        return None
+
+    img_path.unlink(missing_ok=True)
+
+    if photo_id:
+        used_ids.add(photo_id)
+
+    print(f"✅ Clip saved: {clip_path.name}")
+    return str(clip_path)
+
+
+def fetch_clips_for_sentence(
+    text: str,
+    visual_query: str,
+    duration: float,
+    video_id: str,
+    seg_index: int,
+    used_ids: set = None,
+    orientation: str = "landscape",
+) -> list:
+    """
+    Fetch multiple short Ken Burns clips for a single sentence/segment.
+    Returns list of (clip_path, clip_duration) tuples.
+    """
+    if used_ids is None:
+        used_ids = set()
+
+    clip_dir = config.TEMP_DIR / video_id / "clips"
+    clip_dir.mkdir(parents=True, exist_ok=True)
+
+    W = 1920 if orientation != "portrait" else 1080
+    H = 1080 if orientation != "portrait" else 1920
+
+    queries = []
+    if visual_query and visual_query.strip():
+        queries.append(visual_query.strip())
+    for q in _sentence_to_queries(text):
+        if q not in queries:
+            queries.append(q)
+
+    clip_dur_target = min(max(3.0, duration / max(len(queries), 1)), 8.0)
+    result_clips    = []
+    total_time      = 0.0
+
+    for q_idx, query in enumerate(queries):
+        if total_time >= duration:
+            break
+        multi = _search_pexels_images_multi(query, orientation=orientation, exclude_ids=used_ids, max_images=3)
+        for url, photo_id in multi:
+            if total_time >= duration:
+                break
+            ck    = _cache_key(f"{query}_{photo_id}")
+            cpath = clip_dir / f"seg_{seg_index:03d}_{q_idx:02d}_{ck}.mp4"
+
+            if cpath.exists() and cpath.stat().st_size > 1024:
+                slot = min(clip_dur_target, duration - total_time)
+                result_clips.append((str(cpath), slot))
+                total_time += slot
+                continue
+
+            img_path = clip_dir / f"img_{seg_index:03d}_{q_idx:02d}_{ck}.jpg"
+            if _download_image(url, img_path):
+                used_ids.add(photo_id)
+                slot = min(clip_dur_target, duration - total_time)
+                if _image_to_ken_burns_clip(img_path, cpath, slot, W, H):
+                    result_clips.append((str(cpath), slot))
+                    total_time += slot
+                img_path.unlink(missing_ok=True)
+
+    print(f"  Seg {seg_index}: {len(result_clips)} clip(s), {total_time:.1f}/{duration:.1f}s covered")
+    return result_clips
+
+
+def fetch_all_clips(segments: list[dict], video_id: str, orientation: str = "landscape") -> list[dict]:
+    """
+    Fetch Ken Burns clips for all script segments with cross-segment deduplication.
+    Returns segments list with 'clip_path' added to each item.
+    """
+    print(f"\n🖼️  Fetching {len(segments)} image clips ({orientation})...")
+    used_ids: set = set()
+
+    enriched = []
+    for i, seg in enumerate(segments):
+        query     = seg.get("visual_query", "").strip()
+        duration  = seg.get("duration", 8)
+        clip_path = None
+        if query:
+            clip_path = fetch_clip(query, duration, video_id, i, used_ids=used_ids, orientation=orientation)
+        enriched.append({**seg, "clip_path": clip_path})
+
+    # Retry failed segments with broader queries
+    failed = [i for i, s in enumerate(enriched) if s.get("visual_query") and not s["clip_path"]]
+    if failed:
+        print(f"⚠️  {len(failed)} segment(s) have no clip — retrying with broader queries...")
+        for i in failed:
+            seg   = enriched[i]
+            query = seg.get("mood_hint") or seg.get("visual_query", "")
+            words = query.split()
+            broad = " ".join(words[:3]) if len(words) > 3 else query
+            clip_path = fetch_clip(broad, seg.get("duration", 8), video_id, i + 1000, used_ids=used_ids, orientation=orientation)
+            if not clip_path:
+                clip_path = fetch_clip("cinematic nature landscape", seg.get("duration", 8), video_id, i + 2000, used_ids=used_ids, orientation=orientation)
+            if clip_path:
+                enriched[i] = {**seg, "clip_path": clip_path}
+
+    found = sum(1 for s in enriched if s["clip_path"])
+    print(f"✅ Clips ready: {found}/{len(segments)}")
+    return enriched
+
+
+def fetch_clips_for_plan(
+    plan: list,
+    segments: list,
+    video_id: str,
+    orientation: str = "landscape",
+) -> list:
+    """
+    Fetch Ken Burns image clips according to an LLM-generated visual plan and
+    map them to the correct time windows derived from the aligned segment timing.
+
+    Returns an expanded list of sub-segments suitable for composite_stock_on_background().
     """
     if not plan or not segments:
         return []
 
-    # ── Map plan sections to time windows via character-offset proportion ──────
-    full_text  = " ".join(s.get("text", "") for s in segments)
-    total_dur  = max((s.get("end", 0) for s in segments), default=60.0)
+    W = 1920 if orientation != "portrait" else 1080
+    H = 1080 if orientation != "portrait" else 1920
+
+    # Map plan sections to time windows via character-offset proportion
+    full_text   = " ".join(s.get("text", "") for s in segments)
+    total_dur   = max((s.get("end", 0) for s in segments), default=60.0)
     total_chars = max(len(full_text), 1)
 
-    # Find character position of each section's text_snippet in the full text
     offsets = []
     search_from = 0
     for sect in plan:
@@ -645,10 +646,8 @@ def fetch_clips_for_plan(plan: list, segments: list, video_id: str) -> list:
             offsets.append(idx)
             search_from = idx + 1
         else:
-            # Evenly distribute if snippet not found
             offsets.append(int(search_from + total_chars / max(len(plan), 1)))
 
-    # Build time-windowed plan entries
     timed = []
     for i, (sect, off) in enumerate(zip(plan, offsets)):
         next_off = offsets[i + 1] if i + 1 < len(offsets) else total_chars
@@ -658,47 +657,49 @@ def fetch_clips_for_plan(plan: list, segments: list, video_id: str) -> list:
             t_end = min(t_start + (total_dur / len(plan)), total_dur)
         timed.append({**sect, "t_start": t_start, "t_end": t_end})
 
-    # ── Fetch & map clips per section ─────────────────────────────────────────
     clip_dir = config.TEMP_DIR / video_id / "clips"
     clip_dir.mkdir(parents=True, exist_ok=True)
 
     used_ids: set = set()
     result: list  = []
 
-    for sect in timed:
+    for sect_idx, sect in enumerate(timed):
         t_start  = sect["t_start"]
         t_end    = sect["t_end"]
         s_dur    = t_end - t_start
         queries  = sect.get("queries", [])
-        max_clips = min(len(queries), 4)   # one clip per query, max 4
+        max_imgs = min(len(queries), 4)
 
         if s_dur <= 0 or not queries:
             result.append({"start": t_start, "end": t_end, "duration": s_dur,
                            "clip_path": None, "text": sect.get("text_snippet", "")})
             continue
 
-        slot_dur = min(max(s_dur / max(max_clips, 1), 3.0), 12.0)
+        slot_dur = min(max(s_dur / max(max_imgs, 1), 3.0), 12.0)
 
         clips_fetched = []
-        for query in queries:
+        for q_idx, query in enumerate(queries):
             if sum(c[1] for c in clips_fetched) >= s_dur:
                 break
-            multi = _search_pexels_multi(query, duration_hint=slot_dur,
-                                         exclude_ids=used_ids, max_clips=2)
-            for url, pexels_id in multi:
+            multi = _search_pexels_images_multi(query, orientation=orientation,
+                                                exclude_ids=used_ids, max_images=2)
+            for url, photo_id in multi:
                 if sum(c[1] for c in clips_fetched) >= s_dur:
                     break
-                ck    = _cache_key(f"{query}_{pexels_id}")
-                # Reuse if already downloaded
-                existing = list(clip_dir.glob(f"*_{ck}.mp4"))
-                if existing:
-                    clips_fetched.append((str(existing[0]), slot_dur))
-                    used_ids.add(pexels_id)
-                    continue
-                cpath = clip_dir / f"plan_{ck}.mp4"
-                if _download_clip(url, cpath):
-                    used_ids.add(pexels_id)
+                ck    = _cache_key(f"{query}_{photo_id}")
+                cpath = clip_dir / f"plan_{sect_idx:03d}_{q_idx:02d}_{ck}.mp4"
+
+                if cpath.exists() and cpath.stat().st_size > 1024:
                     clips_fetched.append((str(cpath), slot_dur))
+                    used_ids.add(photo_id)
+                    continue
+
+                img_path = clip_dir / f"img_plan_{sect_idx:03d}_{q_idx:02d}_{ck}.jpg"
+                if _download_image(url, img_path):
+                    used_ids.add(photo_id)
+                    if _image_to_ken_burns_clip(img_path, cpath, slot_dur, W, H):
+                        clips_fetched.append((str(cpath), slot_dur))
+                    img_path.unlink(missing_ok=True)
 
         if not clips_fetched:
             result.append({"start": t_start, "end": t_end, "duration": s_dur,
@@ -725,28 +726,32 @@ def fetch_clips_for_plan(plan: list, segments: list, video_id: str) -> list:
               f"{sum(c[1] for c in clips_fetched):.1f}/{s_dur:.1f}s covered")
 
     found = sum(1 for s in result if s.get("clip_path"))
-    print(f"✅ Visual plan: {found} clips across {len(result)} sub-segments")
+    print(f"✅ Visual plan: {found} Ken Burns clips across {len(result)} sub-segments")
     return result
 
 
-def fetch_all_clips_multi(segments: list, video_id: str) -> list:
+def fetch_all_clips_multi(
+    segments: list,
+    video_id: str,
+    orientation: str = "landscape",
+) -> list:
     """
-    Fetch multiple clips per segment (per sentence).
-    Returns an expanded list of sub-segments with precise timestamps,
-    each carrying one clip_path. Segments with no clips pass through unchanged.
+    Fetch multiple Ken Burns clips per segment (per sentence).
+    Returns an expanded list of sub-segments with precise timestamps.
     """
-    print(f"\n🎬 Multi-clip fetch for {len(segments)} segment(s)...")
+    print(f"\n🖼️  Multi-clip fetch for {len(segments)} segment(s) ({orientation})...")
     used_ids: set = set()
     expanded = []
 
     for i, seg in enumerate(segments):
-        text     = seg.get("text", "")
-        vq       = seg.get("visual_query", text[:60])
-        s_start  = seg.get("start", 0.0)
-        s_end    = seg.get("end",   seg.get("duration", 8.0))
-        s_dur    = s_end - s_start
+        text    = seg.get("text", "")
+        vq      = seg.get("visual_query", text[:60])
+        s_start = seg.get("start", 0.0)
+        s_end   = seg.get("end",   seg.get("duration", 8.0))
+        s_dur   = s_end - s_start
 
-        clips = fetch_clips_for_sentence(text, vq, s_dur, video_id, i, used_ids)
+        clips = fetch_clips_for_sentence(text, vq, s_dur, video_id, i,
+                                         used_ids, orientation=orientation)
 
         if not clips:
             expanded.append({**seg, "clip_path": None})
@@ -776,9 +781,8 @@ def fetch_all_clips_multi(segments: list, video_id: str) -> list:
 if __name__ == "__main__":
     segments = [
         {"text": "Today we explore the cosmos", "visual_query": "galaxy stars space", "duration": 8},
-        {"text": "With a cat as our guide", "visual_query": "funny cat sitting", "duration": 5},
+        {"text": "With wonder as our guide", "visual_query": "person watching stars", "duration": 5},
     ]
     result = fetch_all_clips(segments, "test-001")
     for r in result:
         print(f"  [{r['visual_query']}] → {r['clip_path']}")
-

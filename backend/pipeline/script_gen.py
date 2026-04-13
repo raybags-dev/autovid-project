@@ -279,8 +279,8 @@ SHORT_ANGLES = [
 
 def generate_short_script(prompt: str, angle: str = None) -> dict:
     """
-    Generate a concise short-form script targeting ~200 words (~80s at 150wpm).
-    Designed to fit within the 90-second YouTube Shorts limit.
+    Generate a short-form script targeting ~450 words (~2.5 min at 150wpm).
+    Shorts must always be at least 2 minutes long.
 
     angle: optional creative lens injected into the prompt to guarantee uniqueness
            when the same topic is generated multiple times.
@@ -291,12 +291,12 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
 
     client = get_groq()
     system = (
-        "You are a YouTube Shorts writer crafting emotionally powerful 90-second scripts.\n"
+        "You are a YouTube Shorts writer crafting emotionally powerful 2-minute scripts.\n"
         "STRICT RULES:\n"
-        "- Total narration MUST be 180-210 words (fits 90 seconds at natural pace)\n"
-        "- Hook: max 15 words\n"
-        "- Segments: exactly 5-6, each 25-35 words\n"
-        "- Outro: max 20 words\n"
+        "- Total narration MUST be 400-480 words (fits 2.5 minutes at natural pace)\n"
+        "- Hook: 20-25 words — grab attention immediately\n"
+        "- Segments: exactly 8-10 segments, each 35-50 words\n"
+        "- Outro: 20-25 words — powerful closing call-to-action\n"
         "- No filler, no padding. Every word must earn its place.\n"
         "- Write EXACTLY as it should be spoken — natural human speech\n"
         "- Use commas and ellipsis (...) for natural pauses\n"
@@ -307,10 +307,10 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
         model=config.GROQ_MODEL,
         messages=[
             {"role": "system", "content": system + SHORT_SCRIPT_SCHEMA},
-            {"role": "user", "content": f"Write a powerful 90-second YouTube Short about: {prompt}{angle_directive}\n\nTarget 180-210 words total. Make every word count."},
+            {"role": "user", "content": f"Write a powerful 2-minute YouTube Short about: {prompt}{angle_directive}\n\nTarget 400-480 words total. Use 8-10 segments of 35-50 words each. Make every word count."},
         ],
         temperature=0.82,
-        max_tokens=1024,
+        max_tokens=2048,
         response_format={"type": "json_object"},
     )
 
@@ -322,28 +322,26 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
         if field not in script_data:
             raise ValueError(f"Short script missing required field: {field}")
 
-    # Hard-enforce word limits on each part — LLMs often exceed the requested counts
+    # Soft-enforce word limits — prevent runaway segments but allow generous content
     def _truncate_words(text: str, max_words: int) -> str:
         words = text.split()
         if len(words) <= max_words:
             return text
-        # Cut at word boundary, keep complete sentence if possible
         truncated = words[:max_words]
         result = " ".join(truncated)
-        # Add period if doesn't end with punctuation
         if result and result[-1] not in ".!?":
             result += "."
         return result
 
-    script_data["hook"] = _truncate_words(script_data["hook"], 15)
+    script_data["hook"] = _truncate_words(script_data["hook"], 30)
 
-    # Cap to 5 segments max, each 35 words max
-    segments = script_data["segments"][:5]
+    # Allow up to 10 segments, each 55 words max
+    segments = script_data["segments"][:10]
     for seg in segments:
-        seg["text"] = _truncate_words(seg["text"], 35)
+        seg["text"] = _truncate_words(seg["text"], 55)
     script_data["segments"] = segments
 
-    script_data["outro"] = _truncate_words(script_data["outro"], 20)
+    script_data["outro"] = _truncate_words(script_data["outro"], 30)
 
     all_lines = [script_data["hook"]]
     all_lines += [seg["text"] for seg in script_data["segments"]]
@@ -356,7 +354,7 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
     script_data["description"] = _append_promo_footer(script_data.get("description", ""), title=script_data.get("title"))
 
     print(f"✅ Short script generated: '{script_data['title']}'")
-    print(f"   Words: {word_count} (hard-capped), estimated {script_data['estimated_duration']}s")
+    print(f"   Words: {word_count}, estimated {script_data['estimated_duration']}s ({script_data['estimated_duration']//60}m {script_data['estimated_duration']%60}s)")
 
     return script_data
 
