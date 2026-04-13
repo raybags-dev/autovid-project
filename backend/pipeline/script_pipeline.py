@@ -38,6 +38,7 @@ GENERATED_VISUAL_MOODS = {
     "neon_purple", "cosmic_dust", "ember_glow",
     "rain",
     "flythrough_stars",
+    "nebular", "galaxy_spinning",   # custom MP4 backgrounds
 }
 
 
@@ -295,6 +296,40 @@ def run_script_pipeline(
         )
 
         print(f"\n✅ Script pipeline complete: {video_id[:8]}")
+
+        # ── Step 9: Generate portrait (9:16) version for TikTok/Shorts ───────
+        _log("PORTRAIT", "Generating 9:16 portrait version for TikTok...", cb)
+        try:
+            _portrait_src = final_path
+            _portrait_out = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_portrait.mp4")
+            _p = subprocess.run([
+                "ffmpeg", "-y", "-i", _portrait_src,
+                "-filter_complex",
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+                "crop=1080:1920,boxblur=20:20[bg];"
+                "[0:v]scale=1080:608[fg];"
+                "[bg][fg]overlay=(W-w)/2:(H-h)/2[v]",
+                "-map", "[v]", "-map", "0:a?",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "aac", "-b:a", "192k",
+                _portrait_out,
+            ], capture_output=True)
+            if _p.returncode == 0 and Path(_portrait_out).exists():
+                from pipeline.storage import upload_to_storage
+                _portrait_url = upload_to_storage(_portrait_out, f"{video_id}_portrait")
+                import database as _db2
+                _db2.create_custom_content(
+                    title=f"{title} — Portrait (9:16)",
+                    description=f"Auto-generated vertical version of: {title}",
+                    file_path=_portrait_url,
+                    duration_seconds=int(duration),
+                )
+                Path(_portrait_out).unlink(missing_ok=True)
+                _log("PORTRAIT", "✅ Portrait version saved to Custom Content", cb)
+            else:
+                _log("PORTRAIT", f"⚠️ Portrait generation failed: {_p.stderr.decode()[-200:]}", cb)
+        except Exception as _pe:
+            _log("PORTRAIT", f"⚠️ Portrait skipped: {_pe}", cb)
 
         # ── Cleanup ALL intermediates ─────────────────────────────────────────
         # Always clean up — if storage succeeded, the public URL is in DB

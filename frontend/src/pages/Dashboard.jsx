@@ -5895,6 +5895,9 @@ export default function Dashboard() {
                     { v: "fire", emoji: "🔥", label: "Fire", desc: "Floating embers" },
                     { v: "rain", emoji: "🌧", label: "Rain", desc: "Night city window" },
                     { v: "galaxy", emoji: "🌀", label: "Galaxy", desc: "Spiral rotation" },
+                    { v: "flythrough_stars", emoji: "🚀", label: "Fly Through", desc: "Zoom through starfield" },
+                    { v: "nebular", emoji: "🌑", label: "Nebular", desc: "Nebula film loop" },
+                    { v: "galaxy_spinning", emoji: "💫", label: "Galaxy Spin", desc: "Spinning galaxy loop" },
                   ].map(a => (
                     <button key={a.v} onClick={() => setShortAmbience(a.v)} style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", textAlign: "left", border: `2px solid ${shortAmbience === a.v ? T.accent : T.border}`, background: shortAmbience === a.v ? `${T.accent}18` : T.inputBg, color: T.text, fontFamily: "inherit" }}>
                       <div style={{ fontSize: 11, fontWeight: 700 }}>{a.emoji} {a.label}</div>

@@ -595,7 +595,7 @@ def retry_failed(video_id: str, cb=None) -> dict:
     return run_pipeline(video["prompt"], auto_upload=True, progress_callback=cb)
 
 
-SHORT_MAX_DURATION = 90  # seconds — YouTube Shorts limit
+SHORT_MAX_DURATION = 180  # seconds — allow up to 3 min for natural TTS speed
 
 
 def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False, use_stock_footage: bool = True, use_captions: bool = True) -> dict:
@@ -677,9 +677,9 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
             delayed_voice = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_delayed.mp3")
             audio_path    = apply_narration_delay(audio_path, music_delay, delayed_voice)
 
-        # 4. Generate portrait 9:16 visual — capped at SHORT_MAX_DURATION + 2s buffer
+        # 4. Generate portrait 9:16 visual — matches audio duration
         _ambience       = "rain" if use_stickfigures else ambience
-        visual_duration = min(int(duration + music_delay) + 2, SHORT_MAX_DURATION + 2)
+        visual_duration = int(duration + music_delay) + 2
         _log("VISUALS", f"Generating portrait visual: {_ambience} ({visual_duration}s)...", cb)
         visual_path = generate_short_visual(duration=visual_duration, ambience=_ambience)
         db.set_video_assembled(video_id, visual_path, resolution="1080x1920")
@@ -687,15 +687,24 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         # 4b. Stock footage overlay (portrait 1080x1920)
         if use_stock_footage and not use_stickfigures:
             _stock_mood = ambience if ambience not in GENERATED_VISUAL_MOODS else None
-            _seg_dur = max(4, int(duration / 4))
-            _short_segments = [
-                {"start": i * _seg_dur, "end": min((i + 1) * _seg_dur, int(duration)),
-                 "duration": min(_seg_dur, int(duration) - i * _seg_dur)}
-                for i in range(4)
-                if i * _seg_dur < int(duration)
-            ]
+            _narration  = script_data.get("full_narration", prompt)
+            _narr_words = _narration.split()
+            _seg_dur    = max(4, int(duration / 4))
+            _chunk_size = max(1, len(_narr_words) // 4)
+            _short_segments = []
+            for _i in range(4):
+                _start = _i * _seg_dur
+                if _start >= int(duration):
+                    break
+                _end  = min((_i + 1) * _seg_dur, int(duration))
+                _cw   = _narr_words[_i * _chunk_size : (_i + 1) * _chunk_size if _i < 3 else None]
+                _ctxt = " ".join(_cw)
+                _short_segments.append({
+                    "start": _start, "end": _end, "duration": _end - _start,
+                    "text": _ctxt, "visual_query": _ctxt[:80].strip(),
+                })
             _short_segments = step_fetch_clips(_short_segments, video_id,
-                                               script_text=script_data.get("full_narration", prompt),
+                                               script_text=_narration,
                                                mood=_stock_mood, cb=cb)
             composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
             _log("VISUALS", "Compositing stock footage on short background...", cb)
