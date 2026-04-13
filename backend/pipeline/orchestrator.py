@@ -532,6 +532,39 @@ def run_pipeline(
             _log("STORAGE", f"⚠️  Storage upload failed (non-fatal): {e}", cb)
             # Keep local path in DB as fallback
 
+        # ── 9c. Auto-generate portrait (9:16) version for Custom Content ────────
+        _log("PORTRAIT", "Generating 9:16 portrait version for Custom Content...", cb)
+        try:
+            _portrait_out = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_portrait.mp4")
+            _p = subprocess.run([
+                "ffmpeg", "-y", "-i", final_path,
+                "-filter_complex",
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+                "crop=1080:1920,boxblur=20:20[bg];"
+                "[0:v]scale=1080:608[fg];"
+                "[bg][fg]overlay=(W-w)/2:(H-h)/2[v]",
+                "-map", "[v]", "-map", "0:a?",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "aac", "-b:a", "192k",
+                _portrait_out,
+            ], capture_output=True)
+            if _p.returncode == 0 and Path(_portrait_out).exists():
+                from pipeline.storage import upload_to_storage as _upload_portrait
+                _portrait_url = _upload_portrait(_portrait_out, f"{video_id}_portrait")
+                _title = script_data.get("title", prompt)
+                db.create_custom_content(
+                    title=f"{_title} — Portrait (9:16)",
+                    description=f"Auto-generated vertical version",
+                    file_path=_portrait_url,
+                    duration_seconds=int(audio_result["duration"]),
+                )
+                Path(_portrait_out).unlink(missing_ok=True)
+                _log("PORTRAIT", "✅ Portrait version saved to Custom Content", cb)
+            else:
+                _log("PORTRAIT", f"⚠️ Portrait generation failed: {_p.stderr.decode()[-200:]}", cb)
+        except Exception as _pe:
+            _log("PORTRAIT", f"⚠️ Portrait skipped: {_pe}", cb)
+
         # ── 10. Auto-label ────────────────────────────────────────────────────
         label_data = step_auto_label(script_data, video_id, cb)
 

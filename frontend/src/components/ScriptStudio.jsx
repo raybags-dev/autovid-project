@@ -32,8 +32,11 @@ const MUSIC = [
   { id: "Laidback_Fevorite",      emoji: "🎹", label: "Laidback Fav",   desc: "Smooth laidback favourite" },
   { id: "Pads_EPiano",            emoji: "🎧", label: "Pads & EPiano",  desc: "Deep smooth pads + e-piano" },
   { id: "Pads",                   emoji: "🎵", label: "Pads",           desc: "Chill heavy pads" },
-  { id: "swingPiano",             emoji: "🎷", label: "Swing Piano",    desc: "Upbeat swing piano" },
-  { id: "none",                   emoji: "🔇", label: "No Music",       desc: "Voice only" },
+  { id: "swingPiano",             emoji: "🎷", label: "Swing Piano",       desc: "Upbeat swing piano" },
+  { id: "suspenseful_bell",       emoji: "🔔", label: "Suspenseful Bell",  desc: "Suspenseful bell tones" },
+  { id: "suspenseful_piano",      emoji: "🎹", label: "Suspenseful Piano", desc: "Tense dark piano" },
+  { id: "suspenseful_slow",       emoji: "😰", label: "Suspenseful Slow",  desc: "Slow suspenseful build" },
+  { id: "none",                   emoji: "🔇", label: "No Music",          desc: "Voice only" },
 ];
 
 const PIPE_STEPS = ["Script", "Voice", "Visuals", "Music", "Assemble", "Upload"];
@@ -808,7 +811,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
                   style={{ accentColor: T.accent || "#0090d0", cursor: "pointer" }}
                 />
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: useStockFootage && !useStickfigures ? (T.accent || "#0090d0") : T.textMid, letterSpacing: "0.05em" }}>📹 STOCK FOOTAGE</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: useStockFootage && !useStickfigures ? (T.accent || "#0090d0") : T.textMid, letterSpacing: "0.05em" }}>🖼️ STOCK IMAGES</div>
                   <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>Pexels clips matched to script</div>
                 </div>
               </label>

@@ -148,25 +148,26 @@ def _image_to_ken_burns_clip(
     height: int = 1080,
 ) -> bool:
     """
-    Animate a static image as an MP4 clip with a slow, gentle Ken Burns
-    zoom-in from the center (zoom 1.0 → ~1.18 over the clip duration).
+    Convert a static image to an animated MP4 clip with a slow, gentle
+    Ken Burns zoom-in effect using FFmpeg scale eval=frame.
 
-    The image is pre-scaled to 1.3× the target size so zoompan never runs
-    out of pixels.  Returns True on success.
+    Filter chain:
+      1. Scale+crop the image to WxH (cover-fill, correct aspect ratio)
+      2. Per-frame scale: starts at 1.02×, grows +0.3%/s — very subtle
+      3. Center-crop back to WxH so edges are never visible
+      4. setsar + fps=30
+
+    Returns True on success, False if FFmpeg failed.
     """
-    frames  = max(int(duration * 30), 30)
-    pad_w   = int(width  * 1.3)
-    pad_h   = int(height * 1.3)
-
     vf = (
-        # Scale to fill the padded canvas, crop to exact padded size
-        f"scale={pad_w}:{pad_h}:force_original_aspect_ratio=increase,"
-        f"crop={pad_w}:{pad_h},"
-        f"setsar=1,"
-        # Slow gentle zoom: 0.0006 per frame → ~18% zoom at 30fps over 10s
-        f"zoompan=z='min(zoom+0.0006,1.2)':d={frames}"
-        f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height},"
-        f"fps=30"
+        # Step 1: fill WxH with correct aspect ratio
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+        f"crop={width}:{height},"
+        # Step 2: gentle per-frame zoom (2% overhead + 0.3%/s)
+        f"scale='iw*(1.02+t*0.003)':'ih*(1.02+t*0.003)':eval=frame,"
+        # Step 3: center-crop back to target
+        f"crop={width}:{height}:(iw-ow)/2:(ih-oh)/2,"
+        f"setsar=1,fps=30"
     )
     result = subprocess.run([
         "ffmpeg", "-y",
@@ -174,7 +175,7 @@ def _image_to_ken_burns_clip(
         "-i", str(image_path),
         "-t", str(duration),
         "-vf", vf,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
         "-an",
         str(output_path),
     ], capture_output=True)
