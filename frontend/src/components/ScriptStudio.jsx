@@ -22,6 +22,8 @@ const MOODS = [
   { id: "rain",             emoji: "🌧", label: "Rain",        desc: "Night city window" },
   { id: "cosmic_dust",      emoji: "🌀", label: "Galaxy",      desc: "Cosmic nebula" },
   { id: "flythrough_stars", emoji: "🚀", label: "Fly Through", desc: "Zoom through starfield" },
+  { id: "nebular",          emoji: "🌑", label: "Nebular",     desc: "Nebula film loop" },
+  { id: "galaxy_spinning",  emoji: "💫", label: "Galaxy Spin", desc: "Spinning galaxy loop" },
 ];
 
 const MUSIC = [

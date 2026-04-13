@@ -158,19 +158,19 @@ CAPTION_STYLE = {
 
 SHORT_CAPTION_STYLE = {
     "FontName": "Arial",
-    "FontSize": 18,               # Smaller font for narrow portrait video
+    "FontSize": 14,               # Compact — same feel as landscape captions
     "PrimaryColour": "&H00FFFFFF",
     "OutlineColour": "&H00000000",
     "BackColour": "&H00000000",
     "BorderStyle": 1,
-    "Outline": 3,
+    "Outline": 2,
     "Shadow": 1,
     "Alignment": 2,               # Bottom center
-    "MarginV": 120,               # Higher from bottom for short format
-    "MarginL": 40,                # Left margin to keep text in frame
-    "MarginR": 40,                # Right margin to keep text in frame
-    "Bold": 1,
-    "WrapStyle": 0,               # Smart wrapping
+    "MarginV": 30,                # Near bottom, same area as Script Studio
+    "MarginL": 30,
+    "MarginR": 30,
+    "Bold": 0,
+    "WrapStyle": 0,
 }
 
 

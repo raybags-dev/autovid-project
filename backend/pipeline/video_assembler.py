@@ -211,8 +211,15 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
     ]
 
     total_segs = len([s for s in segments if s.get("clip_path")])
+    print(f"🎬 composite_stock_on_background: {len(valid)}/{total_segs} valid clips from {len(segments)} segments")
+    for seg in segments:
+        cp = seg.get("clip_path")
+        if cp:
+            exists = Path(cp).exists()
+            size   = Path(cp).stat().st_size if exists else 0
+            print(f"   clip: {Path(cp).name} exists={exists} size={size}")
     if not valid:
-        print(f"⚠️  No valid stock clips to composite (checked {total_segs} clip path(s)) — using background only")
+        print(f"⚠️  No valid stock clips to composite — using background only")
         _shutil.copy2(background_path, output_path)
         return output_path
 
