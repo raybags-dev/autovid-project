@@ -25,6 +25,9 @@ MUSIC_STYLES = {
     "Pads_EPiano":             "Pads_EPiano.mp3",
     "Pads":                    "Pads.mp3",
     "swingPiano":              "swingPiano.mp3",
+    "suspenseful_bell":        "suspenseful_bell.mp3",
+    "suspenseful_piano":       "suspenseful_piano.mp3",
+    "suspenseful_slow":        "suspenseful_slow.mp3",
     # legacy keys kept for backwards-compatibility
     "ambient":    "Birds_Atmosphere_Piano.mp3",
     "wilderness": "Birds_Atmosphere_Wing.mp3",

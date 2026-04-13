@@ -3553,8 +3553,11 @@ export default function Dashboard() {
                         { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav",   desc: "Smooth laidback favourite" },
                         { id: "Pads_EPiano",            label: "🎧 Pads & EPiano",  desc: "Deep smooth pads + e-piano" },
                         { id: "Pads",                   label: "🎵 Pads",           desc: "Chill heavy pads" },
-                        { id: "swingPiano",             label: "🎷 Swing Piano",    desc: "Upbeat swing piano" },
-                        { id: "none",                   label: "🔇 None",           desc: "Voice only" },
+                        { id: "swingPiano",             label: "🎷 Swing Piano",       desc: "Upbeat swing piano" },
+                        { id: "suspenseful_bell",       label: "🔔 Suspenseful Bell",  desc: "Suspenseful bell tones" },
+                        { id: "suspenseful_piano",      label: "🎹 Suspenseful Piano", desc: "Tense dark piano" },
+                        { id: "suspenseful_slow",       label: "😰 Suspenseful Slow",  desc: "Slow suspenseful build" },
+                        { id: "none",                   label: "🔇 None",              desc: "Voice only" },
                       ].map((m) => (
                         <button
                           key={m.id}
@@ -3621,7 +3624,7 @@ export default function Dashboard() {
                           style={{ accentColor: T.accent, width: 14, height: 14 }}
                         />
                         <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: useStockFootage && !useStickfigures ? T.accent : T.textMid, letterSpacing: "0.04em" }}>📹 STOCK FOOTAGE</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: useStockFootage && !useStickfigures ? T.accent : T.textMid, letterSpacing: "0.04em" }}>🖼️ STOCK IMAGES</div>
                           <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>Pexels clips matched to script</div>
                         </div>
                       </label>
@@ -3841,7 +3844,7 @@ export default function Dashboard() {
                           "📝 Generating script from prompt..."}
                         {pipeStep === 2 && "🎙 Synthesizing voice narration..."}
                         {pipeStep === 3 && "📐 Aligning segments..."}
-                        {pipeStep === 4 && "🎬 Fetching stock footage..."}
+                        {pipeStep === 4 && "🖼️ Fetching stock images..."}
                         {pipeStep === 5 && "⚙ Assembling video..."}
                         {pipeStep === 6 && "🎵 Burning captions..."}
                         {pipeStep === 7 && "✅ Done! Loading preview..."}
@@ -5917,6 +5920,9 @@ export default function Dashboard() {
                     { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
                     { id: "Pads",                   label: "🎵 Pads" },
                     { id: "swingPiano",             label: "🎷 Swing Piano" },
+                    { id: "suspenseful_bell",       label: "🔔 Suspenseful Bell" },
+                    { id: "suspenseful_piano",      label: "🎹 Suspenseful Piano" },
+                    { id: "suspenseful_slow",       label: "😰 Suspenseful Slow" },
                     { id: "none",                   label: "🔇 None" },
                   ].map(m => (
                     <button key={m.id} onClick={() => setShortMusicStyle(m.id)}
@@ -9448,6 +9454,9 @@ export default function Dashboard() {
                             { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
                             { id: "Pads",                   label: "🎵 Pads" },
                             { id: "swingPiano",             label: "🎷 Swing Piano" },
+                            { id: "suspenseful_bell",       label: "🔔 Suspenseful Bell" },
+                            { id: "suspenseful_piano",      label: "🎹 Suspenseful Piano" },
+                            { id: "suspenseful_slow",       label: "😰 Suspenseful Slow" },
                             { id: "none",                   label: "🔇 None" },
                           ].map(m => (
                             <button key={m.id}
@@ -9725,7 +9734,7 @@ export default function Dashboard() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4 }}>BACKGROUND MUSIC</div>
                           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                            {["Birds_Atmosphere_Piano","Birds_Atmosphere_Wing","Laidback_Fevorite","Pads_EPiano","Pads","swingPiano","none"].map(s => (
+                            {["Birds_Atmosphere_Piano","Birds_Atmosphere_Wing","Laidback_Fevorite","Pads_EPiano","Pads","swingPiano","suspenseful_bell","suspenseful_piano","suspenseful_slow","none"].map(s => (
                               <button key={s}
                                 onClick={() => setPodcastSettings(ps => ({ ...ps, music_style: s }))}
                                 style={{
@@ -10001,6 +10010,9 @@ export default function Dashboard() {
                               { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
                               { id: "Pads",                   label: "🎵 Pads" },
                               { id: "swingPiano",             label: "🎷 Swing Piano" },
+                              { id: "suspenseful_bell",       label: "🔔 Suspenseful Bell" },
+                              { id: "suspenseful_piano",      label: "🎹 Suspenseful Piano" },
+                              { id: "suspenseful_slow",       label: "😰 Suspenseful Slow" },
                               { id: "none",                   label: "🔇 None" },
                             ].map(m => (
                               <button key={m.id}
