@@ -538,13 +538,9 @@ def run_pipeline(
             _portrait_out = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_portrait.mp4")
             _p = subprocess.run([
                 "ffmpeg", "-y", "-i", final_path,
-                "-filter_complex",
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
-                "crop=1080:1920,boxblur=20:20[bg];"
-                "[0:v]scale=1080:608[fg];"
-                "[bg][fg]overlay=(W-w)/2:(H-h)/2[v]",
-                "-map", "[v]", "-map", "0:a?",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-vf", "scale=-1:1920:flags=lanczos,crop=1080:1920:(iw-1080)/2:0,setsar=1",
+                "-map", "0:v:0", "-map", "0:a?",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "22",
                 "-c:a", "aac", "-b:a", "192k",
                 _portrait_out,
             ], capture_output=True)

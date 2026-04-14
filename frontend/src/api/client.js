@@ -625,3 +625,7 @@ export const dangerClearStorage = async (dangerToken) => {
 // ── Blog (public) ─────────────────────────────────────────────────────────────
 export const listBlogPosts = async (params = {}) => { const { data } = await api.get("/blog/posts", { params }); return data; };
 export const getBlogPost   = async (slug)        => { const { data } = await api.get(`/blog/posts/${slug}`); return data; };
+
+// ── Dev Settings ──────────────────────────────────────────────────────────────
+export const getDevTtsMode = async () => { const { data } = await api.get("/settings/dev-tts"); return data; };
+export const setDevTtsMode = async (enabled) => { const { data } = await api.post("/settings/dev-tts", { enabled }); return data; };

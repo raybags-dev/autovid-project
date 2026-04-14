@@ -81,6 +81,8 @@ import api, {
   adminUpdateBlogPost,
   adminDeleteBlogPost,
   postVideoToBlog,
+  getDevTtsMode,
+  setDevTtsMode as apiSetDevTtsMode,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
@@ -1996,6 +1998,7 @@ export default function Dashboard() {
     getSubscriptions().then(r => setSubscriptions(Array.isArray(r) ? r : [])).catch(() => {});
     listStickFiguresPaged(0, 1, false).then(r => setSfClipCount(r.total ?? 0)).catch(() => setSfClipCount(0));
     getBmcSettings().then(r => { setBmcUrl(r.url || ""); setBmcPlatform(r.platform || "kofi"); }).catch(() => {});
+    getDevTtsMode().then(r => setDevTtsMode(r.enabled)).catch(() => {});
 
     // ── Batch 2: external-API status checks — staggered to avoid thread exhaustion ──
     const t1 = setTimeout(() => getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {}), 200);
@@ -2150,6 +2153,7 @@ export default function Dashboard() {
   const [shortsModal, setShortsModal] = useState(null); // video object | "new"
   const [autoShortSettings, setAutoShortSettings] = useState(null);
   const [autoShortSaving, setAutoShortSaving] = useState(false);
+  const [devTtsMode, setDevTtsMode] = useState(false);
   const [autoShortRunning, setAutoShortRunning] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [tiktokLoading, setTiktokLoading] = useState(false);
@@ -10710,10 +10714,49 @@ export default function Dashboard() {
                     . Restart the backend after changes.
                   </div>
 
+                  {/* ── Developer Mode ── */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>DEVELOPER</div>
+                    <div style={{
+                      background: devTtsMode ? `${T.accentYellow}12` : T.bgCard,
+                      border: `1px solid ${devTtsMode ? T.accentYellow + "44" : T.border}`,
+                      borderRadius: 10, padding: "12px 14px",
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: devTtsMode ? T.accentYellow : T.text }}>
+                          🛠 Dev TTS Mode
+                        </div>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2, lineHeight: 1.5 }}>
+                          {devTtsMode ? "⚠ Using free gTTS — no ElevenLabs credits consumed" : "Uses ElevenLabs (paid). Enable to save credits during testing."}
+                        </div>
+                      </div>
+                      <div
+                        onClick={async () => {
+                          const next = !devTtsMode;
+                          setDevTtsMode(next);
+                          try { await apiSetDevTtsMode(next); }
+                          catch { setDevTtsMode(!next); showToast("Failed to update dev TTS mode", "error"); }
+                        }}
+                        style={{
+                          width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+                          background: devTtsMode ? T.accentYellow : T.border,
+                          position: "relative", cursor: "pointer", transition: "background 0.2s",
+                        }}
+                      >
+                        <div style={{
+                          position: "absolute", top: 3, left: devTtsMode ? 21 : 3,
+                          width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                          transition: "left 0.2s",
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+
                   {[
                     ["LLM MODEL", "Groq — llama-3.3-70b-versatile"],
-                    ["TTS ENGINE", "ElevenLabs — Adam voice (deep)"],
-                    ["TTS QUALITY", "mp3_44100_192 · stability 0.80"],
+                    ["TTS ENGINE", devTtsMode ? "gTTS (Dev Mode — free)" : "ElevenLabs — Adam voice (deep)"],
+                    ["TTS QUALITY", devTtsMode ? "Standard · dev mode" : "mp3_44100_192 · stability 0.80"],
                     ["VIDEO RESOLUTION", "1920×1080 @ 30fps"],
                     ["CAPTIONS", "Whisper base + FFmpeg burn"],
                     ["STOCK CLIPS", "Pexels API (Pixabay fallback)"],
