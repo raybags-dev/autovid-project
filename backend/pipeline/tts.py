@@ -228,11 +228,26 @@ def _split_into_chunks(text: str, max_words: int = 500) -> list:
     return chunks or [text]
 
 
+def _is_dev_tts_mode() -> bool:
+    """Check if dev TTS mode is enabled (skips ElevenLabs, uses gTTS instead)."""
+    try:
+        import database as _db
+        return str(_db.get_setting("dev_tts_mode", "false")).lower() == "true"
+    except Exception:
+        return False
+
+
 def _synthesize_chunk(text: str, mp3_path: Path) -> bool:
     """
     Try the full TTS fallback chain for a single text chunk.
     Returns True on success.
     """
+    if _is_dev_tts_mode():
+        print("🛠️  [DEV MODE] Skipping ElevenLabs — using gTTS (dev_tts_mode=true)")
+        if _synthesize_gtts(text, mp3_path):
+            return True
+        return _synthesize_pyttsx3(text, mp3_path)
+
     default_voice = getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
     if _synthesize_elevenlabs(text, mp3_path, voice_id=default_voice):
         return True

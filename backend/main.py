@@ -4902,6 +4902,23 @@ def extract_video_mp3(video_id: str, background_tasks: BackgroundTasks, user: st
     return {"message": "MP3 extraction started", "video_id": video_id}
 
 
+# ── Dev Settings ──────────────────────────────────────────────────────────────
+
+@app.get("/settings/dev-tts")
+def get_dev_tts(user: str = Depends(verify_token)):
+    """Get the current dev TTS mode setting (true = use gTTS instead of ElevenLabs)."""
+    enabled = str(db.get_setting("dev_tts_mode", "false")).lower() == "true"
+    return {"enabled": enabled}
+
+
+@app.post("/settings/dev-tts")
+def set_dev_tts(body: dict = Body(default={}), user: str = Depends(verify_token)):
+    """Toggle dev TTS mode. When enabled, all TTS uses free gTTS instead of ElevenLabs."""
+    enabled = bool(body.get("enabled", False))
+    db.set_setting("dev_tts_mode", "true" if enabled else "false")
+    return {"enabled": enabled, "message": f"Dev TTS mode {'enabled' if enabled else 'disabled'}"}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

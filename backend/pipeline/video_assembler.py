@@ -260,7 +260,9 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
         return output_path
 
     # ── Step 2: Build overlay filter_complex chain ───────────────────────────
-    # Use gte(t,s)*lte(t,e) instead of between() to avoid FFmpeg expression parser issues
+    # Use setpts to position each clip at its timestamp, eof_action=pass to
+    # show background when no overlay frame is active. This is more reliable
+    # across FFmpeg versions than the enable= expression approach.
     cmd = ["ffmpeg", "-y", "-i", background_path]
     for _, _, norm_path in normalised:
         cmd += ["-i", norm_path]
@@ -268,11 +270,11 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
     filters = []
     prev = "0:v"
     for i, (start, end, _) in enumerate(normalised):
+        shifted = f"s{i}"
         out_lbl = f"ov{i}"
-        filters.append(
-            f"[{prev}][{i + 1}:v]overlay=0:0:"
-            f"enable=gte(t\\,{start:.3f})*lte(t\\,{end:.3f})[{out_lbl}]"
-        )
+        # Shift clip PTS so it starts at `start` seconds in the output timeline
+        filters.append(f"[{i + 1}:v]setpts=PTS-STARTPTS+{start:.3f}/TB[{shifted}]")
+        filters.append(f"[{prev}][{shifted}]overlay=0:0:eof_action=pass[{out_lbl}]")
         prev = out_lbl
 
     cmd += [
@@ -284,12 +286,12 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
     ]
 
     print(f"  Running FFmpeg composite with {len(normalised)} overlay(s)...")
-    result = subprocess.run(cmd, capture_output=True)
+    result = subprocess.run(cmd, capture_output=True, timeout=300)
     import shutil as _sh2
     _sh2.rmtree(tmp_dir, ignore_errors=True)
 
     if result.returncode != 0 or not Path(output_path).exists():
-        print(f"⚠️  Stock composite FFmpeg error:\n{result.stderr.decode()[-600:]}")
+        print(f"⚠️  Stock composite FFmpeg error:\n{result.stderr.decode()[-800:]}")
         _shutil.copy2(background_path, output_path)
     else:
         size_mb = Path(output_path).stat().st_size / (1024 * 1024)
