@@ -2,7 +2,7 @@
 AutoVid — FastAPI Backend
 Main application entry point with all API routes.
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Request, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -2064,13 +2064,16 @@ def delete_channel_video(video_id: str, user: str = Depends(verify_token)):
 
 
 @app.post("/videos/{video_id}/create-short")
-def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = Depends(verify_token)):
-    """Clip the best 60s from an existing video and save as a YouTube Short."""
+def create_short(video_id: str, background_tasks: BackgroundTasks, body: dict = Body(default={}), user: str = Depends(verify_token)):
+    """Clip from an existing video and save as a YouTube Short."""
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if not video.get("file_path"):
         raise HTTPException(status_code=400, detail="No video file available")
+
+    start_time = body.get("start_time")
+    end_time   = body.get("end_time")
 
     # Use source video_id as the log key so frontend can poll /videos/{video_id}/logs
     _register_pipeline(video_id)
@@ -2079,7 +2082,8 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, user: str = D
         try:
             _push_log(video_id, "[1/4] Downloading source video...")
             from pipeline.shorts_generator import create_short_from_video
-            short_path = create_short_from_video(video["file_path"], video_id + "_short")
+            short_path = create_short_from_video(video["file_path"], video_id + "_short",
+                                                  start_time=start_time, end_time=end_time)
             _push_log(video_id, "[2/4] Short clip created — uploading to storage...")
             from pipeline.storage import upload_to_storage
             short_id = video_id + "_short"

@@ -1303,6 +1303,8 @@ export default function Dashboard() {
   const shortLogLineRef = useRef(0);
   const shortLogsEndRef = useRef(null);
   const [shortClipVideoId, setShortClipVideoId] = useState("");
+  const [shortClipStart, setShortClipStart] = useState("");
+  const [shortClipEnd, setShortClipEnd] = useState("");
   const [shortClipping, setShortClipping] = useState(false);
   const [shortClipError, setShortClipError] = useState("");
   const [shortClipSuccess, setShortClipSuccess] = useState("");
@@ -1310,6 +1312,7 @@ export default function Dashboard() {
   const [shortsLoading, setShortsLoading] = useState(false);
   const [shortsHasMore, setShortsHasMore] = useState(true);
   const [shortsFilter, setShortsFilter] = useState("all"); // all | youtube | tiktok | unposted
+  const [shortsSearch, setShortsSearch] = useState("");
   const [shortsUploading, setShortsUploading] = useState({});
   const shortsOffsetRef = useRef(0);
   const shortsListRef = useRef(null);
@@ -1830,15 +1833,34 @@ export default function Dashboard() {
     }
   };
 
+  const parseTimestamp = (ts) => {
+    if (!ts || !ts.trim()) return null;
+    const parts = ts.trim().split(":").map(Number);
+    if (parts.some(isNaN)) return null;
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return null;
+  };
+
   const handleClipShort = async () => {
     if (!shortClipVideoId || shortClipping) return;
     setShortClipError("");
     setShortClipSuccess("");
+    const startSec = parseTimestamp(shortClipStart);
+    const endSec   = parseTimestamp(shortClipEnd);
+    if (shortClipStart && startSec === null) { setShortClipError("Invalid start timestamp — use MM:SS or HH:MM:SS"); return; }
+    if (shortClipEnd && endSec === null)     { setShortClipError("Invalid end timestamp — use MM:SS or HH:MM:SS"); return; }
+    if (startSec !== null && endSec !== null && endSec <= startSec) { setShortClipError("End time must be after start time"); return; }
     setShortClipping(true);
     try {
-      await createShortFromVideo(shortClipVideoId);
-      setShortClipSuccess("Short is being created and will upload to YouTube.");
+      const opts = {};
+      if (startSec !== null) opts.start_time = startSec;
+      if (endSec   !== null) opts.end_time   = endSec;
+      await createShortFromVideo(shortClipVideoId, opts);
+      setShortClipSuccess("Short is being created — check Shorts logs for progress.");
       setShortClipVideoId("");
+      setShortClipStart("");
+      setShortClipEnd("");
     } catch (e) {
       setShortClipError(e?.response?.data?.detail || "Failed to clip short.");
     } finally {
@@ -1859,7 +1881,7 @@ export default function Dashboard() {
     setShortsLoading(true);
     const offset = reset ? 0 : shortsOffsetRef.current;
     try {
-      const data = await listShorts(25, offset);
+      const data = await listShorts(100, offset);
       const items = Array.isArray(data) ? data : [];
       if (reset) {
         setShortsList(items);
@@ -1867,7 +1889,7 @@ export default function Dashboard() {
         setShortsList(prev => [...prev, ...items]);
       }
       shortsOffsetRef.current = offset + items.length;
-      setShortsHasMore(items.length === 25);
+      setShortsHasMore(items.length === 100);
     } catch (e) {
       console.error("Shorts load error:", e);
     } finally {
@@ -5551,42 +5573,49 @@ export default function Dashboard() {
     }}>
       {/* Header */}
       <div style={{
-        padding: "14px 16px",
+        padding: "12px 14px",
         borderBottom: `1px solid ${T.border}`,
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
         flexShrink: 0,
       }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: T.text, letterSpacing: "0.08em" }}>
-          ⚡ YOUR SHORTS <span style={{ color: T.textFaint, fontWeight: 400 }}>({shortsList.length})</span>
-        </div>
-        <button
-          onClick={() => { setShortsList([]); shortsOffsetRef.current = 0; loadShorts(true); }}
-          style={{ background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 13 }}
-        >↺</button>
-      </div>
-
-      {/* Filter bar */}
-      <div style={{ padding: "8px 12px", borderBottom: `1px solid ${T.border}20`, display: "flex", gap: 4, flexWrap: "wrap" }}>
-        {[
-          { id: "all", label: "All" },
-          { id: "youtube", label: "▶ YouTube" },
-          { id: "tiktok", label: "🎵 TikTok" },
-          { id: "unposted", label: "⬆ Unposted" },
-        ].map(f => (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.text, letterSpacing: "0.08em" }}>
+            ⚡ YOUR SHORTS <span style={{ color: T.textFaint, fontWeight: 400 }}>({shortsList.length}{shortsHasMore ? "+" : ""})</span>
+          </div>
           <button
-            key={f.id}
-            onClick={() => setShortsFilter(f.id)}
-            style={{
-              padding: "4px 10px", borderRadius: 6, fontSize: 9, letterSpacing: "0.05em",
-              border: `1px solid ${shortsFilter === f.id ? T.accent : T.border}`,
-              background: shortsFilter === f.id ? `${T.accent}18` : "transparent",
-              color: shortsFilter === f.id ? T.accent : T.textDim,
-              cursor: "pointer", fontFamily: "inherit", fontWeight: shortsFilter === f.id ? 700 : 400,
-            }}
-          >{f.label}</button>
-        ))}
+            onClick={() => { setShortsList([]); shortsOffsetRef.current = 0; setShortsHasMore(true); loadShorts(true); }}
+            style={{ background: "none", border: "none", color: T.textFaint, cursor: "pointer", fontSize: 13 }}
+          >↺</button>
+        </div>
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search shorts..."
+          value={shortsSearch}
+          onChange={e => setShortsSearch(e.target.value)}
+          style={{ width: "100%", boxSizing: "border-box", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 11, padding: "7px 10px", fontFamily: "inherit", outline: "none", marginBottom: 8 }}
+        />
+        {/* Filter bar */}
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {[
+            { id: "all", label: "All" },
+            { id: "youtube", label: "▶ YouTube" },
+            { id: "tiktok", label: "🎵 TikTok" },
+            { id: "unposted", label: "⬆ Unposted" },
+            { id: "generating", label: "⚙ Generating" },
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setShortsFilter(f.id)}
+              style={{
+                padding: "3px 9px", borderRadius: 6, fontSize: 9, letterSpacing: "0.05em",
+                border: `1px solid ${shortsFilter === f.id ? T.accent : T.border}`,
+                background: shortsFilter === f.id ? `${T.accent}18` : "transparent",
+                color: shortsFilter === f.id ? T.accent : T.textDim,
+                cursor: "pointer", fontFamily: "inherit", fontWeight: shortsFilter === f.id ? 700 : 400,
+              }}
+            >{f.label}</button>
+          ))}
+        </div>
       </div>
 
       <div
@@ -5605,15 +5634,22 @@ export default function Dashboard() {
             </div>
           ))
         ) : (() => {
+          const searchLower = shortsSearch.toLowerCase();
           const filteredShorts = shortsList.filter(s => {
-            if (shortsFilter === "youtube") return !!s.youtube_video_id;
-            if (shortsFilter === "tiktok") return s.tiktok_status === "published";
-            if (shortsFilter === "unposted") return s.status === "ready" && !s.youtube_video_id && s.tiktok_status !== "published";
+            if (shortsFilter === "youtube") { if (!s.youtube_video_id) return false; }
+            else if (shortsFilter === "tiktok") { if (s.tiktok_status !== "published") return false; }
+            else if (shortsFilter === "unposted") { if (!(s.status === "ready" && !s.youtube_video_id && s.tiktok_status !== "published")) return false; }
+            else if (shortsFilter === "generating") { if (s.status !== "generating" && s.status !== "processing") return false; }
+            if (searchLower) {
+              const title = (s.title || "").toLowerCase();
+              const prompt = (s.prompt || "").toLowerCase();
+              if (!title.includes(searchLower) && !prompt.includes(searchLower)) return false;
+            }
             return true;
           });
           if (filteredShorts.length === 0) return (
             <div style={{ textAlign: "center", padding: 40, color: T.textFaint, fontSize: 11 }}>
-              {shortsFilter === "all" ? "No shorts yet — generate your first one →" : `No ${shortsFilter} shorts found`}
+              {shortsSearch ? `No shorts matching "${shortsSearch}"` : shortsFilter === "all" ? "No shorts yet — generate your first one →" : `No ${shortsFilter} shorts found`}
             </div>
           );
           return filteredShorts.map(s => {
@@ -6119,13 +6155,15 @@ export default function Dashboard() {
             ✂️ Clip Existing Video
           </div>
           <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
-            Auto-clips the best 59s from a video in your library, crops to 9:16 portrait.
+            Select a video from your library and clip a segment — outputs 9:16 portrait Short.
           </div>
-          <div style={{ marginBottom: 12 }}>
+
+          {/* Video selector */}
+          <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 6 }}>SELECT VIDEO</div>
             <select
               value={shortClipVideoId}
-              onChange={e => setShortClipVideoId(e.target.value)}
+              onChange={e => { setShortClipVideoId(e.target.value); setShortClipStart(""); setShortClipEnd(""); setShortClipError(""); setShortClipSuccess(""); }}
               style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
             >
               <option value="">— Pick a video —</option>
@@ -6141,9 +6179,48 @@ export default function Dashboard() {
               )}
             </select>
           </div>
-          <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16, padding: "10px 12px", background: T.bgSub, borderRadius: 8, lineHeight: 1.6 }}>
-            ℹ️ First ~25% skipped (intro), next 59s center-cropped to portrait and saved as a Short.
-          </div>
+
+          {/* Timestamp controls — shown when a video is selected */}
+          {shortClipVideoId && (
+            <div style={{ background: T.bgSub, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
+              <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>CLIP RANGE (optional)</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: T.textDim, marginBottom: 5 }}>FROM</div>
+                  <input
+                    type="text"
+                    placeholder="e.g. 02:24"
+                    value={shortClipStart}
+                    onChange={e => setShortClipStart(e.target.value)}
+                    style={{ width: "100%", boxSizing: "border-box", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 12, padding: "9px 10px", fontFamily: "monospace", outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: T.textDim, marginBottom: 5 }}>TO</div>
+                  <input
+                    type="text"
+                    placeholder="e.g. 05:20"
+                    value={shortClipEnd}
+                    onChange={e => setShortClipEnd(e.target.value)}
+                    style={{ width: "100%", boxSizing: "border-box", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 12, padding: "9px 10px", fontFamily: "monospace", outline: "none" }}
+                  />
+                </div>
+              </div>
+              {(() => {
+                const s = shortClipStart.trim(), e = shortClipEnd.trim();
+                const toSec = ts => { const p = ts.split(":").map(Number); return p.length === 2 ? p[0]*60+p[1] : p.length === 3 ? p[0]*3600+p[1]*60+p[2] : NaN; };
+                if (s && e) {
+                  const dur = toSec(e) - toSec(s);
+                  if (!isNaN(dur) && dur > 0) {
+                    const capped = Math.min(dur, 180);
+                    return <div style={{ fontSize: 11, color: T.accent }}>{`Clip duration: ${dur}s${dur > 180 ? ` (capped to 180s)` : ""}`}</div>;
+                  }
+                }
+                return <div style={{ fontSize: 11, color: T.textFaint }}>Leave blank to auto-detect best segment</div>;
+              })()}
+            </div>
+          )}
+
           {shortClipError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortClipError}</div>}
           {shortClipSuccess && <div style={{ fontSize: 11, color: T.accentGreen, marginBottom: 10 }}>{shortClipSuccess}</div>}
           <button onClick={handleClipShort} disabled={shortClipping || !shortClipVideoId} style={{ width: "100%", padding: "11px", borderRadius: 9, border: "none", background: shortClipping || !shortClipVideoId ? T.border : T.accentGreen, color: shortClipping || !shortClipVideoId ? T.textFaint : "#fff", fontSize: 12, fontWeight: 700, cursor: shortClipping || !shortClipVideoId ? "not-allowed" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit" }}>
@@ -6156,7 +6233,7 @@ export default function Dashboard() {
         <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SHORTS TIPS</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           {[
-            { icon: "⏱", title: "Max 90 Seconds", desc: "YouTube Shorts can be up to 90s. Generated shorts are auto-fitted to exactly 90s." },
+            { icon: "⏱", title: "Up to 3 Minutes", desc: "YouTube Shorts can be up to 3 minutes. Generated shorts target 2–3 min; clips respect your timestamps." },
             { icon: "📱", title: "9:16 Portrait", desc: "All Shorts are rendered at 1080×1920 — vertical mobile-first format." },
             { icon: "👁", title: "Review Before Upload", desc: "Shorts are saved as Ready — you upload to YouTube when satisfied." },
           ].map(tip => (

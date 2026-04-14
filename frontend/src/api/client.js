@@ -276,8 +276,8 @@ export const updateYouTubeSettings = async (
 };
 
 // ── Shorts ────────────────────────────────────────────────────────────────
-export const createShortFromVideo = async (id) => {
-  const { data } = await api.post(`/videos/${id}/create-short`);
+export const createShortFromVideo = async (id, options = {}) => {
+  const { data } = await api.post(`/videos/${id}/create-short`, options);
   return data;
 };
 

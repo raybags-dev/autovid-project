@@ -15,7 +15,7 @@ import tempfile
 # ── Constants ─────────────────────────────────────────────────────────────────
 SHORT_WIDTH  = 1080
 SHORT_HEIGHT = 1920
-SHORT_MAX_DURATION = 59   # YouTube Shorts must be ≤ 60 seconds
+SHORT_MAX_DURATION = 180  # up to 3 minutes for YouTube Shorts
 FPS = 30
 LOOP_SECONDS = 4  # Generate this many seconds of unique frames, then FFmpeg-loop to full duration
 
@@ -32,10 +32,21 @@ AMBIENCE_STYLES = {
 
 # ── Mode 1: Clip from existing video ─────────────────────────────────────────
 
-def create_short_from_video(video_path: str, video_id: str) -> str:
+def create_short_from_video(
+    video_path: str,
+    video_id: str,
+    start_time: float = None,
+    end_time: float = None,
+) -> str:
     """
-    Takes an existing landscape video, finds the most energetic 59s,
-    crops to 9:16 portrait, and returns the path to the short.
+    Takes an existing video, crops the specified range to 9:16 portrait.
+
+    start_time / end_time: explicit clip range in seconds (user-specified).
+    If omitted, auto-detects the best segment (skips first ~25%, clips up to
+    SHORT_MAX_DURATION seconds).
+
+    Scale-to-height approach: scales so height fills 1920px, then center-crops
+    to 1080px width — guarantees full frame fill with no black bars.
     """
     import urllib.request
     import tempfile
@@ -52,27 +63,34 @@ def create_short_from_video(video_path: str, video_id: str) -> str:
 
     short_path = str(Path(tempfile.gettempdir()) / f"{video_id}_short.mp4")
 
-    # Get video duration
+    # Determine clip range
     duration = _get_duration(video_path)
-    if duration <= SHORT_MAX_DURATION:
-        # Already short enough — just crop to portrait
-        start_time = 0
-        clip_duration = min(duration, SHORT_MAX_DURATION)
+    if start_time is not None and end_time is not None:
+        # User-specified range — cap at SHORT_MAX_DURATION
+        start_time   = max(0.0, float(start_time))
+        end_time     = min(float(end_time), duration)
+        clip_duration = min(end_time - start_time, SHORT_MAX_DURATION)
+        if clip_duration <= 0:
+            clip_duration = min(duration, SHORT_MAX_DURATION)
+            start_time = 0.0
+    elif duration <= SHORT_MAX_DURATION:
+        start_time    = 0.0
+        clip_duration = duration
     else:
-        # Find best segment — use the first 60s of the second quarter
-        # (usually past intro, before outro — most content-rich)
-        quarter = duration / 4
-        start_time = max(0, quarter - 10)
+        # Auto: skip first ~25%, clip up to SHORT_MAX_DURATION
+        quarter       = duration / 4
+        start_time    = max(0.0, quarter - 10)
         clip_duration = SHORT_MAX_DURATION
 
-    print(f"✂️  Clipping short: {start_time:.1f}s → {start_time + clip_duration:.1f}s")
-    print(f"   Source duration: {duration:.1f}s")
+    print(f"✂️  Clipping short: {start_time:.1f}s → {start_time + clip_duration:.1f}s (source: {duration:.1f}s)")
 
-    # Crop center of landscape to portrait 9:16
-    # For 1920x1080 source: crop 607x1080 from center, then scale to 1080x1920
+    # Scale-to-height then center-crop to 9:16 (1080×1920)
+    # Scales so the full height fills 1920px regardless of source aspect ratio,
+    # then crops the center 1080px horizontally — no black bars, no distortion.
     crop_filter = (
-        f"crop=ih*9/16:ih:(iw-ih*9/16)/2:0,"
-        f"scale={SHORT_WIDTH}:{SHORT_HEIGHT}:flags=lanczos"
+        f"scale=-1:{SHORT_HEIGHT}:flags=lanczos,"
+        f"crop={SHORT_WIDTH}:{SHORT_HEIGHT}:(iw-{SHORT_WIDTH})/2:0,"
+        f"setsar=1"
     )
 
     cmd = [
