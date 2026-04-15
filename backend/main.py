@@ -1113,11 +1113,14 @@ def get_quota(user: str = Depends(verify_token)):
 # ── Auto-Generator Settings ──────────────────────────────────────────────────
 
 class AutoGenerateSettings(BaseModel):
-    enabled:  bool
-    days:     list           # [0-6] days of week
-    profile:  str
-    prompts:  list           # list of prompt strings
-    hour:     int            # UTC hour to run (0-23)
+    enabled:      bool
+    days:         list           # [0-6] days of week
+    profile:      str
+    prompts:      list           # list of prompt strings
+    hour:         int            # UTC hour to run (0-23)
+    visual_mood:  str = "aurora_dark"
+    music_style:  str = "Birds_Atmosphere_Piano"
+    music_volume: float = 0.06
 
 @app.get("/auto-generate/settings")
 def get_auto_generate_settings(user: str = Depends(verify_token)):
@@ -1128,11 +1131,14 @@ def get_auto_generate_settings(user: str = Depends(verify_token)):
 def save_auto_generate_settings(req: AutoGenerateSettings, user: str = Depends(verify_token)):
     from pipeline.auto_generator import save_settings
     settings = {
-        "enabled": req.enabled,
-        "days":    req.days,
-        "profile": req.profile,
-        "prompts": req.prompts,
-        "hour":    req.hour,
+        "enabled":      req.enabled,
+        "days":         req.days,
+        "profile":      req.profile,
+        "prompts":      req.prompts,
+        "hour":         req.hour,
+        "visual_mood":  req.visual_mood,
+        "music_style":  req.music_style,
+        "music_volume": req.music_volume,
     }
     save_settings(settings)
     return {"message": "Auto-generate settings saved", "settings": settings}
@@ -1140,20 +1146,22 @@ def save_auto_generate_settings(req: AutoGenerateSettings, user: str = Depends(v
 @app.post("/auto-generate/trigger")
 def trigger_auto_generate(user: str = Depends(verify_token)):
     """Manually trigger one auto-generated video. Registers log queue so frontend can stream progress."""
-    import threading
-    from pipeline.auto_generator import run_auto_generate, get_settings
+    from pipeline.auto_generator import get_settings
     from pipeline.script_gen import CHANNEL_PROFILES
 
     # Pre-create DB record so we can return video_id immediately
-    settings = get_settings()
-    prompts  = settings.get("prompts", [])
+    settings     = get_settings()
+    prompts      = settings.get("prompts", [])
     if not prompts:
         raise HTTPException(status_code=400, detail="No prompts configured in auto-generate settings")
 
     # Pick next prompt (same logic as run_auto_generate)
     from pipeline.auto_generator import _pick_next_prompt
-    prompt   = _pick_next_prompt(prompts)
-    profile  = settings.get("profile", "educational")
+    prompt       = _pick_next_prompt(prompts)
+    profile      = settings.get("profile", "educational")
+    visual_mood  = settings.get("visual_mood", "aurora_dark")
+    music_style  = settings.get("music_style", "Birds_Atmosphere_Piano")
+    music_volume = float(settings.get("music_volume", 0.06))
 
     record   = db.create_video(prompt)
     video_id = record["id"]
@@ -1172,7 +1180,9 @@ def trigger_auto_generate(user: str = Depends(verify_token)):
                 prompt=prompt,
                 profile=profile,
                 auto_upload=False,
-                music_style="Birds_Atmosphere_Piano",
+                visual_mood=visual_mood,
+                music_style=music_style,
+                music_volume=music_volume,
                 video_id=video_id,
                 progress_callback=_cb,
             )
@@ -1182,7 +1192,7 @@ def trigger_auto_generate(user: str = Depends(verify_token)):
         finally:
             _unregister_pipeline(video_id)
 
-    threading.Thread(target=_run, daemon=True).start()
+    _queue_pipeline(_run, job_id=video_id, job_type="auto_video", prompt=prompt)
     return {
         "message": "Auto-generate triggered",
         "video_id": video_id,
@@ -1227,8 +1237,7 @@ def save_auto_short_settings_endpoint(req: AutoShortSettings, user: str = Depend
 @app.post("/auto-short/trigger")
 def trigger_auto_short(user: str = Depends(verify_token)):
     """Manually trigger one auto-generated short."""
-    import threading
-    from pipeline.auto_generator import run_auto_short, get_auto_short_settings, _pick_next_short_topic
+    from pipeline.auto_generator import get_auto_short_settings, _pick_next_short_topic
 
     settings = get_auto_short_settings()
     topics   = settings.get("topics", [])
@@ -1260,7 +1269,7 @@ def trigger_auto_short(user: str = Depends(verify_token)):
         finally:
             _unregister_pipeline(video_id)
 
-    threading.Thread(target=_run, daemon=True).start()
+    _queue_pipeline(_run, job_id=video_id, job_type="auto_short", prompt=topic)
     return {"message": "Auto-short started", "video_id": video_id, "topic": topic}
 
 
@@ -2209,7 +2218,7 @@ def list_shorts(
         result = (
             client.table("videos")
             .select("*")
-            .or_("labels.cs.{short},labels.cs.{Shorts}")
+            .or_("labels.cs.{short},labels.cs.{Shorts},resolution.eq.1080x1920")
             .order("created_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()

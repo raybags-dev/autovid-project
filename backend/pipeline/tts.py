@@ -184,7 +184,7 @@ def _normalize_audio(mp3_path: Path) -> None:
     result = subprocess.run(
         [
             "ffmpeg", "-y", "-i", str(mp3_path),
-            "-af", "dynaudnorm=f=200:g=11:p=0.95:m=5.0:r=0.0",
+            "-af", "dynaudnorm=f=200:g=11:p=0.95:m=5.0:r=0.0,volume=0.95",
             "-acodec", "libmp3lame", "-b:a", "128k",
             str(tmp),
         ],
