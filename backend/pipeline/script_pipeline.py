@@ -62,6 +62,8 @@ def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public
         str(config.AUDIO_OUTPUT_DIR / f"{video_id}.mp3"),   # original TTS output
         str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4"),
         str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_captioned.mp4"),
+        str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_portrait_raw.mp4"),
+        str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_portrait_captioned.mp4"),
         str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_thumb.jpg"),
     ]
     # Only delete the final video if it was uploaded to storage
@@ -258,6 +260,10 @@ def run_script_pipeline(
             thumb_path,
         ], capture_output=True)
 
+        # Save pre-caption path — used later in portrait generation so we don't
+        # bake 16:9-sized captions into the 9:16 crop.
+        pre_caption_path = final_path
+
         # ── Step 7: Burn captions ─────────────────────────────────────────────
         if use_captions:
             _log("CAPTIONS", "Transcribing and burning captions...", cb)
@@ -266,6 +272,7 @@ def run_script_pipeline(
                 final_path     = captioned_path
             except Exception as e:
                 print(f"⚠️  Captions failed (non-fatal): {e}")
+                pre_caption_path = final_path  # fallback — captions didn't burn
         else:
             _log("CAPTIONS", "Captions disabled — skipping", cb)
             db.update_video(video_id, captions_disabled=True)
@@ -298,21 +305,34 @@ def run_script_pipeline(
         print(f"\n✅ Script pipeline complete: {video_id[:8]}")
 
         # ── Step 9: Generate portrait (9:16) version for TikTok/Shorts ───────
+        # Use pre_caption_path so 16:9 captions aren't baked into the 9:16 crop.
+        # We then burn portrait-style (is_short=True) captions separately.
         _log("PORTRAIT", "Generating 9:16 portrait version for TikTok...", cb)
         try:
-            _portrait_src = final_path
-            _portrait_out = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_portrait.mp4")
+            _portrait_raw = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_portrait_raw.mp4")
             _p = subprocess.run([
-                "ffmpeg", "-y", "-i", _portrait_src,
+                "ffmpeg", "-y", "-i", pre_caption_path,
                 "-vf", "scale=-1:1920:flags=lanczos,crop=1080:1920:(iw-1080)/2:0,setsar=1",
                 "-map", "0:v:0", "-map", "0:a?",
                 "-c:v", "libx264", "-preset", "fast", "-crf", "22",
                 "-c:a", "aac", "-b:a", "192k",
-                _portrait_out,
+                _portrait_raw,
             ], capture_output=True)
-            if _p.returncode == 0 and Path(_portrait_out).exists():
+            if _p.returncode == 0 and Path(_portrait_raw).exists():
+                _portrait_final = _portrait_raw
+                if use_captions:
+                    try:
+                        _log("PORTRAIT", "Burning 9:16 captions on portrait version...", cb)
+                        _portrait_final = captioner.add_captions(
+                            _portrait_raw, mixed_path, f"{video_id}_portrait", is_short=True
+                        )
+                        Path(_portrait_raw).unlink(missing_ok=True)
+                    except Exception as _ce:
+                        _log("PORTRAIT", f"⚠️ Portrait captions skipped: {_ce}", cb)
+                        _portrait_final = _portrait_raw
+
                 from pipeline.storage import upload_to_storage
-                _portrait_url = upload_to_storage(_portrait_out, f"{video_id}_portrait")
+                _portrait_url = upload_to_storage(_portrait_final, f"{video_id}_portrait")
                 import database as _db2
                 _db2.create_custom_content(
                     title=f"{title} — Portrait (9:16)",
@@ -320,7 +340,7 @@ def run_script_pipeline(
                     file_path=_portrait_url,
                     duration_seconds=int(duration),
                 )
-                Path(_portrait_out).unlink(missing_ok=True)
+                Path(_portrait_final).unlink(missing_ok=True)
                 _log("PORTRAIT", "✅ Portrait version saved to Custom Content", cb)
             else:
                 _log("PORTRAIT", f"⚠️ Portrait generation failed: {_p.stderr.decode()[-200:]}", cb)

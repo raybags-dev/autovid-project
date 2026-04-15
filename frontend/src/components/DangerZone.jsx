@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { dangerVerify, dangerClearVideos, dangerClearStorage } from "../api/client";
+import { dangerVerify, dangerClearVideos, dangerClearStorage, dangerClearPodcasts, dangerClearStickfigures, dangerClearBlogs } from "../api/client";
 
 function DangerBtn({ icon, label, desc, onClick }) {
   return (
@@ -91,14 +91,20 @@ export default function DangerZone({ onClose }) {
   };
 
   const ACTION_LABELS = {
-    "wipe-videos":    "WIPE ALL VIDEOS",
-    "clear-storage":  "CLEAR STORAGE",
-    "wipe-all":       "WIPE EVERYTHING",
+    "wipe-videos":      "WIPE ALL VIDEOS",
+    "clear-storage":    "CLEAR STORAGE",
+    "wipe-all":         "WIPE EVERYTHING",
+    "wipe-podcasts":    "WIPE ALL PODCASTS",
+    "wipe-stickfigures":"WIPE ALL STICK FIGURES",
+    "wipe-blogs":       "WIPE ALL BLOG POSTS",
   };
   const ACTION_WARNINGS = {
-    "wipe-videos":   "This will permanently delete every video record from the database. Storage files remain.",
-    "clear-storage": "This will permanently delete all files from the Supabase storage buckets (videos + narrations).",
-    "wipe-all":      "This will permanently delete ALL database records AND ALL storage files. There is absolutely no recovery.",
+    "wipe-videos":       "This will permanently delete every video record from the database. Storage files remain.",
+    "clear-storage":     "This will permanently delete all files from the Supabase storage buckets (videos + narrations).",
+    "wipe-all":          "This will permanently delete ALL database records AND ALL storage files. There is absolutely no recovery.",
+    "wipe-podcasts":     "This will permanently delete all podcast DB records and their MP3 narration files from Supabase storage. Cannot be undone.",
+    "wipe-stickfigures": "This will permanently delete all stick figure clip records from the database. The files in the stickfigures bucket are not removed.",
+    "wipe-blogs":        "This will permanently delete every blog post from the database. Comments and slugs will also be lost. Cannot be undone.",
   };
 
   const executeAction = async () => {
@@ -118,6 +124,15 @@ export default function DangerZone({ onClose }) {
           dangerClearStorage(dangerToken),
         ]);
         message = `${r1.message}. ${r2.message}.`;
+      } else if (confirmAction === "wipe-podcasts") {
+        const r = await dangerClearPodcasts(dangerToken);
+        message = r.message;
+      } else if (confirmAction === "wipe-stickfigures") {
+        const r = await dangerClearStickfigures(dangerToken);
+        message = r.message;
+      } else if (confirmAction === "wipe-blogs") {
+        const r = await dangerClearBlogs(dangerToken);
+        message = r.message;
       }
       setActionResult({ success: true, message });
       setPhase("done");
@@ -304,6 +319,24 @@ export default function DangerZone({ onClose }) {
               ☢ AUTHENTICATED — SELECT OPERATION
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
+              <DangerBtn
+                icon="🎙"
+                label="WIPE ALL PODCASTS"
+                desc="Deletes all podcast DB records and their MP3 narration files from Supabase storage."
+                onClick={() => triggerConfirm("wipe-podcasts")}
+              />
+              <DangerBtn
+                icon="🕹"
+                label="WIPE ALL STICK FIGURES"
+                desc="Deletes all stick figure clip records from the database."
+                onClick={() => triggerConfirm("wipe-stickfigures")}
+              />
+              <DangerBtn
+                icon="✏"
+                label="WIPE ALL BLOG POSTS"
+                desc="Permanently deletes every blog post from the database. Comments and slugs are also removed."
+                onClick={() => triggerConfirm("wipe-blogs")}
+              />
               <DangerBtn
                 icon="☢"
                 label="WIPE ALL VIDEOS"

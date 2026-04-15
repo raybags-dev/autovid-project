@@ -422,6 +422,62 @@ def delete_stickfigure_clip(clip_id: str) -> bool:
 
 # ── Danger Zone ────────────────────────────────────────────────────────────────
 
+def danger_clear_podcasts() -> dict:
+    """DANGER: Delete all podcast records from the database and their MP3 files from storage."""
+    client = get_client()
+    result = client.table("videos").select("id,narration_url").eq("resolution", "podcast").execute()
+    rows = result.data or []
+
+    # Collect narration file keys (filename portion of the URL)
+    narration_keys = []
+    for row in rows:
+        url = row.get("narration_url") or ""
+        if url:
+            # Strip query params and extract the filename/path segment after the bucket name
+            clean = url.split("?")[0]
+            # Keys under "narrations" bucket are just the filename
+            key = clean.rstrip("/").split("/")[-1]
+            if key:
+                narration_keys.append(key)
+
+    storage_deleted = 0
+    if narration_keys:
+        try:
+            client.storage.from_("narrations").remove(narration_keys)
+            storage_deleted = len(narration_keys)
+        except Exception as e:
+            print(f"⚠️ Narration storage clear warning: {e}")
+
+    db_count = len(rows)
+    if db_count > 0:
+        client.table("videos").delete().eq("resolution", "podcast").execute()
+
+    print(f"🚨 DANGER: Cleared {db_count} podcast DB records, {storage_deleted} narration MP3s")
+    return {"db_records": db_count, "storage_files": storage_deleted}
+
+
+def danger_clear_stickfigures() -> dict:
+    """DANGER: Delete all stickfigure clip records from the database."""
+    client = get_client()
+    result = client.table("stickfigure_clips").select("id").execute()
+    count = len(result.data or [])
+    if count > 0:
+        client.table("stickfigure_clips").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    print(f"🚨 DANGER: Deleted {count} stickfigure clip records")
+    return {"deleted": count}
+
+
+def delete_all_blog_posts() -> int:
+    """DANGER: Delete every blog post from the database."""
+    client = get_client()
+    result = client.table("blog_posts").select("id").execute()
+    count = len(result.data or [])
+    if count > 0:
+        client.table("blog_posts").delete().gte("created_at", "1970-01-01").execute()
+    print(f"🚨 DANGER: Deleted {count} blog posts")
+    return count
+
+
 def danger_clear_all_videos() -> int:
     """DANGER: Permanently delete ALL video records from the database."""
     db = get_client()
