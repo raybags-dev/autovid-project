@@ -2568,7 +2568,7 @@ export default function Dashboard() {
     const matchesFilter = (() => {
       if (filter === "all") return v.status !== "failed" && v.resolution !== "1080x1920";
       if (filter === "mp4") return !!v.file_path && v.resolution !== "1080x1920" && v.status !== "failed";
-      if (filter === "mp3") return !!v.narration_url && v.resolution !== "1080x1920" && v.status !== "failed";
+      if (filter === "mp3") return v.resolution === "podcast" && v.status !== "failed";
       if (filter === "shorts") return v.resolution === "1080x1920";
       if (filter === "exclusive") return !!v.is_exclusive && !v.archived;
       return v.status === filter;
@@ -4058,7 +4058,7 @@ export default function Dashboard() {
                   >
                     ♪ MP3
                     <span style={{ marginLeft: 5, opacity: 0.5 }}>
-                      {videos.filter((v) => !!v.narration_url && v.resolution !== "1080x1920").length}
+                      {videos.filter((v) => v.resolution === "podcast").length}
                     </span>
                   </button>
                   <button
@@ -6171,7 +6171,7 @@ export default function Dashboard() {
               style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
             >
               <option value="">— Pick a video —</option>
-              {videos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path && !(v.labels || []).includes("used_for_short")).map(v => (
+              {videos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path && v.resolution !== "1080x1920" && !(v.labels || []).includes("used_for_short")).map(v => (
                 <option key={v.id} value={v.id}>{v.title || v.id.slice(0,16)}</option>
               ))}
               {videos.filter(v => (v.labels || []).includes("used_for_short") && v.file_path).length > 0 && (
@@ -8934,6 +8934,64 @@ export default function Dashboard() {
                               {p}
                             </button>
                           ))}
+                        </div>
+                      </div>
+
+                      {/* Background / Visual Mood */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>BACKGROUND</div>
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                          {["aurora_dark","aurora","aurora_blue","starfield","cosmic_dust","ember_glow","neon_purple","gradient_wave","colour_wash"].map(m => (
+                            <button key={m}
+                              onClick={() => setAutoGenSettings(s => ({ ...s, visual_mood: m }))}
+                              style={{
+                                padding: "5px 10px", borderRadius: 6,
+                                border: `1px solid ${(autoGenSettings.visual_mood || "aurora_dark") === m ? T.accent + "80" : T.border}`,
+                                background: (autoGenSettings.visual_mood || "aurora_dark") === m ? `${T.accent}15` : "transparent",
+                                color: (autoGenSettings.visual_mood || "aurora_dark") === m ? T.accent : T.textFaint,
+                                fontSize: 9, fontFamily: "inherit", cursor: "pointer",
+                              }}
+                            >{m.replace(/_/g, " ")}</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Background Music */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>BACKGROUND MUSIC</div>
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+                          {[
+                            { id: "Birds_Atmosphere_Piano", label: "🌙 Birds & Piano" },
+                            { id: "Birds_Atmosphere_Wing",  label: "🍃 Birds & Wing" },
+                            { id: "Laidback_Fevorite",      label: "🎹 Laidback Fav" },
+                            { id: "Pads_EPiano",            label: "🎧 Pads & EPiano" },
+                            { id: "Pads",                   label: "🎵 Pads" },
+                            { id: "swingPiano",             label: "🎷 Swing Piano" },
+                            { id: "suspenseful_bell",       label: "🔔 Suspenseful Bell" },
+                            { id: "suspenseful_piano",      label: "🎹 Suspenseful Piano" },
+                            { id: "suspenseful_slow",       label: "😰 Suspenseful Slow" },
+                            { id: "none",                   label: "🔇 None" },
+                          ].map(m => (
+                            <button key={m.id}
+                              onClick={() => setAutoGenSettings(s => ({ ...s, music_style: m.id }))}
+                              style={{
+                                padding: "5px 10px", borderRadius: 6, cursor: "pointer",
+                                border: `1px solid ${(autoGenSettings.music_style || "Birds_Atmosphere_Piano") === m.id ? T.accentGreen + "80" : T.border}`,
+                                background: (autoGenSettings.music_style || "Birds_Atmosphere_Piano") === m.id ? `${T.accentGreen}10` : "transparent",
+                                color: (autoGenSettings.music_style || "Birds_Atmosphere_Piano") === m.id ? T.accentGreen : T.textFaint,
+                                fontSize: 9, fontFamily: "inherit",
+                              }}
+                            >{m.label}</button>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>VOL</div>
+                          <input type="range" min={0} max={0.5} step={0.01}
+                            value={autoGenSettings.music_volume ?? 0.06}
+                            onChange={e => setAutoGenSettings(s => ({ ...s, music_volume: parseFloat(e.target.value) }))}
+                            style={{ flex: 1, accentColor: T.accentGreen, cursor: "pointer" }}
+                          />
+                          <div style={{ fontSize: 9, color: T.textFaint, width: 28, textAlign: "right" }}>{Math.round((autoGenSettings.music_volume ?? 0.06) * 100)}%</div>
                         </div>
                       </div>
 

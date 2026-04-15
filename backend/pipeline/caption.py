@@ -158,7 +158,7 @@ CAPTION_STYLE = {
 
 SHORT_CAPTION_STYLE = {
     "FontName": "Arial",
-    "FontSize": 14,               # Compact — same feel as landscape captions
+    "FontSize": 10,               # Compact — small and unobtrusive for portrait
     "PrimaryColour": "&H00FFFFFF",
     "OutlineColour": "&H00000000",
     "BackColour": "&H00000000",

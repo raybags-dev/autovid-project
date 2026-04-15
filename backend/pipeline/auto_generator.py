@@ -125,31 +125,42 @@ _scheduler_lock    = threading.Lock()
 def get_settings() -> dict:
     """Load scheduler settings from DB."""
     try:
-        enabled  = db.get_setting("auto_generate_enabled", default="false") == "true"
-        days_raw = db.get_setting("auto_generate_days",    default=json.dumps(DEFAULT_DAYS))
-        profile  = db.get_setting("auto_generate_profile", default=DEFAULT_PROFILE)
-        prompts_raw = db.get_setting("auto_generate_prompts", default=json.dumps(DEFAULT_PROMPTS))
-        hour     = int(db.get_setting("auto_generate_hour", default=str(DEFAULT_HOUR)))
+        enabled      = db.get_setting("auto_generate_enabled",      default="false") == "true"
+        days_raw     = db.get_setting("auto_generate_days",         default=json.dumps(DEFAULT_DAYS))
+        profile      = db.get_setting("auto_generate_profile",      default=DEFAULT_PROFILE)
+        prompts_raw  = db.get_setting("auto_generate_prompts",      default=json.dumps(DEFAULT_PROMPTS))
+        hour         = int(db.get_setting("auto_generate_hour",     default=str(DEFAULT_HOUR)))
+        visual_mood  = db.get_setting("auto_generate_visual_mood",  default="aurora_dark")
+        music_style  = db.get_setting("auto_generate_music_style",  default="Birds_Atmosphere_Piano")
+        music_volume = float(db.get_setting("auto_generate_music_volume", default="0.06"))
         return {
-            "enabled":  enabled,
-            "days":     json.loads(days_raw),    # list of ints 0-6
-            "profile":  profile,
-            "prompts":  json.loads(prompts_raw),
-            "hour":     hour,
+            "enabled":      enabled,
+            "days":         json.loads(days_raw),    # list of ints 0-6
+            "profile":      profile,
+            "prompts":      json.loads(prompts_raw),
+            "hour":         hour,
+            "visual_mood":  visual_mood,
+            "music_style":  music_style,
+            "music_volume": music_volume,
         }
     except Exception as e:
         print(f"⚠️  Auto-generator: failed to load settings: {e}")
         return {"enabled": False, "days": DEFAULT_DAYS, "profile": DEFAULT_PROFILE,
-                "prompts": DEFAULT_PROMPTS, "hour": DEFAULT_HOUR}
+                "prompts": DEFAULT_PROMPTS, "hour": DEFAULT_HOUR,
+                "visual_mood": "aurora_dark", "music_style": "Birds_Atmosphere_Piano",
+                "music_volume": 0.06}
 
 
 def save_settings(settings: dict):
     """Persist scheduler settings to DB."""
-    db.set_setting("auto_generate_enabled",  str(settings.get("enabled", False)).lower())
-    db.set_setting("auto_generate_days",     json.dumps(settings.get("days", DEFAULT_DAYS)))
-    db.set_setting("auto_generate_profile",  settings.get("profile", DEFAULT_PROFILE))
-    db.set_setting("auto_generate_prompts",  json.dumps(settings.get("prompts", DEFAULT_PROMPTS)))
-    db.set_setting("auto_generate_hour",     str(settings.get("hour", DEFAULT_HOUR)))
+    db.set_setting("auto_generate_enabled",      str(settings.get("enabled", False)).lower())
+    db.set_setting("auto_generate_days",         json.dumps(settings.get("days", DEFAULT_DAYS)))
+    db.set_setting("auto_generate_profile",      settings.get("profile", DEFAULT_PROFILE))
+    db.set_setting("auto_generate_prompts",      json.dumps(settings.get("prompts", DEFAULT_PROMPTS)))
+    db.set_setting("auto_generate_hour",         str(settings.get("hour", DEFAULT_HOUR)))
+    db.set_setting("auto_generate_visual_mood",  settings.get("visual_mood", "aurora_dark"))
+    db.set_setting("auto_generate_music_style",  settings.get("music_style", "Birds_Atmosphere_Piano"))
+    db.set_setting("auto_generate_music_volume", str(settings.get("music_volume", 0.06)))
 
 
 def _jaccard_similarity(a: str, b: str) -> float:
@@ -467,17 +478,23 @@ DEFAULT_SHORT_AMBIENCE = "aurora"
 def get_auto_short_settings() -> dict:
     """Load auto-short scheduler settings from DB."""
     try:
-        enabled     = db.get_setting("auto_short_enabled",     default="false") == "true"
-        days_raw    = db.get_setting("auto_short_days",        default=json.dumps([1, 3, 5, 6]))
-        topics_raw  = db.get_setting("auto_short_topics",      default=json.dumps(DEFAULT_SHORT_TOPICS))
-        hour        = int(db.get_setting("auto_short_hour",    default="5"))
-        ambience    = db.get_setting("auto_short_ambience",    default=DEFAULT_SHORT_AMBIENCE)
+        enabled      = db.get_setting("auto_short_enabled",      default="false") == "true"
+        days_raw     = db.get_setting("auto_short_days",         default=json.dumps([1, 3, 5, 6]))
+        topics_raw   = db.get_setting("auto_short_topics",       default=json.dumps(DEFAULT_SHORT_TOPICS))
+        hour         = int(db.get_setting("auto_short_hour",     default="5"))
+        ambience     = db.get_setting("auto_short_ambience",     default=DEFAULT_SHORT_AMBIENCE)
+        music_style  = db.get_setting("auto_short_music_style",  default="Laidback_Fevorite")
+        music_volume = float(db.get_setting("auto_short_music_volume", default="0.04"))
+        music_delay  = float(db.get_setting("auto_short_music_delay",  default="0.0"))
         return {
-            "enabled":  enabled,
-            "days":     json.loads(days_raw),
-            "topics":   json.loads(topics_raw),
-            "hour":     hour,
-            "ambience": ambience,
+            "enabled":      enabled,
+            "days":         json.loads(days_raw),
+            "topics":       json.loads(topics_raw),
+            "hour":         hour,
+            "ambience":     ambience,
+            "music_style":  music_style,
+            "music_volume": music_volume,
+            "music_delay":  music_delay,
         }
     except Exception as e:
         print(f"⚠️  Auto-short: failed to load settings: {e}")
@@ -485,16 +502,20 @@ def get_auto_short_settings() -> dict:
             "enabled": False, "days": [1, 3, 5, 6],
             "topics": DEFAULT_SHORT_TOPICS, "hour": 5,
             "ambience": DEFAULT_SHORT_AMBIENCE,
+            "music_style": "Laidback_Fevorite", "music_volume": 0.04, "music_delay": 0.0,
         }
 
 
 def save_auto_short_settings(settings: dict):
     """Persist auto-short settings to DB."""
-    db.set_setting("auto_short_enabled",  str(settings.get("enabled", False)).lower())
-    db.set_setting("auto_short_days",     json.dumps(settings.get("days", [1, 3, 5, 6])))
-    db.set_setting("auto_short_topics",   json.dumps(settings.get("topics", DEFAULT_SHORT_TOPICS)))
-    db.set_setting("auto_short_hour",     str(settings.get("hour", 5)))
-    db.set_setting("auto_short_ambience", settings.get("ambience", DEFAULT_SHORT_AMBIENCE))
+    db.set_setting("auto_short_enabled",      str(settings.get("enabled", False)).lower())
+    db.set_setting("auto_short_days",         json.dumps(settings.get("days", [1, 3, 5, 6])))
+    db.set_setting("auto_short_topics",       json.dumps(settings.get("topics", DEFAULT_SHORT_TOPICS)))
+    db.set_setting("auto_short_hour",         str(settings.get("hour", 5)))
+    db.set_setting("auto_short_ambience",     settings.get("ambience", DEFAULT_SHORT_AMBIENCE))
+    db.set_setting("auto_short_music_style",  settings.get("music_style", "Laidback_Fevorite"))
+    db.set_setting("auto_short_music_volume", str(settings.get("music_volume", 0.04)))
+    db.set_setting("auto_short_music_delay",  str(settings.get("music_delay", 0.0)))
 
 
 def _pick_next_short_topic(topics: list) -> tuple:
