@@ -1218,6 +1218,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
 
   const [pageReady, setPageReady] = useState(false); // true after first data load
   const [videos, setVideos] = useState([]);
@@ -2723,7 +2724,7 @@ export default function Dashboard() {
         .stat-card{background:${T.bgCard};border:1px solid ${T.border};border-radius:14px;padding:20px;transition:border-color 0.2s,box-shadow 0.2s;}
         .stat-card:hover{border-color:${T.borderHover};box-shadow:0 4px 20px rgba(0,120,200,0.08);}
         .video-row{background:${T.bgCard};border:1px solid ${T.border};border-radius:12px;padding:16px 20px;cursor:pointer;transition:all 0.15s;margin-bottom:8px;}
-        .video-row:hover{background:${T.bgCardHover};border-color:${T.borderHover};transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,100,180,0.08);}
+        .video-row:hover{background:${T.bgCardHover};border-color:${T.borderHover};box-shadow:0 4px 16px rgba(0,100,180,0.08);}
         .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:100px;font-size:10px;letter-spacing:0.06em;font-weight:500;white-space:nowrap;}
         .tag{display:inline-block;padding:2px 8px;border-radius:100px;font-size:9px;background:${T.inputBg};color:${T.textDim};border:1px solid ${T.border};margin:1px;letter-spacing:0.04em;flex-shrink:0;white-space:nowrap;}
         .tags-row{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:2px;scrollbar-width:none;}
@@ -5136,7 +5137,13 @@ export default function Dashboard() {
                               className="btn-sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setOpenDropdown(openDropdown === v.id ? null : v.id);
+                                if (openDropdown === v.id) {
+                                  setOpenDropdown(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setDropdownPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                                  setOpenDropdown(v.id);
+                                }
                               }}
                               style={{ color: T.textMid, borderColor: T.border, background: T.bgCard }}
                             >
@@ -5145,10 +5152,10 @@ export default function Dashboard() {
                             {openDropdown === v.id && (
                               <div
                                 style={{
-                                  position: "absolute",
-                                  top: "calc(100% + 4px)",
-                                  right: 0,
-                                  zIndex: 9999,
+                                  position: "fixed",
+                                  top: dropdownPos.top,
+                                  right: dropdownPos.right,
+                                  zIndex: 99999,
                                   background: T.bgCard,
                                   border: `1px solid ${T.border}`,
                                   borderRadius: 8,
@@ -8941,17 +8948,33 @@ export default function Dashboard() {
                       <div style={{ marginBottom: 12 }}>
                         <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>BACKGROUND</div>
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                          {["aurora_dark","aurora","aurora_blue","starfield","cosmic_dust","ember_glow","neon_purple","gradient_wave","colour_wash"].map(m => (
-                            <button key={m}
-                              onClick={() => setAutoGenSettings(s => ({ ...s, visual_mood: m }))}
+                          {[
+                            { v: "aurora_dark",     label: "🌌 Aurora Dark" },
+                            { v: "aurora",          label: "🌠 Aurora" },
+                            { v: "aurora_blue",     label: "💙 Aurora Blue" },
+                            { v: "starfield",       label: "⭐ Starfield" },
+                            { v: "cosmic_dust",     label: "🌫 Cosmic Dust" },
+                            { v: "ember_glow",      label: "🔥 Ember Glow" },
+                            { v: "neon_purple",     label: "💜 Neon Purple" },
+                            { v: "gradient_wave",   label: "🌊 Gradient Wave" },
+                            { v: "colour_wash",     label: "🎨 Colour Wash" },
+                            { v: "particle_field",  label: "✨ Particle Field" },
+                            { v: "geometric_pulse", label: "🔷 Geometric" },
+                            { v: "rain",            label: "🌧 Rain" },
+                            { v: "flythrough_stars",label: "🚀 Fly Through" },
+                            { v: "nebular",         label: "🌑 Nebular" },
+                            { v: "galaxy_spinning", label: "💫 Galaxy Spin" },
+                          ].map(m => (
+                            <button key={m.v}
+                              onClick={() => setAutoGenSettings(s => ({ ...s, visual_mood: m.v }))}
                               style={{
                                 padding: "5px 10px", borderRadius: 6,
-                                border: `1px solid ${(autoGenSettings.visual_mood || "aurora_dark") === m ? T.accent + "80" : T.border}`,
-                                background: (autoGenSettings.visual_mood || "aurora_dark") === m ? `${T.accent}15` : "transparent",
-                                color: (autoGenSettings.visual_mood || "aurora_dark") === m ? T.accent : T.textFaint,
+                                border: `1px solid ${(autoGenSettings.visual_mood || "aurora_dark") === m.v ? T.accent + "80" : T.border}`,
+                                background: (autoGenSettings.visual_mood || "aurora_dark") === m.v ? `${T.accent}15` : "transparent",
+                                color: (autoGenSettings.visual_mood || "aurora_dark") === m.v ? T.accent : T.textFaint,
                                 fontSize: 9, fontFamily: "inherit", cursor: "pointer",
                               }}
-                            >{m.replace(/_/g, " ")}</button>
+                            >{m.label}</button>
                           ))}
                         </div>
                       </div>
@@ -9567,17 +9590,27 @@ export default function Dashboard() {
                       <div style={{ marginBottom: 12 }}>
                         <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, letterSpacing: "0.08em" }}>AMBIENCE</div>
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                          {["stars","aurora","ocean","fire","rain","galaxy"].map(a => (
-                            <button key={a}
-                              onClick={() => setAutoShortSettings(s => ({ ...s, ambience: a }))}
+                          {[
+                            { v: "stars",           label: "⭐ Stars" },
+                            { v: "aurora",          label: "🌌 Aurora" },
+                            { v: "ocean",           label: "🌊 Ocean" },
+                            { v: "fire",            label: "🔥 Fire" },
+                            { v: "rain",            label: "🌧 Rain" },
+                            { v: "galaxy",          label: "🌀 Galaxy" },
+                            { v: "flythrough_stars",label: "🚀 Fly Through" },
+                            { v: "nebular",         label: "🌑 Nebular" },
+                            { v: "galaxy_spinning", label: "💫 Galaxy Spin" },
+                          ].map(a => (
+                            <button key={a.v}
+                              onClick={() => setAutoShortSettings(s => ({ ...s, ambience: a.v }))}
                               style={{
                                 padding: "5px 10px", borderRadius: 6,
-                                border: `1px solid ${autoShortSettings.ambience === a ? T.accent + "80" : T.border}`,
-                                background: autoShortSettings.ambience === a ? `${T.accent}15` : "transparent",
-                                color: autoShortSettings.ambience === a ? T.accent : T.textFaint,
-                                fontSize: 10, fontFamily: "inherit", cursor: "pointer", textTransform: "capitalize",
+                                border: `1px solid ${autoShortSettings.ambience === a.v ? T.accent + "80" : T.border}`,
+                                background: autoShortSettings.ambience === a.v ? `${T.accent}15` : "transparent",
+                                color: autoShortSettings.ambience === a.v ? T.accent : T.textFaint,
+                                fontSize: 10, fontFamily: "inherit", cursor: "pointer",
                               }}
-                            >{a}</button>
+                            >{a.label}</button>
                           ))}
                         </div>
                       </div>
