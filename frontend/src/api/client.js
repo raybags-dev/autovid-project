@@ -621,6 +621,24 @@ export const dangerClearStorage = async (dangerToken) => {
   });
   return data;
 };
+export const dangerClearPodcasts = async (dangerToken) => {
+  const { data } = await api.delete("/admin/danger/clear-podcasts", {
+    headers: { Authorization: `Bearer ${dangerToken}` },
+  });
+  return data;
+};
+export const dangerClearStickfigures = async (dangerToken) => {
+  const { data } = await api.delete("/admin/danger/clear-stickfigures", {
+    headers: { Authorization: `Bearer ${dangerToken}` },
+  });
+  return data;
+};
+export const dangerClearBlogs = async (dangerToken) => {
+  const { data } = await api.delete("/admin/danger/clear-blogs", {
+    headers: { Authorization: `Bearer ${dangerToken}` },
+  });
+  return data;
+};
 
 // ── Blog (public) ─────────────────────────────────────────────────────────────
 export const listBlogPosts = async (params = {}) => { const { data } = await api.get("/blog/posts", { params }); return data; };

@@ -12846,14 +12846,22 @@ function BlogManager({ T, showToast }) {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
+  // Delete-all state — uses DangerZone password for protection
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleteAllKey, setDeleteAllKey] = useState("");
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
+  const [deleteAllStep, setDeleteAllStep] = useState("key"); // "key" | "confirm"
+  const [deleteAllRunning, setDeleteAllRunning] = useState(false);
+  const [deleteAllError, setDeleteAllError] = useState("");
+
   const EMPTY = { title: "", excerpt: "", body: "", cover_image_url: "", tags: "", status: "draft", youtube_url: "" };
   const [form, setForm] = useState(EMPTY);
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await adminListBlogPosts();
-      setPosts(data);
+      const data = await adminListBlogPosts(200);
+      setPosts(Array.isArray(data) ? data : []);
     } catch { showToast("Failed to load blog posts", "error"); }
     finally { setLoading(false); }
   };
@@ -12894,31 +12902,88 @@ function BlogManager({ T, showToast }) {
     } catch { showToast("Delete failed", "error"); }
   };
 
+  const openDeleteAll = () => {
+    setDeleteAllKey(""); setDeleteAllConfirmText(""); setDeleteAllStep("key");
+    setDeleteAllError(""); setDeleteAllOpen(true);
+  };
+
+  const handleDeleteAllAuth = async () => {
+    if (!deleteAllKey.trim()) return;
+    try {
+      await api.post("/admin/danger/verify", { key: deleteAllKey.trim() });
+      setDeleteAllStep("confirm");
+      setDeleteAllError("");
+    } catch (e) {
+      setDeleteAllError(e?.response?.data?.detail || "Invalid key");
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (deleteAllConfirmText !== "DELETE ALL" || deleteAllRunning) return;
+    setDeleteAllRunning(true);
+    try {
+      const token = (await api.post("/admin/danger/verify", { key: deleteAllKey.trim() })).data.danger_token;
+      await api.delete("/admin/danger/clear-blogs", { headers: { Authorization: `Bearer ${token}` } });
+      showToast("All blog posts deleted");
+      setDeleteAllOpen(false); load();
+    } catch (e) {
+      setDeleteAllError(e?.response?.data?.detail || "Delete failed");
+    } finally { setDeleteAllRunning(false); }
+  };
+
   const fld = (key) => ({
     value: form[key],
     onChange: (e) => setForm(f => ({ ...f, [key]: e.target.value })),
   });
 
   const inputStyle = {
-    width: "100%", boxSizing: "border-box", background: T.bgCard, border: `1px solid ${T.border}`,
-    borderRadius: 6, color: T.text, padding: "8px 12px", fontSize: 12, fontFamily: "monospace",
+    width: "100%", boxSizing: "border-box", background: "#111", border: `1px solid ${T.border}`,
+    borderRadius: 6, color: "#fff", padding: "8px 12px", fontSize: 12, fontFamily: "monospace",
     outline: "none",
   };
+
+  // Shared dark-button style for all blog manager buttons
+  const darkBtn = (extraStyle = {}) => ({
+    background: "#1a1a1a",
+    border: "1px solid rgba(255,255,255,0.15)",
+    borderRadius: 6,
+    color: "#fff",
+    fontSize: 10,
+    letterSpacing: "0.06em",
+    padding: "5px 12px",
+    cursor: "pointer",
+    fontFamily: "monospace",
+    fontWeight: 600,
+    transition: "all 0.15s",
+    ...extraStyle,
+  });
 
   return (
     <div style={{ padding: "24px 0" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: T.text, letterSpacing: "0.05em" }}>BLOG MANAGER</div>
-          <div style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>{posts.length} post(s) · <a href="/blog" target="_blank" rel="noopener noreferrer" style={{ color: T.accent, textDecoration: "none" }}>View Blog ↗</a></div>
+          <div style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>
+            {posts.length} post(s) · <a href="/blog" target="_blank" rel="noopener noreferrer" style={{ color: T.accent, textDecoration: "none" }}>View Blog ↗</a>
+          </div>
         </div>
-        <button
-          onClick={openNew}
-          style={{ background: T.accent, border: "none", borderRadius: 7, color: "#000", fontSize: 11, fontWeight: 700, padding: "8px 18px", cursor: "pointer", fontFamily: "monospace", letterSpacing: "0.06em" }}
-        >
-          + NEW POST
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={openNew}
+            style={{ ...darkBtn({ background: "#1a2a3a", borderColor: "rgba(96,165,250,0.4)", color: "#60a5fa", fontSize: 11, padding: "8px 18px" }) }}
+          >
+            + NEW POST
+          </button>
+          {posts.length > 0 && (
+            <button
+              onClick={openDeleteAll}
+              style={{ ...darkBtn({ background: "rgba(180,0,20,0.18)", borderColor: "rgba(200,0,30,0.4)", color: "#ff5555", fontSize: 11, padding: "8px 14px" }) }}
+            >
+              ☠ DELETE ALL
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Post list */}
@@ -12930,7 +12995,7 @@ function BlogManager({ T, showToast }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {posts.map(p => (
             <div key={p.id} style={{
-              background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8,
+              background: "#111", border: `1px solid ${T.border}`, borderRadius: 8,
               padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
             }}>
               {/* Status badge */}
@@ -12944,7 +13009,7 @@ function BlogManager({ T, showToast }) {
               </span>
               {/* Title */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {p.title}
                 </div>
                 <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>
@@ -12953,41 +13018,111 @@ function BlogManager({ T, showToast }) {
               </div>
               {/* Actions */}
               <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
-                <button onClick={() => toggleStatus(p)} className="btn-sm"
-                  style={{ color: p.status === "published" ? "#f59e0b" : T.accentGreen, borderColor: p.status === "published" ? "rgba(245,158,11,0.3)" : "rgba(61,214,140,0.3)" }}>
+                <button
+                  onClick={() => toggleStatus(p)}
+                  style={darkBtn({ background: p.status === "published" ? "rgba(245,158,11,0.15)" : "rgba(61,214,140,0.12)", borderColor: p.status === "published" ? "rgba(245,158,11,0.4)" : "rgba(61,214,140,0.4)", color: p.status === "published" ? "#f59e0b" : "#3dd68c" })}
+                >
                   {p.status === "published" ? "⬇ UNPUBLISH" : "▲ PUBLISH"}
                 </button>
-                <a href={`/blog/${p.slug}`} target="_blank" rel="noopener noreferrer" className="btn-sm"
-                  style={{ color: T.accent, borderColor: `${T.accent}30`, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                <a
+                  href={`/blog/${p.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ ...darkBtn({ borderColor: "rgba(96,165,250,0.3)", color: "#60a5fa", textDecoration: "none", display: "inline-flex", alignItems: "center" }) }}
+                >
                   ↗ VIEW
                 </a>
-                <button onClick={() => openEdit(p)} className="btn-sm" style={{ color: T.textMid }}>✎ EDIT</button>
-                <button onClick={() => setDelConfirm(p.id)} className="btn-sm" style={{ color: "#ef4444", borderColor: "rgba(239,68,68,0.3)" }}>✕ DELETE</button>
+                <button onClick={() => openEdit(p)} style={darkBtn()}>✎ EDIT</button>
+                <button
+                  onClick={() => setDelConfirm(p.id)}
+                  style={darkBtn({ background: "rgba(239,68,68,0.12)", borderColor: "rgba(239,68,68,0.35)", color: "#ef4444" })}
+                >
+                  ✕ DELETE
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Delete confirm */}
+      {/* Single post delete confirm */}
       {delConfirm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, maxWidth: 380, width: "90%" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10 }}>Delete Post?</div>
-            <div style={{ fontSize: 12, color: T.textMid, marginBottom: 20 }}>This cannot be undone.</div>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#111", border: `1px solid rgba(239,68,68,0.3)`, borderRadius: 12, padding: 28, maxWidth: 380, width: "90%" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 10 }}>Delete Post?</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginBottom: 20 }}>This cannot be undone.</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => remove(delConfirm)} style={{ flex: 1, background: "#ef4444", border: "none", borderRadius: 7, color: "#fff", padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>DELETE</button>
-              <button onClick={() => setDelConfirm(null)} style={{ flex: 1, background: "none", border: `1px solid ${T.border}`, borderRadius: 7, color: T.textMid, padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>CANCEL</button>
+              <button onClick={() => setDelConfirm(null)} style={{ flex: 1, background: "#1a1a1a", border: `1px solid rgba(255,255,255,0.15)`, borderRadius: 7, color: "#fff", padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>CANCEL</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All modal with password */}
+      {deleteAllOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "linear-gradient(180deg,#0a0003 0%,#0e0008 100%)", border: "1px solid rgba(200,0,30,0.4)", borderRadius: 14, padding: 30, maxWidth: 420, width: "100%" }}>
+            <div style={{ textAlign: "center", marginBottom: 22 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>☠</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "#ff2020", letterSpacing: "0.12em" }}>DELETE ALL BLOGS</div>
+              <div style={{ fontSize: 10, color: "rgba(255,80,80,0.5)", marginTop: 4, letterSpacing: "0.12em" }}>IRREVERSIBLE — REQUIRES DANGER ZONE KEY</div>
+            </div>
+
+            {deleteAllStep === "key" ? (
+              <>
+                <div style={{ fontSize: 10, color: "rgba(255,100,100,0.6)", marginBottom: 6, letterSpacing: "0.1em" }}>ENTER DANGER ZONE KEY</div>
+                <input
+                  type="password"
+                  value={deleteAllKey}
+                  onChange={e => setDeleteAllKey(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleDeleteAllAuth()}
+                  placeholder="Danger zone key..."
+                  autoFocus
+                  style={{ width: "100%", boxSizing: "border-box", background: "rgba(180,0,20,0.08)", border: "1px solid rgba(200,0,30,0.3)", borderRadius: 7, padding: "10px 13px", color: "#ff8080", fontFamily: "monospace", fontSize: 13, outline: "none", marginBottom: 12 }}
+                />
+                {deleteAllError && <div style={{ fontSize: 11, color: "#ff4040", marginBottom: 10 }}>✕ {deleteAllError}</div>}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setDeleteAllOpen(false)} style={{ flex: 1, ...darkBtn({ padding: "9px 0" }) }}>CANCEL</button>
+                  <button onClick={handleDeleteAllAuth} disabled={!deleteAllKey.trim()} style={{ flex: 2, background: "rgba(180,0,20,0.2)", border: "1px solid rgba(200,0,30,0.45)", borderRadius: 6, color: "#ff4040", padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 11 }}>VERIFY KEY →</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ background: "rgba(200,0,30,0.08)", border: "1px solid rgba(200,0,30,0.2)", borderRadius: 8, padding: "12px 14px", marginBottom: 16, fontSize: 11, color: "rgba(255,140,140,0.85)", lineHeight: 1.7 }}>
+                  This will permanently delete <strong style={{ color: "#ff3030" }}>all {posts.length} blog post(s)</strong> from the database. Comments and slugs will also be removed. There is no recovery.
+                </div>
+                <div style={{ fontSize: 10, color: "rgba(255,80,80,0.5)", marginBottom: 6, letterSpacing: "0.12em" }}>TYPE "DELETE ALL" TO CONFIRM</div>
+                <input
+                  type="text"
+                  value={deleteAllConfirmText}
+                  onChange={e => setDeleteAllConfirmText(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleDeleteAll()}
+                  placeholder='Type DELETE ALL'
+                  autoFocus
+                  style={{ width: "100%", boxSizing: "border-box", background: "rgba(180,0,20,0.08)", border: `1px solid ${deleteAllConfirmText === "DELETE ALL" ? "rgba(200,0,30,0.7)" : "rgba(200,0,30,0.25)"}`, borderRadius: 7, padding: "10px 13px", color: deleteAllConfirmText === "DELETE ALL" ? "#ff3030" : "#ff8080", fontFamily: "monospace", fontSize: 13, letterSpacing: "0.14em", outline: "none", marginBottom: 12 }}
+                />
+                {deleteAllError && <div style={{ fontSize: 11, color: "#ff4040", marginBottom: 10 }}>✕ {deleteAllError}</div>}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setDeleteAllOpen(false)} style={{ flex: 1, ...darkBtn({ padding: "9px 0" }) }}>CANCEL</button>
+                  <button
+                    onClick={handleDeleteAll}
+                    disabled={deleteAllConfirmText !== "DELETE ALL" || deleteAllRunning}
+                    style={{ flex: 2, background: deleteAllConfirmText === "DELETE ALL" ? "rgba(200,0,30,0.28)" : "rgba(180,0,20,0.08)", border: "1px solid rgba(200,0,30,0.45)", borderRadius: 6, color: "#ff2828", padding: "9px 0", cursor: deleteAllConfirmText === "DELETE ALL" ? "pointer" : "not-allowed", fontFamily: "monospace", fontWeight: 900, fontSize: 11, opacity: (deleteAllConfirmText !== "DELETE ALL" || deleteAllRunning) ? 0.45 : 1 }}>
+                    {deleteAllRunning ? "DELETING..." : "EXECUTE DELETE ALL"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
 
       {/* Create/Edit form modal */}
       {formOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div style={{ background: "#0d1117", border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 20 }}>{editing ? "EDIT POST" : "NEW POST"}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 20 }}>{editing ? "EDIT POST" : "NEW POST"}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>TITLE *</div>
@@ -13018,9 +13153,9 @@ function BlogManager({ T, showToast }) {
                 <button
                   onClick={() => setForm(f => ({ ...f, status: f.status === "published" ? "draft" : "published" }))}
                   style={{
-                    background: form.status === "published" ? "rgba(61,214,140,0.12)" : "rgba(255,255,255,0.06)",
-                    border: `1px solid ${form.status === "published" ? "rgba(61,214,140,0.35)" : T.border}`,
-                    color: form.status === "published" ? "#3dd68c" : T.textMid,
+                    background: form.status === "published" ? "rgba(61,214,140,0.15)" : "#1a1a1a",
+                    border: `1px solid ${form.status === "published" ? "rgba(61,214,140,0.4)" : "rgba(255,255,255,0.15)"}`,
+                    color: form.status === "published" ? "#3dd68c" : "#fff",
                     borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", fontWeight: 700,
                   }}
                 >
@@ -13029,11 +13164,11 @@ function BlogManager({ T, showToast }) {
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
                 <button onClick={save} disabled={saving}
-                  style={{ flex: 1, background: T.accent, border: "none", borderRadius: 7, color: "#000", padding: "10px 0", cursor: saving ? "default" : "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, opacity: saving ? 0.7 : 1 }}>
+                  style={{ flex: 1, background: saving ? "#1a1a1a" : "#1a2a3a", border: "1px solid rgba(96,165,250,0.4)", borderRadius: 7, color: "#fff", padding: "10px 0", cursor: saving ? "default" : "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, opacity: saving ? 0.7 : 1 }}>
                   {saving ? "SAVING..." : editing ? "SAVE CHANGES" : "CREATE POST"}
                 </button>
                 <button onClick={closeForm}
-                  style={{ flex: 1, background: "none", border: `1px solid ${T.border}`, borderRadius: 7, color: T.textMid, padding: "10px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>
+                  style={{ flex: 1, background: "#1a1a1a", border: `1px solid rgba(255,255,255,0.15)`, borderRadius: 7, color: "#fff", padding: "10px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>
                   CANCEL
                 </button>
               </div>

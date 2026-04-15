@@ -538,6 +538,29 @@ def danger_clear_storage_files(user: str = Depends(verify_danger_token)):
     }
 
 
+@app.delete("/admin/danger/clear-podcasts")
+def danger_clear_podcasts(user: str = Depends(verify_danger_token)):
+    """DANGER: Delete all podcast DB records and their narration MP3 files from storage."""
+    result = db.danger_clear_podcasts()
+    return {
+        "message": f"Deleted {result['db_records']} podcast record(s) and {result['storage_files']} MP3 file(s) from storage."
+    }
+
+
+@app.delete("/admin/danger/clear-stickfigures")
+def danger_clear_stickfigures(user: str = Depends(verify_danger_token)):
+    """DANGER: Delete all stickfigure clip records from the database."""
+    result = db.danger_clear_stickfigures()
+    return {"message": f"Deleted {result['deleted']} stickfigure clip(s) from the database."}
+
+
+@app.delete("/admin/danger/clear-blogs")
+def danger_clear_blogs(user: str = Depends(verify_danger_token)):
+    """DANGER: Delete every blog post from the database."""
+    count = db.delete_all_blog_posts()
+    return {"message": f"Deleted all {count} blog post(s) from the database."}
+
+
 @app.post("/videos/{video_id}/force-reset")
 def force_reset_video(video_id: str, user: str = Depends(verify_token)):
     """Force-reset a single stuck video: resolve state based on available data."""
@@ -4638,7 +4661,7 @@ def get_blog_post_public(slug: str):
     return post
 
 @app.get("/admin/blog/posts")
-def admin_list_blog_posts(status: str = None, limit: int = 50, _u: str = Depends(verify_token)):
+def admin_list_blog_posts(status: str = None, limit: int = 200, _u: str = Depends(verify_token)):
     """Admin: list all posts (drafts + published)."""
     return db.list_blog_posts(status=status, limit=limit)
 
