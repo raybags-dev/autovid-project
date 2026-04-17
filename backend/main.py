@@ -143,13 +143,14 @@ def podcast_feed():
     from datetime import datetime, timezone
 
     all_videos = db.list_videos(limit=500)
-    # Only episodes with an MP3 and a title; exclude future-scheduled ones and shorts
+    # Only episodes with an MP3 and a title; exclude future-scheduled ones, shorts, and feed-hidden
     now_iso = datetime.now(timezone.utc).isoformat()
     episodes = [
         v for v in all_videos
         if v.get("narration_url") and v.get("title")
-        and v.get("resolution") != "1080x1920"          # exclude shorts (vertical format)
-        and (v.get("scheduled_for") or "0") <= now_iso  # skip future-scheduled
+        and v.get("resolution") != "1080x1920"               # exclude portrait shorts
+        and "feed_hidden" not in (v.get("labels") or [])     # exclude manually hidden episodes
+        and (v.get("scheduled_for") or "0") <= now_iso       # skip future-scheduled
     ]
 
     base_url      = config.BASE_URL.rstrip("/")
@@ -252,6 +253,91 @@ def podcast_feed():
 </rss>"""
 
     return Response(content=rss, media_type="application/rss+xml")
+
+
+# ── Podcast Studio ────────────────────────────────────────────────────────────
+
+@app.get("/podcast/episodes")
+def list_podcast_episodes(user: str = Depends(verify_token)):
+    """Return all videos that have a narration_url (potential feed episodes), including hidden ones."""
+    try:
+        client = db.get_client()
+        result = (
+            client.table("videos")
+            .select("*")
+            .not_.is_("narration_url", "null")
+            .neq("resolution", "1080x1920")
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class PodcastEpisodePatch(BaseModel):
+    title:       Optional[str] = None
+    description: Optional[str] = None
+
+@app.patch("/podcast/episodes/{video_id}")
+def update_podcast_episode(video_id: str, req: PodcastEpisodePatch, user: str = Depends(verify_token)):
+    """Update title and/or description of a podcast episode."""
+    fields = {k: v for k, v in {"title": req.title, "description": req.description}.items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+    try:
+        result = db.update_video(video_id, **fields)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/podcast/episodes/{video_id}/visibility")
+def set_episode_feed_visibility(video_id: str, body: dict, user: str = Depends(verify_token)):
+    """
+    Toggle whether an episode appears in the RSS feed.
+    body: { "hidden": true|false }
+    """
+    hidden = bool(body.get("hidden", False))
+    try:
+        client = db.get_client()
+        row = client.table("videos").select("labels").eq("id", video_id).single().execute()
+        labels = list(row.data.get("labels") or [])
+        if hidden and "feed_hidden" not in labels:
+            labels.append("feed_hidden")
+        elif not hidden and "feed_hidden" in labels:
+            labels.remove("feed_hidden")
+        client.table("videos").update({"labels": labels}).eq("id", video_id).execute()
+        return {"ok": True, "hidden": hidden, "labels": labels}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/podcast/episodes/{video_id}")
+def delete_podcast_episode(video_id: str, user: str = Depends(verify_token)):
+    """
+    Delete a podcast episode — removes the narration MP3 from Supabase storage and the DB record.
+    """
+    try:
+        client = db.get_client()
+        row = client.table("videos").select("narration_url,file_path").eq("id", video_id).single().execute()
+        v = row.data or {}
+
+        # Remove narration MP3 from storage if it exists
+        narration_url = v.get("narration_url") or ""
+        if narration_url and "supabase" in narration_url:
+            try:
+                filename = narration_url.split("/narrations/")[-1].split("?")[0]
+                client.storage.from_("narrations").remove([filename])
+            except Exception:
+                pass
+
+        # Delete DB record
+        client.table("videos").delete().eq("id", video_id).execute()
+        return {"ok": True, "deleted": video_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Video models ──────────────────────────────────────────────────────────────
