@@ -1984,6 +1984,10 @@ export default function Dashboard() {
       });
     }).catch(() => {});
     getPodcastSettings().then(r => setPodcastSettings(r)).catch(() => {});
+    api.get("/settings/spotify-show-url").then(r => {
+      setSpotifyShowUrl(r.data.url || "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
+      setSpotifyShowUrlDraft(r.data.url || "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
+    }).catch(() => {});
     getBuzzsproutSettings().then(r => setBuzzsproutSettings(s => ({
       ...s,
       api_token:   r.api_token_set ? (s.api_token || "••••••••") : "",
@@ -2193,6 +2197,11 @@ export default function Dashboard() {
   const autoShortLogPollRef = useRef(null);
   const autoShortLogLineRef = useRef(0);
   const tabTimerRef = useRef(null);
+
+  // Spotify show URL (editable in Settings)
+  const [spotifyShowUrl, setSpotifyShowUrl] = useState("https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
+  const [spotifyShowUrlDraft, setSpotifyShowUrlDraft] = useState("");
+  const [spotifyUrlSaving, setSpotifyUrlSaving] = useState(false);
 
   // Podcast episode pipeline state
   const [podcastSettings, setPodcastSettings] = useState(null);
@@ -4328,18 +4337,6 @@ export default function Dashboard() {
                                 />
                                 {s.label}
                               </div>
-                              {v.podbean_episode_id && (
-                                <span style={{
-                                  fontSize: 8, letterSpacing: "0.07em",
-                                  color: "#f26522",
-                                  background: "rgba(242,101,34,0.1)",
-                                  border: "1px solid rgba(242,101,34,0.25)",
-                                  padding: "2px 7px",
-                                  borderRadius: 10,
-                                  flexShrink: 0,
-                                  lineHeight: 1.5,
-                                }}>🎙 PODBEAN</span>
-                              )}
                               {/* VIEW LOGS button — visible on all in-progress cards */}
                               {IN_PROGRESS.includes(v.status) && (
                                 <button
@@ -5041,42 +5038,9 @@ export default function Dashboard() {
                               ↓ DOWNLOAD
                             </button>
                           ) : null}
-                          {/* Upload to YouTube / Podbean — primary action, always visible */}
-                          {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && (
-                            isPodcast(v) ? (
-                              !v.podbean_episode_id && (
-                                <button
-                                  className="btn-sm"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (!podbeanStatus?.connected) {
-                                      showToast("Configure Podbean in Settings first", "error"); return;
-                                    }
-                                    setPodbeanUploading(p => ({ ...p, [v.id]: true }));
-                                    try {
-                                      await uploadToPodbean(v.id);
-                                      showToast("Uploading to Podbean — distributing to Spotify, Apple & more");
-                                      setTimeout(refresh, 5000);
-                                    } catch (err) {
-                                      showToast(err?.response?.data?.detail || "Podbean upload failed", "error");
-                                    } finally {
-                                      setPodbeanUploading(p => ({ ...p, [v.id]: false }));
-                                    }
-                                  }}
-                                  disabled={podbeanUploading[v.id]}
-                                  style={{
-                                    color: "#f26522",
-                                    borderColor: "rgba(242,101,34,0.3)",
-                                    background: "rgba(242,101,34,0.07)",
-                                    opacity: podbeanUploading[v.id] ? 0.6 : 1,
-                                    cursor: podbeanUploading[v.id] ? "default" : "pointer",
-                                  }}
-                                  title={podbeanStatus?.connected ? "Publish to Podbean → auto-distributes to Spotify, Apple, Amazon" : "Connect Podbean in Settings"}
-                                >
-                                  {podbeanUploading[v.id] ? "⟳ Publishing..." : "🎙 PODBEAN"}
-                                </button>
-                              )
-                            ) : (
+                          {/* Upload to YouTube — primary action, always visible */}
+                          {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && !isPodcast(v) && (
+                            (
                               <button
                                 className="btn-sm"
                                 onClick={(e) => {
@@ -5480,46 +5444,6 @@ export default function Dashboard() {
                                   >
                                     ↺ RESET
                                   </button>
-                                )}
-                                {/* Podbean link (if published) */}
-                                {v.podbean_episode_id && (
-                                  <a
-                                    href={v.podbean_url || "https://www.podbean.com"}
-                                    target="_blank" rel="noopener noreferrer"
-                                    onClick={e => { e.stopPropagation(); setOpenDropdown(null); }}
-                                    style={{
-                                      display: "block", width: "100%", textAlign: "left",
-                                      padding: "9px 14px", background: "none",
-                                      color: "#f26522", fontSize: 11, fontFamily: "monospace",
-                                      letterSpacing: "0.06em", cursor: "pointer",
-                                      borderBottom: `1px solid ${T.border}`,
-                                      textDecoration: "none",
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
-                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
-                                  >
-                                    ✓ PODBEAN ↗
-                                  </a>
-                                )}
-                                {/* Buzzsprout link (if published) */}
-                                {v.buzzsprout_episode_id && (
-                                  <a
-                                    href={v.buzzsprout_url || "https://www.buzzsprout.com"}
-                                    target="_blank" rel="noopener noreferrer"
-                                    onClick={e => { e.stopPropagation(); setOpenDropdown(null); }}
-                                    style={{
-                                      display: "block", width: "100%", textAlign: "left",
-                                      padding: "9px 14px", background: "none",
-                                      color: "#1db954", fontSize: 11, fontFamily: "monospace",
-                                      letterSpacing: "0.06em", cursor: "pointer",
-                                      borderBottom: `1px solid ${T.border}`,
-                                      textDecoration: "none",
-                                    }}
-                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
-                                    onMouseLeave={e => e.currentTarget.style.background = "none"}
-                                  >
-                                    ✓ BUZZSPROUT ↗
-                                  </a>
                                 )}
                               </div>
                             )}
@@ -8097,7 +8021,7 @@ export default function Dashboard() {
                               </div>
                             )}
                             <div style={{ textAlign: "right", marginTop: 12 }}>
-                              <a href="https://open.spotify.com" target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "#1db954", textDecoration: "none", letterSpacing: "0.06em" }}>OPEN SPOTIFY →</a>
+                              <a href={spotifyShowUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "#1db954", textDecoration: "none", letterSpacing: "0.06em" }}>OPEN SPOTIFY →</a>
                             </div>
                           </div>
                         );
@@ -10508,6 +10432,57 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {/* ── Spotify Show URL ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SPOTIFY — PODCAST SHOW</div>
+                  <div style={{ background: T.bgCard, border: "1px solid rgba(29,185,84,0.35)", borderRadius: 10, padding: "16px 18px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <span style={{ fontSize: 22 }}>🎧</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Spotify Show URL</div>
+                        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                          Link used on the website and podcast pages. Update here whenever your show URL changes.
+                        </div>
+                      </div>
+                      <a href={spotifyShowUrl} target="_blank" rel="noreferrer"
+                        style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: 20, background: "rgba(29,185,84,0.1)", border: "1px solid rgba(29,185,84,0.3)", color: "#1db954", fontSize: 10, textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "0.06em" }}>
+                        OPEN ↗
+                      </a>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={spotifyShowUrlDraft}
+                        onChange={e => setSpotifyShowUrlDraft(e.target.value)}
+                        placeholder="https://open.spotify.com/show/..."
+                        style={{ flex: 1, background: T.bgBase, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 11, padding: "8px 10px", fontFamily: "monospace", outline: "none" }}
+                      />
+                      <button
+                        disabled={spotifyUrlSaving || spotifyShowUrlDraft === spotifyShowUrl}
+                        onClick={async () => {
+                          setSpotifyUrlSaving(true);
+                          try {
+                            await api.post("/settings/spotify-show-url", { url: spotifyShowUrlDraft });
+                            setSpotifyShowUrl(spotifyShowUrlDraft);
+                            showToast("Spotify URL saved");
+                          } catch { showToast("Failed to save", "error"); }
+                          finally { setSpotifyUrlSaving(false); }
+                        }}
+                        style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid rgba(29,185,84,0.4)", background: "rgba(29,185,84,0.1)", color: "#1db954", fontSize: 11, cursor: spotifyUrlSaving || spotifyShowUrlDraft === spotifyShowUrl ? "default" : "pointer", opacity: spotifyUrlSaving || spotifyShowUrlDraft === spotifyShowUrl ? 0.5 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}
+                      >
+                        {spotifyUrlSaving ? "SAVING..." : "SAVE"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Other Platforms (Podbean / Buzzsprout) — hidden from website, kept for future use ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>OTHER PLATFORMS — DISABLED</div>
+                  <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px" }}>
+                    <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 10 }}>
+                      Podbean and Buzzsprout integrations are hidden from the website. Credentials are preserved here so you can re-enable them later.
+                    </div>
+
                 {/* ── Podbean ── */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>PODBEAN — PODCAST HOSTING</div>
@@ -10772,6 +10747,9 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                  </div>{/* end Other Platforms inner */}
+                </div>{/* end Other Platforms wrapper */}
+
                 {/* ── Stick Figure Library ── */}
                 <StickFigureSettings T={T} />
 
@@ -10923,29 +10901,7 @@ export default function Dashboard() {
 
                     const cycleLabel = { monthly: "/mo", yearly: "/yr", weekly: "/wk", daily: "/day" };
 
-                    // Integration-linked rows — show when configured (credentials set), regardless of live status
-                    const pbConfigured = podbeanSettings?.client_id?.length > 3;
-                    const bzConfigured = buzzsproutSettings?.api_token?.length > 3 || buzzsproutSettings?.api_token?.startsWith("•");
-                    const integrationRows = [
-                      pbConfigured && {
-                        id: "__podbean__", name: "Podbean",
-                        sub: podbeanStatus?.connected
-                          ? `${podbeanStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`
-                          : "Podcast hosting — pending connection",
-                        cost: 99.99, currency: "USD", cycle: "yearly", color: "#f26522", icon: "🎙",
-                        note: "$99.99/yr billed annually ≈ $8.33/mo",
-                        connected: podbeanStatus?.connected,
-                      },
-                      bzConfigured && {
-                        id: "__buzzsprout__", name: "Buzzsprout",
-                        sub: buzzsproutStatus?.connected
-                          ? `${buzzsproutStatus.episode_count ?? "?"} episodes · distributes to Spotify, Apple, Amazon`
-                          : "Podcast hosting — pending connection",
-                        cost: 12, currency: "USD", cycle: "monthly", color: "#1db954", icon: "🎚",
-                        note: "$12/mo hosting plan",
-                        connected: buzzsproutStatus?.connected,
-                      },
-                    ].filter(Boolean);
+                    const integrationRows = [];
                     const integrationMonthly = integrationRows.reduce((s, r) => s + toMonthly(r.cost, r.cycle), 0);
                     const grandTotal = totalMonthly + integrationMonthly;
 
