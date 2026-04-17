@@ -1880,6 +1880,17 @@ def save_bmc_settings(body: dict, _u: str = Depends(verify_token)):
     return {"ok": True}
 
 
+@app.get("/settings/spotify-show-url")
+def get_spotify_show_url(_u: str = Depends(verify_token)):
+    return {"url": db.get_setting("spotify_show_url", default="https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ")}
+
+@app.post("/settings/spotify-show-url")
+def save_spotify_show_url(body: dict, _u: str = Depends(verify_token)):
+    url = str(body.get("url", "")).strip()
+    db.set_setting("spotify_show_url", url)
+    return {"ok": True, "url": url}
+
+
 class ExclusiveVideoUrlRequest(BaseModel):
     url: str
 

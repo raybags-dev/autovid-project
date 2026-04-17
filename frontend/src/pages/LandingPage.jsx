@@ -12,9 +12,9 @@ import sea_shower from "../assets/static/sea_shower.mp4";
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4life_mystery",
   tiktok: "https://www.tiktok.com/@lifemystery183284",
-  spotify: "https://open.spotify.com/show/31b1tuqETLGjz0Oq6oqE8d",
+  spotify: "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ",
 };
-const SPOTIFY_SHOW_ID = "31b1tuqETLGjz0Oq6oqE8d";
+const SPOTIFY_SHOW_ID = "3d8WOqQD448znnyCASa7lQ";
 
 const SECTIONS = [
   { id: "hero", label: "HOME" },
