@@ -5021,7 +5021,12 @@ export default function Dashboard() {
                           {/* Download — always visible if URL exists */}
                           {vUrl ? (
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleDownload(vUrl, `${v.title || v.id}.mp4`); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const isAudioFile = isPodcast(v) || vUrl.toLowerCase().match(/\.(mp3|m4a|ogg|wav|aac)(\?|$)/);
+                                const ext = isAudioFile ? "mp3" : "mp4";
+                                handleDownload(vUrl, `${(v.title || v.id).replace(/[/\\?%*:|"<>]/g, "_")}.${ext}`);
+                              }}
                               className="btn-sm"
                               style={{
                                 color: T.textMid,
