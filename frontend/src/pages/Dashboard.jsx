@@ -2959,6 +2959,7 @@ export default function Dashboard() {
               { id: "subscribers", icon: "🔐", label: "Subscribers" },
               { id: "editor", icon: "✂", label: "Video Editor" },
               { id: "stickfigures", icon: "🕹", label: "Stickfigures" },
+              { id: "podcast_studio", icon: "🎙", label: "Podcast Studio" },
               { id: "blog", icon: "✏", label: "Blog" },
               { id: "settings", icon: "◎", label: "Settings" },
             ].map((n) => (
@@ -11080,6 +11081,11 @@ export default function Dashboard() {
               <CustomContent T={T} showToast={showToast} addNotification={addNotification} />
             )}
 
+            {/* ── PODCAST STUDIO TAB ────────────────────────────────────────────── */}
+            {tab === "podcast_studio" && (
+              <PodcastStudio T={T} showToast={showToast} api={api} />
+            )}
+
             {/* ── BLOG MANAGER TAB ─────────────────────────────────────────────── */}
             {tab === "blog" && (
               <BlogManager T={T} showToast={showToast} />
@@ -12888,6 +12894,273 @@ export default function Dashboard() {
     </>
   );
 }
+
+// ── Podcast Studio ────────────────────────────────────────────────────────────
+
+function PodcastStudio({ T, showToast, api }) {
+  const [episodes, setEpisodes]       = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [editingId, setEditingId]     = useState(null);
+  const [editTitle, setEditTitle]     = useState("");
+  const [editDesc, setEditDesc]       = useState("");
+  const [editSaving, setEditSaving]   = useState(false);
+  const [deletingId, setDeletingId]   = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // episode id pending confirm
+  const [toggling, setToggling]       = useState({});
+  const FEED_URL = "https://4lifemystery.com/api/podcast/feed.xml";
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/podcast/episodes");
+      setEpisodes(data || []);
+    } catch { showToast("Failed to load episodes", "error"); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isHidden = (ep) => (ep.labels || []).includes("feed_hidden");
+
+  const toggleVisibility = async (ep) => {
+    setToggling(t => ({ ...t, [ep.id]: true }));
+    try {
+      await api.patch(`/podcast/episodes/${ep.id}/visibility`, { hidden: !isHidden(ep) });
+      setEpisodes(eps => eps.map(e =>
+        e.id !== ep.id ? e : {
+          ...e,
+          labels: isHidden(ep)
+            ? (e.labels || []).filter(l => l !== "feed_hidden")
+            : [...(e.labels || []), "feed_hidden"],
+        }
+      ));
+      showToast(isHidden(ep) ? "Episode visible in feed" : "Episode hidden from feed");
+    } catch { showToast("Failed to update visibility", "error"); }
+    finally { setToggling(t => ({ ...t, [ep.id]: false })); }
+  };
+
+  const saveEdit = async () => {
+    setEditSaving(true);
+    try {
+      await api.patch(`/podcast/episodes/${editingId}`, { title: editTitle, description: editDesc });
+      setEpisodes(eps => eps.map(e => e.id !== editingId ? e : { ...e, title: editTitle, description: editDesc }));
+      setEditingId(null);
+      showToast("Episode updated");
+    } catch { showToast("Failed to save", "error"); }
+    finally { setEditSaving(false); }
+  };
+
+  const deleteEpisode = async (id) => {
+    setDeletingId(id);
+    try {
+      await api.delete(`/podcast/episodes/${id}`);
+      setEpisodes(eps => eps.filter(e => e.id !== id));
+      setConfirmDelete(null);
+      showToast("Episode deleted");
+    } catch { showToast("Failed to delete", "error"); }
+    finally { setDeletingId(null); }
+  };
+
+  const fmtDur = (s) => s ? `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` : "—";
+  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) : "—";
+  const visibleCount = episodes.filter(e => !isHidden(e)).length;
+  const hiddenCount  = episodes.filter(e => isHidden(e)).length;
+
+  return (
+    <div style={{ padding: "24px 0", maxWidth: 900 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 22, color: T.text, marginBottom: 6 }}>
+            🎙 Podcast Studio
+          </div>
+          <div style={{ fontSize: 12, color: T.textFaint }}>
+            Control what episodes appear in your RSS feed. Spotify and other platforms only see <span style={{ color: "#1db954", fontWeight: 600 }}>visible</span> episodes.
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a href={FEED_URL} target="_blank" rel="noreferrer"
+            style={{ padding: "8px 14px", borderRadius: 8, background: "rgba(29,185,84,0.1)", border: "1px solid rgba(29,185,84,0.35)", color: "#1db954", fontSize: 11, textDecoration: "none", letterSpacing: "0.06em", fontFamily: "inherit" }}>
+            🌐 VIEW LIVE FEED ↗
+          </a>
+          <button onClick={load}
+            style={{ padding: "8px 14px", borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}`, color: T.textFaint, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+            ↺ Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Stats bar */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        {[
+          { label: "Total Episodes", value: episodes.length, color: T.textMid },
+          { label: "In Feed (visible)", value: visibleCount, color: "#1db954" },
+          { label: "Hidden from Feed", value: hiddenCount, color: "#f87171" },
+        ].map(s => (
+          <div key={s.label} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 18px", minWidth: 130 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: "'Syne',sans-serif" }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.08em", marginTop: 2 }}>{s.label.toUpperCase()}</div>
+          </div>
+        ))}
+        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 18px", flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 4 }}>FEED URL</div>
+          <div style={{ fontSize: 10, color: "#1db954", fontFamily: "monospace", wordBreak: "break-all" }}>{FEED_URL}</div>
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ textAlign: "center", padding: 60, color: T.textFaint, fontSize: 12, letterSpacing: "0.1em" }}>
+          LOADING EPISODES...
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && episodes.length === 0 && (
+        <div style={{ textAlign: "center", padding: 60, color: T.textFaint, fontSize: 12 }}>
+          No podcast episodes found. Generate episodes via the Podcast pipeline.
+        </div>
+      )}
+
+      {/* Episode cards */}
+      {!loading && episodes.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {episodes.map(ep => {
+            const hidden = isHidden(ep);
+            const isEditing = editingId === ep.id;
+            const isDelConfirm = confirmDelete === ep.id;
+
+            return (
+              <div key={ep.id} style={{
+                background: T.bgCard,
+                border: `1px solid ${hidden ? "rgba(248,113,113,0.3)" : "rgba(29,185,84,0.2)"}`,
+                borderRadius: 12,
+                padding: "16px 20px",
+                opacity: hidden ? 0.75 : 1,
+                transition: "opacity 0.2s",
+              }}>
+                {isEditing ? (
+                  /* Edit mode */
+                  <div>
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4, letterSpacing: "0.07em" }}>TITLE</div>
+                      <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                        style={{ width: "100%", background: T.bgBase, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 13, fontWeight: 600, padding: "8px 10px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 4, letterSpacing: "0.07em" }}>DESCRIPTION</div>
+                      <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={4}
+                        style={{ width: "100%", background: T.bgBase, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 12, padding: "8px 10px", fontFamily: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6 }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={saveEdit} disabled={editSaving}
+                        style={{ padding: "7px 16px", borderRadius: 7, border: "1px solid rgba(29,185,84,0.5)", background: "rgba(29,185,84,0.12)", color: "#1db954", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                        {editSaving ? "SAVING..." : "✓ SAVE"}
+                      </button>
+                      <button onClick={() => setEditingId(null)}
+                        style={{ padding: "7px 16px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* View mode */
+                  <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                    {/* Status indicator */}
+                    <div style={{ flexShrink: 0, marginTop: 3 }}>
+                      <div style={{
+                        width: 10, height: 10, borderRadius: "50%",
+                        background: hidden ? "#f87171" : "#1db954",
+                        boxShadow: hidden ? "0 0 6px #f87171" : "0 0 6px #1db954",
+                      }} title={hidden ? "Hidden from feed" : "Visible in feed"} />
+                    </div>
+
+                    {/* Episode info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>{ep.title || ep.id}</div>
+                        {hidden && (
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171", letterSpacing: "0.07em", whiteSpace: "nowrap" }}>
+                            HIDDEN FROM FEED
+                          </span>
+                        )}
+                        {!hidden && (
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(29,185,84,0.1)", border: "1px solid rgba(29,185,84,0.25)", color: "#1db954", letterSpacing: "0.07em", whiteSpace: "nowrap" }}>
+                            IN FEED
+                          </span>
+                        )}
+                      </div>
+                      {ep.description && (
+                        <div style={{ fontSize: 12, color: T.textFaint, marginBottom: 8, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {ep.description}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 10, color: T.textFaint }}>📅 {fmtDate(ep.scheduled_for || ep.created_at)}</span>
+                        {ep.duration_seconds > 0 && <span style={{ fontSize: 10, color: T.textFaint }}>⏱ {fmtDur(ep.duration_seconds)}</span>}
+                        {ep.narration_url && (
+                          <a href={ep.narration_url} target="_blank" rel="noreferrer"
+                            style={{ fontSize: 10, color: "#1db954", textDecoration: "none" }}>
+                            🎧 Preview MP3
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "flex-start" }}>
+                      {/* Toggle feed visibility */}
+                      <button
+                        onClick={() => toggleVisibility(ep)}
+                        disabled={!!toggling[ep.id]}
+                        title={hidden ? "Show in feed" : "Hide from feed"}
+                        style={{
+                          padding: "6px 12px", borderRadius: 7, border: `1px solid ${hidden ? "rgba(29,185,84,0.4)" : "rgba(248,113,113,0.4)"}`,
+                          background: hidden ? "rgba(29,185,84,0.1)" : "rgba(248,113,113,0.1)",
+                          color: hidden ? "#1db954" : "#f87171",
+                          fontSize: 10, cursor: toggling[ep.id] ? "default" : "pointer", fontFamily: "inherit",
+                          opacity: toggling[ep.id] ? 0.6 : 1, whiteSpace: "nowrap", letterSpacing: "0.05em",
+                        }}>
+                        {toggling[ep.id] ? "..." : hidden ? "👁 SHOW" : "🙈 HIDE"}
+                      </button>
+
+                      {/* Edit */}
+                      <button
+                        onClick={() => { setEditingId(ep.id); setEditTitle(ep.title || ""); setEditDesc(ep.description || ""); }}
+                        style={{ padding: "6px 12px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textMid, fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.05em" }}>
+                        ✎ EDIT
+                      </button>
+
+                      {/* Delete */}
+                      {isDelConfirm ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => deleteEpisode(ep.id)} disabled={deletingId === ep.id}
+                            style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid rgba(248,113,113,0.5)", background: "rgba(248,113,113,0.15)", color: "#f87171", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+                            {deletingId === ep.id ? "..." : "CONFIRM"}
+                          </button>
+                          <button onClick={() => setConfirmDelete(null)}
+                            style={{ padding: "6px 10px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textFaint, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDelete(ep.id)}
+                          style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid rgba(248,113,113,0.25)", background: "transparent", color: "#f87171", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>
+                          🗑
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ── Blog Manager ──────────────────────────────────────────────────────────────
 
