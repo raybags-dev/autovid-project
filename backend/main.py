@@ -2194,8 +2194,13 @@ def delete_channel_video(video_id: str, user: str = Depends(verify_token)):
 
 @app.post("/videos/{video_id}/create-short")
 def create_short(video_id: str, background_tasks: BackgroundTasks, body: dict = Body(default={}), user: str = Depends(verify_token)):
-    """Clip from an existing video and save as a YouTube Short."""
+    """Clip from an existing video and save as a YouTube Short.
+    Supports both pipeline videos (videos table) and custom content (custom_content table)."""
+    is_cc = False
     video = db.get_video(video_id)
+    if not video:
+        video = db.get_custom_content(video_id)
+        is_cc = bool(video)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if not video.get("file_path"):
@@ -2233,10 +2238,11 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, body: dict = 
             import os
             if os.path.exists(short_path):
                 os.unlink(short_path)
-            # Mark source video so it won't be used again
-            current_labels = video.get("labels") or []
-            if "used_for_short" not in current_labels:
-                db.update_video(video_id, labels=current_labels + ["used_for_short"])
+            # Mark source video so it won't be used again (only for pipeline videos, not CC)
+            if not is_cc:
+                current_labels = video.get("labels") or []
+                if "used_for_short" not in current_labels:
+                    db.update_video(video_id, labels=current_labels + ["used_for_short"])
             _push_log(video_id, "[4/4] Done — short is ready.")
             _push_log(video_id, "__DONE__")
             print(f"✅ Short saved to Supabase: {storage_url}")
