@@ -2197,7 +2197,11 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, body: dict = 
     """Clip from an existing video and save as a YouTube Short.
     Supports both pipeline videos (videos table) and custom content (custom_content table)."""
     is_cc = False
-    video = db.get_video(video_id)
+    video = None
+    try:
+        video = db.get_video(video_id)
+    except Exception:
+        pass
     if not video:
         video = db.get_custom_content(video_id)
         is_cc = bool(video)
