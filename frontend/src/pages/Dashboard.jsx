@@ -83,6 +83,7 @@ import api, {
   postVideoToBlog,
   getDevTtsMode,
   setDevTtsMode as apiSetDevTtsMode,
+  listCustomContent,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
@@ -1222,6 +1223,7 @@ export default function Dashboard() {
 
   const [pageReady, setPageReady] = useState(false); // true after first data load
   const [videos, setVideos] = useState([]);
+  const [customContent, setCustomContent] = useState([]);
   const [stats, setStats] = useState({});
   const [quota, setQuota] = useState({});
   const [filter, setFilter] = useState("all");
@@ -1442,12 +1444,14 @@ export default function Dashboard() {
 
   const refresh = useCallback(async () => {
     try {
-      const [v, s, q] = await Promise.all([
+      const [v, s, q, cc] = await Promise.all([
         listVideos(),
         getStats(),
         getQuota(),
+        listCustomContent(),
       ]);
       setVideos(v);
+      setCustomContent(Array.isArray(cc) ? cc : []);
       setStats(s);
       setQuota(q);
       if (isFirstLoad.current) {
@@ -2598,6 +2602,31 @@ export default function Dashboard() {
     (v.labels || []).includes("mp3") ||
     (v.file_path && v.file_path.toLowerCase().endsWith(".mp3")) ||
     (v.narration_url && !v.file_path);
+
+  // Normalize a custom_content row to look like a video row so it can be used
+  // in dropdowns (Compilation, Shorts clip) without any schema changes.
+  const normalizeCC = (item) => ({
+    id: item.id,
+    title: item.title || item.id.slice(0, 16),
+    description: item.description || "",
+    file_path: item.file_path || null,
+    thumbnail_url: item.thumbnail_url || null,
+    duration_seconds: item.duration_seconds || null,
+    status: item.status || "ready",
+    resolution: "1920x1080",  // treat as landscape — won't be excluded as a Short
+    labels: ["custom_content"],
+    narration_url: null,
+    is_cc: true,
+  });
+
+  // Combined list: pipeline-generated videos + custom uploads.
+  // Used wherever a "pick from library" dropdown is shown.
+  const allLibraryVideos = [
+    ...videos,
+    ...customContent
+      .filter((item) => item.status === "ready" && item.file_path)
+      .map(normalizeCC),
+  ];
 
   return (
     <>
@@ -6108,12 +6137,12 @@ export default function Dashboard() {
               style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
             >
               <option value="">— Pick a video —</option>
-              {videos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path && v.resolution !== "1080x1920" && !(v.labels || []).includes("used_for_short")).map(v => (
-                <option key={v.id} value={v.id}>{v.title || v.id.slice(0,16)}</option>
+              {allLibraryVideos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path && v.resolution !== "1080x1920" && !(v.labels || []).includes("used_for_short")).map(v => (
+                <option key={v.id} value={v.id}>{(v.is_cc ? "📦 " : "") + (v.title || v.id.slice(0,16))}</option>
               ))}
-              {videos.filter(v => (v.labels || []).includes("used_for_short") && v.file_path).length > 0 && (
+              {allLibraryVideos.filter(v => (v.labels || []).includes("used_for_short") && v.file_path).length > 0 && (
                 <optgroup label="Already used for a Short">
-                  {videos.filter(v => (v.labels || []).includes("used_for_short") && v.file_path).map(v => (
+                  {allLibraryVideos.filter(v => (v.labels || []).includes("used_for_short") && v.file_path).map(v => (
                     <option key={v.id} value={v.id} disabled style={{ color: "#888" }}>⛔ {v.title || v.id.slice(0,16)}</option>
                   ))}
                 </optgroup>
@@ -8236,7 +8265,7 @@ export default function Dashboard() {
 
             {/* ── ANALYTICS TAB ───────────────────────────────────────────────────── */}
             {tab === "compilations" && (
-              <CompilationStudio T={T} showToast={showToast} videos={videos} />
+              <CompilationStudio T={T} showToast={showToast} videos={allLibraryVideos} />
             )}
 
             {tab === "analytics" && (

@@ -247,7 +247,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
       {/* ── LEFT: Video picker + past compilations ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
         <div style={card}>
-          <span style={label}>AVAILABLE VIDEOS — ready, posted or locally saved</span>
+          <span style={label}>AVAILABLE VIDEOS — pipeline videos + custom uploads (📦)</span>
           {readyVideos.length === 0 && (
             <div style={{ color: T.textFaint, fontSize: 12, padding: 12, textAlign: "center" }}>
               No ready videos yet
@@ -279,11 +279,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, color: T.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {v.title || v.prompt}
+                      {v.is_cc && <span style={{ marginRight: 4, opacity: 0.7 }}>📦</span>}{v.title || v.prompt}
                     </div>
                     <div style={{ fontSize: 10, color: T.textFaint, display: "flex", gap: 6 }}>
                       {fmtDur(v.duration_seconds)}
                       {v.narration_url && <span style={{ color: T.accentGreen }}>🎙 MP3</span>}
+                      {v.is_cc && <span style={{ color: T.textFaint }}>Custom</span>}
                     </div>
                   </div>
                   <div style={{ fontSize: 18, color: inQueue ? T.accentGreen : T.border, fontWeight: 700, flexShrink: 0 }}>
