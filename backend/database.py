@@ -637,6 +637,51 @@ def count_prompt_pool(pipeline: str = "long") -> dict:
     return {"total": total_r.count or 0, "unused": unused_r.count or 0}
 
 
+# ── Quotes ────────────────────────────────────────────────────────────────────
+# Requires table: CREATE TABLE public.quotes (
+#   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+#   text TEXT NOT NULL,
+#   author TEXT NOT NULL DEFAULT '',
+#   tags TEXT[] DEFAULT '{}',
+#   created_at TIMESTAMPTZ DEFAULT now()
+# );
+
+def list_quotes(search: str = "", limit: int = 20, offset: int = 0) -> dict:
+    """Return {quotes: [...], total: N}."""
+    db = get_client()
+    q = db.table("quotes").select("*", count="exact").order("created_at", desc=True)
+    if search:
+        q = q.or_(f"text.ilike.%{search}%,author.ilike.%{search}%")
+    q = q.range(offset, offset + limit - 1)
+    r = q.execute()
+    return {"quotes": r.data or [], "total": r.count or 0}
+
+
+def create_quote(text: str, author: str, tags: list = None) -> dict:
+    db = get_client()
+    row = {"text": text.strip(), "author": (author or "").strip(), "tags": tags or []}
+    r = db.table("quotes").insert(row).execute()
+    return r.data[0]
+
+
+def delete_quote(quote_id: str) -> bool:
+    db = get_client()
+    db.table("quotes").delete().eq("id", quote_id).execute()
+    return True
+
+
+def list_quote_videos(limit: int = 50) -> list:
+    """Return videos tagged with 'quote_video' label."""
+    db = get_client()
+    r = (db.table("videos")
+         .select("*")
+         .contains("labels", ["quote_video"])
+         .order("created_at", desc=True)
+         .limit(limit)
+         .execute())
+    return r.data or []
+
+
 def reset_prompt_pool(pipeline: str = "long"):
     """Mark all prompts in the pool as unused (reset cycle)."""
     db = get_client()

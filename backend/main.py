@@ -5058,6 +5058,152 @@ def set_dev_tts(body: dict = Body(default={}), user: str = Depends(verify_token)
     return {"enabled": enabled, "message": f"Dev TTS mode {'enabled' if enabled else 'disabled'}"}
 
 
+# ── Quotes Studio ─────────────────────────────────────────────────────────────
+
+class QuoteCreateRequest(BaseModel):
+    text: str
+    author: Optional[str] = ""
+    tags: Optional[list] = []
+
+
+class QuoteGenerateRequest(BaseModel):
+    text: str
+    author: Optional[str] = ""
+    quote_id: Optional[str] = None
+    aspect_ratio: Optional[str] = "16:9"
+    font_size: Optional[int] = 52
+    typing_speed_ms: Optional[int] = 42
+    hold_duration_s: Optional[float] = 5.0
+
+
+@app.get("/quotes")
+def list_quotes_endpoint(
+    search: str = "",
+    limit: int = 20,
+    offset: int = 0,
+    user: str = Depends(verify_token),
+):
+    try:
+        return db.list_quotes(search=search, limit=limit, offset=offset)
+    except Exception as e:
+        if "does not exist" in str(e) or "relation" in str(e).lower():
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "quotes table missing — run this SQL in Supabase dashboard:\n"
+                    "CREATE TABLE public.quotes ("
+                    "  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,"
+                    "  text TEXT NOT NULL,"
+                    "  author TEXT NOT NULL DEFAULT '',"
+                    "  tags TEXT[] DEFAULT '{}',"
+                    "  created_at TIMESTAMPTZ DEFAULT now()"
+                    ");"
+                ),
+            )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/quotes")
+def create_quote_endpoint(req: QuoteCreateRequest, user: str = Depends(verify_token)):
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Quote text is required")
+    try:
+        return db.create_quote(req.text, req.author or "", req.tags or [])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/quotes/{quote_id}")
+def delete_quote_endpoint(quote_id: str, user: str = Depends(verify_token)):
+    try:
+        db.delete_quote(quote_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/quotes/videos")
+def list_quote_videos_endpoint(user: str = Depends(verify_token)):
+    try:
+        return db.list_quote_videos()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/quotes/generate-video")
+def generate_quote_video_endpoint(
+    req: QuoteGenerateRequest,
+    background_tasks: BackgroundTasks,
+    user: str = Depends(verify_token),
+):
+    """Generate an animated quote MP4 and save to the videos table."""
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Quote text is required")
+
+    import uuid as _uuid
+    video_id = "quote_" + _uuid.uuid4().hex[:12]
+    _register_pipeline(video_id)
+
+    resolution = req.aspect_ratio.replace(":", "x")  # "16:9" → "16x9"
+
+    # Pre-insert a "processing" record so the frontend can poll logs
+    db.get_client().table("videos").insert({
+        "id":         video_id,
+        "prompt":     req.text[:200],
+        "title":      f'"{req.text[:60]}"' + (f" — {req.author}" if req.author else ""),
+        "status":     "processing",
+        "labels":     ["quote_video"],
+        "resolution": resolution,
+    }).execute()
+
+    def run():
+        try:
+            _push_log(video_id, "[1/3] Rendering quote frames …")
+            from pipeline.quote_generator import generate_quote_video
+            mp4_path = generate_quote_video(
+                quote_text=req.text,
+                author=req.author or "",
+                video_id=video_id,
+                aspect_ratio=req.aspect_ratio or "16:9",
+                font_size=req.font_size or 52,
+                typing_speed_ms=req.typing_speed_ms or 42,
+                hold_duration_s=req.hold_duration_s or 5.0,
+                cb=lambda info: _push_log(video_id, f"[RENDER] {info.get('message','')}" if isinstance(info, dict) else str(info)),
+            )
+            _push_log(video_id, "[2/3] Uploading to storage …")
+            from pipeline.storage import upload_to_storage
+            storage_url = upload_to_storage(mp4_path, video_id)
+
+            _push_log(video_id, "[3/3] Saving to database …")
+            db.update_video(
+                video_id,
+                status="ready",
+                file_path=storage_url,
+                description=f'Quote: "{req.text}" — {req.author}' if req.author else f'Quote: "{req.text}"',
+            )
+            import os
+            if os.path.exists(mp4_path):
+                os.unlink(mp4_path)
+            _push_log(video_id, "[DONE] Quote video is ready.")
+            print(f"✅ Quote video {video_id} ready: {storage_url}")
+        except Exception as e:
+            _push_log(video_id, f"[ERROR] {e}")
+            import traceback; traceback.print_exc()
+            try:
+                db.update_video(video_id, status="failed", error_message=str(e)[:500])
+            except Exception:
+                pass
+        finally:
+            _unregister_pipeline(video_id)
+
+    pos = _queue_pipeline(run, job_id=video_id, job_type="quote_video", prompt=req.text[:80])
+    return {
+        "video_id": video_id,
+        "message": "Quote video queued" if pos > 1 else "Quote video started",
+        "queue_position": pos,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
