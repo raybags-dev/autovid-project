@@ -5151,7 +5151,7 @@ def generate_quote_video_endpoint(
         "id":         video_id,
         "prompt":     req.text[:200],
         "title":      f'"{req.text[:60]}"' + (f" — {req.author}" if req.author else ""),
-        "status":     "processing",
+        "status":     "generating",
         "labels":     ["quote_video"],
         "resolution": resolution,
     }).execute()
