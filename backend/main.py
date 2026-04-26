@@ -5141,7 +5141,7 @@ def generate_quote_video_endpoint(
         raise HTTPException(status_code=400, detail="Quote text is required")
 
     import uuid as _uuid
-    video_id = "quote_" + _uuid.uuid4().hex[:12]
+    video_id = str(_uuid.uuid4())
     _register_pipeline(video_id)
 
     resolution = req.aspect_ratio.replace(":", "x")  # "16:9" → "16x9"
