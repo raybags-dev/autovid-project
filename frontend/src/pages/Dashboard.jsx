@@ -88,6 +88,7 @@ import api, {
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
 import ScriptStudio from "../components/ScriptStudio";
+import QuotesStudio from "../components/QuotesStudio";
 import DangerZone from "../components/DangerZone";
 import VideoEditor from "../components/VideoEditor";
 import StickfigureManager from "../components/StickfigureManager";
@@ -2989,6 +2990,7 @@ export default function Dashboard() {
               { id: "editor", icon: "✂", label: "Video Editor" },
               { id: "stickfigures", icon: "🕹", label: "Stickfigures" },
               { id: "podcast_studio", icon: "🎙", label: "Podcast Studio" },
+              { id: "quotes_studio", icon: "❝", label: "Quotes Studio" },
               { id: "blog", icon: "✏", label: "Blog" },
               { id: "settings", icon: "◎", label: "Settings" },
             ].map((n) => (
@@ -11113,6 +11115,11 @@ export default function Dashboard() {
             {/* ── PODCAST STUDIO TAB ────────────────────────────────────────────── */}
             {tab === "podcast_studio" && (
               <PodcastStudio T={T} showToast={showToast} api={api} />
+            )}
+
+            {/* ── QUOTES STUDIO TAB ─────────────────────────────────────────────── */}
+            {tab === "quotes_studio" && (
+              <QuotesStudio T={T} showToast={showToast} />
             )}
 
             {/* ── BLOG MANAGER TAB ─────────────────────────────────────────────── */}

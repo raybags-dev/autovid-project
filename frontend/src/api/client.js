@@ -647,3 +647,25 @@ export const getBlogPost   = async (slug)        => { const { data } = await api
 // ── Dev Settings ──────────────────────────────────────────────────────────────
 export const getDevTtsMode = async () => { const { data } = await api.get("/settings/dev-tts"); return data; };
 export const setDevTtsMode = async (enabled) => { const { data } = await api.post("/settings/dev-tts", { enabled }); return data; };
+
+// ── Quotes Studio ─────────────────────────────────────────────────────────────
+export const listQuotes = async (params = {}) => {
+  const { data } = await api.get("/quotes", { params });
+  return data; // { quotes: [...], total: N }
+};
+export const createQuote = async (text, author, tags = []) => {
+  const { data } = await api.post("/quotes", { text, author, tags });
+  return data;
+};
+export const deleteQuote = async (id) => {
+  const { data } = await api.delete(`/quotes/${id}`);
+  return data;
+};
+export const listQuoteVideos = async () => {
+  const { data } = await api.get("/quotes/videos");
+  return data;
+};
+export const generateQuoteVideo = async (payload) => {
+  const { data } = await api.post("/quotes/generate-video", payload);
+  return data; // { video_id, message }
+};
