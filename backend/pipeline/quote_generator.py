@@ -379,15 +379,16 @@ def generate_quote_video(
         idx += 1
 
     def F(chars=0, open_q=True, close_q=False, cursor=False,
-          author=False, color=None, dx=0, dy=0):
+          show_auth=False, color=None, dx=0, dy=0):
         return _render_frame(
-            width, height, quote_text, chars, author if author else "",
+            width, height, quote_text, chars,
+            author,          # always pass the real author string
             fonts, layout,
             show_border=True,
             show_qmark_open=open_q,
             show_qmark_close=close_q,
             show_cursor=cursor,
-            show_author=author,
+            show_author=show_auth,   # bool controls whether it's drawn
             text_color=color,
             dx=dx, dy=dy,
         )
@@ -419,17 +420,17 @@ def generate_quote_video(
         push(F(n, close_q=True, dx=dx, dy=dy), 0.20)
 
     # ── Phase 7: author fades in (0.5 s) ─────────────────────────────────────
-    push(F(n, close_q=True, author=True), 0.50)
+    push(F(n, close_q=True, show_auth=True), 0.50)
 
     # ── Phase 8: hold (full hold_duration_s) ──────────────────────────────────
-    push(F(n, close_q=True, author=True), hold_duration_s)
+    push(F(n, close_q=True, show_auth=True), hold_duration_s)
 
     # ── Phase 9: outro fade-to-black (6 steps × 0.25 s = 1.5 s) ─────────────
     steps = 6
     for i in range(1, steps + 1):
         factor = 1.0 - (i / steps)          # 1.0 → 0.0
         faded  = tuple(int(c * factor) for c in RED)
-        push(F(n, close_q=True, author=True, color=faded), 0.25)
+        push(F(n, close_q=True, show_auth=True, color=faded), 0.25)
 
     log(f"{idx} frames queued. Assembling MP4 …")
 
