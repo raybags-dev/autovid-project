@@ -706,40 +706,56 @@ def list_recent_prompts(pipeline: str = "long", limit: int = 50) -> list:
 # ── Blog Posts ────────────────────────────────────────────────────────────────
 
 def create_blog_post(data: dict) -> dict:
-    db = get_client()
-    result = db.table("blog_posts").insert(data).execute()
+    client = get_client()
+    result = client.table("blog_posts").insert(data).execute()
+    if not result.data:
+        err = getattr(result, "error", None)
+        raise RuntimeError(str(err) if err else "Insert returned no data — check table schema and constraints")
     return result.data[0]
 
 def update_blog_post(post_id: str, **fields) -> dict:
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
-    db = get_client()
-    result = db.table("blog_posts").update(fields).eq("id", post_id).execute()
+    client = get_client()
+    result = client.table("blog_posts").update(fields).eq("id", post_id).execute()
+    if not result.data:
+        raise RuntimeError("Update returned no data")
     return result.data[0]
 
 def delete_blog_post(post_id: str):
-    db = get_client()
-    db.table("blog_posts").delete().eq("id", post_id).execute()
+    client = get_client()
+    client.table("blog_posts").delete().eq("id", post_id).execute()
 
 def get_blog_post(post_id: str) -> dict:
-    db = get_client()
-    result = db.table("blog_posts").select("*").eq("id", post_id).single().execute()
+    client = get_client()
+    result = client.table("blog_posts").select("*").eq("id", post_id).single().execute()
     return result.data
 
 def get_blog_post_by_slug(slug: str) -> dict:
-    db = get_client()
-    result = db.table("blog_posts").select("*").eq("slug", slug).single().execute()
+    client = get_client()
+    result = client.table("blog_posts").select("*").eq("slug", slug).single().execute()
     return result.data
 
 def list_blog_posts(status: str = None, limit: int = 50, offset: int = 0) -> list:
-    db = get_client()
-    query = db.table("blog_posts").select("*").order("created_at", desc=True).limit(limit).offset(offset)
+    client = get_client()
+    query = client.table("blog_posts").select("*").order("created_at", desc=True).limit(limit).offset(offset)
     if status:
         query = query.eq("status", status)
     return query.execute().data
 
+def count_blog_posts(status: str = None) -> int:
+    try:
+        client = get_client()
+        query = client.table("blog_posts").select("id", count="exact")
+        if status:
+            query = query.eq("status", status)
+        result = query.execute()
+        return result.count or 0
+    except Exception:
+        return 0
+
 def increment_blog_post_views(post_id: str):
     try:
-        db = get_client()
-        db.rpc("increment_blog_views", {"post_id": post_id}).execute()
+        client = get_client()
+        client.rpc("increment_blog_views", {"post_id": post_id}).execute()
     except Exception:
         pass  # non-critical

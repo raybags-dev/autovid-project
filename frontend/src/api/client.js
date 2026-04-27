@@ -439,6 +439,9 @@ export const getBlogComments = async (page = 1, fp = "") =>
 export const submitBlogComment = async (data) =>
   (await axios.post("/api/blog/comments", data)).data;
 
+export const replyBlogComment = async (commentId, data) =>
+  (await axios.post(`/api/blog/comments/${commentId}/reply`, data)).data;
+
 export const toggleBlogLike = async (commentId, fingerprint) =>
   (await axios.post(`/api/blog/comments/${commentId}/like`, { fingerprint })).data;
 
@@ -473,6 +476,15 @@ export const adminDeleteBlogPost = async (id) =>
 
 export const postVideoToBlog = async (videoId) =>
   (await api.post(`/videos/${videoId}/post-to-blog`)).data;
+
+export const adminUploadBlogCover = async (file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post("/admin/blog/upload-cover", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data; // { url: "..." }
+};
 
 // ── Pipeline Metrics ──────────────────────────────────────────────────────────
 export const getPipelineMetrics = async () => { const { data } = await api.get("/pipeline/metrics"); return data; };

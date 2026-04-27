@@ -4762,10 +4762,35 @@ def prompts_set_settings(body: dict, user: str = Depends(verify_token)):
 
 # ── Blog Post Management ───────────────────────────────────────────────────────
 
+def _build_blog_body_html(details: str, youtube_url: str = "") -> str:
+    """Convert plain-text post details + optional YouTube URL into a styled HTML body."""
+    import re as _re
+    parts = []
+    if youtube_url:
+        yt_match = _re.search(r"(?:v=|youtu\.be/|embed/)([A-Za-z0-9_-]{11})", youtube_url)
+        if yt_match:
+            vid = yt_match.group(1)
+            parts.append(
+                f'<div class="blog-video-embed">'
+                f'<iframe src="https://www.youtube.com/embed/{vid}" '
+                f'frameborder="0" allowfullscreen></iframe>'
+                f'</div>'
+            )
+    if details and details.strip():
+        paras = [p.strip() for p in details.split("\n\n") if p.strip()]
+        if not paras:
+            paras = [details.strip()]
+        for p in paras:
+            parts.append(f"<p>{p.replace(chr(10), '<br>')}</p>")
+    return "\n".join(parts)
+
+
 @app.get("/blog/posts")
-def get_blog_posts_public(limit: int = 20, offset: int = 0):
-    """Public: list published posts."""
-    return db.list_blog_posts(status="published", limit=limit, offset=offset)
+def get_blog_posts_public(limit: int = 20, offset: int = 0, status: str = None):
+    """Public: list published posts with total count for pagination."""
+    posts = db.list_blog_posts(status="published", limit=limit, offset=offset)
+    total = db.count_blog_posts(status="published")
+    return {"posts": posts, "total": total}
 
 @app.get("/blog/posts/{slug}")
 def get_blog_post_public(slug: str):
@@ -4781,52 +4806,114 @@ def admin_list_blog_posts(status: str = None, limit: int = 200, _u: str = Depend
     """Admin: list all posts (drafts + published)."""
     return db.list_blog_posts(status=status, limit=limit)
 
+@app.post("/admin/blog/upload-cover")
+async def upload_blog_cover(file: UploadFile = File(...), _u: str = Depends(verify_token)):
+    """Upload a cover image for a blog post. Returns public URL."""
+    import uuid as _uuid_m
+    import requests as _req
+    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}
+    ct = (file.content_type or "").lower()
+    if ct not in allowed:
+        raise HTTPException(status_code=400, detail=f"Invalid file type '{ct}'. Allowed: JPG, PNG, WebP, GIF")
+    ext = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}.get(ct, "jpg")
+    filename = f"{_uuid_m.uuid4().hex}.{ext}"
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 10MB.")
+    base = config.SUPABASE_URL.rstrip("/")
+    bucket = "blog-covers"
+    # Ensure bucket exists
+    try:
+        from supabase import create_client as _sc
+        _sb = _sc(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+        _sb.storage.create_bucket(bucket, options={"public": True})
+    except Exception:
+        pass
+    upload_url = f"{base}/storage/v1/object/{bucket}/{filename}"
+    resp = _req.put(upload_url, data=content, headers={
+        "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
+        "Content-Type": ct,
+        "x-upsert": "true",
+    }, timeout=30)
+    if resp.status_code not in (200, 201):
+        raise HTTPException(status_code=500, detail=f"Storage upload failed: {resp.text[:300]}")
+    return {"url": f"{base}/storage/v1/object/public/{bucket}/{filename}"}
+
+
 @app.post("/admin/blog/posts")
 def admin_create_blog_post(body: dict, _u: str = Depends(verify_token)):
-    """Admin: create a new blog post."""
+    """Admin: create a new blog post from simple fields (no markup required)."""
     import re, unicodedata
     title = str(body.get("title", "")).strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title required")
-    # Auto-generate slug from title
-    slug = body.get("slug") or re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()).strip("-")
-    # Ensure unique slug
-    existing = db.list_blog_posts(limit=1)  # just to test DB connection
+    slug_base = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()).strip("-") or "post"
+    slug = body.get("slug") or slug_base
     try:
         db.get_blog_post_by_slug(slug)
-        # Slug exists — append timestamp
         slug = f"{slug}-{int(datetime.now().timestamp())}"
     except Exception:
-        pass  # slug doesn't exist, good
+        pass  # slug doesn't exist — good
+    youtube_url = body.get("youtube_url", "")
+    details = body.get("details", "")
+    raw_body = body.get("body", "")
+    if details:
+        generated_body = _build_blog_body_html(details, youtube_url)
+    elif raw_body:
+        generated_body = raw_body
+    else:
+        generated_body = _build_blog_body_html("", youtube_url)
+    tags = body.get("tags", [])
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
     status_val = body.get("status", "draft")
     published_at = datetime.now(timezone.utc).isoformat() if status_val == "published" else None
     data = {
         "title":           title,
         "slug":            slug,
         "excerpt":         body.get("excerpt", ""),
-        "body":            body.get("body", ""),
+        "body":            generated_body,
         "cover_image_url": body.get("cover_image_url", ""),
-        "tags":            body.get("tags", []),
+        "tags":            tags,
         "status":          status_val,
-        "video_id":        body.get("video_id"),
-        "youtube_url":     body.get("youtube_url", ""),
+        "youtube_url":     youtube_url,
         "published_at":    published_at,
     }
-    return db.create_blog_post(data)
+    if body.get("video_id"):
+        data["video_id"] = body["video_id"]
+    try:
+        return db.create_blog_post(data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create post: {str(e)}")
+
 
 @app.put("/admin/blog/posts/{post_id}")
 @app.patch("/admin/blog/posts/{post_id}")
 def admin_update_blog_post(post_id: str, body: dict, _u: str = Depends(verify_token)):
-    """Admin: update a blog post."""
+    """Admin: update a blog post. Accepts plain-text 'details' — regenerates HTML body."""
     fields = {}
-    for f in ["title", "slug", "excerpt", "body", "cover_image_url", "tags", "status", "youtube_url", "video_id"]:
+    for f in ["title", "slug", "excerpt", "cover_image_url", "tags", "status", "youtube_url", "video_id"]:
         if f in body:
             fields[f] = body[f]
-    if body.get("status") == "published" and not body.get("published_at"):
-        existing = db.get_blog_post(post_id)
-        if not existing.get("published_at"):
+    # Regenerate body from details if provided
+    if "details" in body or "body" in body:
+        details = body.get("details", "")
+        youtube_url = body.get("youtube_url", fields.get("youtube_url", ""))
+        if details:
+            fields["body"] = _build_blog_body_html(details, youtube_url)
+        elif "body" in body:
+            fields["body"] = body["body"]
+    if body.get("status") == "published":
+        try:
+            existing = db.get_blog_post(post_id)
+            if not existing.get("published_at"):
+                fields["published_at"] = datetime.now(timezone.utc).isoformat()
+        except Exception:
             fields["published_at"] = datetime.now(timezone.utc).isoformat()
-    return db.update_blog_post(post_id, **fields)
+    try:
+        return db.update_blog_post(post_id, **fields)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update post: {str(e)}")
 
 @app.delete("/admin/blog/posts/{post_id}")
 def admin_delete_blog_post(post_id: str, _u: str = Depends(verify_token)):
