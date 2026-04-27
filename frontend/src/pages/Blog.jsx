@@ -2,104 +2,113 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import freedomImg from "../assets/static/freedom.jpg";
 
-// ── Theme ────────────────────────────────────────────────────────────────────
+// ── Themes ────────────────────────────────────────────────────────────────────
 const DARK = {
-  bg: "#0a0c10",
-  bgCard: "rgba(255,255,255,0.04)",
-  bgCardHover: "rgba(255,255,255,0.07)",
-  border: "rgba(255,255,255,0.08)",
-  borderHover: "rgba(255,255,255,0.18)",
-  text: "#e8eef5",
-  textMid: "#a0b0c4",
-  textDim: "#5a7090",
-  navBg: "rgba(10,12,16,0.88)",
-  accent: "#60a5fa",
-  accentGreen: "#3dd68c",
-  accentYellow: "#f5c842",
+  bg: "#060810",
+  bgAlt: "#0a0d14",
+  bgCard: "rgba(255,255,255,0.032)",
+  bgCardHover: "rgba(255,255,255,0.06)",
+  bgFeatured: "rgba(255,255,255,0.028)",
+  border: "rgba(255,255,255,0.07)",
+  borderHover: "rgba(255,255,255,0.16)",
+  text: "#e2e8f0",
+  textMid: "#94a3b8",
+  textDim: "#475569",
+  navBg: "rgba(6,8,16,0.9)",
+  accent: "#4f8ef0",
+  accentGreen: "#34d399",
   accentPurple: "#a78bfa",
-  footBg: "rgba(0,0,0,0.5)",
+  accentYellow: "#fbbf24",
+  footBg: "rgba(0,0,0,0.4)",
+  tag: "rgba(167,139,250,0.1)",
+  tagBorder: "rgba(167,139,250,0.25)",
+  tagText: "#a78bfa",
 };
 const LIGHT = {
-  bg: "#f5f5f5",
+  bg: "#f8fafc",
+  bgAlt: "#f1f5f9",
   bgCard: "#ffffff",
   bgCardHover: "#f0f4f8",
-  border: "rgba(0,0,0,0.1)",
-  borderHover: "rgba(0,0,0,0.22)",
-  text: "#111111",
+  bgFeatured: "#ffffff",
+  border: "rgba(0,0,0,0.08)",
+  borderHover: "rgba(0,0,0,0.2)",
+  text: "#0f172a",
   textMid: "#374151",
   textDim: "#6b7280",
-  navBg: "rgba(245,245,245,0.92)",
+  navBg: "rgba(248,250,252,0.92)",
   accent: "#2563eb",
   accentGreen: "#059669",
-  accentYellow: "#d97706",
   accentPurple: "#7c3aed",
-  footBg: "rgba(0,0,0,0.06)",
+  accentYellow: "#d97706",
+  footBg: "rgba(0,0,0,0.04)",
+  tag: "rgba(124,58,237,0.08)",
+  tagBorder: "rgba(124,58,237,0.2)",
+  tagText: "#7c3aed",
 };
 
-const PAGE_LIMIT = 9;
-
-function truncate(str, n) {
-  if (!str) return "";
-  return str.length > n ? str.slice(0, n).trimEnd() + "…" : str;
-}
+const PAGE_SIZE = 9;
 
 function fmtDate(d) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
+function readTime(body) {
+  if (!body) return "";
+  const words = body.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+  return `${Math.max(1, Math.round(words / 200))} min read`;
+}
+function truncate(str, n) {
+  if (!str) return "";
+  const plain = str.replace(/<[^>]+>/g, "");
+  return plain.length > n ? plain.slice(0, n).trimEnd() + "…" : plain;
+}
 
-function GradientPlaceholder({ title, isDark = true, style = {} }) {
-  const hue = title ? (title.charCodeAt(0) * 37 + title.charCodeAt(1 % title.length) * 13) % 360 : 200;
+function GradientPlaceholder({ title, isDark, style = {} }) {
+  const hue = title
+    ? (title.charCodeAt(0) * 47 + (title.charCodeAt(Math.min(1, title.length - 1)) * 17)) % 360
+    : 220;
   const bg = isDark
-    ? `linear-gradient(135deg, hsl(${hue},40%,14%) 0%, hsl(${(hue + 60) % 360},50%,20%) 100%)`
-    : `linear-gradient(135deg, hsl(${hue},30%,88%) 0%, hsl(${(hue + 60) % 360},40%,82%) 100%)`;
+    ? `linear-gradient(135deg, hsl(${hue},35%,10%) 0%, hsl(${(hue + 80) % 360},45%,16%) 100%)`
+    : `linear-gradient(135deg, hsl(${hue},25%,88%) 0%, hsl(${(hue + 80) % 360},35%,82%) 100%)`;
   return (
-    <div
-      style={{
-        width: "100%",
-        aspectRatio: "16/9",
-        background: bg,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 32,
-        ...style,
-      }}
-    >
+    <div style={{ width: "100%", height: "100%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)", ...style }}>
       ◈
     </div>
+  );
+}
+
+function TagPill({ tag, T, onClick, active }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center",
+        padding: "4px 12px", borderRadius: 20, fontSize: 10, letterSpacing: "0.1em",
+        fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+        background: active ? T.accent : T.tag,
+        border: `1px solid ${active ? T.accent : T.tagBorder}`,
+        color: active ? "#fff" : T.tagText,
+        transition: "all 0.15s",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {tag.toUpperCase()}
+    </button>
   );
 }
 
 export default function Blog() {
   const navigate = useNavigate();
 
-  // ── Theme ──────────────────────────────────────────────────────────────────
-  const [isDark, setIsDark] = useState(() => {
-    const stored = localStorage.getItem("blog_theme");
-    return stored ? stored === "dark" : true;
-  });
+  const [isDark, setIsDark] = useState(() => localStorage.getItem("blog_theme") !== "light");
   const T = isDark ? DARK : LIGHT;
   const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    localStorage.setItem("blog_theme", next ? "dark" : "light");
+    setIsDark(d => { const n = !d; localStorage.setItem("blog_theme", n ? "dark" : "light"); return n; });
   };
 
-  // ── Cookie consent ──────────────────────────────────────────────────────────
-  const [cookieConsent, setCookieConsent] = useState(
-    () => localStorage.getItem("blog_cookie_consent")
-  );
-  const acceptCookies = () => {
-    localStorage.setItem("blog_cookie_consent", "accepted");
-    setCookieConsent("accepted");
-  };
-  const declineCookies = () => {
-    localStorage.setItem("blog_cookie_consent", "declined");
-    setCookieConsent("declined");
-  };
+  const [cookieConsent, setCookieConsent] = useState(() => localStorage.getItem("blog_cookie_consent"));
 
-  // ── SEO ────────────────────────────────────────────────────────────────────
+  // SEO
   useEffect(() => {
     document.title = "4Life Mystery Blog";
     const setMeta = (name, content, prop = false) => {
@@ -109,37 +118,24 @@ export default function Blog() {
       el.setAttribute("content", content);
     };
     setMeta("description", "Explore thought-provoking articles on consciousness, philosophy, mental health, and the mysteries of life.");
-    setMeta("robots", "index, follow");
     setMeta("og:title", "4Life Mystery Blog", true);
-    setMeta("og:description", "Thought-provoking articles on consciousness, philosophy, and the mysteries of life.", true);
     setMeta("og:type", "website", true);
     setMeta("og:url", "https://4lifemystery.com/blog", true);
-
-    // JSON-LD structured data
-    let ld = document.getElementById("blog-jsonld");
-    if (!ld) { ld = document.createElement("script"); ld.id = "blog-jsonld"; ld.type = "application/ld+json"; document.head.appendChild(ld); }
-    ld.textContent = JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Blog",
-      "name": "4Life Mystery Blog",
-      "url": "https://4lifemystery.com/blog",
-      "description": "Thought-provoking articles on consciousness, philosophy, and the mysteries of life.",
-      "publisher": { "@type": "Organization", "name": "4Life Mystery" },
-    });
   }, []);
 
-  // ── Data ───────────────────────────────────────────────────────────────────
+  // Data
   const [posts, setPosts] = useState([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [activeTag, setActiveTag] = useState("");
 
   const fetchPosts = useCallback(async (off = 0, append = false) => {
     try {
       if (off === 0) setLoading(true); else setLoadingMore(true);
-      const res = await fetch(`/api/blog/posts?status=published&limit=${PAGE_LIMIT}&offset=${off}`);
+      const res = await fetch(`/api/blog/posts?status=published&limit=${PAGE_SIZE}&offset=${off}`);
       if (!res.ok) throw new Error("Failed to load posts");
       const data = await res.json();
       const items = Array.isArray(data.posts) ? data.posts : (Array.isArray(data) ? data : []);
@@ -147,451 +143,265 @@ export default function Blog() {
       setPosts(prev => append ? [...prev, ...items] : items);
       setTotal(tot);
       setOffset(off + items.length);
-    } catch (e) {
-      setError(e.message || "Failed to load posts");
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+    } catch (e) { setError(e.message || "Failed to load"); }
+    finally { setLoading(false); setLoadingMore(false); }
   }, []);
 
   useEffect(() => { fetchPosts(0, false); }, [fetchPosts]);
 
-  const hasMore = posts.length < total;
+  // All unique tags across loaded posts
+  const allTags = [...new Set(posts.flatMap(p => Array.isArray(p.tags) ? p.tags : []))];
 
-  // ── Styles ─────────────────────────────────────────────────────────────────
-  const styles = {
-    page: {
-      minHeight: "100vh",
-      background: T.bg,
-      color: T.text,
-      fontFamily: "'JetBrains Mono', 'Fira Mono', 'Courier New', monospace",
-      transition: "background 0.2s, color 0.2s",
-      overflowY: "auto",
-      maxHeight: "98vh",
-    },
-    nav: {
-      position: "sticky",
-      top: 0,
-      zIndex: 100,
-      background: T.navBg,
-      backdropFilter: "blur(12px)",
-      borderBottom: `1px solid ${T.border}`,
-      padding: "0 24px",
-      display: "flex",
-      alignItems: "center",
-      height: 56,
-      gap: 16,
-    },
-    logo: {
-      textDecoration: "none",
-      fontWeight: 800,
-      fontSize: 16,
-      letterSpacing: "0.06em",
-      color: T.text,
-    },
-    blogTitle: {
-      fontSize: 11,
-      letterSpacing: "0.14em",
-      color: T.textDim,
-      flex: 1,
-    },
-    themeBtn: {
-      padding: "4px 10px",
-      borderRadius: 6,
-      border: `1px solid ${T.border}`,
-      background: "transparent",
-      color: T.textMid,
-      fontSize: 14,
-      cursor: "pointer",
-      transition: "all 0.15s",
-      lineHeight: 1,
-    },
-    hero: {
-      padding: "64px 24px 48px",
-      textAlign: "center",
-      borderBottom: `1px solid ${T.border}`,
-    },
-    heroTitle: {
-      fontSize: "clamp(28px, 5vw, 52px)",
-      fontWeight: 800,
-      letterSpacing: "-0.02em",
-      marginBottom: 16,
-      lineHeight: 1.1,
-    },
-    heroBadge: {
-      display: "inline-block",
-      padding: "3px 12px",
-      borderRadius: 20,
-      fontSize: 10,
-      letterSpacing: "0.16em",
-      fontWeight: 700,
-      border: `1px solid ${T.accentGreen}50`,
-      color: T.accentGreen,
-      background: `${T.accentGreen}0f`,
-      marginBottom: 20,
-    },
-    heroDesc: {
-      fontSize: 14,
-      color: T.textMid,
-      maxWidth: 560,
-      margin: "0 auto",
-      lineHeight: 1.7,
-    },
-    grid: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-      gap: 20,
-      padding: "40px 24px",
-      maxWidth: 1200,
-      margin: "0 auto",
-    },
-    card: {
-      background: T.bgCard,
-      border: `1px solid ${T.border}`,
-      borderRadius: 12,
-      overflow: "hidden",
-      cursor: "pointer",
-      transition: "border-color 0.2s, background 0.2s, transform 0.15s",
-      display: "flex",
-      flexDirection: "column",
-    },
-    cardBody: {
-      padding: "18px 18px 16px",
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-    },
-    cardTitle: {
-      fontSize: 15,
-      fontWeight: 700,
-      color: T.text,
-      marginBottom: 8,
-      lineHeight: 1.35,
-      letterSpacing: "-0.01em",
-    },
-    cardExcerpt: {
-      fontSize: 12,
-      color: T.textMid,
-      lineHeight: 1.65,
-      flex: 1,
-      marginBottom: 12,
-    },
-    pill: {
-      display: "inline-block",
-      padding: "2px 9px",
-      borderRadius: 20,
-      fontSize: 9,
-      letterSpacing: "0.1em",
-      fontWeight: 700,
-      border: `1px solid ${T.accentPurple}40`,
-      color: T.accentPurple,
-      background: `${T.accentPurple}0d`,
-      marginRight: 5,
-      marginBottom: 4,
-    },
-    cardMeta: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: 12,
-      paddingTop: 12,
-      borderTop: `1px solid ${T.border}`,
-    },
-    cardDate: {
-      fontSize: 10,
-      color: T.textDim,
-      letterSpacing: "0.06em",
-    },
-    readMore: {
-      fontSize: 10,
-      color: T.accent,
-      letterSpacing: "0.1em",
-      fontWeight: 700,
-      background: "transparent",
-      border: `1px solid ${T.accent}40`,
-      borderRadius: 6,
-      padding: "3px 10px",
-      cursor: "pointer",
-      fontFamily: "inherit",
-      transition: "all 0.15s",
-    },
-    footer: {
-      borderTop: `1px solid ${T.border}`,
-      background: T.footBg,
-      padding: "32px 24px",
-      textAlign: "center",
-      fontSize: 11,
-      color: T.textDim,
-      letterSpacing: "0.08em",
-    },
-    footerLink: {
-      color: T.accent,
-      textDecoration: "none",
-      marginLeft: 6,
-    },
-    cookieBar: {
-      position: "fixed",
-      bottom: 0,
-      left: 0,
-      right: 0,
-      zIndex: 200,
-      background: isDark ? "rgba(10,12,16,0.97)" : "rgba(255,255,255,0.97)",
-      backdropFilter: "blur(12px)",
-      borderTop: `1px solid ${T.border}`,
-      padding: "14px 24px",
-      display: "flex",
-      alignItems: "center",
-      gap: 16,
-      flexWrap: "wrap",
-    },
-    cookieText: {
-      flex: 1,
-      fontSize: 11,
-      color: T.textMid,
-      minWidth: 200,
-    },
-    cookieAccept: {
-      padding: "7px 18px",
-      borderRadius: 7,
-      border: `1px solid ${T.accentGreen}50`,
-      background: `${T.accentGreen}15`,
-      color: T.accentGreen,
-      fontSize: 11,
-      fontWeight: 700,
-      letterSpacing: "0.08em",
-      cursor: "pointer",
-      fontFamily: "inherit",
-    },
-    cookieDecline: {
-      padding: "7px 18px",
-      borderRadius: 7,
-      border: `1px solid ${T.border}`,
-      background: "transparent",
-      color: T.textDim,
-      fontSize: 11,
-      letterSpacing: "0.08em",
-      cursor: "pointer",
-      fontFamily: "inherit",
-    },
-    loadMoreBtn: {
-      display: "block",
-      margin: "0 auto 48px",
-      padding: "12px 32px",
-      borderRadius: 8,
-      border: `1px solid ${T.accent}50`,
-      background: `${T.accent}0f`,
-      color: T.accent,
-      fontSize: 11,
-      letterSpacing: "0.12em",
-      fontWeight: 700,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      transition: "all 0.15s",
-    },
-    emptyState: {
-      textAlign: "center",
-      padding: "80px 24px",
-      color: T.textDim,
-    },
-    emptyIcon: {
-      fontSize: 48,
-      marginBottom: 16,
-      display: "block",
-    },
-    emptyTitle: {
-      fontSize: 16,
-      fontWeight: 700,
-      color: T.textMid,
-      marginBottom: 8,
-      letterSpacing: "0.04em",
-    },
-    emptyDesc: {
-      fontSize: 12,
-      color: T.textDim,
-    },
-  };
+  const filteredPosts = activeTag
+    ? posts.filter(p => (Array.isArray(p.tags) ? p.tags : []).includes(activeTag))
+    : posts;
+
+  const featuredPost = filteredPosts[0] || null;
+  const gridPosts = filteredPosts.slice(1);
+  const hasMore = posts.length < total && !activeTag;
 
   return (
-    <div style={styles.page}>
-      {/* ── Navigation ────────────────────────────────────────────────────── */}
-      <nav style={styles.nav}>
-        <Link to="/" style={styles.logo}>
-          <span style={{ background: "linear-gradient(135deg,#3dd68c,#60a5fa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            4LIFE
-          </span>
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'JetBrains Mono','Fira Mono','Courier New',monospace", transition: "background 0.2s,color 0.2s", overflowY: "auto", maxHeight: "98vh" }}>
+
+      {/* ── Navbar ─────────────────────────────────────────────────────────── */}
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: T.navBg, backdropFilter: "blur(14px)", borderBottom: `1px solid ${T.border}`, padding: "0 clamp(16px,4vw,48px)", display: "flex", alignItems: "center", height: 58, gap: 16 }}>
+        <Link to="/" style={{ textDecoration: "none", fontWeight: 800, fontSize: 15, letterSpacing: "0.06em", color: T.text, flexShrink: 0 }}>
+          <span style={{ background: "linear-gradient(135deg,#34d399,#4f8ef0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>4LIFE</span>
           <span style={{ color: T.text }}>MYSTERY</span>
         </Link>
-        <span style={styles.blogTitle}>| BLOG</span>
-        <button
-          style={styles.themeBtn}
-          onClick={toggleTheme}
-          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        >
+        <div style={{ width: 1, height: 20, background: T.border, flexShrink: 0 }} />
+        <span style={{ fontSize: 10, letterSpacing: "0.18em", color: T.textDim, flex: 1 }}>BLOG</span>
+        <a href="/" style={{ fontSize: 10, color: T.textMid, textDecoration: "none", letterSpacing: "0.1em", padding: "4px 10px", border: `1px solid ${T.border}`, borderRadius: 5 }}>HOME</a>
+        <button onClick={toggleTheme} style={{ padding: "5px 11px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textMid, fontSize: 14, cursor: "pointer", lineHeight: 1 }} title="Toggle theme">
           {isDark ? "☀" : "◑"}
         </button>
       </nav>
 
-      {/* ── Parallax hero banner ── */}
-      <div style={{ position: "relative", height: 320, overflow: "hidden", borderBottom: `1px solid ${T.border}` }}>
+      {/* ── Hero ───────────────────────────────────────────────────────────── */}
+      <div style={{ position: "relative", height: "clamp(260px,32vw,380px)", overflow: "hidden", borderBottom: `1px solid ${T.border}` }}>
         <div style={{
-          position: "absolute", inset: "-40% 0",
+          position: "absolute", inset: "-30% 0",
           backgroundImage: `url(${freedomImg})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center 45%",
-          opacity: isDark ? 0.38 : 0.22,
-          willChange: "transform",
-          transform: "scale(1.35)",
-          pointerEvents: "none",
+          backgroundSize: "cover", backgroundPosition: "center 40%",
+          opacity: isDark ? 0.32 : 0.18, transform: "scale(1.2)", pointerEvents: "none",
         }} />
-        <div style={{
-          position: "absolute", inset: 0, pointerEvents: "none",
-          background: isDark
-            ? "linear-gradient(160deg,rgba(3,6,15,0.65) 0%,rgba(3,6,15,0.35) 50%,rgba(3,6,15,0.65) 100%)"
-            : "linear-gradient(160deg,rgba(245,245,245,0.7) 0%,rgba(245,245,245,0.3) 50%,rgba(245,245,245,0.7) 100%)",
-        }} />
-        <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: T.accentGreen, fontWeight: 700, marginBottom: 12, textTransform: "uppercase" }}>4Life Mystery</div>
-          <div style={{ fontSize: "clamp(26px,4vw,48px)", fontWeight: 800, color: T.text, letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 14 }}>Explore the Unknown</div>
-          <div style={{ fontSize: 13, color: T.textMid, maxWidth: 500, lineHeight: 1.7 }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: isDark ? "linear-gradient(to bottom,rgba(6,8,16,0.5) 0%,rgba(6,8,16,0.2) 50%,rgba(6,8,16,0.75) 100%)" : "linear-gradient(to bottom,rgba(248,250,252,0.6) 0%,rgba(248,250,252,0.2) 50%,rgba(248,250,252,0.8) 100%)" }} />
+        <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 clamp(16px,4vw,48px)", textAlign: "center" }}>
+          <div style={{ fontSize: 9, letterSpacing: "0.22em", color: T.accentGreen, fontWeight: 700, marginBottom: 14, textTransform: "uppercase" }}>4Life Mystery</div>
+          <h1 style={{ fontSize: "clamp(28px,5vw,52px)", fontWeight: 800, color: T.text, letterSpacing: "-0.02em", lineHeight: 1.08, marginBottom: 14, margin: "0 0 14px" }}>
+            Explore the Unknown
+          </h1>
+          <p style={{ fontSize: "clamp(12px,1.4vw,15px)", color: T.textMid, maxWidth: 520, lineHeight: 1.7, margin: "0 auto 20px" }}>
             Thought-provoking articles on consciousness, philosophy, and the mysteries of life.
-          </div>
+          </p>
+          {total > 0 && (
+            <div style={{ fontSize: 10, color: T.textDim, letterSpacing: "0.12em" }}>
+              {total} ARTICLE{total !== 1 ? "S" : ""} PUBLISHED
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Post Grid ─────────────────────────────────────────────────────── */}
-      {loading ? (
-        <div style={{ ...styles.grid }}>
-          {[0, 1, 2, 3, 4, 5].map(i => (
-            <div key={i} style={{ ...styles.card, minHeight: 300 }}>
-              <div style={{ height: 170, background: `${T.border}`, animation: "blogPulse 1.4s ease infinite alternate" }} />
-              <div style={styles.cardBody}>
-                <div style={{ height: 14, background: T.border, borderRadius: 4, marginBottom: 10, width: "75%" }} />
-                <div style={{ height: 10, background: T.border, borderRadius: 4, marginBottom: 6, width: "100%" }} />
-                <div style={{ height: 10, background: T.border, borderRadius: 4, width: "60%" }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : error ? (
-        <div style={styles.emptyState}>
-          <span style={styles.emptyIcon}>⚠</span>
-          <div style={styles.emptyTitle}>FAILED TO LOAD</div>
-          <div style={styles.emptyDesc}>{error}</div>
-        </div>
-      ) : posts.length === 0 ? (
-        <div style={styles.emptyState}>
-          <span style={styles.emptyIcon}>◎</span>
-          <div style={styles.emptyTitle}>NO POSTS YET</div>
-          <div style={styles.emptyDesc}>Check back soon — content is coming.</div>
-        </div>
-      ) : (
-        <>
-          <div style={styles.grid}>
-            {posts.map(post => {
-              const tags = typeof post.tags === "string"
-                ? post.tags.split(",").map(t => t.trim()).filter(Boolean)
-                : (Array.isArray(post.tags) ? post.tags : []);
-              return (
-                <div
-                  key={post.id}
-                  style={styles.card}
-                  onClick={() => navigate(`/blog/${post.slug}`)}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = T.borderHover;
-                    e.currentTarget.style.background = T.bgCardHover;
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = T.border;
-                    e.currentTarget.style.background = T.bgCard;
-                    e.currentTarget.style.transform = "translateY(0)";
-                  }}
-                >
-                  {/* Cover image */}
-                  {post.cover_image_url ? (
-                    <img
-                      src={post.cover_image_url}
-                      alt={post.title}
-                      style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }}
-                      onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
-                    />
-                  ) : null}
-                  {!post.cover_image_url && <GradientPlaceholder title={post.title || "Post"} isDark={isDark} />}
+      {/* ── Content ────────────────────────────────────────────────────────── */}
+      <div style={{ maxWidth: 1440, margin: "0 auto", padding: "0 clamp(16px,3vw,48px)" }}>
 
-                  <div style={styles.cardBody}>
-                    {/* Tags */}
-                    {tags.length > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        {tags.slice(0, 4).map(tag => (
-                          <span key={tag} style={styles.pill}>{tag.toUpperCase()}</span>
+        {loading ? (
+          <div style={{ padding: "80px 0", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 20, marginTop: 40 }}>
+            {[0,1,2,3,4,5].map(i => (
+              <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", minHeight: 320 }}>
+                <div style={{ height: 190, background: T.border, animation: "blogPulse 1.4s ease infinite alternate" }} />
+                <div style={{ padding: 18 }}>
+                  <div style={{ height: 12, background: T.border, borderRadius: 4, marginBottom: 8, width: "70%", animation: "blogPulse 1.4s ease infinite alternate" }} />
+                  <div style={{ height: 10, background: T.border, borderRadius: 4, width: "100%", animation: "blogPulse 1.4s ease infinite alternate" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: "center", padding: "100px 0", color: T.textDim }}>
+            <div style={{ fontSize: 40, marginBottom: 14 }}>⚠</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>FAILED TO LOAD</div>
+            <div style={{ fontSize: 12, marginTop: 6 }}>{error}</div>
+          </div>
+        ) : posts.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "100px 0", color: T.textDim }}>
+            <div style={{ fontSize: 40, marginBottom: 14 }}>◎</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>NO POSTS YET</div>
+            <div style={{ fontSize: 12, marginTop: 6 }}>Content is coming — check back soon.</div>
+          </div>
+        ) : (
+          <>
+            {/* ── Tag Filter ───────────────────────────────────────────────── */}
+            {allTags.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "28px 0 20px", alignItems: "center" }}>
+                <span style={{ fontSize: 9, color: T.textDim, letterSpacing: "0.14em", marginRight: 4 }}>FILTER</span>
+                <TagPill tag="All" T={T} active={!activeTag} onClick={() => setActiveTag("")} />
+                {allTags.map(tag => (
+                  <TagPill key={tag} tag={tag} T={T} active={activeTag === tag} onClick={() => setActiveTag(t => t === tag ? "" : tag)} />
+                ))}
+              </div>
+            )}
+
+            {filteredPosts.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 0", color: T.textDim }}>
+                <div style={{ fontSize: 13 }}>No posts tagged "{activeTag}"</div>
+              </div>
+            ) : (
+              <>
+                {/* ── Featured Post ─────────────────────────────────────── */}
+                {featuredPost && (
+                  <div
+                    onClick={() => navigate(`/blog/${featuredPost.slug}`)}
+                    style={{ display: "flex", flexDirection: "row", background: T.bgFeatured, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden", marginBottom: 36, cursor: "pointer", transition: "border-color 0.2s,transform 0.15s", minHeight: 280 }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = T.borderHover; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = "translateY(0)"; }}
+                  >
+                    {/* Cover image */}
+                    <div style={{ flex: "0 0 45%", minWidth: 0, position: "relative", overflow: "hidden" }}>
+                      {featuredPost.cover_image_url ? (
+                        <img
+                          src={featuredPost.cover_image_url}
+                          alt={featuredPost.title}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", minHeight: 280 }}
+                          onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display = "flex"); }}
+                        />
+                      ) : (
+                        <GradientPlaceholder title={featuredPost.title} isDark={isDark} style={{ minHeight: 280 }} />
+                      )}
+                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right,transparent 70%,rgba(0,0,0,0.4) 100%)", pointerEvents: "none" }} />
+                    </div>
+                    {/* Content */}
+                    <div style={{ flex: 1, padding: "clamp(20px,3vw,40px)", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+                        <span style={{ fontSize: 9, background: T.accent, color: "#fff", padding: "2px 9px", borderRadius: 20, fontWeight: 700, letterSpacing: "0.1em" }}>FEATURED</span>
+                        {(Array.isArray(featuredPost.tags) ? featuredPost.tags : []).slice(0, 2).map(tag => (
+                          <span key={tag} style={{ fontSize: 9, padding: "2px 9px", borderRadius: 20, fontWeight: 700, letterSpacing: "0.1em", background: T.tag, border: `1px solid ${T.tagBorder}`, color: T.tagText }}>{tag.toUpperCase()}</span>
                         ))}
                       </div>
-                    )}
-
-                    <div style={styles.cardTitle}>{post.title}</div>
-                    <div style={styles.cardExcerpt}>
-                      {truncate(post.excerpt || post.body?.replace(/<[^>]+>/g, "") || "", 150)}
-                    </div>
-
-                    <div style={styles.cardMeta}>
-                      <span style={styles.cardDate}>{fmtDate(post.published_at || post.created_at)}</span>
-                      <button
-                        style={styles.readMore}
-                        onClick={e => { e.stopPropagation(); navigate(`/blog/${post.slug}`); }}
-                      >
-                        READ MORE →
-                      </button>
+                      <h2 style={{ fontSize: "clamp(18px,2.4vw,30px)", fontWeight: 800, color: T.text, letterSpacing: "-0.02em", lineHeight: 1.2, margin: "0 0 14px" }}>
+                        {featuredPost.title}
+                      </h2>
+                      <p style={{ fontSize: "clamp(12px,1.2vw,14px)", color: T.textMid, lineHeight: 1.75, margin: "0 0 20px", flex: 1 }}>
+                        {truncate(featuredPost.excerpt || featuredPost.body, 220)}
+                      </p>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                        <div style={{ fontSize: 10, color: T.textDim, letterSpacing: "0.06em" }}>
+                          {fmtDate(featuredPost.published_at || featuredPost.created_at)}
+                          {featuredPost.body && <span style={{ marginLeft: 10 }}>· {readTime(featuredPost.body)}</span>}
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: T.accent, letterSpacing: "0.08em", padding: "6px 16px", border: `1px solid ${T.accent}50`, borderRadius: 7 }}>
+                          READ NOW →
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                )}
 
-          {/* Load more */}
-          {hasMore && (
-            <button
-              style={styles.loadMoreBtn}
-              onClick={() => fetchPosts(offset, true)}
-              disabled={loadingMore}
-            >
-              {loadingMore ? "LOADING…" : `LOAD MORE (${total - posts.length} remaining)`}
-            </button>
-          )}
-        </>
-      )}
+                {/* ── Post Grid ─────────────────────────────────────────── */}
+                {gridPosts.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 9, color: T.textDim, letterSpacing: "0.16em", marginBottom: 16 }}>
+                      {activeTag ? `${filteredPosts.length - 1} MORE IN "${activeTag.toUpperCase()}"` : "MORE ARTICLES"}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 20, marginBottom: 40 }}>
+                      {gridPosts.map(post => {
+                        const tags = Array.isArray(post.tags) ? post.tags : [];
+                        return (
+                          <div
+                            key={post.id}
+                            onClick={() => navigate(`/blog/${post.slug}`)}
+                            style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", cursor: "pointer", transition: "border-color 0.2s,background 0.2s,transform 0.15s", display: "flex", flexDirection: "column" }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = T.borderHover; e.currentTarget.style.background = T.bgCardHover; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.bgCard; e.currentTarget.style.transform = "translateY(0)"; }}
+                          >
+                            {/* Cover */}
+                            <div style={{ height: 190, overflow: "hidden", flexShrink: 0, position: "relative" }}>
+                              {post.cover_image_url ? (
+                                <img src={post.cover_image_url} alt={post.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { e.currentTarget.style.display = "none"; }} />
+                              ) : (
+                                <GradientPlaceholder title={post.title} isDark={isDark} style={{ height: "100%" }} />
+                              )}
+                            </div>
+                            {/* Body */}
+                            <div style={{ padding: "18px 18px 16px", flex: 1, display: "flex", flexDirection: "column" }}>
+                              {tags.length > 0 && (
+                                <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                  {tags.slice(0, 3).map(tag => (
+                                    <span key={tag} style={{ fontSize: 8, padding: "2px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: "0.1em", background: T.tag, border: `1px solid ${T.tagBorder}`, color: T.tagText }}>{tag.toUpperCase()}</span>
+                                  ))}
+                                </div>
+                              )}
+                              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 8, lineHeight: 1.35, letterSpacing: "-0.01em" }}>
+                                {post.title}
+                              </div>
+                              <div style={{ fontSize: 12, color: T.textMid, lineHeight: 1.65, flex: 1, marginBottom: 14 }}>
+                                {truncate(post.excerpt || post.body, 130)}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                                <span style={{ fontSize: 10, color: T.textDim, letterSpacing: "0.04em" }}>
+                                  {fmtDate(post.published_at || post.created_at)}
+                                  {post.body && <span style={{ marginLeft: 8 }}>· {readTime(post.body)}</span>}
+                                </span>
+                                <span style={{ fontSize: 10, color: T.accent, letterSpacing: "0.1em", fontWeight: 700, padding: "3px 10px", border: `1px solid ${T.accent}40`, borderRadius: 5 }}>READ →</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
 
-      {/* ── Footer ────────────────────────────────────────────────────────── */}
-      <footer style={styles.footer}>
-        <div>
-          4Life Mystery Blog · Questions worth asking
-          <Link to="/" style={styles.footerLink}>← Back to main site</Link>
+            {/* ── Load More ────────────────────────────────────────────── */}
+            {hasMore && (
+              <div style={{ textAlign: "center", paddingBottom: 48 }}>
+                <button
+                  onClick={() => fetchPosts(offset, true)}
+                  disabled={loadingMore}
+                  style={{ padding: "12px 36px", borderRadius: 9, border: `1px solid ${T.accent}50`, background: `${T.accent}0c`, color: T.accent, fontSize: 11, letterSpacing: "0.12em", fontWeight: 700, cursor: loadingMore ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s", opacity: loadingMore ? 0.6 : 1 }}
+                >
+                  {loadingMore ? "LOADING…" : `LOAD MORE  (${total - posts.length} remaining)`}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      <footer style={{ borderTop: `1px solid ${T.border}`, background: T.footBg, padding: "36px clamp(16px,4vw,48px)", display: "flex", flexDirection: "column", gap: 10, alignItems: "center", textAlign: "center" }}>
+        <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: "0.06em", color: T.text }}>
+          <span style={{ background: "linear-gradient(135deg,#34d399,#4f8ef0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>4LIFE</span>
+          <span>MYSTERY</span>
         </div>
-        <div style={{ marginTop: 8, opacity: 0.5 }}>
+        <div style={{ fontSize: 11, color: T.textDim, letterSpacing: "0.08em" }}>Questions worth asking.</div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
+          <Link to="/" style={{ fontSize: 10, color: T.accent, textDecoration: "none" }}>← Main Site</Link>
+        </div>
+        <div style={{ fontSize: 10, color: T.textDim, opacity: 0.5, marginTop: 4 }}>
           © {new Date().getFullYear()} 4Life Mystery. All rights reserved.
         </div>
       </footer>
 
-      {/* ── Cookie consent bar ────────────────────────────────────────────── */}
+      {/* ── Cookie bar ─────────────────────────────────────────────────────── */}
       {!cookieConsent && (
-        <div style={styles.cookieBar}>
-          <div style={styles.cookieText}>
-            We use cookies to improve your experience and analyse site traffic.
-            <Link to="/cookie-policy" style={{ color: T.accent, marginLeft: 4 }}>Learn more</Link>
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: isDark ? "rgba(6,8,16,0.97)" : "rgba(248,250,252,0.97)", backdropFilter: "blur(14px)", borderTop: `1px solid ${T.border}`, padding: "14px clamp(16px,4vw,48px)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, fontSize: 11, color: T.textMid, minWidth: 200 }}>
+            We use cookies to improve your experience.{" "}
+            <Link to="/cookie-policy" style={{ color: T.accent }}>Learn more</Link>
           </div>
-          <button style={styles.cookieDecline} onClick={declineCookies}>Decline</button>
-          <button style={styles.cookieAccept} onClick={acceptCookies}>Accept All</button>
+          <button onClick={() => { localStorage.setItem("blog_cookie_consent", "declined"); setCookieConsent("declined"); }} style={{ padding: "7px 18px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Decline</button>
+          <button onClick={() => { localStorage.setItem("blog_cookie_consent", "accepted"); setCookieConsent("accepted"); }} style={{ padding: "7px 18px", borderRadius: 7, border: `1px solid ${T.accentGreen}50`, background: `${T.accentGreen}12`, color: T.accentGreen, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Accept All</button>
         </div>
       )}
 
       <style>{`
-        @keyframes blogPulse { from { opacity: 0.4; } to { opacity: 0.7; } }
-        @media (max-width: 600px) {
-          .blog-grid { grid-template-columns: 1fr !important; }
-          .blog-load-more { width: 100% !important; }
-          .blog-cookie-bar { flex-direction: column; }
-          .blog-cookie-bar button { width: 100%; }
+        @keyframes blogPulse { from { opacity: 0.35; } to { opacity: 0.65; } }
+        @media (max-width: 700px) {
+          /* Stack featured post vertically on mobile */
+          div[data-featured] { flex-direction: column !important; }
         }
       `}</style>
     </div>

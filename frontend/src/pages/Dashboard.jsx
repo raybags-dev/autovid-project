@@ -80,6 +80,7 @@ import api, {
   adminCreateBlogPost,
   adminUpdateBlogPost,
   adminDeleteBlogPost,
+  adminUploadBlogCover,
   postVideoToBlog,
   getDevTtsMode,
   setDevTtsMode as apiSetDevTtsMode,
@@ -13207,15 +13208,17 @@ function BlogManager({ T, showToast }) {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [delConfirm, setDelConfirm] = useState(null);
-  // Delete-all state — uses DangerZone password for protection
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
+  // Delete-all state
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleteAllKey, setDeleteAllKey] = useState("");
   const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
-  const [deleteAllStep, setDeleteAllStep] = useState("key"); // "key" | "confirm"
+  const [deleteAllStep, setDeleteAllStep] = useState("key");
   const [deleteAllRunning, setDeleteAllRunning] = useState(false);
   const [deleteAllError, setDeleteAllError] = useState("");
 
-  const EMPTY = { title: "", excerpt: "", body: "", cover_image_url: "", tags: "", status: "draft", youtube_url: "" };
+  const EMPTY = { title: "", excerpt: "", details: "", cover_image_url: "", tags: "", status: "draft", youtube_url: "" };
   const [form, setForm] = useState(EMPTY);
 
   const load = async () => {
@@ -13229,18 +13232,45 @@ function BlogManager({ T, showToast }) {
 
   useEffect(() => { load(); }, []);
 
-  const openNew  = () => { setForm(EMPTY); setEditing(null); setFormOpen(true); };
-  const openEdit = (p) => { setForm({ ...p, tags: (p.tags || []).join(", ") }); setEditing(p.id); setFormOpen(true); };
-  const closeForm = () => { setFormOpen(false); setEditing(null); };
+  const openNew = () => {
+    setForm(EMPTY); setEditing(null); setFormOpen(true);
+    setCoverFile(null); setCoverPreview(null);
+  };
+  const openEdit = (p) => {
+    setForm({
+      title: p.title || "", excerpt: p.excerpt || "",
+      details: "",  // can't reverse-engineer saved HTML; user re-enters or leaves blank
+      cover_image_url: p.cover_image_url || "",
+      tags: (p.tags || []).join(", "),
+      status: p.status || "draft",
+      youtube_url: p.youtube_url || "",
+    });
+    setEditing(p.id); setFormOpen(true);
+    setCoverFile(null); setCoverPreview(p.cover_image_url || null);
+  };
+  const closeForm = () => { setFormOpen(false); setEditing(null); setCoverFile(null); setCoverPreview(null); };
 
   const save = async () => {
     if (!form.title.trim()) { showToast("Title is required", "error"); return; }
     setSaving(true);
     try {
-      const payload = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean) };
+      let cover_image_url = form.cover_image_url;
+      if (coverFile) {
+        const res = await adminUploadBlogCover(coverFile);
+        cover_image_url = res.url;
+      }
+      const payload = {
+        title: form.title,
+        excerpt: form.excerpt,
+        details: form.details,
+        cover_image_url,
+        youtube_url: form.youtube_url,
+        tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+        status: form.status,
+      };
       if (editing) await adminUpdateBlogPost(editing, payload);
       else         await adminCreateBlogPost(payload);
-      showToast(editing ? "Post updated" : "Post created");
+      showToast(editing ? "Post updated!" : "Post created!");
       closeForm(); load();
     } catch (err) {
       showToast(err?.response?.data?.detail || "Save failed", "error");
@@ -13251,7 +13281,7 @@ function BlogManager({ T, showToast }) {
     const newStatus = p.status === "published" ? "draft" : "published";
     try {
       await adminUpdateBlogPost(p.id, { status: newStatus });
-      showToast(newStatus === "published" ? "Post published" : "Post set to draft");
+      showToast(newStatus === "published" ? "Post published!" : "Post set to draft");
       load();
     } catch { showToast("Update failed", "error"); }
   };
@@ -13272,8 +13302,7 @@ function BlogManager({ T, showToast }) {
     if (!deleteAllKey.trim()) return;
     try {
       await api.post("/admin/danger/verify", { key: deleteAllKey.trim() });
-      setDeleteAllStep("confirm");
-      setDeleteAllError("");
+      setDeleteAllStep("confirm"); setDeleteAllError("");
     } catch (e) {
       setDeleteAllError(e?.response?.data?.detail || "Invalid key");
     }
@@ -13293,30 +13322,23 @@ function BlogManager({ T, showToast }) {
   };
 
   const fld = (key) => ({
-    value: form[key],
+    value: form[key] ?? "",
     onChange: (e) => setForm(f => ({ ...f, [key]: e.target.value })),
   });
 
-  const inputStyle = {
-    width: "100%", boxSizing: "border-box", background: "#111", border: `1px solid ${T.border}`,
-    borderRadius: 6, color: "#fff", padding: "8px 12px", fontSize: 12, fontFamily: "monospace",
-    outline: "none",
+  const inp = {
+    width: "100%", boxSizing: "border-box", background: "#0a0e14",
+    border: `1px solid ${T.border}`, borderRadius: 7, color: "#e2e8f0",
+    padding: "9px 12px", fontSize: 12, fontFamily: "monospace", outline: "none",
+    transition: "border-color 0.15s",
   };
+  const lbl = { fontSize: 9, color: T.textDim, marginBottom: 5, letterSpacing: "0.1em", fontWeight: 700 };
 
-  // Shared dark-button style for all blog manager buttons
-  const darkBtn = (extraStyle = {}) => ({
-    background: "#1a1a1a",
-    border: "1px solid rgba(255,255,255,0.15)",
-    borderRadius: 6,
-    color: "#fff",
-    fontSize: 10,
-    letterSpacing: "0.06em",
-    padding: "5px 12px",
-    cursor: "pointer",
-    fontFamily: "monospace",
-    fontWeight: 600,
-    transition: "all 0.15s",
-    ...extraStyle,
+  const darkBtn = (ex = {}) => ({
+    background: "#161b22", border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 6, color: "#e2e8f0", fontSize: 10, letterSpacing: "0.06em",
+    padding: "5px 12px", cursor: "pointer", fontFamily: "monospace", fontWeight: 600,
+    transition: "all 0.15s", ...ex,
   });
 
   return (
@@ -13330,17 +13352,11 @@ function BlogManager({ T, showToast }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={openNew}
-            style={{ ...darkBtn({ background: "#1a2a3a", borderColor: "rgba(96,165,250,0.4)", color: "#60a5fa", fontSize: 11, padding: "8px 18px" }) }}
-          >
+          <button onClick={openNew} style={darkBtn({ background: "rgba(96,165,250,0.1)", borderColor: "rgba(96,165,250,0.35)", color: "#60a5fa", fontSize: 11, padding: "8px 18px" })}>
             + NEW POST
           </button>
           {posts.length > 0 && (
-            <button
-              onClick={openDeleteAll}
-              style={{ ...darkBtn({ background: "rgba(180,0,20,0.18)", borderColor: "rgba(200,0,30,0.4)", color: "#ff5555", fontSize: 11, padding: "8px 14px" }) }}
-            >
+            <button onClick={openDeleteAll} style={darkBtn({ background: "rgba(180,0,20,0.12)", borderColor: "rgba(200,0,30,0.35)", color: "#ff5555", fontSize: 11, padding: "8px 14px" })}>
               ☠ DELETE ALL
             </button>
           )}
@@ -13356,48 +13372,42 @@ function BlogManager({ T, showToast }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {posts.map(p => (
             <div key={p.id} style={{
-              background: "#111", border: `1px solid ${T.border}`, borderRadius: 8,
-              padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+              background: "#0d1117", border: `1px solid ${T.border}`, borderRadius: 10,
+              padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
             }}>
-              {/* Status badge */}
+              {p.cover_image_url && (
+                <img src={p.cover_image_url} alt="" style={{ width: 52, height: 36, objectFit: "cover", borderRadius: 5, flexShrink: 0 }} onError={e => e.currentTarget.style.display="none"} />
+              )}
               <span style={{
-                fontSize: 9, padding: "2px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: "0.1em",
-                background: p.status === "published" ? "rgba(61,214,140,0.12)" : "rgba(255,255,255,0.06)",
+                fontSize: 9, padding: "2px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: "0.1em", flexShrink: 0,
+                background: p.status === "published" ? "rgba(61,214,140,0.1)" : "rgba(255,255,255,0.04)",
                 color: p.status === "published" ? "#3dd68c" : T.textDim,
-                border: `1px solid ${p.status === "published" ? "rgba(61,214,140,0.3)" : T.border}`,
+                border: `1px solid ${p.status === "published" ? "rgba(61,214,140,0.25)" : T.border}`,
               }}>
                 {p.status.toUpperCase()}
               </span>
-              {/* Title */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {p.title}
                 </div>
                 <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>
                   {new Date(p.created_at).toLocaleDateString()} · /blog/{p.slug}
                 </div>
               </div>
-              {/* Actions */}
               <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
-                <button
-                  onClick={() => toggleStatus(p)}
-                  style={darkBtn({ background: p.status === "published" ? "rgba(245,158,11,0.15)" : "rgba(61,214,140,0.12)", borderColor: p.status === "published" ? "rgba(245,158,11,0.4)" : "rgba(61,214,140,0.4)", color: p.status === "published" ? "#f59e0b" : "#3dd68c" })}
-                >
+                <button onClick={() => toggleStatus(p)} style={darkBtn({
+                  background: p.status === "published" ? "rgba(245,158,11,0.1)" : "rgba(61,214,140,0.1)",
+                  borderColor: p.status === "published" ? "rgba(245,158,11,0.35)" : "rgba(61,214,140,0.35)",
+                  color: p.status === "published" ? "#f59e0b" : "#3dd68c",
+                })}>
                   {p.status === "published" ? "⬇ UNPUBLISH" : "▲ PUBLISH"}
                 </button>
-                <a
-                  href={`/blog/${p.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ ...darkBtn({ borderColor: "rgba(96,165,250,0.3)", color: "#60a5fa", textDecoration: "none", display: "inline-flex", alignItems: "center" }) }}
-                >
+                <a href={`/blog/${p.slug}`} target="_blank" rel="noopener noreferrer"
+                  style={{ ...darkBtn({ borderColor: "rgba(96,165,250,0.25)", color: "#60a5fa", textDecoration: "none", display: "inline-flex", alignItems: "center" }) }}>
                   ↗ VIEW
                 </a>
                 <button onClick={() => openEdit(p)} style={darkBtn()}>✎ EDIT</button>
-                <button
-                  onClick={() => setDelConfirm(p.id)}
-                  style={darkBtn({ background: "rgba(239,68,68,0.12)", borderColor: "rgba(239,68,68,0.35)", color: "#ef4444" })}
-                >
+                <button onClick={() => setDelConfirm(p.id)} style={darkBtn({ background: "rgba(239,68,68,0.1)", borderColor: "rgba(239,68,68,0.3)", color: "#ef4444" })}>
                   ✕ DELETE
                 </button>
               </div>
@@ -13406,21 +13416,21 @@ function BlogManager({ T, showToast }) {
         </div>
       )}
 
-      {/* Single post delete confirm */}
+      {/* Delete confirm */}
       {delConfirm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#111", border: `1px solid rgba(239,68,68,0.3)`, borderRadius: 12, padding: 28, maxWidth: 380, width: "90%" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#0d1117", border: `1px solid rgba(239,68,68,0.3)`, borderRadius: 12, padding: 28, maxWidth: 380, width: "90%" }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 10 }}>Delete Post?</div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginBottom: 20 }}>This cannot be undone.</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginBottom: 20 }}>This cannot be undone.</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => remove(delConfirm)} style={{ flex: 1, background: "#ef4444", border: "none", borderRadius: 7, color: "#fff", padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>DELETE</button>
-              <button onClick={() => setDelConfirm(null)} style={{ flex: 1, background: "#1a1a1a", border: `1px solid rgba(255,255,255,0.15)`, borderRadius: 7, color: "#fff", padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>CANCEL</button>
+              <button onClick={() => setDelConfirm(null)} style={{ flex: 1, background: "#161b22", border: `1px solid rgba(255,255,255,0.12)`, borderRadius: 7, color: "#fff", padding: "9px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>CANCEL</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete All modal with password */}
+      {/* Delete All modal */}
       {deleteAllOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div style={{ background: "linear-gradient(180deg,#0a0003 0%,#0e0008 100%)", border: "1px solid rgba(200,0,30,0.4)", borderRadius: 14, padding: 30, maxWidth: 420, width: "100%" }}>
@@ -13429,19 +13439,10 @@ function BlogManager({ T, showToast }) {
               <div style={{ fontWeight: 800, fontSize: 16, color: "#ff2020", letterSpacing: "0.12em" }}>DELETE ALL BLOGS</div>
               <div style={{ fontSize: 10, color: "rgba(255,80,80,0.5)", marginTop: 4, letterSpacing: "0.12em" }}>IRREVERSIBLE — REQUIRES DANGER ZONE KEY</div>
             </div>
-
             {deleteAllStep === "key" ? (
               <>
                 <div style={{ fontSize: 10, color: "rgba(255,100,100,0.6)", marginBottom: 6, letterSpacing: "0.1em" }}>ENTER DANGER ZONE KEY</div>
-                <input
-                  type="password"
-                  value={deleteAllKey}
-                  onChange={e => setDeleteAllKey(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleDeleteAllAuth()}
-                  placeholder="Danger zone key..."
-                  autoFocus
-                  style={{ width: "100%", boxSizing: "border-box", background: "rgba(180,0,20,0.08)", border: "1px solid rgba(200,0,30,0.3)", borderRadius: 7, padding: "10px 13px", color: "#ff8080", fontFamily: "monospace", fontSize: 13, outline: "none", marginBottom: 12 }}
-                />
+                <input type="password" value={deleteAllKey} onChange={e => setDeleteAllKey(e.target.value)} onKeyDown={e => e.key === "Enter" && handleDeleteAllAuth()} placeholder="Danger zone key..." autoFocus style={{ width: "100%", boxSizing: "border-box", background: "rgba(180,0,20,0.08)", border: "1px solid rgba(200,0,30,0.3)", borderRadius: 7, padding: "10px 13px", color: "#ff8080", fontFamily: "monospace", fontSize: 13, outline: "none", marginBottom: 12 }} />
                 {deleteAllError && <div style={{ fontSize: 11, color: "#ff4040", marginBottom: 10 }}>✕ {deleteAllError}</div>}
                 <div style={{ display: "flex", gap: 10 }}>
                   <button onClick={() => setDeleteAllOpen(false)} style={{ flex: 1, ...darkBtn({ padding: "9px 0" }) }}>CANCEL</button>
@@ -13451,25 +13452,14 @@ function BlogManager({ T, showToast }) {
             ) : (
               <>
                 <div style={{ background: "rgba(200,0,30,0.08)", border: "1px solid rgba(200,0,30,0.2)", borderRadius: 8, padding: "12px 14px", marginBottom: 16, fontSize: 11, color: "rgba(255,140,140,0.85)", lineHeight: 1.7 }}>
-                  This will permanently delete <strong style={{ color: "#ff3030" }}>all {posts.length} blog post(s)</strong> from the database. Comments and slugs will also be removed. There is no recovery.
+                  This will permanently delete <strong style={{ color: "#ff3030" }}>all {posts.length} blog post(s)</strong> from the database. There is no recovery.
                 </div>
                 <div style={{ fontSize: 10, color: "rgba(255,80,80,0.5)", marginBottom: 6, letterSpacing: "0.12em" }}>TYPE "DELETE ALL" TO CONFIRM</div>
-                <input
-                  type="text"
-                  value={deleteAllConfirmText}
-                  onChange={e => setDeleteAllConfirmText(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleDeleteAll()}
-                  placeholder='Type DELETE ALL'
-                  autoFocus
-                  style={{ width: "100%", boxSizing: "border-box", background: "rgba(180,0,20,0.08)", border: `1px solid ${deleteAllConfirmText === "DELETE ALL" ? "rgba(200,0,30,0.7)" : "rgba(200,0,30,0.25)"}`, borderRadius: 7, padding: "10px 13px", color: deleteAllConfirmText === "DELETE ALL" ? "#ff3030" : "#ff8080", fontFamily: "monospace", fontSize: 13, letterSpacing: "0.14em", outline: "none", marginBottom: 12 }}
-                />
+                <input type="text" value={deleteAllConfirmText} onChange={e => setDeleteAllConfirmText(e.target.value)} onKeyDown={e => e.key === "Enter" && handleDeleteAll()} placeholder='Type DELETE ALL' autoFocus style={{ width: "100%", boxSizing: "border-box", background: "rgba(180,0,20,0.08)", border: `1px solid ${deleteAllConfirmText === "DELETE ALL" ? "rgba(200,0,30,0.7)" : "rgba(200,0,30,0.25)"}`, borderRadius: 7, padding: "10px 13px", color: deleteAllConfirmText === "DELETE ALL" ? "#ff3030" : "#ff8080", fontFamily: "monospace", fontSize: 13, letterSpacing: "0.14em", outline: "none", marginBottom: 12 }} />
                 {deleteAllError && <div style={{ fontSize: 11, color: "#ff4040", marginBottom: 10 }}>✕ {deleteAllError}</div>}
                 <div style={{ display: "flex", gap: 10 }}>
                   <button onClick={() => setDeleteAllOpen(false)} style={{ flex: 1, ...darkBtn({ padding: "9px 0" }) }}>CANCEL</button>
-                  <button
-                    onClick={handleDeleteAll}
-                    disabled={deleteAllConfirmText !== "DELETE ALL" || deleteAllRunning}
-                    style={{ flex: 2, background: deleteAllConfirmText === "DELETE ALL" ? "rgba(200,0,30,0.28)" : "rgba(180,0,20,0.08)", border: "1px solid rgba(200,0,30,0.45)", borderRadius: 6, color: "#ff2828", padding: "9px 0", cursor: deleteAllConfirmText === "DELETE ALL" ? "pointer" : "not-allowed", fontFamily: "monospace", fontWeight: 900, fontSize: 11, opacity: (deleteAllConfirmText !== "DELETE ALL" || deleteAllRunning) ? 0.45 : 1 }}>
+                  <button onClick={handleDeleteAll} disabled={deleteAllConfirmText !== "DELETE ALL" || deleteAllRunning} style={{ flex: 2, background: deleteAllConfirmText === "DELETE ALL" ? "rgba(200,0,30,0.28)" : "rgba(180,0,20,0.08)", border: "1px solid rgba(200,0,30,0.45)", borderRadius: 6, color: "#ff2828", padding: "9px 0", cursor: deleteAllConfirmText === "DELETE ALL" ? "pointer" : "not-allowed", fontFamily: "monospace", fontWeight: 900, fontSize: 11, opacity: (deleteAllConfirmText !== "DELETE ALL" || deleteAllRunning) ? 0.45 : 1 }}>
                     {deleteAllRunning ? "DELETING..." : "EXECUTE DELETE ALL"}
                   </button>
                 </div>
@@ -13479,60 +13469,127 @@ function BlogManager({ T, showToast }) {
         </div>
       )}
 
-      {/* Create/Edit form modal */}
+      {/* Create / Edit modal */}
       {formOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "#0d1117", border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 20 }}>{editing ? "EDIT POST" : "NEW POST"}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>TITLE *</div>
-                <input {...fld("title")} placeholder="Post title" style={inputStyle} />
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#0d1117", border: `1px solid ${T.border}`, borderRadius: 14, width: "100%", maxWidth: 700, maxHeight: "92vh", display: "flex", flexDirection: "column" }}>
+            {/* Modal header */}
+            <div style={{ padding: "18px 24px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", letterSpacing: "0.05em" }}>
+                {editing ? "✎ EDIT POST" : "＋ NEW POST"}
               </div>
-              <div>
-                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>EXCERPT</div>
-                <textarea {...fld("excerpt")} rows={2} placeholder="Short summary..." style={{ ...inputStyle, resize: "vertical" }} />
+              <button onClick={closeForm} style={{ background: "none", border: "none", color: T.textDim, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Scrollable form body */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+
+                {/* Title */}
+                <div>
+                  <div style={lbl}>TITLE *</div>
+                  <input {...fld("title")} placeholder="Post title" style={inp} />
+                </div>
+
+                {/* Brief Description */}
+                <div>
+                  <div style={lbl}>BRIEF DESCRIPTION</div>
+                  <textarea {...fld("excerpt")} rows={2} placeholder="Short summary shown on blog listing cards..." style={{ ...inp, resize: "vertical", lineHeight: 1.55 }} />
+                </div>
+
+                {/* Details / Body */}
+                <div>
+                  <div style={lbl}>DETAILS</div>
+                  <div style={{ fontSize: 9, color: T.textDim, marginBottom: 6, lineHeight: 1.5 }}>
+                    Write in plain text. Separate paragraphs with a blank line. The YouTube video will be embedded automatically.
+                  </div>
+                  <textarea
+                    {...fld("details")}
+                    rows={12}
+                    placeholder={"Write your post content here...\n\nNew paragraph after a blank line.\n\nNo HTML or formatting needed — just write naturally."}
+                    style={{ ...inp, resize: "vertical", lineHeight: 1.7, minHeight: 200 }}
+                  />
+                </div>
+
+                {/* Cover Image Upload */}
+                <div>
+                  <div style={lbl}>COVER IMAGE</div>
+                  {coverPreview && (
+                    <div style={{ marginBottom: 10, borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`, position: "relative" }}>
+                      <img src={coverPreview} alt="Cover" style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }} />
+                      <button
+                        onClick={() => { setCoverFile(null); setCoverPreview(null); setForm(f => ({ ...f, cover_image_url: "" })); }}
+                        style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.75)", border: "none", borderRadius: 5, color: "#fff", cursor: "pointer", padding: "3px 8px", fontSize: 11 }}
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  )}
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: "#0a0e14", border: `1px dashed ${T.border}`, borderRadius: 7, padding: "12px 14px" }}>
+                    <span style={{ fontSize: 20 }}>🖼</span>
+                    <span style={{ fontSize: 11, color: T.textDim }}>
+                      {coverFile ? coverFile.name : "Click to upload cover image  (JPG, PNG, WebP · max 10MB)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      style={{ display: "none" }}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setCoverFile(f);
+                        const prev = URL.createObjectURL(f);
+                        setCoverPreview(prev);
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {/* YouTube URL */}
+                <div>
+                  <div style={lbl}>YOUTUBE VIDEO URL</div>
+                  <input {...fld("youtube_url")} placeholder="https://youtube.com/watch?v=..." style={inp} />
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <div style={lbl}>TAGS (comma-separated)</div>
+                  <input {...fld("tags")} placeholder="Philosophy, Consciousness, Mystery" style={inp} />
+                </div>
+
+                {/* Status */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ fontSize: 9, color: T.textDim, letterSpacing: "0.1em", fontWeight: 700 }}>STATUS</div>
+                  <button
+                    onClick={() => setForm(f => ({ ...f, status: f.status === "published" ? "draft" : "published" }))}
+                    style={{
+                      background: form.status === "published" ? "rgba(61,214,140,0.12)" : "#161b22",
+                      border: `1px solid ${form.status === "published" ? "rgba(61,214,140,0.35)" : "rgba(255,255,255,0.12)"}`,
+                      color: form.status === "published" ? "#3dd68c" : "#888",
+                      borderRadius: 6, padding: "5px 16px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", fontWeight: 700,
+                    }}
+                  >
+                    {form.status === "published" ? "● PUBLISHED" : "○ DRAFT"}
+                  </button>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>BODY (HTML / MARKDOWN)</div>
-                <textarea {...fld("body")} rows={8} placeholder="Full post content..." style={{ ...inputStyle, resize: "vertical" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>COVER IMAGE URL</div>
-                <input {...fld("cover_image_url")} placeholder="https://..." style={inputStyle} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>YOUTUBE URL</div>
-                <input {...fld("youtube_url")} placeholder="https://youtube.com/watch?v=..." style={inputStyle} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: T.textDim, marginBottom: 4, letterSpacing: "0.08em" }}>TAGS (comma-separated)</div>
-                <input {...fld("tags")} placeholder="Philosophy, Mental Health, Mystery" style={inputStyle} />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ fontSize: 10, color: T.textDim, letterSpacing: "0.08em" }}>STATUS</div>
-                <button
-                  onClick={() => setForm(f => ({ ...f, status: f.status === "published" ? "draft" : "published" }))}
-                  style={{
-                    background: form.status === "published" ? "rgba(61,214,140,0.15)" : "#1a1a1a",
-                    border: `1px solid ${form.status === "published" ? "rgba(61,214,140,0.4)" : "rgba(255,255,255,0.15)"}`,
-                    color: form.status === "published" ? "#3dd68c" : "#fff",
-                    borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", fontWeight: 700,
-                  }}
-                >
-                  {form.status === "published" ? "● PUBLISHED" : "○ DRAFT"}
-                </button>
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-                <button onClick={save} disabled={saving}
-                  style={{ flex: 1, background: saving ? "#1a1a1a" : "#1a2a3a", border: "1px solid rgba(96,165,250,0.4)", borderRadius: 7, color: "#fff", padding: "10px 0", cursor: saving ? "default" : "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, opacity: saving ? 0.7 : 1 }}>
-                  {saving ? "SAVING..." : editing ? "SAVE CHANGES" : "CREATE POST"}
-                </button>
-                <button onClick={closeForm}
-                  style={{ flex: 1, background: "#1a1a1a", border: `1px solid rgba(255,255,255,0.15)`, borderRadius: 7, color: "#fff", padding: "10px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}>
-                  CANCEL
-                </button>
-              </div>
+            </div>
+
+            {/* Modal footer */}
+            <div style={{ padding: "16px 24px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 10 }}>
+              <button
+                onClick={save}
+                disabled={saving}
+                style={{ flex: 2, background: saving ? "#161b22" : "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.35)", borderRadius: 8, color: saving ? "#555" : "#60a5fa", padding: "11px 0", cursor: saving ? "default" : "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, opacity: saving ? 0.7 : 1 }}
+              >
+                {saving ? (coverFile ? "UPLOADING & SAVING..." : "SAVING...") : editing ? "SAVE CHANGES" : "CREATE POST"}
+              </button>
+              <button
+                onClick={closeForm}
+                style={{ flex: 1, background: "#161b22", border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 8, color: "#aaa", padding: "11px 0", cursor: "pointer", fontFamily: "monospace", fontSize: 12 }}
+              >
+                CANCEL
+              </button>
             </div>
           </div>
         </div>
