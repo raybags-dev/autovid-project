@@ -4843,6 +4843,7 @@ async def upload_blog_cover(file: UploadFile = File(...), _u: str = Depends(veri
 @app.post("/admin/blog/posts")
 def admin_create_blog_post(body: dict, _u: str = Depends(verify_token)):
     """Admin: create a new blog post from simple fields (no markup required)."""
+    from datetime import datetime, timezone
     import re, unicodedata
     title = str(body.get("title", "")).strip()
     if not title:
@@ -4891,6 +4892,7 @@ def admin_create_blog_post(body: dict, _u: str = Depends(verify_token)):
 @app.patch("/admin/blog/posts/{post_id}")
 def admin_update_blog_post(post_id: str, body: dict, _u: str = Depends(verify_token)):
     """Admin: update a blog post. Accepts plain-text 'details' — regenerates HTML body."""
+    from datetime import datetime, timezone
     fields = {}
     for f in ["title", "slug", "excerpt", "cover_image_url", "tags", "status", "youtube_url", "video_id"]:
         if f in body:
