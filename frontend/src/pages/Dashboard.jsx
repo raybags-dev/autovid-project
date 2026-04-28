@@ -13199,6 +13199,34 @@ function PodcastStudio({ T, showToast, api }) {
 }
 
 
+// ── Blog Manager helpers ───────────────────────────────────────────────────────
+
+/** Extract editable plain text from a saved HTML blog body.
+ *  - Strips the video embed div (not text)
+ *  - Extracts <p> tag content, joining with double-newlines
+ *  - Handles <br> as single newline
+ *  Falls back to stripping all tags if no <p> found.
+ */
+function htmlToDetails(html) {
+  if (!html) return "";
+  // Remove video embed blocks entirely
+  let h = html.replace(/<div[^>]*class="blog-video-embed"[^>]*>[\s\S]*?<\/div>/gi, "");
+  // Extract <p> tag contents
+  const paras = [];
+  const re = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+  let m;
+  while ((m = re.exec(h)) !== null) {
+    const text = m[1]
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+    if (text) paras.push(text);
+  }
+  if (paras.length > 0) return paras.join("\n\n");
+  // Fallback: strip all tags
+  return h.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
+}
+
 // ── Blog Manager ──────────────────────────────────────────────────────────────
 
 function BlogManager({ T, showToast }) {
@@ -13238,8 +13266,9 @@ function BlogManager({ T, showToast }) {
   };
   const openEdit = (p) => {
     setForm({
-      title: p.title || "", excerpt: p.excerpt || "",
-      details: "",  // can't reverse-engineer saved HTML; user re-enters or leaves blank
+      title: p.title || "",
+      excerpt: p.excerpt || "",
+      details: htmlToDetails(p.body || ""),
       cover_image_url: p.cover_image_url || "",
       tags: (p.tags || []).join(", "),
       status: p.status || "draft",
