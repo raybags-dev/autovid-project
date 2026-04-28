@@ -84,6 +84,13 @@ ALTER TABLE videos ADD COLUMN IF NOT EXISTS captions_disabled BOOLEAN DEFAULT FA
 -- Blog post link — run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS blog_post_id UUID;
 ─────────────────────────────────────────────────
+-- Blog comment scoping — run once in Supabase SQL Editor:
+ALTER TABLE blog_comments ADD COLUMN IF NOT EXISTS is_blog_comment BOOLEAN DEFAULT FALSE;
+ALTER TABLE blog_comments ADD COLUMN IF NOT EXISTS is_site_comment BOOLEAN DEFAULT FALSE;
+ALTER TABLE blog_comments ADD COLUMN IF NOT EXISTS blog_post_id UUID;
+CREATE INDEX IF NOT EXISTS idx_blog_comments_blog_post ON blog_comments(blog_post_id) WHERE is_blog_comment = TRUE;
+CREATE INDEX IF NOT EXISTS idx_blog_comments_site ON blog_comments(is_site_comment) WHERE is_site_comment = TRUE;
+─────────────────────────────────────────────────
 """
 import uuid
 from datetime import datetime, timezone

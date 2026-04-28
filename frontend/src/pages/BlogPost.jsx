@@ -127,7 +127,7 @@ function CommentCard({ c, T, fp, onLike, depth = 0 }) {
 }
 
 // ── Comments section ──────────────────────────────────────────────────────────
-function CommentsSection({ T }) {
+function CommentsSection({ T, postId }) {
   const fp = getFingerprint();
   const [comments, setComments] = useState([]);
   const [page, setPage] = useState(1);
@@ -141,14 +141,14 @@ function CommentsSection({ T }) {
   const load = useCallback(async (p = 1, append = false) => {
     try {
       setLoading(p === 1 && !append);
-      const data = await getBlogComments(p, fp);
+      const data = await getBlogComments(p, fp, postId);
       const items = Array.isArray(data.comments) ? data.comments : (Array.isArray(data) ? data : []);
       setComments(prev => append ? [...prev, ...items] : items);
       setHasMore(data.has_more || false);
       setPage(p);
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [fp]);
+  }, [fp, postId]);
 
   useEffect(() => { load(1); }, [load]);
 
@@ -156,7 +156,7 @@ function CommentsSection({ T }) {
     if (!form.name.trim() || !form.content.trim()) { setSubmitErr("Name and message are required."); return; }
     setSubmitting(true); setSubmitErr("");
     try {
-      await submitBlogComment({ ...form, fingerprint: fp });
+      await submitBlogComment({ ...form, fingerprint: fp, blog_post_id: postId });
       setSubmitMsg("Comment submitted! It will appear after review — usually within 24h.");
       setForm({ name: "", email: "", content: "" });
     } catch (e) {
@@ -411,7 +411,7 @@ export default function BlogPost() {
               </div>
 
               {/* Comments */}
-              <CommentsSection T={T} />
+              <CommentsSection T={T} postId={post?.id} />
             </article>
 
             {/* ── Sidebar ─────────────────────────────────────────────── */}
