@@ -433,8 +433,11 @@ export const saveBuzzsproutSettings = async (s) => { const { data } = await api.
 export const uploadToBuzzsprout = async (videoId) => { const { data } = await api.post(`/podcast-episode/${videoId}/upload-buzzsprout`); return data; };
 
 // ── Blog (public) ────────────────────────────────────────────────────────────
-export const getBlogComments = async (page = 1, fp = "") =>
-  (await axios.get(`/api/blog/comments?page=${page}&limit=20&fp=${fp}`)).data;
+export const getBlogComments = async (page = 1, fp = "", blogPostId = "") => {
+  const params = new URLSearchParams({ page, limit: 20, fp });
+  if (blogPostId) params.set("blog_post_id", blogPostId);
+  return (await axios.get(`/api/blog/comments?${params}`)).data;
+};
 
 export const submitBlogComment = async (data) =>
   (await axios.post("/api/blog/comments", data)).data;

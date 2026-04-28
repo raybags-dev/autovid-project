@@ -3143,6 +3143,7 @@ class BlogCommentIn(BaseModel):
     email: Optional[str] = None
     content: str
     fingerprint: str
+    blog_post_id: Optional[str] = None
 
 class BlogLikeIn(BaseModel):
     fingerprint: str
@@ -3154,17 +3155,28 @@ class BlogReplyIn(BaseModel):
     content: str
 
 @app.get("/blog/comments")
-async def get_blog_comments(page: int = 1, limit: int = 20, fp: str = ""):
+async def get_blog_comments(page: int = 1, limit: int = 20, fp: str = "", blog_post_id: str = ""):
     db_client = db.get_client()
     offset = (page - 1) * limit
+
+    def _apply_scope(q):
+        """Apply blog_post_id / site scope filters to a query."""
+        if blog_post_id:
+            return q.eq("is_blog_comment", True).eq("blog_post_id", blog_post_id)
+        return q.eq("is_site_comment", True)
+
     # Top-level approved comments
-    res = (db_client.table("blog_comments")
-             .select("*")
-             .eq("status", "approved")
-             .is_("parent_id", "null")
-             .order("created_at", desc=True)
-             .range(offset, offset + limit - 1)
-             .execute())
+    res = (
+        _apply_scope(
+            db_client.table("blog_comments")
+            .select("*")
+            .eq("status", "approved")
+            .is_("parent_id", "null")
+        )
+        .order("created_at", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
     comments = res.data or []
     comment_ids = [c["id"] for c in comments]
 
@@ -3190,7 +3202,15 @@ async def get_blog_comments(page: int = 1, limit: int = 20, fp: str = ""):
         liked_ids = {r["comment_id"] for r in (lk_res.data or [])}
 
     # Count total
-    cnt = db_client.table("blog_comments").select("id", count="exact").eq("status", "approved").is_("parent_id", "null").execute()
+    cnt = (
+        _apply_scope(
+            db_client.table("blog_comments")
+            .select("id", count="exact")
+            .eq("status", "approved")
+            .is_("parent_id", "null")
+        )
+        .execute()
+    )
     total = cnt.count or 0
 
     for c in comments:
@@ -3225,6 +3245,7 @@ async def submit_blog_comment(body: BlogCommentIn, request: Request):
         raise HTTPException(429, "Too many comments. Please wait before submitting again.")
 
     db_client = db.get_client()
+    is_blog = bool(body.blog_post_id)
     row = {
         "name": name[:80],
         "email": (body.email or "")[:120] or None,
@@ -3232,6 +3253,9 @@ async def submit_blog_comment(body: BlogCommentIn, request: Request):
         "status": "pending",
         "commenter_fingerprint": body.fingerprint[:64] if body.fingerprint else None,
         "ip_hash": ip_hash,
+        "is_blog_comment": is_blog,
+        "is_site_comment": not is_blog,
+        "blog_post_id": body.blog_post_id if is_blog else None,
     }
     res = db_client.table("blog_comments").insert(row).execute()
     return {"id": res.data[0]["id"], "status": "pending", "message": "Comment submitted for review. Thank you!"}
@@ -3256,7 +3280,7 @@ async def reply_blog_comment(comment_id: str, body: BlogCommentIn, request: Requ
 
     db_client = db.get_client()
     parent = (db_client.table("blog_comments")
-                .select("id,status")
+                .select("id,status,blog_post_id,is_blog_comment,is_site_comment")
                 .eq("id", comment_id)
                 .eq("status", "approved")
                 .is_("parent_id", "null")
@@ -3264,6 +3288,7 @@ async def reply_blog_comment(comment_id: str, body: BlogCommentIn, request: Requ
     if not parent.data:
         raise HTTPException(404, "Comment not found or not available for replies")
 
+    p = parent.data[0]
     row = {
         "name": name[:80],
         "email": (body.email or "")[:120] or None,
@@ -3272,6 +3297,10 @@ async def reply_blog_comment(comment_id: str, body: BlogCommentIn, request: Requ
         "commenter_fingerprint": body.fingerprint[:64] if body.fingerprint else None,
         "ip_hash": ip_hash,
         "parent_id": comment_id,
+        # inherit scope from parent so replies stay with the same blog post / site
+        "is_blog_comment": p.get("is_blog_comment", False),
+        "is_site_comment": p.get("is_site_comment", False),
+        "blog_post_id": p.get("blog_post_id"),
     }
     res = db_client.table("blog_comments").insert(row).execute()
     return {"id": res.data[0]["id"], "status": "pending", "message": "Reply submitted for review. Thank you!"}
