@@ -252,12 +252,13 @@ export default function Blog() {
                 {featuredPost && (
                   <div
                     onClick={() => navigate(`/blog/${featuredPost.slug}`)}
+                    className="blog-featured"
                     style={{ display: "flex", flexDirection: "row", background: T.bgFeatured, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden", marginBottom: 36, cursor: "pointer", transition: "border-color 0.2s,transform 0.15s", minHeight: 280 }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = T.borderHover; e.currentTarget.style.transform = "translateY(-2px)"; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = "translateY(0)"; }}
                   >
                     {/* Cover image */}
-                    <div style={{ flex: "0 0 45%", minWidth: 0, position: "relative", overflow: "hidden" }}>
+                    <div className="blog-featured-cover" style={{ flex: "0 0 45%", minWidth: 0, position: "relative", overflow: "hidden" }}>
                       {featuredPost.cover_image_url ? (
                         <img
                           src={featuredPost.cover_image_url}
@@ -303,7 +304,7 @@ export default function Blog() {
                     <div style={{ fontSize: 9, color: T.textDim, letterSpacing: "0.16em", marginBottom: 16 }}>
                       {activeTag ? `${filteredPosts.length - 1} MORE IN "${activeTag.toUpperCase()}"` : "MORE ARTICLES"}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 20, marginBottom: 40 }}>
+                    <div className="blog-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 20, marginBottom: 40 }}>
                       {gridPosts.map(post => {
                         const tags = Array.isArray(post.tags) ? post.tags : [];
                         return (
@@ -360,6 +361,7 @@ export default function Blog() {
                 <button
                   onClick={() => fetchPosts(offset, true)}
                   disabled={loadingMore}
+                  className="blog-load-more-btn"
                   style={{ padding: "12px 36px", borderRadius: 9, border: `1px solid ${T.accent}50`, background: `${T.accent}0c`, color: T.accent, fontSize: 11, letterSpacing: "0.12em", fontWeight: 700, cursor: loadingMore ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s", opacity: loadingMore ? 0.6 : 1 }}
                 >
                   {loadingMore ? "LOADING…" : `LOAD MORE  (${total - posts.length} remaining)`}
@@ -387,7 +389,7 @@ export default function Blog() {
 
       {/* ── Cookie bar ─────────────────────────────────────────────────────── */}
       {!cookieConsent && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: isDark ? "rgba(6,8,16,0.97)" : "rgba(248,250,252,0.97)", backdropFilter: "blur(14px)", borderTop: `1px solid ${T.border}`, padding: "14px clamp(16px,4vw,48px)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div className="blog-cookie-bar" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: isDark ? "rgba(6,8,16,0.97)" : "rgba(248,250,252,0.97)", backdropFilter: "blur(14px)", borderTop: `1px solid ${T.border}`, padding: "14px clamp(16px,4vw,48px)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div style={{ flex: 1, fontSize: 11, color: T.textMid, minWidth: 200 }}>
             We use cookies to improve your experience.{" "}
             <Link to="/cookie-policy" style={{ color: T.accent }}>Learn more</Link>
@@ -399,9 +401,42 @@ export default function Blog() {
 
       <style>{`
         @keyframes blogPulse { from { opacity: 0.35; } to { opacity: 0.65; } }
-        @media (max-width: 700px) {
-          /* Stack featured post vertically on mobile */
-          div[data-featured] { flex-direction: column !important; }
+
+        @media (max-width: 640px) {
+          .blog-featured {
+            flex-direction: column !important;
+            min-height: unset !important;
+          }
+          .blog-featured-cover {
+            flex: none !important;
+            width: 100% !important;
+            height: 200px !important;
+          }
+          .blog-featured-cover img {
+            min-height: unset !important;
+            height: 200px !important;
+          }
+          .blog-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .blog-load-more-btn {
+            width: 100% !important;
+            padding: 14px 20px !important;
+            box-sizing: border-box !important;
+          }
+          .blog-cookie-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+          }
+          .blog-cookie-bar > div {
+            min-width: unset !important;
+          }
+          .blog-cookie-bar > button {
+            width: 100% !important;
+            padding: 12px 18px !important;
+            text-align: center !important;
+          }
         }
       `}</style>
     </div>

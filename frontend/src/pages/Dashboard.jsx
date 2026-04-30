@@ -84,6 +84,8 @@ import api, {
   postVideoToBlog,
   getDevTtsMode,
   setDevTtsMode as apiSetDevTtsMode,
+  getVoiceSettings,
+  saveVoiceSettings,
   listCustomContent,
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
@@ -2010,6 +2012,7 @@ export default function Dashboard() {
     listStickFiguresPaged(0, 1, false).then(r => setSfClipCount(r.total ?? 0)).catch(() => setSfClipCount(0));
     getBmcSettings().then(r => { setBmcUrl(r.url || ""); setBmcPlatform(r.platform || "kofi"); }).catch(() => {});
     getDevTtsMode().then(r => setDevTtsMode(r.enabled)).catch(() => {});
+    getVoiceSettings().then(r => { setSavedVoices(r.voices || []); setActiveVoiceId(r.active_voice_id || ""); }).catch(() => {});
 
     // ── Batch 2: external-API status checks — staggered to avoid thread exhaustion ──
     const t1 = setTimeout(() => getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {}), 200);
@@ -2165,6 +2168,11 @@ export default function Dashboard() {
   const [autoShortSettings, setAutoShortSettings] = useState(null);
   const [autoShortSaving, setAutoShortSaving] = useState(false);
   const [devTtsMode, setDevTtsMode] = useState(false);
+  const [savedVoices, setSavedVoices] = useState([]);
+  const [activeVoiceId, setActiveVoiceId] = useState("");
+  const [voiceSaving, setVoiceSaving] = useState(false);
+  const [newVoiceId, setNewVoiceId] = useState("");
+  const [newVoiceLabel, setNewVoiceLabel] = useState("");
   const [autoShortRunning, setAutoShortRunning] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [tiktokLoading, setTiktokLoading] = useState(false);
@@ -10860,9 +10868,99 @@ export default function Dashboard() {
                     </div>
                   </div>
 
+                  {/* ── ElevenLabs Voice Settings ── */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>ELEVENLABS VOICE</div>
+
+                    {/* Active voice dropdown */}
+                    <div style={{ marginBottom: 10 }}>
+                      <select
+                        value={activeVoiceId}
+                        onChange={e => setActiveVoiceId(e.target.value)}
+                        style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, padding: "8px 10px", fontSize: 11, fontFamily: "inherit", cursor: "pointer", outline: "none" }}
+                      >
+                        {savedVoices.length === 0 && <option value="">No voices saved</option>}
+                        {savedVoices.map(v => (
+                          <option key={v.id} value={v.id}>{v.label} — {v.id}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Saved voices list */}
+                    {savedVoices.map(v => (
+                      <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: activeVoiceId === v.id ? `${T.accent}12` : T.bgCard, border: `1px solid ${activeVoiceId === v.id ? T.accent + "40" : T.border}`, borderRadius: 8, marginBottom: 5 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
+                            {v.label}
+                            {activeVoiceId === v.id && <span style={{ fontSize: 8, background: T.accent, color: "#fff", padding: "1px 6px", borderRadius: 10, letterSpacing: "0.08em" }}>ACTIVE</span>}
+                          </div>
+                          <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1, fontFamily: "monospace", letterSpacing: "0.04em" }}>{v.id}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const updated = savedVoices.filter(x => x.id !== v.id);
+                            setSavedVoices(updated);
+                            if (activeVoiceId === v.id) setActiveVoiceId(updated[0]?.id || "");
+                          }}
+                          style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 5, color: T.textFaint, fontSize: 10, cursor: "pointer", padding: "3px 8px", fontFamily: "inherit", flexShrink: 0 }}
+                          title="Remove voice"
+                        >✕</button>
+                      </div>
+                    ))}
+
+                    {/* Add new voice */}
+                    <div style={{ marginTop: 10, padding: "12px", background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 9 }}>
+                      <div style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>ADD VOICE</div>
+                      <input
+                        placeholder="Voice ID"
+                        value={newVoiceId}
+                        onChange={e => setNewVoiceId(e.target.value)}
+                        style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 9px", fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 6 }}
+                      />
+                      <input
+                        placeholder="Label (e.g. Deep, Calm)"
+                        value={newVoiceLabel}
+                        onChange={e => setNewVoiceLabel(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter" && newVoiceId.trim() && newVoiceLabel.trim()) {
+                            setSavedVoices(vs => [...vs, { id: newVoiceId.trim(), label: newVoiceLabel.trim() }]);
+                            setNewVoiceId(""); setNewVoiceLabel("");
+                          }
+                        }}
+                        style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 9px", fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 8 }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (!newVoiceId.trim() || !newVoiceLabel.trim()) return;
+                          setSavedVoices(vs => [...vs, { id: newVoiceId.trim(), label: newVoiceLabel.trim() }]);
+                          setNewVoiceId(""); setNewVoiceLabel("");
+                        }}
+                        style={{ width: "100%", padding: "7px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.textMid, fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}
+                      >+ ADD</button>
+                    </div>
+
+                    {/* Save button */}
+                    <button
+                      onClick={async () => {
+                        if (!activeVoiceId) return showToast("Select an active voice first", "error");
+                        setVoiceSaving(true);
+                        try {
+                          await saveVoiceSettings({ voices: savedVoices, active_voice_id: activeVoiceId });
+                          showToast("Voice settings saved");
+                        } catch {
+                          showToast("Failed to save voice settings", "error");
+                        } finally { setVoiceSaving(false); }
+                      }}
+                      disabled={voiceSaving}
+                      style={{ marginTop: 10, width: "100%", padding: "9px", borderRadius: 7, border: `1px solid ${T.accent}50`, background: `${T.accent}0d`, color: T.accent, fontSize: 11, fontWeight: 700, cursor: voiceSaving ? "default" : "pointer", fontFamily: "inherit", letterSpacing: "0.08em", opacity: voiceSaving ? 0.6 : 1 }}
+                    >
+                      {voiceSaving ? "SAVING…" : "SAVE VOICE SETTINGS"}
+                    </button>
+                  </div>
+
                   {[
                     ["LLM MODEL", "Groq — llama-3.3-70b-versatile"],
-                    ["TTS ENGINE", devTtsMode ? "gTTS (Dev Mode — free)" : "ElevenLabs — Adam voice (deep)"],
+                    ["TTS ENGINE", devTtsMode ? "gTTS (Dev Mode — free)" : `ElevenLabs — ${savedVoices.find(v => v.id === activeVoiceId)?.label || "Custom"} voice`],
                     ["TTS QUALITY", devTtsMode ? "Standard · dev mode" : "mp3_44100_192 · stability 0.80"],
                     ["VIDEO RESOLUTION", "1920×1080 @ 30fps"],
                     ["CAPTIONS", "Whisper base + FFmpeg burn"],

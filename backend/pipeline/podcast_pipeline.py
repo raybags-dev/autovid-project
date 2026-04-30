@@ -251,7 +251,7 @@ def _synthesize_essay(essay: str, video_id: str, log_fn=None) -> str:
     Returns path to the final stitched MP3.
     """
     import subprocess
-    from pipeline.tts import _synthesize_elevenlabs, _clean_script, ELEVENLABS_FALLBACK_VOICE_ID
+    from pipeline.tts import _synthesize_elevenlabs, _clean_script, ELEVENLABS_FALLBACK_VOICE_ID, _get_active_voice_id
 
     clean  = _clean_script(essay)
     chunks = _chunk_text(clean)
@@ -259,9 +259,7 @@ def _synthesize_essay(essay: str, video_id: str, log_fn=None) -> str:
     if log_fn:
         log_fn(f"[2/5] Essay split into {len(chunks)} chunks for TTS...")
 
-    voice_id = (
-        getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
-    )
+    voice_id = _get_active_voice_id()
 
     chunk_paths = []
     for i, chunk in enumerate(chunks, start=1):
