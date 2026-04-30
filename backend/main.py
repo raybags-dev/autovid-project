@@ -5176,6 +5176,38 @@ def set_dev_tts(body: dict = Body(default={}), user: str = Depends(verify_token)
     return {"enabled": enabled, "message": f"Dev TTS mode {'enabled' if enabled else 'disabled'}"}
 
 
+# ── Voice Settings ────────────────────────────────────────────────────────────
+
+_DEFAULT_VOICES = [
+    {"id": "NFG5qt843uXKj4pFvR7C", "label": "Smooth"},
+    {"id": "rUwfJCzlNVSupX1xyzzX", "label": "Elevated"},
+]
+
+
+@app.get("/settings/voices")
+def get_voice_settings(user: str = Depends(verify_token)):
+    import json
+    raw = db.get_setting("elevenlabs_voices", None)
+    try:
+        voices = json.loads(raw) if raw else _DEFAULT_VOICES
+    except Exception:
+        voices = _DEFAULT_VOICES
+    fallback = getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
+    active_voice_id = db.get_setting("elevenlabs_active_voice_id", None) or fallback
+    return {"voices": voices, "active_voice_id": active_voice_id}
+
+
+@app.post("/settings/voices")
+def save_voice_settings(body: dict = Body(default={}), user: str = Depends(verify_token)):
+    import json
+    voices = body.get("voices", [])
+    active_voice_id = body.get("active_voice_id", "")
+    db.set_setting("elevenlabs_voices", json.dumps(voices))
+    if active_voice_id:
+        db.set_setting("elevenlabs_active_voice_id", active_voice_id)
+    return {"ok": True, "voices": voices, "active_voice_id": active_voice_id}
+
+
 # ── Quotes Studio ─────────────────────────────────────────────────────────────
 
 class QuoteCreateRequest(BaseModel):

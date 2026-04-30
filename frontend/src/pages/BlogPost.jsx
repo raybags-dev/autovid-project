@@ -112,7 +112,7 @@ function CommentCard({ c, T, fp, onLike, depth = 0 }) {
             <input placeholder="Your name *" value={replyName} onChange={e => setReplyName(e.target.value)} style={{ ...inp(), marginBottom: 8 }} />
             <textarea placeholder="Your reply..." value={replyContent} onChange={e => setReplyContent(e.target.value)} rows={3} style={{ ...inp({ resize: "vertical" }) }} />
             {replyMsg && <div style={{ fontSize: 11, color: replyMsg.includes("submitted") ? T.accentGreen : "#ef4444", marginTop: 6 }}>{replyMsg}</div>}
-            <button onClick={submitReply} disabled={replySubmitting} style={{ marginTop: 8, padding: "7px 18px", borderRadius: 7, background: T.accent, border: "none", color: "#fff", fontSize: 11, fontWeight: 700, cursor: replySubmitting ? "default" : "pointer", opacity: replySubmitting ? 0.7 : 1 }}>
+            <button onClick={submitReply} disabled={replySubmitting} className="comment-reply-submit-btn" style={{ marginTop: 8, padding: "7px 18px", borderRadius: 7, background: T.accent, border: "none", color: "#fff", fontSize: 11, fontWeight: 700, cursor: replySubmitting ? "default" : "pointer", opacity: replySubmitting ? 0.7 : 1 }}>
               {replySubmitting ? "POSTING..." : "POST REPLY"}
             </button>
           </div>
@@ -187,7 +187,7 @@ function CommentsSection({ T, postId }) {
       {/* Submit form */}
       <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "24px 24px 20px", marginBottom: 36 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: T.text, letterSpacing: "0.08em", marginBottom: 16 }}>LEAVE A COMMENT</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <div className="comment-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <input placeholder="Your name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inp()} />
           <input placeholder="Email (optional, private)" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={inp()} />
         </div>
@@ -200,7 +200,7 @@ function CommentsSection({ T, postId }) {
         />
         {submitErr && <div style={{ fontSize: 11, color: "#ef4444", marginTop: 8 }}>✕ {submitErr}</div>}
         {submitMsg && <div style={{ fontSize: 11, color: T.accentGreen, marginTop: 8, lineHeight: 1.5 }}>✓ {submitMsg}</div>}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, flexWrap: "wrap", gap: 10 }}>
+        <div className="comment-submit-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 10, color: T.textDim }}>All comments are reviewed before publishing.</span>
           <button
             onClick={submit}
@@ -230,6 +230,7 @@ function CommentsSection({ T, postId }) {
           {hasMore && (
             <button
               onClick={() => load(page + 1, true)}
+              className="comment-load-more-btn"
               style={{ marginTop: 8, padding: "9px 24px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.accent, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}
             >
               LOAD MORE COMMENTS
@@ -358,7 +359,7 @@ export default function BlogPost() {
           )}
 
           {/* ── Main layout: article + sidebar ──────────────────────────── */}
-          <div style={{ maxWidth: 1300, margin: "0 auto", padding: "48px clamp(16px,3vw,48px) 80px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 48, alignItems: "start" }}>
+          <div className="blog-post-layout" style={{ maxWidth: 1300, margin: "0 auto", padding: "48px clamp(16px,3vw,48px) 80px", display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 48, alignItems: "start" }}>
 
             {/* ── Article ──────────────────────────────────────────────── */}
             <article ref={articleRef}>
@@ -382,7 +383,7 @@ export default function BlogPost() {
               </h1>
 
               {/* Share row */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 36, flexWrap: "wrap" }}>
+              <div className="blog-share-row" style={{ display: "flex", gap: 8, marginBottom: 36, flexWrap: "wrap" }}>
                 <button style={{ ...shareBtn, color: "#1d9bf0", borderColor: "rgba(29,155,240,0.3)" }} onClick={handleShareTwitter}>𝕏 Share on X</button>
                 <button style={{ ...shareBtn, color: copyMsg ? T.accentGreen : T.textMid, borderColor: copyMsg ? `${T.accentGreen}40` : T.border }} onClick={handleCopy}>{copyMsg || "⎘ Copy link"}</button>
               </div>
@@ -402,9 +403,9 @@ export default function BlogPost() {
               />
 
               {/* Back link */}
-              <div style={{ marginTop: 56, paddingTop: 24, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div className="blog-post-bottom-row" style={{ marginTop: 56, paddingTop: 24, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                 <Link to="/blog" style={{ color: T.accent, textDecoration: "none", fontSize: 11, letterSpacing: "0.1em" }}>← BACK TO BLOG</Link>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="blog-share-row" style={{ display: "flex", gap: 8 }}>
                   <button style={{ ...shareBtn, color: "#1d9bf0", borderColor: "rgba(29,155,240,0.3)" }} onClick={handleShareTwitter}>𝕏 Share</button>
                   <button style={{ ...shareBtn, color: copyMsg ? T.accentGreen : T.textMid, borderColor: copyMsg ? `${T.accentGreen}40` : T.border }} onClick={handleCopy}>{copyMsg || "⎘ Copy Link"}</button>
                 </div>
@@ -483,7 +484,7 @@ export default function BlogPost() {
 
       {/* ── Cookie bar ─────────────────────────────────────────────────────── */}
       {!cookieConsent && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: isDark ? "rgba(6,8,16,0.97)" : "rgba(248,250,252,0.97)", backdropFilter: "blur(14px)", borderTop: `1px solid ${T.border}`, padding: "14px clamp(16px,4vw,48px)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div className="blog-cookie-bar" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: isDark ? "rgba(6,8,16,0.97)" : "rgba(248,250,252,0.97)", backdropFilter: "blur(14px)", borderTop: `1px solid ${T.border}`, padding: "14px clamp(16px,4vw,48px)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div style={{ flex: 1, fontSize: 11, color: T.textMid, minWidth: 200 }}>We use cookies to improve your experience. <Link to="/cookie-policy" style={{ color: T.accent }}>Learn more</Link></div>
           <button onClick={() => { localStorage.setItem("blog_cookie_consent", "declined"); setCookieConsent("declined"); }} style={{ padding: "7px 18px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Decline</button>
           <button onClick={() => { localStorage.setItem("blog_cookie_consent", "accepted"); setCookieConsent("accepted"); }} style={{ padding: "7px 18px", borderRadius: 7, border: `1px solid ${T.accentGreen}50`, background: `${T.accentGreen}12`, color: T.accentGreen, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Accept All</button>
@@ -528,15 +529,88 @@ export default function BlogPost() {
           aspect-ratio: 16/9; background: #000; border: 1px solid ${T.border};
         }
         .blog-prose .blog-video-embed iframe { width: 100%; height: 100%; border: none; display: block; }
+
         @media (max-width: 900px) {
-          div[style*="gridTemplateColumns: minmax(0,1fr) 280px"] {
+          .blog-post-layout {
             grid-template-columns: 1fr !important;
+            gap: 32px !important;
           }
           aside { position: static !important; }
         }
-        @media (max-width: 600px) {
+
+        @media (max-width: 640px) {
           .blog-prose { font-size: 15px; }
-          div[style*="gridTemplateColumns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+          .blog-post-layout {
+            padding-top: 28px !important;
+            padding-bottom: 48px !important;
+          }
+
+          /* Share rows: stack buttons full-width */
+          .blog-share-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .blog-share-row > button {
+            width: 100% !important;
+            text-align: center !important;
+            padding: 11px 16px !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Bottom back-link + share: stack vertically */
+          .blog-post-bottom-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .blog-post-bottom-row > a {
+            text-align: center !important;
+            padding: 11px !important;
+            border: 1px solid currentColor !important;
+            border-radius: 7px !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Comment form fields: single column */
+          .comment-fields-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          /* Comment submit row: stack note + button */
+          .comment-submit-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .comment-submit-row > button {
+            width: 100% !important;
+            padding: 13px !important;
+            text-align: center !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Load more comments + reply submit: full width */
+          .comment-load-more-btn,
+          .comment-reply-submit-btn {
+            width: 100% !important;
+            padding: 12px !important;
+            text-align: center !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Cookie bar: stack vertically */
+          .blog-cookie-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+          }
+          .blog-cookie-bar > div {
+            min-width: unset !important;
+          }
+          .blog-cookie-bar > button {
+            width: 100% !important;
+            padding: 12px 18px !important;
+            text-align: center !important;
+          }
         }
       `}</style>
     </div>

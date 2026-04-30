@@ -237,6 +237,18 @@ def _is_dev_tts_mode() -> bool:
         return False
 
 
+def _get_active_voice_id() -> str:
+    """Return the currently selected ElevenLabs voice ID from DB settings, falling back to config."""
+    try:
+        import database as _db
+        voice_id = _db.get_setting("elevenlabs_active_voice_id", None)
+        if voice_id:
+            return voice_id
+    except Exception:
+        pass
+    return getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
+
+
 def _synthesize_chunk(text: str, mp3_path: Path) -> bool:
     """
     Try the full TTS fallback chain for a single text chunk.
@@ -248,7 +260,7 @@ def _synthesize_chunk(text: str, mp3_path: Path) -> bool:
             return True
         return _synthesize_pyttsx3(text, mp3_path)
 
-    default_voice = getattr(config, "DEFAULT_ELEVENLABS_VOICE_ID", None) or config.ELEVENLABS_VOICE_ID
+    default_voice = _get_active_voice_id()
     if _synthesize_elevenlabs(text, mp3_path, voice_id=default_voice):
         return True
     print(f"🔄 Trying fallback ElevenLabs voice: {ELEVENLABS_FALLBACK_VOICE_ID}")
