@@ -92,17 +92,19 @@ def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public
 
 
 def run_script_pipeline(
-    video_id:          str,
-    title:             str,
-    script:            str,
-    profile:           str = "educational",
-    visual_mood:       str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
-    music_style:       str = "ambient",
-    music_volume:      float = 0.06,
-    music_delay:       float = 0.0,
-    use_stickfigures:  bool = False,
-    use_stock_footage: bool = True,
-    use_captions:      bool = True,
+    video_id:                    str,
+    title:                       str,
+    script:                      str,
+    profile:                     str = "educational",
+    visual_mood:                 str = None,   # ocean|candle|forest|stars|hands|mountains|None=auto
+    music_style:                 str = "ambient",
+    music_volume:                float = 0.06,
+    music_delay:                 float = 0.0,
+    use_stickfigures:            bool = False,
+    use_stock_footage:           bool = True,
+    use_captions:                bool = True,
+    include_unsubscribed_message: bool = False,
+    include_subscribed_message:  bool = False,
     cb=None,
 ):
     """
@@ -117,6 +119,9 @@ def run_script_pipeline(
         music_style:  One of the music_mixer styles
         cb:           Optional callback(stage, message) for progress
     """
+    if include_unsubscribed_message and include_subscribed_message:
+        raise ValueError("include_unsubscribed_message and include_subscribed_message are mutually exclusive — enable only one.")
+
     print(f"\n{'='*60}")
     print(f"[SCRIPT PIPELINE] Starting | ID: {video_id[:8]}...")
     print(f"  Title:   {title}")
@@ -276,6 +281,20 @@ def run_script_pipeline(
         else:
             _log("CAPTIONS", "Captions disabled — skipping", cb)
             db.update_video(video_id, captions_disabled=True)
+
+        # ── Step 7b: Inject subscribe message clip (if requested) ────────────
+        _subscribe_type = (
+            "unsubscribed" if include_unsubscribed_message else
+            "subscribed"   if include_subscribed_message   else
+            None
+        )
+        if _subscribe_type:
+            try:
+                from pipeline.subscribe_clip import inject_subscribe_clip
+                _log("SUBSCRIBE", f"Injecting {_subscribe_type} message clip...", cb)
+                final_path = inject_subscribe_clip(final_path, _subscribe_type, video_id, cb)
+            except Exception as e:
+                _log("SUBSCRIBE", f"⚠️ Subscribe injection failed (non-fatal): {e}", cb)
 
         # ── Step 8: Upload to Supabase Storage ───────────────────────────────
         _log("STORAGE", "Uploading to Supabase Storage...", cb)

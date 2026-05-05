@@ -11,7 +11,7 @@ import sea_shower from "../assets/static/sea_shower.mp4";
 
 const SOCIAL = {
   youtube: "https://www.youtube.com/@4life_mystery",
-  tiktok: "https://www.tiktok.com/@lifemystery183284",
+  tiktok: "https://www.tiktok.com/@4lifemystery183284",
   spotify: "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ",
 };
 const SPOTIFY_SHOW_ID = "3d8WOqQD448znnyCASa7lQ";
@@ -1841,6 +1841,7 @@ export default function LandingPage() {
   const [showLibrary, setShowLibrary] = useState(false);
   const [bmcUrl, setBmcUrl] = useState("");
   const [bmcMsg, setBmcMsg] = useState(false);
+  const [tiktokUrl, setTiktokUrl] = useState(SOCIAL.tiktok);
   const wrapperRef = useRef(null);
   const autoRef = useRef(null);
   const heroVidRef = useRef(null);
@@ -2013,6 +2014,14 @@ export default function LandingPage() {
       .catch(() => {});
   }, []);
 
+  // Fetch TikTok profile URL (editable in Dashboard Settings)
+  useEffect(() => {
+    fetch("/api/app-settings/tiktok_profile_url")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.value) setTiktokUrl(d.value); })
+      .catch(() => {});
+  }, []);
+
   // Counter animation — runs when heroStats arrives
   useEffect(() => {
     if (!heroStats) return;
@@ -2093,7 +2102,7 @@ export default function LandingPage() {
     setYtIdx((i) => (i + 1) % t);
   };
 
-  const item = CAROUSEL[carouselIdx];
+  const item = { ...CAROUSEL[carouselIdx], link: CAROUSEL[carouselIdx].platform === "TIKTOK" ? tiktokUrl : CAROUSEL[carouselIdx].link };
 
   return (
     <div
@@ -2630,7 +2639,7 @@ export default function LandingPage() {
               ▶
             </a>
             <a
-              href={SOCIAL.tiktok}
+              href={tiktokUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="soc-icon"
@@ -2757,7 +2766,7 @@ export default function LandingPage() {
               ▶
             </a>
             <a
-              href={SOCIAL.tiktok}
+              href={tiktokUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="soc-icon hide-mobile"
@@ -3604,7 +3613,7 @@ export default function LandingPage() {
                   color: c.text,
                 }}
               >
-                @lifemystery183284 on TikTok
+                {(tiktokUrl.split("tiktok.com/").pop() || "@4lifemystery183284")} on TikTok
               </div>
               <div style={{ fontSize: 12, color: c.textM }}>
                 60-second truths. Bite-sized thoughts that hit hard.
@@ -3612,7 +3621,7 @@ export default function LandingPage() {
             </div>
           </div>
           <a
-            href={SOCIAL.tiktok}
+            href={tiktokUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="lp-btn lp-btn-ghost tiktok-btn"
@@ -4647,7 +4656,7 @@ export default function LandingPage() {
                 ▶ YOUTUBE
               </a>
               <a
-                href={SOCIAL.tiktok}
+                href={tiktokUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="lp-btn lp-btn-ghost"

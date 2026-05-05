@@ -67,8 +67,10 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
   const [musicVolume, setMusicVolume] = useState(() => { try { const v = JSON.parse(localStorage.getItem("autovid_shorts_cfg") || "{}").music_volume; return v !== undefined ? v : 0.04; } catch { return 0.04; } });
   const [musicDelay, setMusicDelay] = useState(0.0);
   const [useStickfigures, setUseStickfigures] = useState(false);
-  const [useStockFootage, setUseStockFootage] = useState(true);
-  const [useCaptions, setUseCaptions] = useState(true);
+  const [useStockFootage, setUseStockFootage] = useState(false);
+  const [useCaptions, setUseCaptions] = useState(false);
+  const [includeUnsubscribedMsg, setIncludeUnsubscribedMsg] = useState(false);
+  const [includeSubscribedMsg, setIncludeSubscribedMsg] = useState(false);
   const [sfClipCount, setSfClipCount] = useState(null);
   const [running, setRunning] = useState(false);
   const [pipeStep, setPipeStep]   = useState(0);
@@ -130,9 +132,11 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
         music_style:       music,
         music_volume:      musicVolume,
         music_delay:       musicDelay,
-        use_stickfigures:  useStickfigures,
-        use_stock_footage: useStockFootage,
-        use_captions:      useCaptions,
+        use_stickfigures:               useStickfigures,
+        use_stock_footage:              useStockFootage,
+        use_captions:                   useCaptions,
+        include_unsubscribed_message:   includeUnsubscribedMsg,
+        include_subscribed_message:     includeSubscribedMsg,
       });
       const vid = data.video_id;
       setJobId(vid);
@@ -849,6 +853,32 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
                 <span style={{ fontSize: 10, color: T.textFaint, marginLeft: 6 }}>{useCaptions ? "Whisper transcription + burned subtitles" : "No subtitles"}</span>
               </div>
             </label>
+          </div>
+
+          {/* Subscribe message toggles */}
+          <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 8, background: includeUnsubscribedMsg ? "rgba(255,80,80,0.08)" : (T.bgCard || "transparent"), border: `1px solid ${includeUnsubscribedMsg ? "rgba(255,80,80,0.4)" : (T.border || "#333")}`, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: running ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={includeUnsubscribedMsg} disabled={running}
+                  onChange={e => { setIncludeUnsubscribedMsg(e.target.checked); if (e.target.checked) setIncludeSubscribedMsg(false); }}
+                  style={{ accentColor: "#ff5050", width: 13, height: 13 }} />
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: includeUnsubscribedMsg ? "#ff5050" : T.textMid, letterSpacing: "0.05em" }}>🔔 NOT SUBSCRIBED</div>
+                  <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>Insert unsubscribed clip at midpoint</div>
+                </div>
+              </label>
+            </div>
+            <div style={{ flex: 1, padding: "8px 12px", borderRadius: 8, background: includeSubscribedMsg ? "rgba(0,200,100,0.08)" : (T.bgCard || "transparent"), border: `1px solid ${includeSubscribedMsg ? "rgba(0,200,100,0.4)" : (T.border || "#333")}`, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: running ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={includeSubscribedMsg} disabled={running}
+                  onChange={e => { setIncludeSubscribedMsg(e.target.checked); if (e.target.checked) setIncludeUnsubscribedMsg(false); }}
+                  style={{ accentColor: "#00c864", width: 13, height: 13 }} />
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: includeSubscribedMsg ? "#00c864" : T.textMid, letterSpacing: "0.05em" }}>✅ SUBSCRIBED</div>
+                  <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>Insert subscribed clip at midpoint</div>
+                </div>
+              </label>
+            </div>
           </div>
 
           {/* Generate / Cancel buttons */}

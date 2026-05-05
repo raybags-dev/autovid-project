@@ -1247,11 +1247,15 @@ export default function Dashboard() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const [genError, setGenError] = useState("");
   const [useStickfigures, setUseStickfigures] = useState(false);
-  const [useStockFootage, setUseStockFootage] = useState(true);
-  const [useCaptions, setUseCaptions] = useState(true);
+  const [useStockFootage, setUseStockFootage] = useState(false);
+  const [useCaptions, setUseCaptions] = useState(false);
   const [shortUseStickfigures, setShortUseStickfigures] = useState(false);
-  const [shortUseStockFootage, setShortUseStockFootage] = useState(true);
-  const [shortUseCaptions, setShortUseCaptions] = useState(true);
+  const [shortUseStockFootage, setShortUseStockFootage] = useState(false);
+  const [shortUseCaptions, setShortUseCaptions] = useState(false);
+  const [includeUnsubscribedMsg, setIncludeUnsubscribedMsg] = useState(false);
+  const [includeSubscribedMsg, setIncludeSubscribedMsg] = useState(false);
+  const [shortIncludeUnsubscribedMsg, setShortIncludeUnsubscribedMsg] = useState(false);
+  const [shortIncludeSubscribedMsg, setShortIncludeSubscribedMsg] = useState(false);
   const [sfClipCount, setSfClipCount] = useState(null); // null = not loaded yet
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
@@ -1585,6 +1589,8 @@ export default function Dashboard() {
         useStickfigures,
         useStockFootage,
         useCaptions,
+        includeUnsubscribedMsg,
+        includeSubscribedMsg,
       );
       const vid = data.video_id;
       setGenJobId(vid);
@@ -1782,6 +1788,8 @@ export default function Dashboard() {
         shortUseStickfigures,
         shortUseStockFootage,
         shortUseCaptions,
+        shortIncludeUnsubscribedMsg,
+        shortIncludeSubscribedMsg,
       );
       const vid = res?.video_id;
       saveRecentPrompt(hasInput);
@@ -1995,6 +2003,10 @@ export default function Dashboard() {
     api.get("/settings/spotify-show-url").then(r => {
       setSpotifyShowUrl(r.data.url || "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
       setSpotifyShowUrlDraft(r.data.url || "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
+    }).catch(() => {});
+    api.get("/settings/tiktok-url").then(r => {
+      setTiktokProfileUrl(r.data.url || "https://www.tiktok.com/@4lifemystery183284");
+      setTiktokProfileUrlDraft(r.data.url || "https://www.tiktok.com/@4lifemystery183284");
     }).catch(() => {});
     getBuzzsproutSettings().then(r => setBuzzsproutSettings(s => ({
       ...s,
@@ -2216,6 +2228,11 @@ export default function Dashboard() {
   const [spotifyShowUrl, setSpotifyShowUrl] = useState("https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
   const [spotifyShowUrlDraft, setSpotifyShowUrlDraft] = useState("");
   const [spotifyUrlSaving, setSpotifyUrlSaving] = useState(false);
+
+  // TikTok profile URL (editable in Settings)
+  const [tiktokProfileUrl, setTiktokProfileUrl] = useState("https://www.tiktok.com/@4lifemystery183284");
+  const [tiktokProfileUrlDraft, setTiktokProfileUrlDraft] = useState("");
+  const [tiktokProfileUrlSaving, setTiktokProfileUrlSaving] = useState(false);
 
   // Podcast episode pipeline state
   const [podcastSettings, setPodcastSettings] = useState(null);
@@ -3740,6 +3757,32 @@ export default function Dashboard() {
                         <span style={{ fontSize: 10, color: T.textDim, marginLeft: 6 }}>{useCaptions ? "Whisper transcription + burned subtitles" : "No subtitles"}</span>
                       </div>
                     </label>
+                  </div>
+
+                  {/* Subscribe message toggles — Video Studio */}
+                  <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: includeUnsubscribedMsg ? "rgba(255,80,80,0.08)" : T.bgCard, border: `1px solid ${includeUnsubscribedMsg ? "rgba(255,80,80,0.4)" : T.border}`, transition: "all 0.2s" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                        <input type="checkbox" checked={includeUnsubscribedMsg}
+                          onChange={e => { setIncludeUnsubscribedMsg(e.target.checked); if (e.target.checked) setIncludeSubscribedMsg(false); }}
+                          style={{ accentColor: "#ff5050", width: 13, height: 13 }} />
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: includeUnsubscribedMsg ? "#ff5050" : T.textMid, letterSpacing: "0.04em" }}>🔔 NOT SUBSCRIBED</div>
+                          <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>Inject unsubscribed clip</div>
+                        </div>
+                      </label>
+                    </div>
+                    <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: includeSubscribedMsg ? "rgba(0,200,100,0.08)" : T.bgCard, border: `1px solid ${includeSubscribedMsg ? "rgba(0,200,100,0.4)" : T.border}`, transition: "all 0.2s" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                        <input type="checkbox" checked={includeSubscribedMsg}
+                          onChange={e => { setIncludeSubscribedMsg(e.target.checked); if (e.target.checked) setIncludeUnsubscribedMsg(false); }}
+                          style={{ accentColor: "#00c864", width: 13, height: 13 }} />
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: includeSubscribedMsg ? "#00c864" : T.textMid, letterSpacing: "0.04em" }}>✅ SUBSCRIBED</div>
+                          <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>Inject subscribed clip</div>
+                        </div>
+                      </label>
+                    </div>
                   </div>
 
                   <div
@@ -6023,6 +6066,32 @@ export default function Dashboard() {
                 <span style={{ fontSize: 10, color: T.textDim, marginLeft: 6 }}>{shortUseCaptions ? "Whisper transcription + burned subtitles" : "No subtitles"}</span>
               </div>
             </label>
+          </div>
+
+          {/* Subscribe message toggles — Shorts */}
+          <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+            <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: shortIncludeUnsubscribedMsg ? "rgba(255,80,80,0.08)" : T.bgCard, border: `1px solid ${shortIncludeUnsubscribedMsg ? "rgba(255,80,80,0.4)" : T.border}`, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: shortGenerating ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={shortIncludeUnsubscribedMsg} disabled={shortGenerating}
+                  onChange={e => { setShortIncludeUnsubscribedMsg(e.target.checked); if (e.target.checked) setShortIncludeSubscribedMsg(false); }}
+                  style={{ accentColor: "#ff5050", width: 13, height: 13 }} />
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: shortIncludeUnsubscribedMsg ? "#ff5050" : T.textMid, letterSpacing: "0.04em" }}>🔔 NOT SUBSCRIBED</div>
+                  <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>Insert at midpoint</div>
+                </div>
+              </label>
+            </div>
+            <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: shortIncludeSubscribedMsg ? "rgba(0,200,100,0.08)" : T.bgCard, border: `1px solid ${shortIncludeSubscribedMsg ? "rgba(0,200,100,0.4)" : T.border}`, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: shortGenerating ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={shortIncludeSubscribedMsg} disabled={shortGenerating}
+                  onChange={e => { setShortIncludeSubscribedMsg(e.target.checked); if (e.target.checked) setShortIncludeUnsubscribedMsg(false); }}
+                  style={{ accentColor: "#00c864", width: 13, height: 13 }} />
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: shortIncludeSubscribedMsg ? "#00c864" : T.textMid, letterSpacing: "0.04em" }}>✅ SUBSCRIBED</div>
+                  <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>Insert at midpoint</div>
+                </div>
+              </label>
+            </div>
           </div>
 
           {shortGenError && <div style={{ fontSize: 11, color: T.accentRed, marginBottom: 10 }}>{shortGenError}</div>}
@@ -10338,6 +10407,49 @@ export default function Dashboard() {
                         CONNECT
                       </a>
                     )}
+                  </div>
+                </div>
+
+                {/* ── TikTok Profile URL ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>TIKTOK — PROFILE URL</div>
+                  <div style={{ background: T.bgCard, border: "1px solid rgba(0,242,234,0.25)", borderRadius: 10, padding: "16px 18px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <span style={{ fontSize: 20 }}>♪</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>TikTok Profile URL</div>
+                        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                          Link used on the website. Update here when your handle changes.
+                        </div>
+                      </div>
+                      <a href={tiktokProfileUrl} target="_blank" rel="noreferrer"
+                        style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: 20, background: "rgba(0,242,234,0.08)", border: "1px solid rgba(0,242,234,0.25)", color: "#00f2ea", fontSize: 10, textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "0.06em" }}>
+                        OPEN ↗
+                      </a>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={tiktokProfileUrlDraft}
+                        onChange={e => setTiktokProfileUrlDraft(e.target.value)}
+                        placeholder="https://www.tiktok.com/@yourhandle"
+                        style={{ flex: 1, background: T.bgBase, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 11, padding: "8px 10px", fontFamily: "monospace", outline: "none" }}
+                      />
+                      <button
+                        disabled={tiktokProfileUrlSaving || tiktokProfileUrlDraft === tiktokProfileUrl}
+                        onClick={async () => {
+                          setTiktokProfileUrlSaving(true);
+                          try {
+                            await api.post("/settings/tiktok-url", { url: tiktokProfileUrlDraft });
+                            setTiktokProfileUrl(tiktokProfileUrlDraft);
+                            showToast("TikTok URL saved");
+                          } catch { showToast("Failed to save", "error"); }
+                          finally { setTiktokProfileUrlSaving(false); }
+                        }}
+                        style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid rgba(0,242,234,0.3)", background: "rgba(0,242,234,0.08)", color: "#00f2ea", fontSize: 11, cursor: tiktokProfileUrlSaving || tiktokProfileUrlDraft === tiktokProfileUrl ? "default" : "pointer", opacity: tiktokProfileUrlSaving || tiktokProfileUrlDraft === tiktokProfileUrl ? 0.5 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}
+                      >
+                        {tiktokProfileUrlSaving ? "SAVING..." : "SAVE"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

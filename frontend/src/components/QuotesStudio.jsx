@@ -70,6 +70,8 @@ export default function QuotesStudio({ T, showToast }) {
   const [fontSize, setFontSize]           = useState(52);
   const [typingSpeed, setTypingSpeed]     = useState(42);
   const [holdDuration, setHoldDuration]   = useState(5);
+  const [includeUnsubscribedMsg, setIncludeUnsubscribedMsg] = useState(false);
+  const [includeSubscribedMsg, setIncludeSubscribedMsg]     = useState(false);
 
   // ── Generation state ───────────────────────────────────────────────────────
   const [generating, setGenerating]   = useState(false);
@@ -171,6 +173,8 @@ export default function QuotesStudio({ T, showToast }) {
         font_size:      fontSize,
         typing_speed_ms: typingSpeed,
         hold_duration_s: holdDuration,
+        include_unsubscribed_message: includeUnsubscribedMsg,
+        include_subscribed_message:   includeSubscribedMsg,
       });
       const vid = res.video_id;
       setGenJobId(vid);
@@ -486,6 +490,32 @@ export default function QuotesStudio({ T, showToast }) {
               <input type="range" min="2" max="15" value={holdDuration}
                 onChange={e => setHoldDuration(Number(e.target.value))}
                 style={{ width: "100%", accentColor: "#e63329", marginTop: 6 }} />
+            </div>
+          </div>
+
+          {/* Subscribe message toggles */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: includeUnsubscribedMsg ? "rgba(255,80,80,0.08)" : "transparent", border: `1px solid ${includeUnsubscribedMsg ? "rgba(255,80,80,0.4)" : (T.border || "#333")}`, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: generating ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={includeUnsubscribedMsg} disabled={generating}
+                  onChange={e => { setIncludeUnsubscribedMsg(e.target.checked); if (e.target.checked) setIncludeSubscribedMsg(false); }}
+                  style={{ accentColor: "#ff5050", width: 13, height: 13 }} />
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: includeUnsubscribedMsg ? "#ff5050" : T.textFaint, letterSpacing: "0.04em" }}>🔔 NOT SUBSCRIBED</div>
+                  <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>Inject at midpoint</div>
+                </div>
+              </label>
+            </div>
+            <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: includeSubscribedMsg ? "rgba(0,200,100,0.08)" : "transparent", border: `1px solid ${includeSubscribedMsg ? "rgba(0,200,100,0.4)" : (T.border || "#333")}`, transition: "all 0.2s" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: generating ? "not-allowed" : "pointer" }}>
+                <input type="checkbox" checked={includeSubscribedMsg} disabled={generating}
+                  onChange={e => { setIncludeSubscribedMsg(e.target.checked); if (e.target.checked) setIncludeUnsubscribedMsg(false); }}
+                  style={{ accentColor: "#00c864", width: 13, height: 13 }} />
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: includeSubscribedMsg ? "#00c864" : T.textFaint, letterSpacing: "0.04em" }}>✅ SUBSCRIBED</div>
+                  <div style={{ fontSize: 9, color: T.textFaint, marginTop: 1 }}>Inject at midpoint</div>
+                </div>
+              </label>
             </div>
           </div>
 

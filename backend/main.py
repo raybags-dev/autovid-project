@@ -353,6 +353,8 @@ class GenerateRequest(BaseModel):
     use_stickfigures: bool = False
     use_stock_footage: bool = True
     use_captions: bool = True
+    include_unsubscribed_message: bool = False
+    include_subscribed_message:   bool = False
 
 
 class VideoResponse(BaseModel):
@@ -441,6 +443,8 @@ def generate_video(
                 use_stickfigures=req.use_stickfigures,
                 use_stock_footage=req.use_stock_footage,
                 use_captions=req.use_captions,
+                include_unsubscribed_message=req.include_unsubscribed_message,
+                include_subscribed_message=req.include_subscribed_message,
             )
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -1073,6 +1077,8 @@ class ScriptStudioRequest(BaseModel):
     use_stickfigures:  bool = False
     use_stock_footage: bool = True
     use_captions:      bool = True
+    include_unsubscribed_message: bool = False
+    include_subscribed_message:   bool = False
 
 
 @app.post("/script-studio/generate")
@@ -1116,6 +1122,8 @@ def script_studio_generate(req: ScriptStudioRequest, background_tasks: Backgroun
                 use_stickfigures=req.use_stickfigures,
                 use_stock_footage=req.use_stock_footage,
                 use_captions=req.use_captions,
+                include_unsubscribed_message=req.include_unsubscribed_message,
+                include_subscribed_message=req.include_subscribed_message,
                 cb=_cb,
             )
         except Exception as e:
@@ -1937,7 +1945,7 @@ def set_video_exclusive(video_id: str, req: SetExclusiveRequest, _u: str = Depen
     return {"ok": True, "video": result}
 
 
-_ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url", "bmc_url"}
+_ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url", "bmc_url", "tiktok_profile_url"}
 
 
 @app.get("/app-settings/{key}")
@@ -1974,6 +1982,17 @@ def get_spotify_show_url(_u: str = Depends(verify_token)):
 def save_spotify_show_url(body: dict, _u: str = Depends(verify_token)):
     url = str(body.get("url", "")).strip()
     db.set_setting("spotify_show_url", url)
+    return {"ok": True, "url": url}
+
+
+@app.get("/settings/tiktok-url")
+def get_tiktok_url(_u: str = Depends(verify_token)):
+    return {"url": db.get_setting("tiktok_profile_url", default="https://www.tiktok.com/@4lifemystery183284")}
+
+@app.post("/settings/tiktok-url")
+def save_tiktok_url(body: dict, _u: str = Depends(verify_token)):
+    url = str(body.get("url", "")).strip()
+    db.set_setting("tiktok_profile_url", url)
     return {"ok": True, "url": url}
 
 
@@ -2271,9 +2290,13 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     music_volume     = float(body.get("music_volume", 0.04))
     music_delay      = float(body.get("music_delay", 0.0))
     custom_script    = body.get("custom_script", "").strip() if body.get("custom_script") else ""
-    use_stickfigures  = bool(body.get("use_stickfigures", False))
-    use_stock_footage = bool(body.get("use_stock_footage", True))
-    use_captions      = bool(body.get("use_captions", True))
+    use_stickfigures              = bool(body.get("use_stickfigures", False))
+    use_stock_footage             = bool(body.get("use_stock_footage", True))
+    use_captions                  = bool(body.get("use_captions", True))
+    include_unsubscribed_message  = bool(body.get("include_unsubscribed_message", False))
+    include_subscribed_message    = bool(body.get("include_subscribed_message", False))
+    if include_unsubscribed_message and include_subscribed_message:
+        raise HTTPException(status_code=400, detail="include_unsubscribed_message and include_subscribed_message are mutually exclusive.")
     if not prompt and not custom_script:
         raise HTTPException(status_code=400, detail="Prompt or custom_script required")
 
@@ -2300,7 +2323,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     def _run():
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
-            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures, use_stock_footage=use_stock_footage, use_captions=use_captions)
+            _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures, use_stock_footage=use_stock_footage, use_captions=use_captions, include_unsubscribed_message=include_unsubscribed_message, include_subscribed_message=include_subscribed_message)
             _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
@@ -3163,7 +3186,8 @@ async def get_blog_comments(page: int = 1, limit: int = 20, fp: str = "", blog_p
         """Apply blog_post_id / site scope filters to a query."""
         if blog_post_id:
             return q.eq("is_blog_comment", True).eq("blog_post_id", blog_post_id)
-        return q.eq("is_site_comment", True)
+        # Include explicit site comments AND legacy rows that predate the flag columns
+        return q.or_("is_site_comment.eq.true,and(is_site_comment.is.null,is_blog_comment.is.null)")
 
     # Top-level approved comments
     res = (
@@ -5224,6 +5248,8 @@ class QuoteGenerateRequest(BaseModel):
     font_size: Optional[int] = 52
     typing_speed_ms: Optional[int] = 42
     hold_duration_s: Optional[float] = 5.0
+    include_unsubscribed_message: bool = False
+    include_subscribed_message:   bool = False
 
 
 @app.get("/quotes")
@@ -5306,6 +5332,14 @@ def generate_quote_video_endpoint(
         "resolution": resolution,
     }).execute()
 
+    _sub_type_quote = (
+        "unsubscribed" if req.include_unsubscribed_message else
+        "subscribed"   if req.include_subscribed_message   else
+        None
+    )
+    if req.include_unsubscribed_message and req.include_subscribed_message:
+        raise HTTPException(status_code=400, detail="include_unsubscribed_message and include_subscribed_message are mutually exclusive.")
+
     def run():
         try:
             _push_log(video_id, "[1/3] Rendering quote frames …")
@@ -5320,6 +5354,13 @@ def generate_quote_video_endpoint(
                 hold_duration_s=req.hold_duration_s or 5.0,
                 cb=lambda info: _push_log(video_id, f"[RENDER] {info.get('message','')}" if isinstance(info, dict) else str(info)),
             )
+            if _sub_type_quote:
+                try:
+                    _push_log(video_id, f"[SUBSCRIBE] Injecting {_sub_type_quote} clip …")
+                    from pipeline.subscribe_clip import inject_subscribe_clip
+                    mp4_path = inject_subscribe_clip(mp4_path, _sub_type_quote, video_id)
+                except Exception as _se:
+                    _push_log(video_id, f"[SUBSCRIBE] ⚠️ Injection failed (non-fatal): {_se}")
             _push_log(video_id, "[2/3] Uploading to storage …")
             from pipeline.storage import upload_to_storage
             storage_url = upload_to_storage(mp4_path, video_id)
@@ -5352,6 +5393,37 @@ def generate_quote_video_endpoint(
         "message": "Quote video queued" if pos > 1 else "Quote video started",
         "queue_position": pos,
     }
+
+
+@app.post("/admin/subscribe-assets/setup")
+def setup_subscribe_assets(_u: str = Depends(verify_token)):
+    """Create the subscribe_message_assets table and seed default records."""
+    client = db.get_client()
+    # Try direct insert; table must already exist (created via Supabase SQL editor)
+    try:
+        existing = client.table("subscribe_message_assets").select("id", count="exact").execute()
+        count = existing.count or 0
+    except Exception:
+        return {"ok": False, "message": "Table does not exist. Run the SQL from pipeline/subscribe_clip.py first."}
+
+    seeded = []
+    for stype, fpath in [("unsubscribed", "Unsubscribed.mp4"), ("subscribed", "Subscribed.mp4")]:
+        check = client.table("subscribe_message_assets").select("id").eq("type", stype).execute()
+        if not check.data:
+            client.table("subscribe_message_assets").insert({"type": stype, "file_path": fpath}).execute()
+            seeded.append(stype)
+
+    return {"ok": True, "existing_count": count, "seeded": seeded}
+
+
+@app.get("/admin/subscribe-assets")
+def list_subscribe_assets(_u: str = Depends(verify_token)):
+    """List subscribe message asset records."""
+    try:
+        res = db.get_client().table("subscribe_message_assets").select("*").execute()
+        return {"assets": res.data or []}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 if __name__ == "__main__":
