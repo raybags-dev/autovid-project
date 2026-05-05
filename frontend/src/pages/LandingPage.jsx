@@ -93,7 +93,7 @@ const DARK = {
   textD2: "#2e5a7a",
   cardBg: "rgba(255,255,255,0.06)",
   cardBr: "rgba(255,255,255,0.13)",
-  cardSh: "none",
+  cardSh: "rgba(0, 0, 0, 0.35) 0px 5px 15px",
   navBg: "rgba(3,6,15,0.82)",
   secBr: "rgba(255,255,255,0.045)",
   footBg: "rgba(0,0,0,0.55)",

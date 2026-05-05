@@ -8,7 +8,7 @@ Boundary selection (within ±5s of midpoint):
   1. Silence (≥200ms low amplitude)
   2. Exact midpoint fallback
 
-Audio fades of 150ms are applied around the inserted segment.
+The clip is injected as-is with no audio processing.
 
 SQL to create assets table (run once in Supabase SQL editor):
     CREATE TABLE IF NOT EXISTS subscribe_message_assets (
@@ -37,7 +37,6 @@ SUBSCRIBE_TABLE        = "subscribe_message_assets"
 BOUNDARY_SEARCH_RADIUS = 5.0   # seconds either side of midpoint
 SILENCE_NOISE_DB       = -40
 SILENCE_MIN_DUR        = 0.2   # seconds
-FADE_DURATION          = 0.15  # seconds
 MIN_DURATION           = 10.0  # skip injection if video is shorter than this
 
 
@@ -68,6 +67,22 @@ def _get_video_dimensions(path: str) -> tuple[int, int]:
     return w, h
 
 
+def _get_fps(path: str) -> str:
+    r = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=r_frame_rate",
+         "-of", "default=noprint_wrappers=1:nokey=1", path],
+        capture_output=True, text=True,
+    )
+    fps = r.stdout.strip() or "30/1"
+    # Evaluate fraction e.g. "30000/1001" → "29.97"
+    try:
+        num, den = fps.split("/")
+        return str(round(int(num) / int(den), 3))
+    except Exception:
+        return "30"
+
+
 def _find_silence_boundary(video_path: str, midpoint: float) -> Optional[float]:
     """Return timestamp (s) of silence end nearest to midpoint, or None."""
     start  = max(0.0, midpoint - BOUNDARY_SEARCH_RADIUS)
@@ -85,7 +100,6 @@ def _find_silence_boundary(video_path: str, midpoint: float) -> Optional[float]:
     )
     candidates = []
     for m in re.finditer(r"silence_end:\s*([0-9.]+)", r.stderr):
-        # timestamps in output are relative to the *segment* start when using -ss
         t = float(m.group(1)) + start
         if abs(t - midpoint) <= BOUNDARY_SEARCH_RADIUS:
             candidates.append((abs(t - midpoint), t))
@@ -158,7 +172,7 @@ def ensure_table_exists():
             },
         ).execute()
     except Exception:
-        pass  # table already exists or rpc unavailable — seed will still try
+        pass
 
 
 def inject_subscribe_clip(
@@ -177,7 +191,7 @@ def inject_subscribe_clip(
         cb:             Optional progress callback(dict).
 
     Returns:
-        Path to the final MP4 (injected version replaces the original output).
+        Path to the final MP4 with the subscribe clip injected.
     """
     def _log(msg: str):
         print(f"[SUBSCRIBE] {msg}")
@@ -213,7 +227,7 @@ def inject_subscribe_clip(
             + (f" (Δ={abs(cut_point-midpoint):.2f}s)" if boundary else "")
         )
 
-        # ── 3. Split main video ───────────────────────────────────────────────
+        # ── 3. Split main video at cut_point (no audio filters) ───────────────
         part1 = os.path.join(tmpdir, "part1.mp4")
         part2 = os.path.join(tmpdir, "part2.mp4")
 
@@ -221,7 +235,6 @@ def inject_subscribe_clip(
         subprocess.run([
             "ffmpeg", "-y", "-i", main_video,
             "-t", str(cut_point),
-            "-af", f"afade=t=out:st={max(0.0, cut_point - FADE_DURATION)}:d={FADE_DURATION}",
             "-c:v", "libx264", "-preset", "fast", "-crf", "22",
             "-c:a", "aac", "-b:a", "192k",
             part1,
@@ -230,41 +243,38 @@ def inject_subscribe_clip(
         subprocess.run([
             "ffmpeg", "-y", "-i", main_video,
             "-ss", str(cut_point),
-            "-af", f"afade=t=in:st=0:d={FADE_DURATION}",
             "-c:v", "libx264", "-preset", "fast", "-crf", "22",
             "-c:a", "aac", "-b:a", "192k",
             part2,
         ], capture_output=True, check=True)
 
-        # ── 4. Prepare subscribe clip (resize + fades) ────────────────────────
+        # ── 4. Scale subscribe clip to match main video resolution ────────────
+        # No audio filters — codec conversion only for container compatibility
         w, h     = _get_video_dimensions(main_video)
-        sub_dur  = _get_duration(sub_clip)
+        fps      = _get_fps(main_video)
         sub_prep = os.path.join(tmpdir, "sub_prep.mp4")
 
         subprocess.run([
             "ffmpeg", "-y", "-i", sub_clip,
-            "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
-                   f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
-            "-af", (
-                f"afade=t=in:st=0:d={FADE_DURATION},"
-                f"afade=t=out:st={max(0.0, sub_dur - FADE_DURATION)}:d={FADE_DURATION}"
+            "-vf", (
+                f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+                f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,"
+                f"fps={fps}"
             ),
             "-c:v", "libx264", "-preset", "fast", "-crf", "22",
             "-c:a", "aac", "-b:a", "192k",
-            "-r", "30",
             sub_prep,
         ], capture_output=True, check=True)
 
-        # ── 5. Concatenate ────────────────────────────────────────────────────
-        concat_txt = os.path.join(tmpdir, "concat.txt")
-        with open(concat_txt, "w") as f:
-            f.write(f"file '{part1}'\nfile '{sub_prep}'\nfile '{part2}'\n")
-
+        # ── 5. Concatenate using filter_complex for proper AV sync ────────────
         out_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_sub_injected.mp4")
         _log("Concatenating parts...")
         subprocess.run([
             "ffmpeg", "-y",
-            "-f", "concat", "-safe", "0", "-i", concat_txt,
+            "-i", part1, "-i", sub_prep, "-i", part2,
+            "-filter_complex",
+            "[0:v][0:a][1:v][1:a][2:v][2:a]concat=n=3:v=1:a=1[vout][aout]",
+            "-map", "[vout]", "-map", "[aout]",
             "-c:v", "libx264", "-preset", "fast", "-crf", "22",
             "-c:a", "aac", "-b:a", "192k",
             "-movflags", "+faststart",

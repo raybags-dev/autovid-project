@@ -81,9 +81,13 @@ ssh $SERVER << REMOTE
   # .env is never overwritten by rsync — back it up and restore
 
   echo "→ Freeing disk space before build..."
+  docker compose down --remove-orphans 2>/dev/null || true
   docker system prune -af --volumes 2>/dev/null || true
+  docker builder prune -af 2>/dev/null || true
+  find /tmp -maxdepth 1 -name "sub_*" -type d -exec rm -rf {} + 2>/dev/null || true
+  find /tmp -maxdepth 1 -name "quote_*" -type d -exec rm -rf {} + 2>/dev/null || true
+  df -h / | tail -1 | awk '{print "→ Disk after cleanup: " $4 " free (" $5 " used)"}'
   echo "→ Pulling latest images and rebuilding..."
-  docker compose down --remove-orphans
 
   # Rebuild all services — celery-worker runs the actual pipelines and must stay in sync
   docker compose build --no-cache frontend

@@ -516,12 +516,6 @@ def run_pipeline(
             except Exception as e:
                 _log("MUSIC", f"⚠️  Music mixing skipped: {e}", cb)
 
-        # ── 9a-ii. Save mixed MP3 (narration + music) to Supabase ────────────
-        try:
-            step_save_mixed_mp3(final_path, video_id, cb)
-        except Exception as e:
-            _log("MP3", f"⚠️  Mixed MP3 step failed (non-fatal): {e}", cb)
-
         # ── 9a-ii. Inject subscribe message clip (if requested) ───────────────
         _sub_type_main = (
             "unsubscribed" if include_unsubscribed_message else
@@ -796,12 +790,6 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
                     _log("MUSIC", "✅ Background music mixed", cb)
             except Exception as e:
                 _log("MUSIC", f"⚠️  Music mixing skipped: {e}", cb)
-
-        # 7a-ii. Save mixed MP3 (narration + music) to Supabase
-        try:
-            step_save_mixed_mp3(final_path, video_id, cb)
-        except Exception as e:
-            _log("MP3", f"⚠️  Mixed MP3 step failed (non-fatal): {e}", cb)
 
         # 7b. Inject subscribe message clip (if requested)
         _subscribe_type = (
