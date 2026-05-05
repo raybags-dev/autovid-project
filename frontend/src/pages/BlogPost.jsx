@@ -16,6 +16,7 @@ const DARK = {
   accentPurple: "#a78bfa", accentYellow: "#fbbf24", footBg: "rgba(0,0,0,0.4)",
   tag: "rgba(167,139,250,0.1)", tagBorder: "rgba(167,139,250,0.25)", tagText: "#a78bfa",
   inputBg: "#0a0d14", sidebarBg: "rgba(255,255,255,0.022)",
+  cardShadow: "rgba(0, 0, 0, 0.35) 0px 5px 15px",
 };
 const LIGHT = {
   bg: "#f8fafc", bgAlt: "#f1f5f9", bgCard: "#ffffff",
@@ -25,6 +26,7 @@ const LIGHT = {
   accentPurple: "#7c3aed", accentYellow: "#d97706", footBg: "rgba(0,0,0,0.04)",
   tag: "rgba(124,58,237,0.07)", tagBorder: "rgba(124,58,237,0.2)", tagText: "#7c3aed",
   inputBg: "#f8fafc", sidebarBg: "rgba(0,0,0,0.02)",
+  cardShadow: "rgba(100, 100, 111, 0.2) 0px 7px 29px 0px",
 };
 
 function fmtDate(d) {
@@ -79,7 +81,7 @@ function CommentCard({ c, T, fp, onLike, depth = 0 }) {
 
   return (
     <div style={{ marginLeft: depth > 0 ? 24 : 0, borderLeft: depth > 0 ? `2px solid ${T.border}` : "none", paddingLeft: depth > 0 ? 16 : 0 }}>
-      <div style={{ background: c.is_admin_reply ? (T.bg === "#060810" ? "rgba(79,142,240,0.06)" : "rgba(37,99,235,0.04)") : T.bgCard, border: `1px solid ${c.is_admin_reply ? T.accent + "30" : T.border}`, borderRadius: 10, padding: "16px 18px", marginBottom: 12 }}>
+      <div style={{ background: c.is_admin_reply ? (T.bg === "#060810" ? "rgba(79,142,240,0.06)" : "rgba(37,99,235,0.04)") : T.bgCard, border: `1px solid ${c.is_admin_reply ? T.accent + "30" : T.border}`, borderRadius: 10, padding: "16px 18px", marginBottom: 12, boxShadow: T.cardShadow }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
           <div style={{ width: 34, height: 34, borderRadius: "50%", background: `hsl(${(c.name?.charCodeAt(0) || 65) * 7 % 360},50%,${T.bg === "#060810" ? "30%" : "75%"})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: T.text, flexShrink: 0 }}>
             {(c.name || "?")[0].toUpperCase()}
@@ -185,7 +187,7 @@ function CommentsSection({ T, postId }) {
       </div>
 
       {/* Submit form */}
-      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "24px 24px 20px", marginBottom: 36 }}>
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "24px 24px 20px", marginBottom: 36, boxShadow: T.cardShadow }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: T.text, letterSpacing: "0.08em", marginBottom: 16 }}>LEAVE A COMMENT</div>
         <div className="comment-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <input placeholder="Your name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inp()} />

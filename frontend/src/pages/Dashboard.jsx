@@ -250,6 +250,7 @@ const THEMES = {
     accentRed: "#ff5c6c", // vivid red
     accentYellow: "#ffb020", // vivid amber
     scrollThumb: "#2e3340",
+    cardShadow: "rgba(0, 0, 0, 0.35) 0px 5px 15px",
   },
   light: {
     bg: "#f0f2f5", // neutral cool grey
@@ -270,6 +271,7 @@ const THEMES = {
     accentRed: "#dc2626", // vivid red
     accentYellow: "#d97706", // vivid amber
     scrollThumb: "#c1c9d6",
+    cardShadow: "rgba(100, 100, 111, 0.2) 0px 7px 29px 0px",
   },
 };
 
@@ -2786,9 +2788,9 @@ export default function Dashboard() {
         .nav-item{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:12px;letter-spacing:0.05em;color:${T.textDim};transition:all 0.15s;}
         .nav-item:hover{background:rgba(0,160,220,0.07);color:${T.textMid};}
         .nav-item.active{background:rgba(0,160,220,0.1);color:${T.accent};}
-        .stat-card{background:${T.bgCard};border:1px solid ${T.border};border-radius:14px;padding:20px;transition:border-color 0.2s,box-shadow 0.2s;}
+        .stat-card{background:${T.bgCard};border:1px solid ${T.border};border-radius:14px;padding:20px;transition:border-color 0.2s,box-shadow 0.2s;box-shadow:${T.cardShadow};}
         .stat-card:hover{border-color:${T.borderHover};box-shadow:0 4px 20px rgba(0,120,200,0.08);}
-        .video-row{background:${T.bgCard};border:1px solid ${T.border};border-radius:12px;padding:16px 20px;cursor:pointer;transition:all 0.15s;margin-bottom:8px;}
+        .video-row{background:${T.bgCard};border:1px solid ${T.border};border-radius:12px;padding:16px 20px;cursor:pointer;transition:all 0.15s;margin-bottom:8px;box-shadow:${T.cardShadow};}
         .video-row:hover{background:${T.bgCardHover};border-color:${T.borderHover};box-shadow:0 4px 16px rgba(0,100,180,0.08);}
         .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:100px;font-size:10px;letter-spacing:0.06em;font-weight:500;white-space:nowrap;}
         .tag{display:inline-block;padding:2px 8px;border-radius:100px;font-size:9px;background:${T.inputBg};color:${T.textDim};border:1px solid ${T.border};margin:1px;letter-spacing:0.04em;flex-shrink:0;white-space:nowrap;}

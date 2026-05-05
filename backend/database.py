@@ -463,6 +463,36 @@ def danger_clear_podcasts() -> dict:
     return {"db_records": db_count, "storage_files": storage_deleted}
 
 
+def danger_clear_all_narrations() -> dict:
+    """DANGER: Clear narration_url from all videos and delete all MP3 files from storage."""
+    client = get_client()
+    result = client.table("videos").select("id,narration_url").not_.is_("narration_url", "null").execute()
+    rows = result.data or []
+
+    narration_keys = []
+    for row in rows:
+        url = row.get("narration_url") or ""
+        if url:
+            clean = url.split("?")[0]
+            key = clean.rstrip("/").split("/")[-1]
+            if key:
+                narration_keys.append(key)
+
+    storage_deleted = 0
+    if narration_keys:
+        try:
+            client.storage.from_("narrations").remove(narration_keys)
+            storage_deleted = len(narration_keys)
+        except Exception as e:
+            print(f"⚠️ Narration storage clear warning: {e}")
+
+    if rows:
+        client.table("videos").update({"narration_url": None}).not_.is_("narration_url", "null").execute()
+
+    print(f"🚨 DANGER: Cleared narration_url from {len(rows)} videos, deleted {storage_deleted} MP3s")
+    return {"cleared_records": len(rows), "storage_files": storage_deleted}
+
+
 def danger_clear_stickfigures() -> dict:
     """DANGER: Delete all stickfigure clip records from the database."""
     client = get_client()

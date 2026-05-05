@@ -637,6 +637,15 @@ def danger_clear_podcasts(user: str = Depends(verify_danger_token)):
     }
 
 
+@app.delete("/admin/danger/clear-all-narrations")
+def danger_clear_all_narrations(user: str = Depends(verify_danger_token)):
+    """DANGER: Clear narration_url from all videos and delete all MP3s from storage."""
+    result = db.danger_clear_all_narrations()
+    return {
+        "message": f"Cleared narration_url from {result['cleared_records']} video(s) and deleted {result['storage_files']} MP3 file(s)."
+    }
+
+
 @app.delete("/admin/danger/clear-stickfigures")
 def danger_clear_stickfigures(user: str = Depends(verify_danger_token)):
     """DANGER: Delete all stickfigure clip records from the database."""
@@ -5140,6 +5149,8 @@ def extract_video_mp3(video_id: str, background_tasks: BackgroundTasks, user: st
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
+    if video.get("resolution") == "1080x1920":
+        raise HTTPException(status_code=400, detail="Shorts are not eligible for MP3/podcast extraction")
     file_path = video.get("file_path")
     if not file_path:
         raise HTTPException(status_code=400, detail="Video has no file path")

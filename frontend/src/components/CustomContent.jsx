@@ -539,25 +539,25 @@ function VideoPlayerModal({ item, T, onClose }) {
       }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ position: "relative", width: "90vw", maxWidth: 900 }}>
+      <div style={{ position: "relative", width: "90vw", maxWidth: 900, maxHeight: "92vh", display: "flex", flexDirection: "column" }}>
         <button
           onClick={onClose}
           style={{
             position: "absolute", top: -40, right: 0, background: "none", border: "none",
-            color: "#fff", fontSize: 22, cursor: "pointer",
+            color: "#fff", fontSize: 22, cursor: "pointer", zIndex: 1,
           }}
         >✕</button>
-        <div style={{ fontSize: 13, color: "#ccc", marginBottom: 10, fontWeight: 600 }}>
+        <div style={{ fontSize: 13, color: "#ccc", marginBottom: 10, fontWeight: 600, flexShrink: 0 }}>
           {item.title}
         </div>
         <video
           src={item.file_path}
           controls
           autoPlay
-          style={{ width: "100%", borderRadius: 10, maxHeight: "80vh", background: "#000" }}
+          style={{ width: "100%", borderRadius: 10, maxHeight: "65vh", background: "#000", flexShrink: 0 }}
         />
         {item.description && (
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 8, flexShrink: 0 }}>
             <button
               onClick={() => setDescOpen(o => !o)}
               style={{ background: "none", border: "none", color: "#888", fontSize: 10, cursor: "pointer", padding: "4px 0", letterSpacing: "0.08em", display: "flex", alignItems: "center", gap: 5 }}
@@ -565,7 +565,7 @@ function VideoPlayerModal({ item, T, onClose }) {
               {descOpen ? "▲" : "▼"} DESCRIPTION
             </button>
             {descOpen && (
-              <div style={{ marginTop: 6, fontSize: 11, color: "#999", lineHeight: 1.6, padding: "8px 10px", background: "rgba(255,255,255,0.05)", borderRadius: 6 }}>
+              <div style={{ marginTop: 6, fontSize: 11, color: "#999", lineHeight: 1.6, padding: "8px 10px", background: "rgba(255,255,255,0.05)", borderRadius: 6, maxHeight: "18vh", overflowY: "auto" }}>
                 {item.description}
               </div>
             )}

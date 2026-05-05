@@ -23,6 +23,7 @@ const DARK = {
   tag: "rgba(167,139,250,0.1)",
   tagBorder: "rgba(167,139,250,0.25)",
   tagText: "#a78bfa",
+  cardShadow: "rgba(0, 0, 0, 0.35) 0px 5px 15px",
 };
 const LIGHT = {
   bg: "#f8fafc",
@@ -44,6 +45,7 @@ const LIGHT = {
   tag: "rgba(124,58,237,0.08)",
   tagBorder: "rgba(124,58,237,0.2)",
   tagText: "#7c3aed",
+  cardShadow: "rgba(100, 100, 111, 0.2) 0px 7px 29px 0px",
 };
 
 const PAGE_SIZE = 9;
@@ -198,7 +200,7 @@ export default function Blog() {
           position: "absolute", inset: "-30% 0",
           backgroundImage: `url(${freedomImg})`,
           backgroundSize: "cover", backgroundPosition: "center 40%",
-          opacity: isDark ? 0.32 : 0.18, transform: "scale(1.2)", pointerEvents: "none",
+          opacity: 0.8, transform: "scale(1.2)", pointerEvents: "none",
           willChange: "transform",
         }} />
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: isDark ? "linear-gradient(to bottom,rgba(6,8,16,0.5) 0%,rgba(6,8,16,0.2) 50%,rgba(6,8,16,0.75) 100%)" : "linear-gradient(to bottom,rgba(248,250,252,0.6) 0%,rgba(248,250,252,0.2) 50%,rgba(248,250,252,0.8) 100%)" }} />
@@ -224,7 +226,7 @@ export default function Blog() {
         {loading ? (
           <div style={{ padding: "80px 0", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 20, marginTop: 40 }}>
             {[0,1,2,3,4,5].map(i => (
-              <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", minHeight: 320 }}>
+              <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", minHeight: 320, boxShadow: T.cardShadow }}>
                 <div style={{ height: 190, background: T.border, animation: "blogPulse 1.4s ease infinite alternate" }} />
                 <div style={{ padding: 18 }}>
                   <div style={{ height: 12, background: T.border, borderRadius: 4, marginBottom: 8, width: "70%", animation: "blogPulse 1.4s ease infinite alternate" }} />
@@ -327,7 +329,7 @@ export default function Blog() {
                           <div
                             key={post.id}
                             onClick={() => navigate(`/blog/${post.slug}`)}
-                            style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", cursor: "pointer", transition: "border-color 0.2s,background 0.2s,transform 0.15s", display: "flex", flexDirection: "column" }}
+                            style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", cursor: "pointer", transition: "border-color 0.2s,background 0.2s,transform 0.15s", display: "flex", flexDirection: "column", boxShadow: T.cardShadow }}
                             onMouseEnter={e => { e.currentTarget.style.borderColor = T.borderHover; e.currentTarget.style.background = T.bgCardHover; e.currentTarget.style.transform = "translateY(-2px)"; }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.bgCard; e.currentTarget.style.transform = "translateY(0)"; }}
                           >
