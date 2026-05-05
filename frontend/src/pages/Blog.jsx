@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import freedomImg from "../assets/static/freedom.jpg";
 
@@ -160,8 +160,23 @@ export default function Blog() {
   const gridPosts = filteredPosts.slice(1);
   const hasMore = posts.length < total && !activeTag;
 
+  const containerRef = useRef(null);
+  const heroImgRef = useRef(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const fn = () => {
+      if (heroImgRef.current) {
+        heroImgRef.current.style.transform = `translateY(${el.scrollTop * 0.3}px) scale(1.2)`;
+      }
+    };
+    el.addEventListener("scroll", fn, { passive: true });
+    return () => el.removeEventListener("scroll", fn);
+  }, []);
+
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'JetBrains Mono','Fira Mono','Courier New',monospace", transition: "background 0.2s,color 0.2s", overflowY: "auto", maxHeight: "98vh" }}>
+    <div ref={containerRef} style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'JetBrains Mono','Fira Mono','Courier New',monospace", transition: "background 0.2s,color 0.2s", overflowY: "auto", maxHeight: "98vh" }}>
 
       {/* ── Navbar ─────────────────────────────────────────────────────────── */}
       <nav style={{ position: "sticky", top: 0, zIndex: 100, background: T.navBg, backdropFilter: "blur(14px)", borderBottom: `1px solid ${T.border}`, padding: "0 clamp(16px,4vw,48px)", display: "flex", alignItems: "center", height: 58, gap: 16 }}>
@@ -179,11 +194,12 @@ export default function Blog() {
 
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
       <div style={{ position: "relative", height: "clamp(260px,32vw,380px)", overflow: "hidden", borderBottom: `1px solid ${T.border}` }}>
-        <div style={{
+        <div ref={heroImgRef} style={{
           position: "absolute", inset: "-30% 0",
           backgroundImage: `url(${freedomImg})`,
           backgroundSize: "cover", backgroundPosition: "center 40%",
           opacity: isDark ? 0.32 : 0.18, transform: "scale(1.2)", pointerEvents: "none",
+          willChange: "transform",
         }} />
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: isDark ? "linear-gradient(to bottom,rgba(6,8,16,0.5) 0%,rgba(6,8,16,0.2) 50%,rgba(6,8,16,0.75) 100%)" : "linear-gradient(to bottom,rgba(248,250,252,0.6) 0%,rgba(248,250,252,0.2) 50%,rgba(248,250,252,0.8) 100%)" }} />
         <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 clamp(16px,4vw,48px)", textAlign: "center" }}>

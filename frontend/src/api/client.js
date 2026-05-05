@@ -58,6 +58,8 @@ export const generateVideo = async (
   useStickfigures = false,
   useStockFootage = true,
   useCaptions = true,
+  includeUnsubscribedMessage = false,
+  includeSubscribedMessage = false,
 ) => {
   const { data } = await api.post("/videos/generate", {
     prompt,
@@ -70,6 +72,8 @@ export const generateVideo = async (
     use_stickfigures: useStickfigures,
     use_stock_footage: useStockFootage,
     use_captions: useCaptions,
+    include_unsubscribed_message: includeUnsubscribedMessage,
+    include_subscribed_message: includeSubscribedMessage,
   });
   return data;
 };
@@ -281,8 +285,8 @@ export const createShortFromVideo = async (id, options = {}) => {
   return data;
 };
 
-export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, music_delay = 0.0, custom_script = "", use_stickfigures = false, use_stock_footage = true, use_captions = true) => {
-  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, music_delay, custom_script, use_stickfigures, use_stock_footage, use_captions });
+export const generateShortFromScratch = async (prompt, ambience = "rain", music_style = "Laidback_Fevorite", music_volume = 0.04, music_delay = 0.0, custom_script = "", use_stickfigures = false, use_stock_footage = true, use_captions = true, include_unsubscribed_message = false, include_subscribed_message = false) => {
+  const { data } = await api.post("/shorts/generate", { prompt, ambience, music_style, music_volume, music_delay, custom_script, use_stickfigures, use_stock_footage, use_captions, include_unsubscribed_message, include_subscribed_message });
   return data;
 };
 

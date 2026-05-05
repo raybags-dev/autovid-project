@@ -394,6 +394,8 @@ def run_pipeline(
     use_stickfigures: bool = False,
     use_stock_footage: bool = True,
     use_captions: bool = True,
+    include_unsubscribed_message: bool = False,
+    include_subscribed_message: bool = False,
 ) -> dict:
     """
     Run the full AutoVid pipeline from prompt → final video → YouTube.
@@ -520,6 +522,20 @@ def run_pipeline(
         except Exception as e:
             _log("MP3", f"⚠️  Mixed MP3 step failed (non-fatal): {e}", cb)
 
+        # ── 9a-ii. Inject subscribe message clip (if requested) ───────────────
+        _sub_type_main = (
+            "unsubscribed" if include_unsubscribed_message else
+            "subscribed"   if include_subscribed_message   else
+            None
+        )
+        if _sub_type_main:
+            try:
+                from pipeline.subscribe_clip import inject_subscribe_clip
+                _log("SUBSCRIBE", f"Injecting {_sub_type_main} message clip...", cb)
+                final_path = inject_subscribe_clip(final_path, _sub_type_main, video_id, cb)
+            except Exception as e:
+                _log("SUBSCRIBE", f"⚠️ Subscribe injection failed (non-fatal): {e}", cb)
+
         # ── 9b. Upload final video to Supabase Storage ────────────────────────
         # This gives us a permanent public URL for playback in the dashboard
         # even after local files are cleaned up
@@ -628,12 +644,15 @@ SHORT_MAX_DURATION = 180  # seconds — hard ceiling (3 min)
 SHORT_MIN_DURATION = 120  # seconds — minimum 2 minutes per short
 
 
-def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False, use_stock_footage: bool = True, use_captions: bool = True) -> dict:
+def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False, use_stock_footage: bool = True, use_captions: bool = True, include_unsubscribed_message: bool = False, include_subscribed_message: bool = False) -> dict:
     """
     YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
     custom_script: optional pre-written narration text — skips LLM script generation.
     """
+    if include_unsubscribed_message and include_subscribed_message:
+        raise ValueError("include_unsubscribed_message and include_subscribed_message are mutually exclusive.")
+
     from pipeline.shorts_generator import generate_short_visual
     from pipeline.script_gen import generate_short_script
 
@@ -783,6 +802,20 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
             step_save_mixed_mp3(final_path, video_id, cb)
         except Exception as e:
             _log("MP3", f"⚠️  Mixed MP3 step failed (non-fatal): {e}", cb)
+
+        # 7b. Inject subscribe message clip (if requested)
+        _subscribe_type = (
+            "unsubscribed" if include_unsubscribed_message else
+            "subscribed"   if include_subscribed_message   else
+            None
+        )
+        if _subscribe_type:
+            try:
+                from pipeline.subscribe_clip import inject_subscribe_clip
+                _log("SUBSCRIBE", f"Injecting {_subscribe_type} message clip...", cb)
+                final_path = inject_subscribe_clip(final_path, _subscribe_type, video_id, cb)
+            except Exception as e:
+                _log("SUBSCRIBE", f"⚠️ Subscribe injection failed (non-fatal): {e}", cb)
 
         # 8. Upload to Supabase
         try:

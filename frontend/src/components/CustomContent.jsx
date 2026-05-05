@@ -529,6 +529,7 @@ function LogModal({ itemId, title, T, onClose }) {
 
 // ── Video Player Modal ─────────────────────────────────────────────────────────
 function VideoPlayerModal({ item, T, onClose }) {
+  const [descOpen, setDescOpen] = useState(false);
   return (
     <div
       style={{
@@ -556,8 +557,18 @@ function VideoPlayerModal({ item, T, onClose }) {
           style={{ width: "100%", borderRadius: 10, maxHeight: "80vh", background: "#000" }}
         />
         {item.description && (
-          <div style={{ marginTop: 10, fontSize: 11, color: "#999", lineHeight: 1.5 }}>
-            {item.description}
+          <div style={{ marginTop: 8 }}>
+            <button
+              onClick={() => setDescOpen(o => !o)}
+              style={{ background: "none", border: "none", color: "#888", fontSize: 10, cursor: "pointer", padding: "4px 0", letterSpacing: "0.08em", display: "flex", alignItems: "center", gap: 5 }}
+            >
+              {descOpen ? "▲" : "▼"} DESCRIPTION
+            </button>
+            {descOpen && (
+              <div style={{ marginTop: 6, fontSize: 11, color: "#999", lineHeight: 1.6, padding: "8px 10px", background: "rgba(255,255,255,0.05)", borderRadius: 6 }}>
+                {item.description}
+              </div>
+            )}
           </div>
         )}
       </div>
