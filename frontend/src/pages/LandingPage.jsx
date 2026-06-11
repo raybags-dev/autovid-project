@@ -1402,10 +1402,10 @@ function LibraryModal({ subUser, onClose }) {
   const [fetchError, setFetchError] = useState(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all"); // all | video | audio
+  const [typeFilter, setTypeFilter] = useState("all");
   const [playVideo, setPlayVideo] = useState(null);
   const gridRef = useRef(null);
-  const LIB_PAGE = 20;
+  const LIB_PAGE = 24;
 
   const getVideoUrl = (fp) => {
     if (!fp) return null;
@@ -1415,7 +1415,18 @@ function LibraryModal({ subUser, onClose }) {
     return null;
   };
 
-  const fmtDur = (s) => { if (!s) return ""; const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
+  const fmtDur = (s) => {
+    if (!s) return "";
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    return h > 0 ? `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}` : `${m}:${String(sec).padStart(2,"0")}`;
+  };
+
+  const isNew = (v) => {
+    if (!v.created_at) return false;
+    return (Date.now() - new Date(v.created_at).getTime()) < 7 * 24 * 60 * 60 * 1000;
+  };
 
   const loadVideos = () => {
     setLoading(true);
@@ -1435,7 +1446,7 @@ function LibraryModal({ subUser, onClose }) {
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
-    const fn = () => { if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) setPage(p => p + 1); };
+    const fn = () => { if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) setPage(p => p + 1); };
     el.addEventListener("scroll", fn, { passive: true });
     return () => el.removeEventListener("scroll", fn);
   }, []);
@@ -1468,128 +1479,244 @@ function LibraryModal({ subUser, onClose }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(2,4,14,0.98)", backdropFilter: "blur(28px)", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "#06020f", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
       <style>{`
-        .lib-card { transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s, border-color 0.15s; }
-        .lib-card:hover { transform: translateY(-4px) scale(1.015); box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(168,85,247,0.3); }
-        .lib-card:hover .lib-play-ring { opacity: 0.85 !important; }
-        .lib-card:hover .lib-thumb { opacity: 0; }
+        .lib-card {
+          transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
+          cursor: pointer;
+        }
+        .lib-card:hover { transform: translateY(-5px) scale(1.018); box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.35); }
+        .lib-card:hover .lib-play-ring { opacity: 1 !important; transform: translate(-50%,-50%) scale(1.08) !important; }
+        .lib-card:hover .lib-thumb { opacity: 0 !important; }
         .lib-card:hover .lib-hover-vid { opacity: 1 !important; }
-        .lib-hover-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.35s; pointer-events: none; }
+        .lib-hover-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.4s; pointer-events: none; }
+        .lib-play-ring { transition: opacity 0.2s, transform 0.2s cubic-bezier(0.34,1.56,0.64,1) !important; }
+        .lib-search:focus { border-color: rgba(168,85,247,0.5) !important; background: rgba(168,85,247,0.08) !important; }
+        @keyframes lib-fade-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+        .lib-grid-item { animation: lib-fade-in 0.3s ease both; }
+        @keyframes lib-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+        .lib-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.04) 75%); background-size: 800px 100%; animation: lib-shimmer 1.4s infinite; border-radius: 16px; }
       `}</style>
 
-      {/* Header */}
-      <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 14, flexShrink: 0, background: "rgba(3,5,16,0.96)", flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 160 }}>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17, letterSpacing: "0.06em", background: "linear-gradient(135deg,#c084fc,#7c3aed)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>◈ MEMBER LIBRARY</div>
-          <div style={{ fontSize: 10, color: "rgba(160,185,220,0.45)", marginTop: 1 }}>{subUser?.email} · {filtered.length} item{filtered.length !== 1 ? "s" : ""}</div>
+      {/* ── Header ── */}
+      <div style={{
+        padding: "14px 24px",
+        background: "linear-gradient(180deg,rgba(10,5,24,0.98) 0%,rgba(6,2,15,0.95) 100%)",
+        borderBottom: "1px solid rgba(168,85,247,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0, flexWrap: "wrap",
+      }}>
+        {/* Brand */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 180 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: "linear-gradient(135deg,rgba(124,58,237,0.3),rgba(192,132,252,0.15))",
+            border: "1px solid rgba(168,85,247,0.3)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+          }}>◈</div>
+          <div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: "0.07em", background: "linear-gradient(135deg,#e0b4ff,#a855f7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>MEMBER LIBRARY</div>
+            <div style={{ fontSize: 9, color: "rgba(160,185,220,0.4)", marginTop: 1, letterSpacing: "0.04em" }}>
+              {subUser?.email} {!loading && `· ${filtered.length} exclusive item${filtered.length !== 1 ? "s" : ""}`}
+            </div>
+          </div>
         </div>
-        {/* Type filters */}
-        <div style={{ display: "flex", gap: 6 }}>
-          {[["all","ALL"], ["video","▶ VIDEO"], ["audio","🎙 AUDIO"]].map(([val, label]) => (
-            <button key={val} onClick={() => setTypeFilter(val)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${typeFilter === val ? "rgba(168,85,247,0.5)" : "rgba(168,85,247,0.15)"}`, background: typeFilter === val ? "rgba(168,85,247,0.15)" : "transparent", color: typeFilter === val ? "#c084fc" : "rgba(168,85,247,0.4)", fontSize: 10, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.04em", fontWeight: typeFilter === val ? 700 : 400 }}>{label}</button>
+
+        {/* Filters */}
+        <div style={{ display: "flex", gap: 5 }}>
+          {[["all","All"], ["video","Video"], ["audio","Audio"]].map(([val, label]) => (
+            <button key={val} onClick={() => setTypeFilter(val)} style={{
+              padding: "5px 14px", borderRadius: 20,
+              border: `1px solid ${typeFilter === val ? "rgba(168,85,247,0.55)" : "rgba(168,85,247,0.12)"}`,
+              background: typeFilter === val ? "rgba(168,85,247,0.18)" : "transparent",
+              color: typeFilter === val ? "#d8b4fe" : "rgba(168,85,247,0.38)",
+              fontSize: 10, fontFamily: "inherit", cursor: "pointer",
+              letterSpacing: "0.05em", fontWeight: typeFilter === val ? 700 : 500,
+              transition: "all 0.15s",
+            }}>{label}</button>
           ))}
         </div>
-        <input type="text" placeholder="Search library..." value={search} onChange={e => setSearch(e.target.value)} style={{ padding: "8px 14px", borderRadius: 22, border: "1px solid rgba(168,85,247,0.25)", background: "rgba(168,85,247,0.05)", color: "#e8f0ff", fontSize: 12, fontFamily: "inherit", outline: "none", width: 190 }} />
-        <button onClick={onClose} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 8, color: "rgba(180,200,230,0.5)", fontSize: 17, width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+
+        {/* Search */}
+        <input
+          className="lib-search"
+          type="text" placeholder="Search titles..."
+          value={search} onChange={e => setSearch(e.target.value)}
+          style={{
+            padding: "7px 16px", borderRadius: 22,
+            border: "1px solid rgba(168,85,247,0.18)",
+            background: "rgba(168,85,247,0.04)", color: "#e8f0ff",
+            fontSize: 12, fontFamily: "inherit", outline: "none", width: 180,
+            transition: "border-color 0.15s, background 0.15s",
+          }}
+        />
+
+        {/* Close */}
+        <button onClick={onClose} style={{
+          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 8, color: "rgba(200,210,230,0.4)", fontSize: 16,
+          width: 32, height: 32, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, transition: "background 0.15s",
+        }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.09)"}
+           onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+        >✕</button>
       </div>
 
-      {/* Player */}
+      {/* ── Player overlay ── */}
       {playVideo && <LibraryVideoPlayer video={playVideo} onBack={() => setPlayVideo(null)} />}
 
-      {/* Grid */}
+      {/* ── Grid ── */}
       {!playVideo && (
-        <div ref={gridRef} style={{ flex: 1, overflowY: "auto", padding: "28px 28px 40px" }}>
-          {loading && <div style={{ textAlign: "center", color: "rgba(168,85,247,0.4)", padding: 60, fontSize: 13, letterSpacing: "0.1em" }}>LOADING LIBRARY...</div>}
-          {!loading && fetchError && (
-            <div style={{ textAlign: "center", padding: 80 }}>
-              <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }}>⚠</div>
-              <div style={{ fontSize: 13, color: "rgba(255,120,100,0.7)", letterSpacing: "0.06em", marginBottom: 18 }}>{fetchError}</div>
-              <button onClick={loadVideos} style={{ padding: "8px 22px", borderRadius: 20, border: "1px solid rgba(168,85,247,0.4)", background: "rgba(168,85,247,0.1)", color: "#a855f7", fontSize: 11, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.06em" }}>Retry</button>
+        <div ref={gridRef} style={{ flex: 1, overflowY: "auto", padding: "28px 24px 48px" }}>
+
+          {/* Loading skeletons */}
+          {loading && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 20 }}>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="lib-skeleton" style={{ aspectRatio: "16/9", marginBottom: 0 }} />
+              ))}
             </div>
           )}
+
+          {/* Error */}
+          {!loading && fetchError && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 20px", textAlign: "center" }}>
+              <div style={{ fontSize: 48, opacity: 0.2 }}>⚠</div>
+              <div style={{ fontSize: 14, color: "rgba(255,100,80,0.75)", letterSpacing: "0.04em" }}>{fetchError}</div>
+              <button onClick={loadVideos} style={{ padding: "9px 26px", borderRadius: 22, border: "1px solid rgba(168,85,247,0.4)", background: "rgba(168,85,247,0.1)", color: "#a855f7", fontSize: 11, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.06em" }}>↺ Retry</button>
+            </div>
+          )}
+
+          {/* Empty */}
           {!loading && !fetchError && filtered.length === 0 && (
-            <div style={{ textAlign: "center", padding: 80 }}>
-              <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }}>◈</div>
-              <div style={{ fontSize: 13, color: "rgba(160,185,220,0.35)", letterSpacing: "0.06em" }}>
-                {search || typeFilter !== "all" ? "No videos match your filters" : "No exclusive videos yet — add videos to the library from your dashboard"}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "90px 20px", textAlign: "center" }}>
+              <div style={{ fontSize: 56, opacity: 0.15, lineHeight: 1 }}>◈</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(200,185,230,0.4)", letterSpacing: "0.04em" }}>
+                {search || typeFilter !== "all" ? "No titles match your filters" : "No exclusive content yet"}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(160,185,220,0.25)", maxWidth: 320, lineHeight: 1.6 }}>
+                {search || typeFilter !== "all" ? "Try a different search or filter." : "Content marked as Exclusive in your dashboard will appear here."}
               </div>
             </div>
           )}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 22 }}>
-            {visible.map((v, i) => {
-              const thumb = v.thumbnail_url;
-              const isPodcast = !v.file_path || v.labels?.includes("mp3") || v.file_path?.endsWith?.(".mp3") || (!v.file_path?.endsWith?.(".mp4") && !v.file_path?.startsWith?.("http") && v.narration_url);
-              const fp = v.file_path;
-              const vidUrl = fp && (fp.startsWith("http") ? fp : fp.endsWith(".mp4") ? `/local-videos/${fp.split("/").pop()}` : null);
-              const canPlay = !!(vidUrl || (isPodcast && v.narration_url));
-              const fmtDur = (s) => { if (!s) return ""; return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`; };
 
-              return (
-                <div
-                  key={v.id}
-                  className="lib-card"
-                  onClick={() => canPlay && setPlayVideo(v)}
-                  onMouseEnter={e => onCardHoverEnter(e, vidUrl)}
-                  onMouseLeave={e => onCardHoverLeave(e)}
-                  style={{ background: "linear-gradient(145deg,rgba(20,14,40,0.9),rgba(12,10,26,0.95))", border: "1px solid rgba(168,85,247,0.12)", borderRadius: 16, overflow: "hidden", cursor: canPlay ? "pointer" : "default" }}
-                >
-                  {/* Media area */}
-                  <div style={{ position: "relative", aspectRatio: "16/9", background: "rgba(0,0,0,0.7)", overflow: "hidden" }}>
-                    {/* Thumbnail image */}
-                    {thumb && !isPodcast && (
-                      <img src={thumb} alt="" className="lib-thumb" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transition: "opacity 0.35s" }} onError={e => { e.target.style.display = "none"; }} />
-                    )}
+          {/* Cards */}
+          {!loading && !fetchError && visible.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 20 }}>
+              {visible.map((v, i) => {
+                const thumb       = v.thumbnail_url;
+                const isPodcast   = !v.file_path || v.labels?.includes("mp3") || v.file_path?.endsWith?.(".mp3") || (!v.file_path?.endsWith?.(".mp4") && !v.file_path?.startsWith?.("http") && v.narration_url);
+                const fp          = v.file_path;
+                const vidUrl      = fp && (fp.startsWith("http") ? fp : fp.endsWith(".mp4") ? `/local-videos/${fp.split("/").pop()}` : null);
+                const canPlay     = !!(vidUrl || (isPodcast && v.narration_url));
+                const isNewItem   = isNew(v);
+                const isCc        = !!v.is_cc;
 
-                    {/* Hover video */}
-                    {vidUrl && <video className="lib-hover-vid" muted loop playsInline />}
+                return (
+                  <div
+                    key={v.id}
+                    className={`lib-card lib-grid-item`}
+                    style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                    onClick={() => canPlay && setPlayVideo(v)}
+                    onMouseEnter={e => onCardHoverEnter(e, vidUrl)}
+                    onMouseLeave={e => onCardHoverLeave(e)}
+                  >
+                    {/* Media */}
+                    <div style={{
+                      position: "relative", aspectRatio: "16/9", overflow: "hidden",
+                      borderRadius: "14px 14px 0 0", background: "#0a0712",
+                    }}>
+                      {/* Thumbnail */}
+                      {thumb && !isPodcast && (
+                        <img src={thumb} alt="" className="lib-thumb"
+                          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transition: "opacity 0.4s" }}
+                          onError={e => { e.target.style.display = "none"; }} />
+                      )}
 
-                    {/* Podcast / no thumb placeholder */}
-                    {(isPodcast || !thumb) && (
-                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: isPodcast ? "radial-gradient(circle,rgba(29,185,84,0.08) 0%,transparent 70%)" : "radial-gradient(circle,rgba(168,85,247,0.06) 0%,transparent 70%)" }}>
-                        <span style={{ fontSize: 44, opacity: 0.25 }}>{isPodcast ? "🎙" : "🎬"}</span>
+                      {/* Hover video */}
+                      {vidUrl && <video className="lib-hover-vid" muted loop playsInline />}
+
+                      {/* Placeholder */}
+                      {(isPodcast || !thumb) && (
+                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: isPodcast ? "radial-gradient(ellipse at 50% 60%,rgba(29,185,84,0.1),transparent 70%)" : "radial-gradient(ellipse at 50% 60%,rgba(120,60,200,0.1),transparent 70%)" }}>
+                          <span style={{ fontSize: 40, opacity: 0.18 }}>{isPodcast ? "🎙" : "🎬"}</span>
+                        </div>
+                      )}
+
+                      {/* Bottom gradient */}
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "60%", background: "linear-gradient(to top,rgba(4,2,12,0.95) 0%,transparent 100%)", pointerEvents: "none" }} />
+
+                      {/* Play ring */}
+                      {canPlay && (
+                        <div className="lib-play-ring" style={{
+                          position: "absolute", top: "50%", left: "50%",
+                          transform: "translate(-50%,-50%)",
+                          width: 52, height: 52, borderRadius: "50%",
+                          background: "rgba(168,85,247,0.25)",
+                          border: "2px solid rgba(200,140,255,0.6)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          opacity: 0.35, zIndex: 2,
+                          boxShadow: "0 0 20px rgba(168,85,247,0.3)",
+                        }}>
+                          <span style={{ fontSize: 18, color: "#fff", marginLeft: 3 }}>▶</span>
+                        </div>
+                      )}
+
+                      {/* Top-left badges */}
+                      <div style={{ position: "absolute", top: 10, left: 10, display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+                        {isNewItem && (
+                          <span style={{ padding: "2px 7px", borderRadius: 5, background: "linear-gradient(135deg,rgba(16,185,129,0.85),rgba(5,150,105,0.85))", fontSize: 8, color: "#fff", fontWeight: 800, letterSpacing: "0.08em", backdropFilter: "blur(6px)" }}>NEW</span>
+                        )}
+                        {isCc && (
+                          <span style={{ padding: "2px 7px", borderRadius: 5, background: "rgba(0,0,0,0.55)", border: "1px solid rgba(100,200,255,0.3)", fontSize: 8, color: "rgba(100,200,255,0.85)", fontWeight: 700, letterSpacing: "0.06em", backdropFilter: "blur(6px)" }}>CC</span>
+                        )}
                       </div>
-                    )}
 
-                    {/* Gradient overlay (bottom) */}
-                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(6,4,18,0.85) 0%, transparent 50%)", pointerEvents: "none" }} />
+                      {/* Duration */}
+                      {v.duration_seconds > 0 && (
+                        <div style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.7)", borderRadius: 5, padding: "2px 7px", fontSize: 10, color: "rgba(255,255,255,0.9)", backdropFilter: "blur(4px)", fontVariantNumeric: "tabular-nums" }}>
+                          {fmtDur(v.duration_seconds)}
+                        </div>
+                      )}
+                    </div>
 
-                    {/* Play button — always visible at 28% opacity, brightens on hover */}
-                    {canPlay && (
-                      <div className="lib-play-ring" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "40%", aspectRatio: "1 / 1", borderRadius: "50%", background: "rgba(168,85,247,0.22)", border: "2px solid rgba(168,85,247,0.55)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.28, transition: "opacity 0.18s", zIndex: 2 }}>
-                        <span style={{ fontSize: "clamp(22px,3vw,36px)", color: "#fff", marginLeft: "8%" }}>▶</span>
+                    {/* Info */}
+                    <div style={{
+                      padding: "13px 15px 15px",
+                      background: "linear-gradient(180deg,rgba(12,7,28,0.97),rgba(8,4,20,0.99))",
+                      borderRadius: "0 0 14px 14px",
+                      border: "1px solid rgba(120,60,200,0.14)",
+                      borderTop: "none",
+                    }}>
+                      <div style={{
+                        fontWeight: 700, fontSize: 13, color: "#e8deff", lineHeight: 1.45,
+                        marginBottom: 8,
+                        overflow: "hidden", display: "-webkit-box",
+                        WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                      }}>
+                        {v.title || v.prompt || "Untitled"}
                       </div>
-                    )}
-
-                    {/* Top badges */}
-                    <div style={{ position: "absolute", top: 10, left: 10, right: 10, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div style={{ background: "rgba(0,0,0,0.6)", borderRadius: 6, padding: "2px 8px", fontSize: 9, color: "rgba(168,85,247,0.9)", fontWeight: 700, backdropFilter: "blur(4px)" }}>#{i + 1}</div>
-                      {v.is_exclusive && <div style={{ background: "rgba(168,85,247,0.75)", borderRadius: 6, padding: "2px 8px", fontSize: 8, color: "#fff", fontWeight: 700, letterSpacing: "0.06em", backdropFilter: "blur(4px)" }}>🔐 EXCLUSIVE</div>}
-                    </div>
-
-                    {/* Duration badge */}
-                    {v.duration_seconds > 0 && (
-                      <div style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.65)", borderRadius: 5, padding: "2px 7px", fontSize: 10, color: "rgba(255,255,255,0.85)", backdropFilter: "blur(4px)" }}>{fmtDur(v.duration_seconds)}</div>
-                    )}
-                  </div>
-
-                  {/* Card info */}
-                  <div style={{ padding: "14px 16px 16px" }}>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 13, color: "#ddeeff", lineHeight: 1.4, marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                      {v.title || v.prompt || "Untitled"}
-                    </div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      {(v.labels || []).filter(l => l && l !== "compilation" && l !== "mp3").slice(0, 3).map(l => (
-                        <span key={l} style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(168,85,247,0.08)", color: "rgba(168,85,247,0.7)", border: "1px solid rgba(168,85,247,0.18)", letterSpacing: "0.04em" }}>{l}</span>
-                      ))}
-                      {isPodcast && <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(29,185,84,0.08)", color: "rgba(29,185,84,0.7)", border: "1px solid rgba(29,185,84,0.18)" }}>podcast</span>}
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                        {isPodcast && (
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(29,185,84,0.1)", color: "rgba(52,211,153,0.8)", border: "1px solid rgba(29,185,84,0.2)" }}>🎙 audio</span>
+                        )}
+                        {!isPodcast && (
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(168,85,247,0.08)", color: "rgba(192,132,252,0.65)", border: "1px solid rgba(168,85,247,0.15)" }}>▶ video</span>
+                        )}
+                        {(v.labels || []).filter(l => l && !["compilation","mp3","short","Shorts","AI","custom_content","used_for_short"].includes(l)).slice(0, 2).map(l => (
+                          <span key={l} style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "rgba(255,255,255,0.04)", color: "rgba(180,200,230,0.45)", border: "1px solid rgba(255,255,255,0.07)" }}>{l}</span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-          {hasMore && <div style={{ textAlign: "center", padding: "24px 0 8px", fontSize: 10, color: "rgba(168,85,247,0.3)", letterSpacing: "0.1em" }}>↓ SCROLL FOR MORE</div>}
+                );
+              })}
+            </div>
+          )}
+
+          {hasMore && (
+            <div style={{ textAlign: "center", padding: "28px 0 8px", fontSize: 10, color: "rgba(168,85,247,0.25)", letterSpacing: "0.12em" }}>↓ SCROLL FOR MORE</div>
+          )}
         </div>
       )}
     </div>

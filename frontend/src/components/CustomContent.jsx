@@ -13,6 +13,9 @@ import {
   getCustomContentItem,
   setVideoExclusive,
   addCaptionsToVideo,
+  updateCustomContent,
+  generateCCThumbnail,
+  uploadCCThumbnail,
 } from "../api/client";
 
 const CATEGORIES = [
@@ -603,6 +606,7 @@ export default function CustomContent({ T, showToast, addNotification }) {
   const [preview, setPreview]     = useState(null);   // item to preview
   const [ytModal, setYtModal]     = useState(null);   // item to upload to YT
   const [logModal, setLogModal]   = useState(null);   // item to view logs
+  const [editModal, setEditModal] = useState(null);   // item to edit
   const [deleteConfirm, setDeleteConfirm] = useState(null);  // item to delete
   const [showArchived, setShowArchived]   = useState(false);
   const [genMp3, setGenMp3]       = useState({});    // {id: true} while generating
@@ -715,6 +719,10 @@ export default function CustomContent({ T, showToast, addNotification }) {
     }
   };
 
+  const handleEditSave = (updatedItem) => {
+    setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+  };
+
   const handleGenerateMp3 = async (item) => {
     try {
       await generateCCMp3(item.id);
@@ -824,6 +832,7 @@ export default function CustomContent({ T, showToast, addNotification }) {
                 T={T}
                 genMp3={genMp3}
                 onPreview={() => setPreview(item)}
+                onEdit={() => setEditModal(item)}
                 onYouTube={() => setYtModal(item)}
                 onDelete={() => setDeleteConfirm(item)}
                 onArchive={() => handleArchive(item)}
@@ -864,6 +873,14 @@ export default function CustomContent({ T, showToast, addNotification }) {
       {logModal && (
         <LogModal itemId={logModal.id} title={logModal.title} T={T} onClose={() => setLogModal(null)} />
       )}
+      {editModal && (
+        <CCEditModal
+          item={editModal} T={T}
+          onClose={() => setEditModal(null)}
+          onSave={(updated) => { handleEditSave(updated); setEditModal(null); }}
+          showToast={showToast}
+        />
+      )}
       {deleteConfirm && (
         <ConfirmModal
           T={T}
@@ -873,6 +890,187 @@ export default function CustomContent({ T, showToast, addNotification }) {
           onCancel={() => setDeleteConfirm(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── CC Edit Modal ─────────────────────────────────────────────────────────────
+function CCEditModal({ item, T, onClose, onSave, showToast }) {
+  const [title, setTitle]           = useState(item.title || "");
+  const [description, setDescription] = useState(item.description || "");
+  const [tags, setTags]             = useState((item.tags || []).join(", "));
+  const [category, setCategory]     = useState(item.category || "Entertainment");
+  const [privacy, setPrivacy]       = useState(item.privacy || "public");
+  const [thumbnail, setThumbnail]   = useState(item.thumbnail_url || null);
+  const [saving, setSaving]         = useState(false);
+  const [genThumb, setGenThumb]     = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+  const thumbFileRef = useRef(null);
+
+  useEffect(() => {
+    const fn = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [onClose]);
+
+  const handleSave = async () => {
+    if (!title.trim()) { showToast("Title is required", "error"); return; }
+    setSaving(true);
+    try {
+      const tagList = tags.split(",").map(t => t.trim()).filter(Boolean);
+      const updated = await updateCustomContent(item.id, { title: title.trim(), description, tags: tagList, category, privacy });
+      onSave({ ...item, ...updated, title: title.trim(), description, tags: tagList, category, privacy, thumbnail_url: thumbnail });
+      showToast("Saved", "success");
+    } catch {
+      showToast("Save failed", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGenerateThumb = async () => {
+    setGenThumb(true);
+    try {
+      const res = await generateCCThumbnail(item.id);
+      if (res.ok) {
+        setThumbnail(res.thumbnail_url);
+        onSave({ ...item, thumbnail_url: res.thumbnail_url });
+        showToast("Thumbnail generated", "success");
+      } else {
+        showToast(res.reason || "Could not generate thumbnail", "error");
+      }
+    } catch { showToast("Failed to generate thumbnail", "error"); }
+    finally { setGenThumb(false); }
+  };
+
+  const handleThumbFile = async (file) => {
+    if (!file || !file.type.startsWith("image/")) { showToast("Please select an image file", "error"); return; }
+    if (file.size > 5 * 1024 * 1024) { showToast("Image must be under 5 MB", "error"); return; }
+    setUploadingThumb(true);
+    try {
+      const res = await uploadCCThumbnail(item.id, file);
+      if (res.ok) {
+        setThumbnail(res.thumbnail_url);
+        onSave({ ...item, thumbnail_url: res.thumbnail_url });
+        showToast("Thumbnail uploaded", "success");
+      } else {
+        showToast("Upload failed", "error");
+      }
+    } catch { showToast("Upload failed", "error"); }
+    finally { setUploadingThumb(false); }
+  };
+
+  const inputSt = {
+    width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)",
+    border: `1px solid ${T.border}`, borderRadius: 8, color: T.text,
+    fontSize: 12, padding: "9px 12px", fontFamily: "inherit", outline: "none",
+  };
+  const labelSt = { fontSize: 10, color: T.textFaint, letterSpacing: "0.08em", marginBottom: 5, display: "block" };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16,
+        width: "100%", maxWidth: 560, maxHeight: "90vh", display: "flex", flexDirection: "column",
+        boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px 14px", borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Edit Content</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 18, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
+
+          {/* Thumbnail */}
+          <div>
+            <label style={labelSt}>THUMBNAIL</label>
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <div style={{
+                width: 140, height: 80, borderRadius: 8, overflow: "hidden", flexShrink: 0,
+                background: "#0a0e1a", border: `1px solid ${T.border}`, position: "relative",
+              }}>
+                {thumbnail
+                  ? <img src={thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 28, opacity: 0.25 }}>🎬</div>}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                <input ref={thumbFileRef} type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={e => e.target.files[0] && handleThumbFile(e.target.files[0])} />
+                <button
+                  onClick={() => thumbFileRef.current?.click()}
+                  disabled={uploadingThumb}
+                  style={{ ...inputSt, cursor: "pointer", textAlign: "center", color: "#60a5fa", borderColor: "rgba(96,165,250,0.3)", background: "rgba(96,165,250,0.06)", padding: "7px 12px", opacity: uploadingThumb ? 0.6 : 1 }}
+                >
+                  {uploadingThumb ? "⟳ Uploading..." : "⬆ Upload Image"}
+                </button>
+                {item.file_path && (
+                  <button
+                    onClick={handleGenerateThumb}
+                    disabled={genThumb}
+                    style={{ ...inputSt, cursor: "pointer", textAlign: "center", color: T.textDim, padding: "7px 12px", opacity: genThumb ? 0.6 : 1 }}
+                  >
+                    {genThumb ? "⟳ Generating..." : "⚡ Generate from Video"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div>
+            <label style={labelSt}>TITLE</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} style={inputSt} placeholder="Video title" />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label style={labelSt}>DESCRIPTION</label>
+            <textarea
+              value={description} onChange={e => setDescription(e.target.value)}
+              rows={3} style={{ ...inputSt, resize: "vertical", lineHeight: 1.6 }}
+              placeholder="Describe your video..."
+            />
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label style={labelSt}>TAGS (comma-separated)</label>
+            <input value={tags} onChange={e => setTags(e.target.value)} style={inputSt} placeholder="tag1, tag2, tag3" />
+          </div>
+
+          {/* Category + Privacy */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div>
+              <label style={labelSt}>CATEGORY</label>
+              <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...inputSt, cursor: "pointer" }}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelSt}>PRIVACY</label>
+              <select value={privacy} onChange={e => setPrivacy(e.target.value)} style={{ ...inputSt, cursor: "pointer" }}>
+                {PRIVACY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "14px 22px 18px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 12, fontFamily: "inherit", cursor: "pointer" }}>Cancel</button>
+          <button
+            onClick={handleSave} disabled={saving}
+            style={{ padding: "9px 24px", borderRadius: 8, border: "none", background: saving ? T.accent + "80" : T.accent, color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: saving ? "not-allowed" : "pointer" }}
+          >
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -888,7 +1086,7 @@ async function _downloadBlob(url, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 
-function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive, onGenerateMp3, onViewLogs, onToggleExclusive, onAddCaptions, btnSm }) {
+function VideoCard({ item, T, genMp3, onPreview, onEdit, onYouTube, onDelete, onArchive, onGenerateMp3, onViewLogs, onToggleExclusive, onAddCaptions, btnSm }) {
   const isUploading = item.status === "uploading";
   const isPosted    = item.status === "posted";
   const isArchived  = item.archived;
@@ -999,6 +1197,15 @@ function VideoCard({ item, T, genMp3, onPreview, onYouTube, onDelete, onArchive,
 
       {/* Action buttons */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: "auto" }}>
+        {/* Edit */}
+        <button
+          onClick={onEdit}
+          style={btnSm({ color: "#60a5fa", borderColor: "rgba(96,165,250,0.35)", background: "rgba(96,165,250,0.06)" })}
+          title="Edit title, description, thumbnail"
+        >
+          ✏ EDIT
+        </button>
+
         {/* Add Captions */}
         {item.file_path && (
           <button

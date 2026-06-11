@@ -4766,6 +4766,83 @@ def get_cc(item_id: str, user: str = Depends(verify_token)):
     return item
 
 
+class CCUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[list] = None
+    category: Optional[str] = None
+    privacy: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+
+
+@app.patch("/custom-content/{item_id}")
+def update_cc_item(item_id: str, req: CCUpdateRequest, _u: str = Depends(verify_token)):
+    """Admin — update metadata for a custom content item."""
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    if not updates:
+        return item
+    updated = db.update_custom_content(item_id, **updates)
+    return updated
+
+
+@app.post("/custom-content/{item_id}/generate-thumbnail")
+def generate_cc_thumbnail(item_id: str, _u: str = Depends(verify_token)):
+    """Generate a thumbnail from the video's second frame and store it in Supabase."""
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    fp = item.get("file_path", "")
+    if not fp:
+        return {"ok": False, "reason": "no_file"}
+
+    import subprocess as _sp, os as _os
+    out_path = _cfg.VIDEOS_OUTPUT_DIR / f"thumb_cc_{item_id}.jpg"
+    try:
+        _sp.run(
+            ["ffmpeg", "-i", fp, "-ss", "00:00:02", "-vframes", "1", "-q:v", "2", str(out_path), "-y"],
+            capture_output=True, timeout=60, check=True,
+        )
+        from supabase import create_client as _sb_create
+        _sb = _sb_create(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+        storage_key = f"thumbnails/{item_id}.jpg"
+        with open(str(out_path), "rb") as fh:
+            _sb.storage.from_(_CC_BUCKET).upload(
+                storage_key, fh.read(),
+                {"content-type": "image/jpeg", "upsert": "true"},
+            )
+        public_url = _sb.storage.from_(_CC_BUCKET).get_public_url(storage_key)
+        db.update_custom_content(item_id, thumbnail_url=public_url)
+        if out_path.exists():
+            _os.unlink(str(out_path))
+        return {"ok": True, "thumbnail_url": public_url}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)}
+
+
+@app.post("/custom-content/{item_id}/upload-thumbnail")
+async def upload_cc_thumbnail(item_id: str, file: UploadFile = File(...), _u: str = Depends(verify_token)):
+    """Admin — upload a custom thumbnail image for a CC item."""
+    item = db.get_custom_content(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Thumbnail must be under 5 MB")
+    from supabase import create_client as _sb_create
+    _sb = _sb_create(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+    storage_key = f"thumbnails/{item_id}.jpg"
+    _sb.storage.from_(_CC_BUCKET).upload(
+        storage_key, content,
+        {"content-type": file.content_type or "image/jpeg", "upsert": "true"},
+    )
+    public_url = _sb.storage.from_(_CC_BUCKET).get_public_url(storage_key)
+    db.update_custom_content(item_id, thumbnail_url=public_url)
+    return {"ok": True, "thumbnail_url": public_url}
+
+
 # ── end Custom Content ─────────────────────────────────────────────────────────
 
 

@@ -623,6 +623,23 @@ export const getCustomContentItem = async (id) => {
   return data;
 };
 
+export const updateCustomContent = async (id, fields) => {
+  const { data } = await api.patch(`/custom-content/${id}`, fields);
+  return data;
+};
+
+export const generateCCThumbnail = async (id) => {
+  const { data } = await api.post(`/custom-content/${id}/generate-thumbnail`);
+  return data;
+};
+
+export const uploadCCThumbnail = async (id, file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post(`/custom-content/${id}/upload-thumbnail`, form);
+  return data;
+};
+
 // ── Danger Zone ───────────────────────────────────────────────────────────────
 export const dangerVerify = async (key) => {
   const { data } = await api.post("/admin/danger/verify", { key });
