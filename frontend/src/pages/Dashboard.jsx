@@ -2646,6 +2646,7 @@ export default function Dashboard() {
     labels: ["custom_content"],
     narration_url: null,
     is_cc: true,
+    is_exclusive: item.is_exclusive || false,
   });
 
   // Combined list: pipeline-generated videos + custom uploads.

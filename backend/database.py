@@ -78,6 +78,9 @@ CREATE INDEX IF NOT EXISTS idx_subu_status ON subscription_users(status);
 -- Exclusive videos flag — run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
 
+-- Exclusive flag for custom content — run once in Supabase SQL Editor:
+ALTER TABLE custom_content ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
+
 -- Captions-disabled flag — run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS captions_disabled BOOLEAN DEFAULT FALSE;
 
@@ -581,9 +584,16 @@ def update_subscription_user(user_id: str, **fields) -> dict:
 
 
 def set_video_exclusive(video_id: str, is_exclusive: bool) -> dict:
-    db = get_client()
-    result = db.table("videos").update({"is_exclusive": is_exclusive}).eq("id", video_id).execute()
-    return result.data[0] if result.data else {}
+    client = get_client()
+    result = client.table("videos").update({"is_exclusive": is_exclusive}).eq("id", video_id).execute()
+    if result.data:
+        return result.data[0]
+    # Fall back to custom_content table
+    try:
+        result = client.table("custom_content").update({"is_exclusive": is_exclusive}).eq("id", video_id).execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 # ── Custom Content ─────────────────────────────────────────────────────────────
