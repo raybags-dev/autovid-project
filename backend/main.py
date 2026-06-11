@@ -4534,12 +4534,14 @@ def finalize_cc_upload(item_id: str, background_tasks: BackgroundTasks, user: st
 
     filename = f"{item_id}.mp4"
     public_url = f"{config.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{_CC_BUCKET}/{filename}"
-    db.update_custom_content(item_id, file_path=public_url)
+    # Mark ready immediately so the item appears in dropdowns without waiting for ffprobe.
+    db.update_custom_content(item_id, file_path=public_url, status="ready")
 
     _register_pipeline(item_id)
 
     def _probe():
         import subprocess as _sp
+        duration = None
         try:
             _push_log(item_id, "[FINALIZE] Probing video duration...")
             r = _sp.run(
@@ -4547,17 +4549,17 @@ def finalize_cc_upload(item_id: str, background_tasks: BackgroundTasks, user: st
                  "-of", "default=noprint_wrappers=1:nokey=1", public_url],
                 capture_output=True, text=True, timeout=60,
             )
-            duration = None
             if r.returncode == 0 and r.stdout.strip():
                 duration = int(float(r.stdout.strip()))
                 _push_log(item_id, f"[FINALIZE] Duration: {duration}s")
-            db.update_custom_content(item_id, status="ready", duration_seconds=duration)
+                db.update_custom_content(item_id, duration_seconds=duration)
             _push_log(item_id, "[FINALIZE] Video is ready.")
             _push_log(item_id, "__DONE__")
         except Exception as e:
-            _push_log(item_id, f"[ERROR] {e}")
-            _push_log(item_id, "__DONE__")
-            db.update_custom_content(item_id, status="ready")  # still mark ready even if probe failed
+            try: _push_log(item_id, f"[ERROR] {e}")
+            except: pass
+            try: _push_log(item_id, "__DONE__")
+            except: pass
         finally:
             _unregister_pipeline(item_id)
 
