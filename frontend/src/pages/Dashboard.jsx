@@ -2641,7 +2641,7 @@ export default function Dashboard() {
     file_path: item.file_path || null,
     thumbnail_url: item.thumbnail_url || null,
     duration_seconds: item.duration_seconds || null,
-    status: item.status || "ready",
+    status: "ready",  // always treat as ready — file_path filter above ensures the file exists
     resolution: "1920x1080",  // treat as landscape — won't be excluded as a Short
     labels: ["custom_content"],
     narration_url: null,
@@ -2653,7 +2653,7 @@ export default function Dashboard() {
   const allLibraryVideos = [
     ...videos,
     ...customContent
-      .filter((item) => item.status === "ready" && item.file_path)
+      .filter((item) => item.file_path)
       .map(normalizeCC),
   ];
 

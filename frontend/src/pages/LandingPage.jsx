@@ -1399,6 +1399,7 @@ function LibraryVideoPlayer({ video, onBack }) {
 function LibraryModal({ subUser, onClose }) {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all"); // all | video | audio
@@ -1416,13 +1417,20 @@ function LibraryModal({ subUser, onClose }) {
 
   const fmtDur = (s) => { if (!s) return ""; const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`; };
 
-  useEffect(() => {
+  const loadVideos = () => {
+    setLoading(true);
+    setFetchError(null);
     const token = localStorage.getItem("sub_token");
     fetch("/api/subscribe/videos", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) return r.json().then(d => { throw new Error(d.detail || `Error ${r.status}`); });
+        return r.json();
+      })
       .then(d => { setVideos(d.videos || []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
+      .catch(err => { setFetchError(err.message || "Failed to load library"); setLoading(false); });
+  };
+
+  useEffect(() => { loadVideos(); }, []);
 
   useEffect(() => {
     const el = gridRef.current;
@@ -1493,7 +1501,14 @@ function LibraryModal({ subUser, onClose }) {
       {!playVideo && (
         <div ref={gridRef} style={{ flex: 1, overflowY: "auto", padding: "28px 28px 40px" }}>
           {loading && <div style={{ textAlign: "center", color: "rgba(168,85,247,0.4)", padding: 60, fontSize: 13, letterSpacing: "0.1em" }}>LOADING LIBRARY...</div>}
-          {!loading && filtered.length === 0 && (
+          {!loading && fetchError && (
+            <div style={{ textAlign: "center", padding: 80 }}>
+              <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }}>⚠</div>
+              <div style={{ fontSize: 13, color: "rgba(255,120,100,0.7)", letterSpacing: "0.06em", marginBottom: 18 }}>{fetchError}</div>
+              <button onClick={loadVideos} style={{ padding: "8px 22px", borderRadius: 20, border: "1px solid rgba(168,85,247,0.4)", background: "rgba(168,85,247,0.1)", color: "#a855f7", fontSize: 11, fontFamily: "inherit", cursor: "pointer", letterSpacing: "0.06em" }}>Retry</button>
+            </div>
+          )}
+          {!loading && !fetchError && filtered.length === 0 && (
             <div style={{ textAlign: "center", padding: 80 }}>
               <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }}>◈</div>
               <div style={{ fontSize: 13, color: "rgba(160,185,220,0.35)", letterSpacing: "0.06em" }}>
