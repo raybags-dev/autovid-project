@@ -1906,9 +1906,19 @@ def generate_video_thumbnail(video_id: str, _u: str = Depends(verify_token)):
 
 @app.get("/subscribe/videos")
 def get_subscriber_videos(user_id: str = Depends(verify_subscriber_token)):
-    """Approved subscribers — returns only is_exclusive=True videos."""
+    """Approved subscribers — returns is_exclusive=True items from both videos and custom_content."""
     all_videos = db.list_videos(limit=500)
     exclusive = [v for v in all_videos if v.get("is_exclusive") and not v.get("archived")]
+
+    cc_items = db.list_custom_content(include_archived=False)
+    for item in cc_items:
+        if item.get("is_exclusive") and item.get("file_path"):
+            item["is_cc"] = True
+            item.setdefault("resolution", "1920x1080")
+            item.setdefault("labels", ["custom_content"])
+            item.setdefault("narration_url", None)
+            exclusive.append(item)
+
     return {"videos": exclusive}
 
 
