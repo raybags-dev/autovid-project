@@ -86,6 +86,7 @@ jobs:
             cd /opt/autovid
 
             echo "── Pulling latest code ──"
+            git remote set-url origin https://github.com/raybags-dev/autovid-project.git
             git pull origin main
 
             echo "── Rebuilding containers ──"
