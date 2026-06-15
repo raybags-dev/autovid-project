@@ -11,17 +11,18 @@ Auth flow:
   4. upload_to_tiktok() uses stored token, auto-refreshes when expired
 """
 
-import os
-import json
-import time
 import hashlib
+import json
+import os
 import secrets
-import requests
+import time
 from pathlib import Path
+
+import requests
 
 CLIENT_KEY    = os.getenv("TIKTOK_CLIENT_KEY", "")
 CLIENT_SECRET = os.getenv("TIKTOK_CLIENT_SECRET", "")
-REDIRECT_URI  = os.getenv("TIKTOK_REDIRECT_URI", "https://4lifemystery.com/api/tiktok/callback")
+REDIRECT_URI  = os.getenv("TIKTOK_REDIRECT_URI", "https://your-domain.com/api/tiktok/callback")
 
 TOKEN_KEY      = "tiktok_token"
 CODE_VERIFIER_KEY = "tiktok_code_verifier"

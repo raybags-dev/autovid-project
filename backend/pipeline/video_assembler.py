@@ -14,23 +14,30 @@ What this does:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import os
 import subprocess
 from pathlib import Path
 from typing import Optional
-import config
-
-# Use moviepy — install: pip install moviepy
-from moviepy.editor import (
-    VideoFileClip, ColorClip, CompositeVideoClip,
-    AudioFileClip, concatenate_videoclips, afx
-)
-from moviepy.video.fx.all import resize, crop
 
 # ── Pillow compatibility (ANTIALIAS removed in Pillow 10+) ───────────────────
 import PIL.Image
+
+# Use moviepy — install: pip install moviepy
+from moviepy.editor import (
+    AudioFileClip,
+    ColorClip,
+    CompositeVideoClip,
+    VideoFileClip,
+    afx,
+    concatenate_videoclips,
+)
+from moviepy.video.fx.all import crop, resize
+
+import config
+
 if not hasattr(PIL.Image, "ANTIALIAS"):
     PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
 
@@ -219,7 +226,7 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
             size   = Path(cp).stat().st_size if exists else 0
             print(f"   clip: {Path(cp).name} exists={exists} size={size}")
     if not valid:
-        print(f"⚠️  No valid stock clips to composite — using background only")
+        print("⚠️  No valid stock clips to composite — using background only")
         _shutil.copy2(background_path, output_path)
         return output_path
 

@@ -98,8 +98,11 @@ CREATE INDEX IF NOT EXISTS idx_blog_comments_site ON blog_comments(is_site_comme
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
-from supabase import create_client, Client
+
+from supabase import Client, create_client
+
 import config
+
 
 def get_client() -> Client:
     """Always return a fresh client — avoids HTTP/2 'Server disconnected' errors

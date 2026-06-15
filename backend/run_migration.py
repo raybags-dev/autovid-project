@@ -6,7 +6,9 @@ Tries (in order):
   2. Supabase Management API  (needs SUPABASE_MANAGEMENT_TOKEN env var)
   3. Prints the SQL so you can paste it into the Supabase SQL Editor
 """
-import os, sys, re
+import os
+import re
+import sys
 from pathlib import Path
 
 # Load .env from backend/ or project root
@@ -80,7 +82,8 @@ if m:
 token = MGMT_TOKEN or SUPABASE_SERVICE_KEY
 if m and token:
     try:
-        import urllib.request, json
+        import json
+        import urllib.request
         project_ref = m.group(1)
         url = f"https://api.supabase.com/v1/projects/{project_ref}/database/query"
         payload = json.dumps({"query": SQL}).encode()

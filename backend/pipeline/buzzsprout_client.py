@@ -13,9 +13,10 @@ Settings are stored in the app_settings table:
 """
 
 import os
-import requests
 import sys
 from pathlib import Path
+
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import database as db

@@ -1,13 +1,14 @@
-import threading
-import time
 import datetime
 import json
 import sys
+import threading
+import time
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import database as db
 import config
+import database as db
 
 # Days of week: 0=Monday ... 6=Sunday
 DEFAULT_DAYS = [1, 3, 5, 6]   # Tue, Thu, Sat, Sun = 4x per week
@@ -65,7 +66,7 @@ DEFAULT_PROMPTS = [
     "The strange peace found in accepting life’s unanswered questions",
     "Why aging forces us to confront the fragile nature of existence",
     "The quiet realization that life never promised meaning",
-    "Why continuing to live may be the greatest act of defiance",    
+    "Why continuing to live may be the greatest act of defiance",
     "The meaning of silence in a world that never stops talking",
     "Why we fear death more than we fear never having lived",
     "What happens to your brain when you fall in love",
@@ -306,7 +307,7 @@ def run_auto_generate(push_log_fn=None, unregister_fn=None):
         return None
 
     prompt = _pick_next_prompt(prompts)
-    print(f"🤖 Auto-generator: starting pipeline")
+    print("🤖 Auto-generator: starting pipeline")
     print(f"   Prompt:  {prompt}")
     print(f"   Profile: {profile}")
 
@@ -326,7 +327,7 @@ def run_auto_generate(push_log_fn=None, unregister_fn=None):
             video_id=video_id,
             progress_callback=_cb,
         )
-        print(f"✅ Auto-generator: pipeline complete — video ready for review")
+        print("✅ Auto-generator: pipeline complete — video ready for review")
         return video_id
     except Exception as e:
         print(f"❌ Auto-generator pipeline failed: {e}")
@@ -355,7 +356,7 @@ def start_auto_scheduler():
                 if settings["enabled"]:
                     if _should_run_today(settings["days"], settings["hour"]):
                         if not _has_run_today():
-                            print(f"🤖 Auto-generator: scheduled run triggered")
+                            print("🤖 Auto-generator: scheduled run triggered")
                             _mark_ran_today()
                             # Run in a separate thread so scheduler loop keeps going
                             t = threading.Thread(target=run_auto_generate, daemon=True)

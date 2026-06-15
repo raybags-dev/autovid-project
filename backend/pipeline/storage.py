@@ -8,6 +8,7 @@ Setup (one-time in Supabase dashboard):
 """
 import os
 from pathlib import Path
+
 import config
 
 BUCKET = "videos"
@@ -143,6 +144,7 @@ def upload_clip_to_storage(local_path: str, filename: str) -> str:
     """
     import requests as _r
     from supabase import create_client
+
     import config as _cfg
 
     local_path = Path(local_path)

@@ -63,7 +63,7 @@ def _trim_clip(input_path: str, output_path: str,
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         # Re-encode fallback if stream copy fails (e.g. seek issues)
-        print(f"   Stream copy failed, re-encoding clip...")
+        print("   Stream copy failed, re-encoding clip...")
         cmd2 = ["ffmpeg", "-y", "-i", input_path]
         if start > 0:
             cmd2 = ["ffmpeg", "-y", "-ss", str(start), "-i", input_path]
@@ -234,7 +234,7 @@ def _extract_audio(video_path: str, output_mp3: str):
     tmp_download = None
 
     if video_path.startswith("http://") or video_path.startswith("https://"):
-        print(f"⬇️  Downloading video for audio extraction...")
+        print("⬇️  Downloading video for audio extraction...")
         import tempfile as _tf
         tmp_download = _tf.mktemp(suffix=".mp4")
         _download(video_path, tmp_download)
@@ -351,7 +351,7 @@ def create_mp3_compilation(
                         file_path=narration_url_out,
                         status="ready")
 
-        _log("DONE", f"✅ MP3 podcast ready! Download via Spotify button.", cb)
+        _log("DONE", "✅ MP3 podcast ready! Download via Spotify button.", cb)
         return narration_url_out
 
     except Exception as e:

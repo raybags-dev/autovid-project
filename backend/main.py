@@ -2,18 +2,28 @@
 AutoVid — FastAPI Backend
 Main application entry point with all API routes.
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Request, UploadFile, File, Body
+import hashlib
+import threading as _threading
+import time
+from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
+from typing import Optional
+
+import jwt
+from fastapi import (
+    BackgroundTasks,
+    Body,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from typing import Optional
-import jwt
-import time
-import threading as _threading
-from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
-
-import hashlib
 
 # ── Simple TTL cache for slow external-API status checks ──────────────────────
 # Prevents blocking all worker threads when the Settings tab loads simultaneously.
@@ -34,7 +44,7 @@ def _invalidate_cache(key: str):
 # ──────────────────────────────────────────────────────────────────────────────
 import config
 import database as db
-from pipeline.orchestrator import run_pipeline, retry_failed
+from pipeline.orchestrator import retry_failed, run_pipeline
 from pipeline.youtube_uploader import check_quota_status
 
 # ── App Setup ─────────────────────────────────────────────────────────────────
@@ -48,7 +58,9 @@ app = FastAPI(
 
 # Serve local video files for preview (when Supabase storage upload failed)
 from fastapi.staticfiles import StaticFiles as _SF
+
 import config as _cfg
+
 _cfg.VIDEOS_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/local-videos", _SF(directory=str(_cfg.VIDEOS_OUTPUT_DIR), html=False), name="local-videos")
 
@@ -139,8 +151,9 @@ def podcast_feed():
       title, description, pubDate, enclosure (mp3 url), guid, duration,
       itunes:image (YouTube thumbnail), itunes:explicit, itunes:episodeType
     """
-    from fastapi.responses import Response
     from datetime import datetime, timezone
+
+    from fastapi.responses import Response
 
     all_videos = db.list_videos(limit=500)
     # Only episodes with an MP3 and a title; exclude future-scheduled ones, shorts, and feed-hidden
@@ -507,8 +520,9 @@ def get_logs(video_id: str, since: int = Query(default=0), user: str = Depends(v
 @app.post("/videos/backfill-storage")
 def backfill_storage(user: str = Depends(verify_token)):
     """One-time migration: upload local video files to Supabase Storage."""
-    from pipeline.storage import upload_to_storage
     import os
+
+    from pipeline.storage import upload_to_storage
     all_videos = db.list_videos(limit=500)
     uploaded, skipped, missing = 0, 0, 0
     for v in all_videos:
@@ -793,7 +807,8 @@ def upload_to_youtube(video_id: str, req: UploadRequest, background_tasks: Backg
     db.update_video(video_id, title=title, description=description, labels=tags)
 
     def do_upload():
-        import urllib.request, tempfile, os as _os
+        import tempfile
+        import urllib.request
         from pathlib import Path as _P
         try:
             db.update_video(video_id, status="uploading", error_message=None)
@@ -858,7 +873,8 @@ def retry_upload(video_id: str, req: UploadRequest, background_tasks: Background
     category    = req.category     or video.get("category")     or "Entertainment"
 
     def do_retry():
-        import urllib.request as _ureq, tempfile, os as _os
+        import tempfile
+        import urllib.request as _ureq
         tmp_file = None
         try:
             db.update_video(video_id, status="uploading", error_message=None)
@@ -867,7 +883,7 @@ def retry_upload(video_id: str, req: UploadRequest, background_tasks: Background
                 tmp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
                 _ureq.urlretrieve(file_path, tmp_file.name)
                 file_path = tmp_file.name
-            from pipeline.youtube_uploader import upload_video, record_upload
+            from pipeline.youtube_uploader import record_upload, upload_video
             result = upload_video(
                 video_path=file_path, title=title, description=description,
                 labels=tags, category=category, privacy=privacy,
@@ -1340,7 +1356,7 @@ def save_auto_short_settings_endpoint(req: AutoShortSettings, user: str = Depend
 @app.post("/auto-short/trigger")
 def trigger_auto_short(user: str = Depends(verify_token)):
     """Manually trigger one auto-generated short."""
-    from pipeline.auto_generator import get_auto_short_settings, _pick_next_short_topic
+    from pipeline.auto_generator import _pick_next_short_topic, get_auto_short_settings
 
     settings = get_auto_short_settings()
     topics   = settings.get("topics", [])
@@ -1419,8 +1435,11 @@ def save_podcast_settings_endpoint(req: PodcastSettings, user: str = Depends(ver
 def trigger_auto_podcast(user: str = Depends(verify_token)):
     """Manually trigger one auto-generated podcast episode (picks next topic)."""
     import threading
+
     from pipeline.podcast_pipeline import (
-        get_podcast_settings, _pick_next_podcast_topic, run_podcast_episode,
+        _pick_next_podcast_topic,
+        get_podcast_settings,
+        run_podcast_episode,
     )
 
     settings = get_podcast_settings()
@@ -1456,6 +1475,7 @@ def generate_podcast_episode(req: PodcastGenerateRequest, user: str = Depends(ve
     - Provide topic for LLM essay generation
     """
     import threading
+
     from pipeline.podcast_pipeline import run_podcast_episode
 
     if not req.essay and not req.topic and not req.title:
@@ -1623,8 +1643,8 @@ def get_billing(user: str = Depends(verify_token)):
     hetzner_token = os.getenv("HETZNER_API_TOKEN", "")
     if hetzner_token:
         try:
-            import urllib.request as _req
             import json as _json
+            import urllib.request as _req
 
             def _hetzner(path):
                 r = _req.Request(
@@ -1636,7 +1656,11 @@ def get_billing(user: str = Depends(verify_token)):
 
             # Server info
             servers = _hetzner("/servers")["servers"]
-            server  = next((s for s in servers if s.get("public_net", {}).get("ipv4", {}).get("ip") == "157.180.67.199"), servers[0] if servers else None)
+            _server_ip = os.getenv("SERVER_IP", "")
+            server  = next(
+                (s for s in servers if _server_ip and s.get("public_net", {}).get("ipv4", {}).get("ip") == _server_ip),
+                servers[0] if servers else None,
+            )
 
             if server:
                 st        = server.get("server_type", {})
@@ -2006,7 +2030,7 @@ def save_spotify_show_url(body: dict, _u: str = Depends(verify_token)):
 
 @app.get("/settings/tiktok-url")
 def get_tiktok_url(_u: str = Depends(verify_token)):
-    return {"url": db.get_setting("tiktok_profile_url", default="https://www.tiktok.com/@4lifemystery183284")}
+    return {"url": db.get_setting("tiktok_profile_url", default="https://www.tiktok.com/@your-handle")}
 
 @app.post("/settings/tiktok-url")
 def save_tiktok_url(body: dict, _u: str = Depends(verify_token)):
@@ -2030,6 +2054,7 @@ def set_exclusive_preview_video(req: ExclusiveVideoUrlRequest, _u: str = Depends
 async def upload_exclusive_preview_video(file: UploadFile = File(...), _u: str = Depends(verify_token)):
     """Admin — upload a video file to use as the exclusive preview on the landing page."""
     import shutil as _shutil
+    from pathlib import Path as _P
     suffix = _P(file.filename).suffix.lower() if file.filename else ".mp4"
     if suffix not in (".mp4", ".webm", ".mov"):
         raise HTTPException(400, "Only .mp4 / .webm / .mov files are supported")
@@ -2178,7 +2203,7 @@ def get_channel_videos(refresh: bool = False, user: str = Depends(verify_token))
     except Exception as e:
         err = str(e).lower()
         if "quota" in err or "403" in err:
-            print(f"⚠️  YouTube quota exceeded on /channel/videos")
+            print("⚠️  YouTube quota exceeded on /channel/videos")
             if _channel_videos_cache["data"] is not None:
                 print("   Serving stale cached data")
                 return _channel_videos_cache["data"]
@@ -2292,7 +2317,8 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, body: dict = 
             _push_log(video_id, f"[ERROR] {e}")
             _push_log(video_id, "__DONE__")
             print(f"❌ Short creation failed: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
         finally:
             _unregister_pipeline(video_id)
 
@@ -2407,7 +2433,8 @@ def _push_sf_log(job_id: str, msg: str):
 _pipeline_executor = _ThreadPoolExecutor(max_workers=1, thread_name_prefix="pipeline")
 
 # ── Job history (in-memory, resets at midnight UTC) ───────────────────────────
-from datetime import datetime as _datetime, timezone as _tz
+from datetime import datetime as _datetime
+from datetime import timezone as _tz
 
 _job_history: dict = {"date": None, "hourly": {}, "jobs": []}
 _job_history_lock = _threading.Lock()
@@ -2515,8 +2542,9 @@ _auto_reply_enabled = _get_auto_reply_enabled()
 @app.get("/auto-reply/status")
 def get_auto_reply_status(user: str = Depends(verify_token)):
     """Get auto-reply enabled state and backoff status."""
-    from pipeline.auto_replier import _quota_exceeded_until, _quota_backed_off
     import time
+
+    from pipeline.auto_replier import _quota_backed_off, _quota_exceeded_until
     backed_off = _quota_backed_off()
     resume_in_h = max(0, int((_quota_exceeded_until - time.time()) / 3600)) if backed_off else 0
     return {
@@ -2594,7 +2622,7 @@ def startup():
     # Only fail videos stuck in an in-progress status for more than 30 minutes.
     # This avoids nuking a video that just started when the server restarts.
     try:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
         STUCK_THRESHOLD = timedelta(minutes=30)
         stuck_statuses  = ["scripted", "voiced", "assembled", "captioned", "labeled"]
         now             = datetime.now(timezone.utc)
@@ -2731,8 +2759,9 @@ def create_compilation(
 @app.get("/tiktok/auth")
 def tiktok_auth():
     """Redirect user to TikTok OAuth consent page."""
-    from pipeline.tiktok_uploader import build_auth_url
     from fastapi.responses import RedirectResponse
+
+    from pipeline.tiktok_uploader import build_auth_url
     return RedirectResponse(url=build_auth_url())
 
 @app.get("/tiktok/callback")
@@ -2743,7 +2772,7 @@ def tiktok_callback(code: str = None, error: str = None, error_description: str 
         return HTMLResponse(f"""
         <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center"><h2>TikTok Auth Failed</h2><p>{error_description or error}</p>
-        <a href="https://4lifemystery.com/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
+        <a href="{config.BASE_URL}/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
         """)
     try:
         from pipeline.tiktok_uploader import exchange_code
@@ -2751,13 +2780,13 @@ def tiktok_callback(code: str = None, error: str = None, error_description: str 
         return HTMLResponse("""
         <html><body style="background:#08080f;color:#4ade80;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center"><h2>✅ TikTok Connected!</h2><p>You can close this tab.</p>
-        <a href="https://4lifemystery.com/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
+        <a href="{config.BASE_URL}/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
         """)
     except Exception as e:
         return HTMLResponse(f"""
         <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center"><h2>TikTok Auth Error</h2><p>{e}</p>
-        <a href="https://4lifemystery.com/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
+        <a href="{config.BASE_URL}/dashboard" style="color:#00a0dc">Back to dashboard</a></div></body></html>
         """)
 
 @app.get("/tiktok/status")
@@ -2791,7 +2820,7 @@ def spotify_callback(code: str = None, error: str = None):
         return HTMLResponse(f"""
         <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center"><h2>Spotify Auth Failed</h2><p>{error}</p>
-        <a href="https://4lifemystery.com/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
+        <a href="{config.BASE_URL}/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
         """)
     try:
         from pipeline.spotify_client import exchange_code
@@ -2799,20 +2828,20 @@ def spotify_callback(code: str = None, error: str = None):
         return HTMLResponse("""
         <html><body style="background:#08080f;color:#1db954;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center"><h2>✅ Spotify Connected!</h2><p>You can close this tab and return to the dashboard.</p>
-        <a href="https://4lifemystery.com/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
+        <a href="{config.BASE_URL}/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
         """)
     except Exception as e:
         return HTMLResponse(f"""
         <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center"><h2>Spotify Auth Error</h2><p>{e}</p>
-        <a href="https://4lifemystery.com/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
+        <a href="{config.BASE_URL}/dashboard" style="color:#1db954">Back to dashboard</a></div></body></html>
         """)
 
 @app.get("/spotify/status")
 def spotify_status(user: str = Depends(verify_token)):
     """Check Spotify connection (cached 30 s)."""
     def _check():
-        from pipeline.spotify_client import load_token, get_profile
+        from pipeline.spotify_client import get_profile, load_token
         token = load_token()
         if not token:
             return {"connected": False}
@@ -2874,7 +2903,10 @@ def get_buzzsprout_settings_endpoint(user: str = Depends(verify_token)):
 @app.post("/buzzsprout/settings")
 def save_buzzsprout_settings_endpoint(body: dict, user: str = Depends(verify_token)):
     """Save Buzzsprout API token, podcast ID, and auto-upload preference."""
-    from pipeline.buzzsprout_client import save_buzzsprout_settings, get_buzzsprout_settings
+    from pipeline.buzzsprout_client import (
+        get_buzzsprout_settings,
+        save_buzzsprout_settings,
+    )
     current = get_buzzsprout_settings()
     api_token = body.get("api_token", "")
     if api_token.startswith("*"):
@@ -2892,7 +2924,12 @@ def save_buzzsprout_settings_endpoint(body: dict, user: str = Depends(verify_tok
 def buzzsprout_status(user: str = Depends(verify_token)):
     """Check Buzzsprout connection (cached 30 s to avoid blocking worker threads)."""
     def _check():
-        from pipeline.buzzsprout_client import get_buzzsprout_settings, get_podcast_info, list_episodes, is_configured
+        from pipeline.buzzsprout_client import (
+            get_buzzsprout_settings,
+            get_podcast_info,
+            is_configured,
+            list_episodes,
+        )
         s = get_buzzsprout_settings()
         if not is_configured():
             return {"connected": False}
@@ -2955,7 +2992,7 @@ def get_podbean_settings_endpoint(user: str = Depends(verify_token)):
 
 @app.post("/podbean/settings")
 def save_podbean_settings_endpoint(body: dict, user: str = Depends(verify_token)):
-    from pipeline.podbean_client import save_podbean_settings, get_podbean_settings
+    from pipeline.podbean_client import get_podbean_settings, save_podbean_settings
     current = get_podbean_settings()
     client_secret = body.get("client_secret", "")
     if client_secret.startswith("*"):
@@ -2973,7 +3010,12 @@ def save_podbean_settings_endpoint(body: dict, user: str = Depends(verify_token)
 def podbean_status(user: str = Depends(verify_token)):
     """Check Podbean connection (cached 30 s to avoid blocking worker threads)."""
     def _check():
-        from pipeline.podbean_client import get_podbean_settings, get_podcast_info, list_episodes, is_configured
+        from pipeline.podbean_client import (
+            get_podbean_settings,
+            get_podcast_info,
+            is_configured,
+            list_episodes,
+        )
         s = get_podbean_settings()
         if not is_configured():
             return {"connected": False}
@@ -3029,7 +3071,8 @@ def upload_episode_to_podbean(video_id: str, background_tasks: BackgroundTasks, 
 
 def _parse_expenditures_file() -> list:
     """Parse backend/embeds/expeditures.txt into a subscription list."""
-    import re, os
+    import os
+    import re
     path = os.path.join(os.path.dirname(__file__), "embeds", "expeditures.txt")
     if not os.path.exists(path):
         return []
@@ -3082,6 +3125,7 @@ def get_subscriptions(user: str = Depends(verify_token)):
 
 from fastapi import Body as _Body
 
+
 @app.post("/subscriptions")
 def save_subscriptions(body: list = _Body(...), user: str = Depends(verify_token)):
     """Persist subscription list as JSON."""
@@ -3114,7 +3158,10 @@ def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: Backgroun
     privacy = body.get("privacy", "SELF_ONLY")
 
     def do_upload():
-        import tempfile, requests as req2, os
+        import os
+        import tempfile
+
+        import requests as req2
         try:
             db.get_client().table("videos").update({"tiktok_status": "uploading"}).eq("id", video_id).execute()
             # Download from Supabase storage to temp file
@@ -3140,7 +3187,8 @@ def upload_to_tiktok(video_id: str, body: dict = {}, background_tasks: Backgroun
         except Exception as e:
             db.get_client().table("videos").update({"tiktok_status": "failed"}).eq("id", video_id).execute()
             print(f"❌ TikTok upload failed: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
 
     background_tasks.add_task(do_upload)
     return {"message": "TikTok upload started", "video_id": video_id}
@@ -3495,9 +3543,9 @@ def migrate_stickfigure_clips(_u: str = Depends(verify_token)):
     One-time migration: create the stickfigure_clips table in Supabase.
     Safe to call multiple times (uses CREATE TABLE IF NOT EXISTS).
     """
+    import json as _json
     import re as _re
     import urllib.request as _ur
-    import json as _json
 
     # Derive project ref from SUPABASE_URL (https://<ref>.supabase.co)
     match = _re.search(r"https://([^.]+)\.supabase\.co", config.SUPABASE_URL)
@@ -3520,7 +3568,7 @@ def migrate_stickfigure_clips(_u: str = Depends(verify_token)):
         with _ur.urlopen(req, timeout=15) as resp:
             body = resp.read().decode()
             return {"ok": True, "method": "management_api", "response": body[:300]}
-    except Exception as mgmt_err:
+    except Exception:
         pass  # fall through to direct approach
 
     # Direct approach: use the supabase-py client with raw HTTP to the SQL endpoint
@@ -3536,7 +3584,7 @@ def migrate_stickfigure_clips(_u: str = Depends(verify_token)):
         # Try calling a helper RPC if user has created one
         result = _client.rpc("exec_sql", {"sql": _STICKFIGURE_DDL}).execute()
         return {"ok": True, "method": "rpc", "result": str(result)[:300]}
-    except Exception as rpc_err:
+    except Exception:
         pass
 
     raise HTTPException(
@@ -3556,8 +3604,8 @@ def _resolve_video_file(file_path: str, video_id: str) -> str:
     Storage if the file_path is a remote URL.  Raises HTTPException if the
     file cannot be obtained.
     """
-    import urllib.request as _ur
     import shutil as _sh
+    import urllib.request as _ur
 
     if not file_path:
         raise HTTPException(400, "Video has no file_path stored in the database")
@@ -3930,10 +3978,11 @@ def _parse_action_env_pairs(text: str) -> list[dict]:
 
 def _run_sf_generation(job_id: str, pairs: list[dict]):
     """Background task: generate stickfigure videos via xAI grok-imagine-video and save as MP4s."""
-    import requests as _req
     import time as _t
     from datetime import timedelta as _td
     from pathlib import Path as _P
+
+    import requests as _req
     import xai_sdk
 
     rule_path = _P(__file__).parent / "custom_artifacts" / "grok_stickfigure_generation_rule.txt"
@@ -4123,8 +4172,9 @@ def start_composite(
         print(f"[composite/{video_id[:8]}] {msg}")
 
     def _run():
-        import time
         import threading
+        import time
+
         from pipeline.stickfigure_compositor import composite_video
         try:
             stem    = _Path(base_path).stem
@@ -4170,8 +4220,9 @@ def start_composite(
             new_video_id = None
             supabase_url = None
             try:
-                from pipeline.storage import upload_to_storage
                 import uuid as _uuid
+
+                from pipeline.storage import upload_to_storage
                 new_video_id = str(_uuid.uuid4())
                 _log("Uploading composite to Supabase storage…")
                 supabase_url = upload_to_storage(final_path, new_video_id)
@@ -4294,9 +4345,11 @@ def auto_composite(
         print(f"[auto-composite/{video_id[:8]}] {msg}")
 
     def _run():
-        import time, threading
-        from pipeline.stickfigure_matcher import match_clips_to_script
+        import threading
+        import time
+
         from pipeline.stickfigure_compositor import composite_video
+        from pipeline.stickfigure_matcher import match_clips_to_script
         try:
             _log("Matching clip keywords to script…")
             overlays = match_clips_to_script(script, duration, min_gap=min_gap, max_overlays=max_ov)
@@ -4345,8 +4398,9 @@ def auto_composite(
 
             new_video_id = None
             try:
-                from pipeline.storage import upload_to_storage
                 import uuid as _uuid
+
+                from pipeline.storage import upload_to_storage
                 new_video_id = str(_uuid.uuid4())
                 _log("Uploading to Supabase storage…")
                 supabase_url = upload_to_storage(final_path, new_video_id)
@@ -4431,9 +4485,9 @@ def preview_auto_composite(
 
 # ── Custom Content ─────────────────────────────────────────────────────────────
 
-from pathlib import Path as _CCPath
-import tempfile as _tempfile
 import os as _os
+import tempfile as _tempfile
+from pathlib import Path as _CCPath
 
 _CC_BUCKET = "custom-content"
 _CC_AUDIO_BUCKET = "custom-content-audio"
@@ -4645,7 +4699,7 @@ def upload_cc_youtube(
         tmp_file = None
         try:
             _push_log(item_id, "[UPLOAD] Starting YouTube upload...")
-            from pipeline.youtube_uploader import upload_video, record_upload
+            from pipeline.youtube_uploader import record_upload, upload_video
             file_path = item["file_path"]
             if file_path.startswith("http"):
                 import urllib.request as _ureq
@@ -4798,7 +4852,7 @@ def generate_cc_thumbnail(item_id: str, _u: str = Depends(verify_token)):
     if not fp:
         return {"ok": False, "reason": "no_file"}
 
-    import subprocess as _sp, os as _os
+    import subprocess as _sp
     out_path = _cfg.VIDEOS_OUTPUT_DIR / f"thumb_cc_{item_id}.jpg"
     try:
         _sp.run(
@@ -4961,6 +5015,7 @@ def admin_list_blog_posts(status: str = None, limit: int = 200, _u: str = Depend
 async def upload_blog_cover(file: UploadFile = File(...), _u: str = Depends(verify_token)):
     """Upload a cover image for a blog post. Returns public URL."""
     import uuid as _uuid_m
+
     import requests as _req
     allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}
     ct = (file.content_type or "").lower()
@@ -4994,8 +5049,9 @@ async def upload_blog_cover(file: UploadFile = File(...), _u: str = Depends(veri
 @app.post("/admin/blog/posts")
 def admin_create_blog_post(body: dict, _u: str = Depends(verify_token)):
     """Admin: create a new blog post from simple fields (no markup required)."""
+    import re
+    import unicodedata
     from datetime import datetime, timezone
-    import re, unicodedata
     title = str(body.get("title", "")).strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title required")
@@ -5078,7 +5134,8 @@ def admin_delete_blog_post(post_id: str, _u: str = Depends(verify_token)):
 def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_token)):
     """Create a blog post from a video (works for all videos, not just YouTube-posted).
     If the video already has a blog_post_id, returns the existing post instead."""
-    import re, unicodedata
+    import re
+    import unicodedata
     from datetime import datetime, timezone
     video = db.get_video(video_id)
     if not video:
@@ -5149,7 +5206,9 @@ def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_
 def add_captions_to_video(video_id: str, user: str = Depends(verify_token)):
     """Download video from storage, burn captions onto it, re-upload.
     Works for both pipeline videos (videos table) and custom content (custom_content table)."""
-    import requests as _req, uuid as _uuid
+    import uuid as _uuid
+
+    import requests as _req
     # Try videos table first (may throw if not found), then custom_content
     video = None
     is_custom = False
@@ -5214,7 +5273,7 @@ def add_captions_to_video(video_id: str, user: str = Depends(verify_token)):
                 db.update_custom_content(video_id, file_path=new_url)
             else:
                 db.update_video(video_id, file_path=new_url, captions_disabled=False)
-            _push_log(video_id, f"[caption] ✅ Done — captioned video uploaded")
+            _push_log(video_id, "[caption] ✅ Done — captioned video uploaded")
             print(f"✅ Captions added and re-uploaded: {video_id[:8]}")
         except Exception as e:
             _push_log(video_id, f"[caption] ❌ Failed: {e}")
@@ -5248,8 +5307,9 @@ def extract_video_mp3(video_id: str, background_tasks: BackgroundTasks, user: st
         import subprocess as _sub
         local_video = local_mp3 = None
         try:
-            from pipeline.storage import upload_narration_to_storage
             from pathlib import Path
+
+            from pipeline.storage import upload_narration_to_storage
 
             if file_path.startswith("http"):
                 local_video = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_mp3dl.mp4")
@@ -5479,7 +5539,8 @@ def generate_quote_video_endpoint(
             print(f"✅ Quote video {video_id} ready: {storage_url}")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
             try:
                 db.update_video(video_id, status="failed", error_message=str(e)[:500])
             except Exception:

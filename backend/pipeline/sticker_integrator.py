@@ -19,9 +19,9 @@ from typing import Optional
 import numpy as np
 
 import config
-from pipeline.visual_generator import generate_visual
 from pipeline.stickfigure_matcher import _score_clip, load_keyword_map_from_db
 from pipeline.video_fetcher import CONCEPT_EXPANSIONS
+from pipeline.visual_generator import generate_visual
 
 # ── Stop-word filter for keyword extraction ───────────────────────────────────
 _STOP_WORDS = {
@@ -115,7 +115,7 @@ def assemble_paragraph_visuals(
           all others are processed through the chroma-key helper.
     """
     # Late import so the module loads quickly even without moviepy installed
-    from moviepy.editor import VideoFileClip, CompositeVideoClip
+    from moviepy.editor import CompositeVideoClip, VideoFileClip
     from moviepy.video.VideoClip import VideoClip
 
     if video_id is None:
@@ -129,7 +129,7 @@ def assemble_paragraph_visuals(
     # ── 2. Find matching stickers ────────────────────────────────────────────
     stickers = _find_top_stickers(paragraph_text, top_n=2)
     if not stickers:
-        print(f"[sticker_integrator] No matching stickers — returning background only.")
+        print("[sticker_integrator] No matching stickers — returning background only.")
         bg_clip.close()
         return bg_path
 

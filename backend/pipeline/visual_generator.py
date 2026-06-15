@@ -11,11 +11,12 @@ Styles:
   colour_wash     — calm shifting hues
   starfield       — deep space with moving stars
 """
-import sys
 import math
 import random
-import numpy as np
+import sys
 from pathlib import Path
+
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
@@ -546,7 +547,7 @@ def _generate_from_custom_mp4(source: Path, duration: float, video_id: str) -> s
         "-stream_loop", "-1",
         "-i", str(source),
         "-t", str(duration),
-        "-vf", f"scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24",
+        "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24",
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
         "-an", out_path,
     ], check=True, capture_output=True)

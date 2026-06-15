@@ -10,16 +10,17 @@ Model sizes: tiny (fast) → base → small → medium (accurate) → large (bes
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import json
 import os
 import re
-import json
-import textwrap
 import subprocess
+import textwrap
 from pathlib import Path
-import config
 
+import config
 
 # ── Whisper Transcription ─────────────────────────────────────────────────────
 
@@ -207,7 +208,7 @@ def burn_captions(video_path: str, srt_path: str, video_id: str, is_short: bool 
         str(output_path),
     ]
 
-    print(f"💬 Burning captions into video...")
+    print("💬 Burning captions into video...")
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
@@ -219,7 +220,7 @@ def burn_captions(video_path: str, srt_path: str, video_id: str, is_short: bool 
     # Clean up the raw (no-caption) video to save disk space
     if os.path.exists(video_path) and "_raw.mp4" in video_path:
         os.remove(video_path)
-        print(f"🗑️  Cleaned up raw video")
+        print("🗑️  Cleaned up raw video")
 
     return str(output_path)
 

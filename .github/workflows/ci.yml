@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend: lint ─────────────────────────────────────────────────────────────
+  backend-lint:
+    name: Backend — Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint backend
+        run: ruff check backend/ --exclude backend/venv
+
+  # ── Backend: tests ────────────────────────────────────────────────────────────
+  backend-tests:
+    name: Backend — Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-test.txt
+
+      - name: Install test dependencies
+        run: pip install -r backend/requirements-test.txt
+
+      - name: Run tests
+        env:
+          SECRET_KEY: ci-test-secret-key-not-for-production
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_SERVICE_KEY: test-service-key
+          SUPABASE_ANON_KEY: test-anon-key
+          GROQ_API_KEY: test-groq-key
+          ELEVENLABS_API_KEY: test-elevenlabs-key
+          PEXELS_API_KEY: test-pexels-key
+          AUTOVID_LICENSE_KEY: ${{ secrets.AUTOVID_LICENSE_KEY }}
+        run: |
+          cd backend
+          python -m pytest tests/ -v --tb=short --no-header -q
+
+  # ── Frontend: lint ────────────────────────────────────────────────────────────
+  frontend-lint:
+    name: Frontend — Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Lint
+        # continue-on-error: pre-existing ESLint issues in the codebase don't block CI.
+        # Remove this flag once the backlog of warnings is resolved.
+        continue-on-error: true
+        run: cd frontend && npm run lint
+
+  # ── Frontend: build (validates no broken imports / config errors) ─────────────
+  frontend-build:
+    name: Frontend — Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Build
+        env:
+          VITE_APP_NAME: AutoVid
+          VITE_APP_URL: https://your-domain.com
+          VITE_SUPPORT_EMAIL: support@your-domain.com
+          VITE_CONTACT_EMAIL: contact@your-domain.com
+        run: cd frontend && npm run build
+
+  # ── Frontend: tests ───────────────────────────────────────────────────────────
+  frontend-tests:
+    name: Frontend — Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Run tests
+        run: cd frontend && npm run test

@@ -112,7 +112,7 @@ export default function Blog() {
 
   // SEO
   useEffect(() => {
-    document.title = "4Life Mystery Blog";
+    document.title = "AutoVid Blog";
     const setMeta = (name, content, prop = false) => {
       const attr = prop ? "property" : "name";
       let el = document.querySelector(`meta[${attr}="${name}"]`);
@@ -120,9 +120,9 @@ export default function Blog() {
       el.setAttribute("content", content);
     };
     setMeta("description", "Explore thought-provoking articles on consciousness, philosophy, mental health, and the mysteries of life.");
-    setMeta("og:title", "4Life Mystery Blog", true);
+    setMeta("og:title", "AutoVid Blog", true);
     setMeta("og:type", "website", true);
-    setMeta("og:url", "https://4lifemystery.com/blog", true);
+    setMeta("og:url", "https://your-domain.com/blog", true);
   }, []);
 
   // Data

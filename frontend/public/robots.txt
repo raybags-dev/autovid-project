@@ -4,4 +4,4 @@ Allow: /blog
 Disallow: /dashboard
 Disallow: /login
 
-Sitemap: https://4lifemystery.com/sitemap.xml
+Sitemap: https://your-domain.com/sitemap.xml

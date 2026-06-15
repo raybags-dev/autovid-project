@@ -1,0 +1,17 @@
+[lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "E402",   # module import not at top (conftest.py patches sys.modules first)
+    "F401",   # imported but unused — false positives in __init__ re-exports
+    # Pre-existing style issues in pipeline/main.py — will be cleaned up separately
+    "E701",   # multiple statements on one line (colon)
+    "E702",   # multiple statements on one line (semicolon)
+    "E722",   # bare except
+    "E741",   # ambiguous variable name
+    "F841",   # local variable assigned but never used
+]
+exclude = ["venv", "__pycache__", "output"]
+
+[lint.per-file-ignores]
+"tests/*" = ["E501", "F841"]

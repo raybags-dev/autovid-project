@@ -6,11 +6,12 @@ Two modes:
   2. generate_short_visual()    — generates a looping portrait visual for a fresh Short
 """
 import os
-import uuid
-import numpy as np
-from pathlib import Path
 import subprocess
 import tempfile
+import uuid
+from pathlib import Path
+
+import numpy as np
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 SHORT_WIDTH  = 1080
@@ -48,14 +49,14 @@ def create_short_from_video(
     Scale-to-height approach: scales so height fills 1920px, then center-crops
     to 1080px width — guarantees full frame fill with no black bars.
     """
-    import urllib.request
     import tempfile
+    import urllib.request
 
     _temp_download = None
 
     # If video is a remote URL (Supabase), download it first
     if video_path.startswith("http://") or video_path.startswith("https://"):
-        print(f"⬇️  Downloading video for short creation...")
+        print("⬇️  Downloading video for short creation...")
         _temp_download = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
         urllib.request.urlretrieve(video_path, _temp_download.name)
         video_path = _temp_download.name

@@ -12,14 +12,17 @@ Orientation:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import os
 import hashlib
-import requests
+import os
 import subprocess
 from pathlib import Path
 from typing import Optional
+
+import requests
+
 import config
 
 # ── Pexels Images API ─────────────────────────────────────────────────────────
@@ -410,6 +413,7 @@ def generate_visual_plan(script_text: str) -> list:
     import json
     try:
         from groq import Groq
+
         import config as _cfg
         client = Groq(api_key=_cfg.GROQ_API_KEY)
         system = (

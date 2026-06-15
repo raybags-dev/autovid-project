@@ -2,10 +2,10 @@
 API integration tests — run via: cd backend && python -m pytest tests/ -v
 All tests use a mocked database; no real Supabase/Redis/FFmpeg needed.
 """
-import jwt
 import time
-import pytest
 
+import jwt
+import pytest
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -27,8 +27,9 @@ class TestHealth:
         assert r.json()["email"] == "admin@test.local"
 
     def test_unauthenticated_request_rejected(self):
-        from tests.conftest import _app
         from fastapi.testclient import TestClient
+
+        from tests.conftest import _app
         # Use a fresh client with no dependency overrides
         bare_client = TestClient(_app.app, raise_server_exceptions=False)
         r = bare_client.get("/auth/me")

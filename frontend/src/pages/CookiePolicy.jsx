@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
 const LAST_UPDATED = "14 March 2026";
-const APP_NAME = "4Life Mystery";
-const APP_URL = "https://4lifemystery.com";
-const CONTACT_EMAIL = "support@4lifemystery.com";
+import { SITE } from "../config/site";
+
+const APP_NAME = SITE.name;
+const APP_URL = SITE.url;
+const CONTACT_EMAIL = SITE.contact.support;
 const CONSENT_KEY = "4lm_cookie_consent";
 
 const SECTIONS = [

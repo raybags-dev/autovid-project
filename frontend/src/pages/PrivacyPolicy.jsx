@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { SITE } from "../config/site";
 
-const LAST_UPDATED = "14 March 2026";
-const APP_NAME = "4Life Mystery";
-const APP_URL = "https://4lifemystery.com";
-const CONTACT_EMAIL = "support@4lifemystery.com";
-const CONTACT_GENERAL = "contact@4lifemystery.com";
+const LAST_UPDATED = SITE.legal.privacyUpdated;
+const APP_NAME = SITE.name;
+const APP_URL = SITE.url;
+const CONTACT_EMAIL = SITE.contact.support;
+const CONTACT_GENERAL = SITE.contact.general;
 
 const SECTIONS = [
   { id: "introduction", num: "01", title: "Introduction" },
@@ -244,8 +245,8 @@ export default function PrivacyPolicy() {
           <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <Link to="/terms-of-service" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>Terms of Service</Link>
             <Link to="/cookie-policy" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>Cookie Policy</Link>
-            <a href="mailto:contact@4lifemystery.com" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>contact@4lifemystery.com</a>
-            <a href="mailto:support@4lifemystery.com" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>support@4lifemystery.com</a>
+            <a href="mailto:contact@your-domain.com" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>contact@your-domain.com</a>
+            <a href="mailto:support@your-domain.com" style={{ fontSize: 11, color: "#2a3a4a", textDecoration: "none" }} onMouseEnter={e => e.target.style.color="#ff7844"} onMouseLeave={e => e.target.style.color="#2a3a4a"}>support@your-domain.com</a>
           </div>
         </div>
       </footer>

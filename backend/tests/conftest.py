@@ -13,11 +13,17 @@ os.environ.update({
     "SUPERUSER_PASSWORD": "testpassword",
     "SUPABASE_URL": "https://test.supabase.co",
     "SUPABASE_SERVICE_KEY": "test-service-key",
+    "SUPABASE_ANON_KEY": "test-anon-key",
     "REDIS_URL": "redis://localhost:6379",
     "ELEVENLABS_API_KEY": "test",
     "OPENAI_API_KEY": "test",
     "GROQ_API_KEY": "test",
     "XAI_API_KEY": "test",
+    "PEXELS_API_KEY": "test",
+    # License guard: tests that specifically test the guard manage AUTOVID_LICENSE_KEY
+    # themselves via monkeypatching. For all other tests the orchestrator is fully mocked
+    # so verify_license() is never called. Set a placeholder so config loads cleanly.
+    "AUTOVID_LICENSE_KEY": os.getenv("AUTOVID_LICENSE_KEY", "ci-placeholder"),
 })
 
 # Stub every heavy module main.py imports at module-scope so tests don't need
@@ -28,6 +34,7 @@ _HEAVY = [
     "pipeline.caption", "pipeline.captioner", "pipeline.storage",
     "pipeline.shorts_generator", "pipeline.script_writer",
     "pipeline.tts", "pipeline.video_assembler", "pipeline.labeler",
+    # license_guard is NOT stubbed here — test_license_guard.py imports and patches it directly
     "workers", "workers.celery_app",
     "celery", "celery.app", "celery.result",
     "redis", "redis.exceptions", "redis.client",
@@ -49,10 +56,10 @@ _db_sentinel = MagicMock()
 sys.modules["database"] = _db_sentinel
 
 # Import main exactly once — subsequent `import main` calls hit sys.modules
-import main as _app  # noqa: E402  (must come after sys.modules patching)
-
 import pytest
 from fastapi.testclient import TestClient
+
+import main as _app  # noqa: E402  (must come after sys.modules patching)
 
 
 @pytest.fixture(scope="function")
