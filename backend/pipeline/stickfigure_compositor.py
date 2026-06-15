@@ -276,7 +276,7 @@ def _apply_overlay(
         audio_parts = [
             f"[1:a]atrim=0:{clip_dur},asetpts=PTS-STARTPTS,"
             f"adelay={delay_ms}|{delay_ms}[dela]",
-            f"[0:a][dela]amix=inputs=2:normalize=0[outa]",
+            "[0:a][dela]amix=inputs=2:normalize=0[outa]",
         ]
         filter_complex += ";" + ";".join(audio_parts)
         audio_map = ["-map", "[outa]"]

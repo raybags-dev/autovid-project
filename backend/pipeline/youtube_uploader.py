@@ -18,10 +18,11 @@ QUOTA: 10,000 units/day free. Each upload costs ~1,600 units.
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import os
 import json
+import os
 import time
 from pathlib import Path
 from typing import Optional
@@ -29,18 +30,19 @@ from typing import Optional
 import config
 
 try:
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
-    from googleapiclient.errors import HttpError
-    from google_auth_oauthlib.flow import InstalledAppFlow
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
+    from googleapiclient.http import MediaFileUpload
     YOUTUBE_AVAILABLE = True
 except ImportError:
     YOUTUBE_AVAILABLE = False
     print("⚠️  YouTube libraries not installed. Run: pip install google-api-python-client google-auth-oauthlib")
 
 import os as _os
+
 # Must be set before ANY oauth call — prevents crash when Google returns
 # a subset of requested scopes (e.g. after adding new scopes to consent screen)
 _os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
@@ -248,7 +250,7 @@ def _upload_thumbnail(service, video_id: str, thumbnail_path: str):
             videoId=video_id,
             media_body=MediaFileUpload(thumbnail_path),
         ).execute()
-        print(f"📸 Thumbnail uploaded")
+        print("📸 Thumbnail uploaded")
     except Exception as e:
         print(f"⚠️  Thumbnail upload failed: {e}")
 

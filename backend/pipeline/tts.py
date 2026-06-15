@@ -6,10 +6,10 @@ Fallback: gTTS (Google TTS — free, no quota, no API key needed)
 When ElevenLabs quota is exceeded, automatically falls back to gTTS
 so the pipeline never fully fails due to credit limits.
 """
-import sys
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -45,8 +45,8 @@ def _synthesize_elevenlabs(text: str, mp3_path: Path, voice_id: str = None) -> b
     _voice_id = voice_id or config.ELEVENLABS_VOICE_ID
 
     try:
-        from elevenlabs.client import ElevenLabs
         from elevenlabs import VoiceSettings
+        from elevenlabs.client import ElevenLabs
         from elevenlabs.core.api_error import ApiError
 
         client = ElevenLabs(api_key=config.ELEVENLABS_API_KEY)
@@ -468,7 +468,7 @@ def list_voices() -> list:
         client = ElevenLabs(api_key=config.ELEVENLABS_API_KEY)
         response = client.voices.get_all()
         return [{"id": v.voice_id, "name": v.name, "category": v.category or ""} for v in response.voices]
-    except Exception as e:
+    except Exception:
         return []
 
 

@@ -18,12 +18,13 @@ Settings stored in app_settings table:
   podbean_auto_upload    — "true"/"false"
 """
 
-import requests
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
+
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import database as db

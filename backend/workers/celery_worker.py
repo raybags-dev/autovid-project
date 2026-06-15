@@ -14,6 +14,7 @@ Redis must be running:
 """
 from celery import Celery
 from celery.schedules import crontab
+
 import config
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -102,7 +103,11 @@ def auto_upload_ready_videos():
     Respects daily quota limit (~6 uploads/day on free tier).
     """
     import database as db
-    from pipeline.youtube_uploader import upload_video, check_quota_status, record_upload
+    from pipeline.youtube_uploader import (
+        check_quota_status,
+        record_upload,
+        upload_video,
+    )
 
     quota = check_quota_status()
     max_uploads = quota["uploads_remaining"]

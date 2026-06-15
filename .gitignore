@@ -1,40 +1,56 @@
-# Environment — NEVER commit these
+# ── Secrets & credentials — NEVER commit ──────────────────────────────────────
 backend/.env
+.env
+backend/client_secrets.json
+backend/youtube_token.json
+backend/token.json
+backend/tiktok*.txt
+backend/quota_tracker.json
+backend/youtube_quota.json
+directives.txt
+
+# ── Private keygen tool — keep offline ────────────────────────────────────────
+backend/tools/keygen.py
+
+# ── Python ────────────────────────────────────────────────────────────────────
 backend/venv/
 backend/__pycache__/
 backend/**/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ── Generated output ──────────────────────────────────────────────────────────
 backend/output/
 backend/output/*
-backend/quota_tracker.json
-backend/token.json
-
-# Frontend
-frontend/node_modules/
-frontend/dist/
-
-# env
-.env
-
-# Media & temp files
+output/
 *.mp4
 *.mp3
 *.wav
-*.jpg
-*.png
-output/
 
-# OS
-.DS_Store
-*.pyc
-backend/token.json
-backend/client_secrets.json
-backend/embeds/*
-
-# YouTube OAuth — NEVER commit
-backend/token.json
-backend/youtube_token.json
-backend/client_secrets.json
-backend/tiktokzLXOzQsvlNb6NTOeiGA27MWTCCaXfAGo.txt
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
 frontend/.env.local
 frontend/.env.production
-frontend/.env.production
+
+# ── Media assets (large, not source-controlled) ───────────────────────────────
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+backend/embeds/*
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Claude Code ───────────────────────────────────────────────────────────────
+.claude
+.*claude
+.directives.txt

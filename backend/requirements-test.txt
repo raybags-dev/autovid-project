@@ -1,0 +1,29 @@
+# Test-only dependencies — lean install for CI (no torch, whisper, moviepy, etc.)
+# Heavy pipeline modules are mocked in tests/conftest.py.
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi==0.115.12
+uvicorn==0.34.3
+httpx==0.28.1            # required by TestClient (starlette)
+starlette==0.46.2
+
+# ── Auth / JWT ────────────────────────────────────────────────────────────────
+python-jose[cryptography]==3.5.0
+PyJWT==2.10.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.3.0
+
+# ── Config ────────────────────────────────────────────────────────────────────
+python-dotenv==1.1.0
+pydantic==2.11.5
+pydantic-settings==2.9.1
+
+# ── Crypto (for license guard tests) ─────────────────────────────────────────
+cryptography==45.0.3
+
+# ── Multipart / forms ────────────────────────────────────────────────────────
+python-multipart==0.0.20
+
+# ── Test runner ───────────────────────────────────────────────────────────────
+pytest==8.4.0
+pytest-asyncio==0.26.0

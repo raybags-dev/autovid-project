@@ -1,36 +1,123 @@
-# 🎬 AutoVid — AI YouTube Automation Engine
+# AutoVid
 
-Generate, assemble, caption, and auto-upload funny videos to YouTube from a single prompt.
+**AutoVid** is a full-stack AI-powered video automation platform. From a single text prompt it writes a script, synthesizes a narration voice, sources and assembles stock footage, burns synchronized captions, and publishes the finished video to YouTube — entirely without manual editing.
 
----
-
-## 🏗️ Architecture
-
-```
-Prompt → Script (Groq) → Voice (Coqui TTS) → Clips (Pexels) 
-      → Assembly (MoviePy) → Captions (Whisper) → Labels (Groq) → YouTube Upload
-```
+A web dashboard lets you queue videos, monitor pipeline progress in real time, manage your library, and configure all settings. A Celery background worker handles long-running generation jobs while the FastAPI backend serves the UI and exposes a full REST API.
 
 ---
 
-## ✅ Prerequisites
+## What it does
 
-Install system dependencies first:
+Type a prompt like *"A medieval knight reviews modern smartphones"* and AutoVid:
+
+1. **Writes the script** — an LLM (Groq / Llama 3) turns the prompt into a structured, narration-ready script with title, description, and visual cues
+2. **Synthesizes speech** — ElevenLabs (or local Coqui TTS) converts the narration to audio
+3. **Sources footage** — the script is mapped to visual search queries; matching stock clips are fetched from Pexels and Pixabay and trimmed to fit each segment
+4. **Assembles the video** — MoviePy + FFmpeg combine the clips, background music, and narration into a clean 1080p (or 9:16 Shorts) cut
+5. **Burns captions** — OpenAI Whisper transcribes the audio; styled captions are burned directly into the video frame
+6. **Labels and uploads** — Groq generates SEO-optimized titles, descriptions, and tags; the video is uploaded to YouTube via the Data API v3
+
+The same pipeline handles YouTube Shorts, podcast episode generation (Podbean, Buzzsprout), and optional TikTok / Spotify cross-posting.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                       Web Dashboard                      │
+│   Vue + Vite frontend · REST API via FastAPI · SSE logs  │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP
+┌────────────────────────▼────────────────────────────────┐
+│                    FastAPI Backend                        │
+│  /videos  /generate  /pipeline  /settings  /auth  /docs  │
+└──────────┬────────────────────────────┬─────────────────┘
+           │ Celery tasks               │ direct
+    ┌──────▼──────┐              ┌──────▼──────────────────┐
+    │    Redis     │              │      Orchestrator        │
+    │  task queue  │              │  master pipeline runner  │
+    └──────┬──────┘              └──────┬──────────────────┘
+           │                            │
+    ┌──────▼──────────────────────────────────────────────┐
+    │                 Pipeline Stages                       │
+    │                                                       │
+    │  script_gen  →  tts  →  video_fetcher  →  assembler  │
+    │         →  caption  →  labeler  →  uploader          │
+    └─────────────────────────┬───────────────────────────┘
+                              │
+              ┌───────────────▼──────────────┐
+              │          Supabase             │
+              │  video records · settings ·   │
+              │  OAuth tokens · user data     │
+              └──────────────────────────────┘
+```
+
+---
+
+## Technology Stack
+
+| Layer | Technology |
+|---|---|
+| **Backend API** | Python 3.11 · FastAPI · Uvicorn |
+| **Task Queue** | Celery · Redis |
+| **LLM** | Groq API (Llama 3.3 70B, Llama 4 Scout) |
+| **Text-to-Speech** | ElevenLabs API · Coqui TTS (local fallback) |
+| **Video Processing** | MoviePy · FFmpeg |
+| **Speech-to-Text** | OpenAI Whisper (local) |
+| **Stock Footage** | Pexels API · Pixabay API |
+| **Database** | Supabase (PostgreSQL) |
+| **Object Storage** | Supabase Storage |
+| **Frontend** | Vue 3 · Vite · Tailwind CSS |
+| **Containerization** | Docker · Docker Compose |
+| **Reverse Proxy / LB** | Nginx |
+
+---
+
+## Key Features
+
+- **One-prompt video generation** — full pipeline runs autonomously from prompt to published video
+- **Real-time progress streaming** — SSE events push step-by-step status to the dashboard as each pipeline stage completes
+- **Multiple visual modes** — stock footage (Pexels/Pixabay), generated particle/fluid animations, stick-figure character animations, and custom background assets
+- **YouTube Shorts support** — vertical 9:16 format with adapted caption layout
+- **Podcast pipeline** — converts video narration to a podcast episode and distributes to Podbean and Buzzsprout
+- **Custom Content library** — upload and manage your own video segments that get injected at defined points in the pipeline
+- **Subscriber messages** — configurable subscribe-prompt clips that inject at chapter boundaries
+- **Auto-scheduler** — Celery Beat runs a cron-driven generation schedule with configurable frequency and topic rotation
+- **Background music** — style-matched ambient tracks mixed at a configurable volume with soft fade-in/out
+- **Full REST API** — every feature is accessible programmatically with interactive docs at `/docs`
+- **Docker Compose deployment** — production stack with two load-balanced API replicas, Celery worker, Redis, and Nginx
+
+---
+
+## Pipeline Status Flow
+
+```
+generating → scripted → voiced → assembled → captioned → labeled → ready → uploading → posted
+                                                                                 ↓
+                                                                              failed
+```
+
+Each transition is persisted to the database in real time, so the frontend can always display accurate progress even if the server restarts mid-job.
+
+---
+
+## Prerequisites
 
 ```bash
-# Ubuntu/Debian
+# Ubuntu / Debian
 sudo apt update && sudo apt install -y ffmpeg redis-server python3.11 python3.11-venv
 
-# macOS (Homebrew)
+# macOS
 brew install ffmpeg redis python@3.11
 brew services start redis
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Clone & Set Up Python Environment
+### 1. Clone and set up Python
 
 ```bash
 cd backend
@@ -39,221 +126,131 @@ source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**Note:** First install of Coqui TTS and Whisper is large (~2GB total). Be patient.
-
-### 2. Configure Environment
+### 2. Configure environment
 
 ```bash
-cp .env.example .env
-# Edit .env with your API keys (see "Getting API Keys" below)
-nano .env
+cp .env.example backend/.env
+# Fill in your API keys — see "Getting API Keys" below
+nano backend/.env
 ```
 
-### 3. Set Up Database (Supabase)
+### 3. Set up the database
 
-1. Go to https://supabase.com → New Project
-2. Go to **SQL Editor** → Run this:
+Create a [Supabase](https://supabase.com) project, open the SQL editor, and run the schema from `supabase/migrations/`. Copy the Project URL and service role key into your `.env`.
 
-```sql
-CREATE TYPE video_status AS ENUM (
-    'generating', 'scripted', 'voiced', 'assembled',
-    'captioned', 'labeled', 'ready', 'uploading', 'posted', 'failed'
-);
-
-CREATE TABLE videos (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    prompt            TEXT NOT NULL,
-    title             TEXT,
-    description       TEXT,
-    script            TEXT,
-    status            video_status NOT NULL DEFAULT 'generating',
-    labels            TEXT[] DEFAULT '{}',
-    category          TEXT,
-    duration_seconds  INTEGER,
-    resolution        TEXT,
-    file_path         TEXT,
-    thumbnail_url     TEXT,
-    youtube_id        TEXT,
-    youtube_url       TEXT,
-    views_count       INTEGER DEFAULT 0,
-    likes_count       INTEGER DEFAULT 0,
-    error_message     TEXT,
-    created_at        TIMESTAMPTZ DEFAULT NOW(),
-    posted_at         TIMESTAMPTZ
-);
-```
-
-3. Copy your **Project URL** and **service_role key** into `.env`
-
-### 4. Set Up YouTube OAuth (One-time)
+### 4. YouTube OAuth (one-time)
 
 ```bash
-# First: download client_secrets.json from Google Cloud Console
-# (see "Getting API Keys" → YouTube section below)
+# Download client_secrets.json from Google Cloud Console first
+# (APIs & Services → Credentials → OAuth 2.0 Client ID → Desktop app → Download)
+mv ~/Downloads/client_secret_*.json backend/client_secrets.json
 
-python pipeline/youtube_uploader.py
-# → Browser opens → Log in with your YouTube account → Authorize
-# → youtube_token.json saved automatically
+python backend/pipeline/youtube_uploader.py
+# A browser window opens → authorize → youtube_token.json is saved
 ```
 
-### 5. Test the Pipeline (No Upload)
+### 5. Start the services
 
 ```bash
-python pipeline/orchestrator.py "A cat explains quantum physics"
-```
+# Backend API
+uvicorn main:app --reload --port 8000 --app-dir backend
+# Interactive docs: http://localhost:8000/docs
 
-### 6. Start the API Server
-
-```bash
-uvicorn main:app --reload --port 8000
-# API docs: http://localhost:8000/docs
-```
-
-### 7. Start the Background Worker
-
-```bash
-# In a separate terminal:
+# Background worker (separate terminal)
 celery -A workers.celery_worker worker --loglevel=info
 
-# Optional: Start the scheduler for auto-uploads
-celery -A workers.celery_worker beat --loglevel=info
+# Frontend
+cd frontend && npm install && npm run dev
+# Dashboard: http://localhost:5173
 ```
 
-### 8. Start the Frontend
+### 6. Production (Docker Compose)
 
 ```bash
-cd ../frontend
-npm install
-npm run dev
-# App: http://localhost:5173
+docker compose up -d
+```
+
+The stack brings up two FastAPI replicas behind Nginx, a Celery worker, and Redis. Map port 80 on the host and configure your domain in `nginx-lb.conf`.
+
+---
+
+## Getting API Keys
+
+| Service | Where | Free Tier |
+|---|---|---|
+| **Groq** | [console.groq.com](https://console.groq.com) | 14,400 requests/day |
+| **ElevenLabs** | [elevenlabs.io](https://elevenlabs.io) | 10,000 chars/month |
+| **Pexels** | [pexels.com/api](https://www.pexels.com/api/) | 200 requests/hour |
+| **Pixabay** | [pixabay.com/api/docs](https://pixabay.com/api/docs/) | 100 requests/min |
+| **Supabase** | [supabase.com](https://supabase.com) | 500 MB DB · 2 GB storage |
+| **YouTube Data API v3** | [console.cloud.google.com](https://console.cloud.google.com) | ~6 uploads/day |
+
+---
+
+## Project Structure
+
+```
+autovid/
+├── backend/
+│   ├── main.py                    # FastAPI app — all route definitions
+│   ├── config.py                  # Centralized environment config loader
+│   ├── database.py                # Supabase CRUD layer
+│   ├── requirements.txt
+│   ├── .env.example               # ← copy to .env and fill in keys
+│   ├── pipeline/
+│   │   ├── orchestrator.py        # Master pipeline coordinator
+│   │   ├── script_gen.py          # LLM script generation (Groq)
+│   │   ├── tts.py                 # Voice synthesis (ElevenLabs / Coqui)
+│   │   ├── video_fetcher.py       # Stock clip sourcing (Pexels / Pixabay)
+│   │   ├── video_assembler.py     # MoviePy + FFmpeg assembly
+│   │   ├── caption.py             # Whisper transcription + caption burn
+│   │   ├── labeler.py             # SEO label generation (Groq)
+│   │   ├── youtube_uploader.py    # YouTube Data API v3 upload
+│   │   ├── shorts_generator.py    # YouTube Shorts (9:16) pipeline
+│   │   ├── podcast_pipeline.py    # Audio-to-podcast distribution
+│   │   ├── auto_generator.py      # Scheduled / autonomous generation
+│   │   └── ...                    # Additional pipeline modules
+│   ├── routers/
+│   │   ├── auth.py                # Login, logout, token endpoints
+│   │   ├── videos.py              # Video CRUD
+│   │   └── pipeline.py            # Pipeline trigger and status
+│   ├── workers/
+│   │   └── celery_worker.py       # Background job definitions + Beat schedule
+│   └── output/                    # Generated files (gitignored)
+│       ├── videos/
+│       ├── audio/
+│       └── temp/
+├── frontend/                      # Vue 3 + Vite dashboard
+├── supabase/                      # Database migrations
+├── docker-compose.yml
+├── nginx-lb.conf
+└── .env.example
 ```
 
 ---
 
-## 🔑 Getting API Keys
+## Troubleshooting
 
-### Groq (LLM — Free)
-1. https://console.groq.com → Sign up
-2. API Keys → Create key
-3. **Free tier:** 14,400 requests/day, 6,000 tokens/min
-
-### Pexels (Stock Videos — Free)
-1. https://www.pexels.com/api/ → Sign up
-2. Instant API key in dashboard
-3. **Free tier:** 200 requests/hour, unlimited/month
-
-### Pixabay (Fallback — Free)
-1. https://pixabay.com/api/docs/ → Sign up
-2. API key in account settings
-3. **Free tier:** 100 requests/min
-
-### YouTube Data API v3
-1. Go to https://console.cloud.google.com
-2. Create New Project → Name it "AutoVid"
-3. APIs & Services → Enable APIs → Search "YouTube Data API v3" → Enable
-4. APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID
-5. Application type: **Desktop app** → Name it "AutoVid" → Create
-6. Download JSON → Save as `client_secrets.json` in `/backend`
-7. Run `python pipeline/youtube_uploader.py` for one-time auth
-
-**Free quota:** 10,000 units/day (~6 uploads/day)
-**Get more quota:** Apply at console.cloud.google.com → Quotas → YouTube Data API → Request increase (free, 2-3 days)
-
-### Supabase (Database — Free)
-1. https://supabase.com → New Project
-2. Settings → API → Copy **Project URL** and **service_role key**
-3. **Free tier:** 500MB DB, 2GB storage, 50K auth users
-
-### ElevenLabs (Optional — Better TTS)
-1. https://elevenlabs.io → Sign up
-2. Profile → API Key
-3. **Free tier:** 10,000 characters/month
-4. Set `TTS_ENGINE=elevenlabs` in `.env`
-
----
-
-## 📁 Project Structure
-
-```
-backend/
-├── main.py                    # FastAPI app + all routes
-├── config.py                  # Environment config loader
-├── database.py                # Supabase CRUD operations
-├── requirements.txt
-├── .env.example               # Copy to .env and fill in keys
-├── client_secrets.json        # YouTube OAuth (you download this)
-├── youtube_token.json         # Auto-generated after first YouTube auth
-├── pipeline/
-│   ├── script_gen.py          # Step 1: Groq LLM script generation
-│   ├── tts.py                 # Step 2: Voice synthesis (Coqui/ElevenLabs)
-│   ├── video_fetcher.py       # Step 3: Pexels/Pixabay stock clips
-│   ├── video_assembler.py     # Step 4: MoviePy + FFmpeg assembly
-│   ├── captioner.py           # Step 5: Whisper transcription + FFmpeg burn
-│   ├── youtube_uploader.py    # Step 7: YouTube Data API v3 upload
-│   └── orchestrator.py        # Master pipeline coordinator
-├── workers/
-│   └── celery_worker.py       # Background jobs + scheduled tasks
-└── output/
-    ├── videos/                # Final assembled videos
-    ├── audio/                 # Synthesized audio files
-    └── temp/                  # Temporary clips (auto-cleaned)
-```
-
----
-
-## 🔄 Pipeline Status Flow
-
-```
-generating → scripted → voiced → assembled → captioned → labeled → ready → uploading → posted
-                                                                                  ↓
-                                                                               failed (on any error)
-```
-
----
-
-## 🛠️ Troubleshooting
-
-**FFmpeg not found:**
+**FFmpeg not found**
 ```bash
-sudo apt install ffmpeg    # Linux
-brew install ffmpeg         # macOS
+sudo apt install ffmpeg      # Linux
+brew install ffmpeg           # macOS
 ```
 
-**Coqui TTS first run is slow:**
-Normal — it's downloading the voice model (~200MB). Subsequent runs are fast.
+**Whisper out of memory** — reduce the model size in `caption.py`: `model_size="tiny"`
 
-**Whisper runs out of memory:**
-Use a smaller model: change `model_size="tiny"` in `captioner.py`
+**YouTube quota exceeded** — quota resets at midnight UTC. Apply for a free increase at Google Cloud Console → APIs & Services → YouTube Data API v3 → Quotas.
 
-**YouTube quota exceeded:**
-Wait until midnight UTC for quota reset, or apply for a free increase.
-
-**Redis connection refused:**
+**Redis connection refused**
 ```bash
-redis-server    # Start Redis
-# or
-brew services start redis    # macOS
+redis-server                  # start manually
+brew services start redis     # macOS
 ```
 
----
-
-## 💡 Tips for Best Results
-
-- **Prompts that work well:** Character-driven scenarios, unexpected fish-out-of-water situations, parody/satire concepts
-- **Avoid vague prompts** like "funny video" — be specific: "A medieval knight reviews modern smartphones"
-- **Coqui vs ElevenLabs:** Coqui is good enough for testing; ElevenLabs gives much more natural-sounding voice
-- **Whisper model:** Use `base` during development, `medium` in production for better caption accuracy
-- **Video length:** Keep prompts that generate ~90 second videos — YouTube's algorithm favors completion rate
+**Coqui TTS slow on first run** — it downloads a ~200 MB voice model. Subsequent runs are fast.
 
 ---
 
-## 📊 Free Tier Limits Summary
+## License
 
-| Service | Free Limit | Impact |
-|---------|-----------|--------|
-| Groq | 14,400 req/day | Can generate 100s of scripts/day |
-| Pexels | 200 req/hour | ~10+ videos worth of clips/hour |
-| Coqui TTS | Unlimited (local) | No limit |
-| Whisper | Unlimited (local) | No limit |
-| YouTube Upload | ~6 videos/day | Main bottleneck |
-| Supabase | 500MB DB | 10,000s of video records |
+This project uses a proprietary license key to enable the video generation pipeline. The source code is made available for review and portfolio purposes. Deployment requires a valid `AUTOVID_LICENSE_KEY`.

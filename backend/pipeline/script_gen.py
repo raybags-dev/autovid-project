@@ -11,10 +11,13 @@ Output:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import json
+
 from groq import Groq
+
 import config
 
 _client = None
@@ -149,16 +152,28 @@ Categories: Education, Entertainment, Science, Technology, Lifestyle, Philosophy
 Mood options: inspirational, educational, dramatic, reflective, serious
 """
 
-_PROMO_FOOTER_BASE = """
+def _build_promo_footer() -> str:
+    import os
 
-Feel free to subscribe. And post your thoughts on www.4lifemystery.com in the community section. I'd love to hear thoughts on this topic
+    import config as _cfg
+    base_url = _cfg.BASE_URL.rstrip("/")
+    youtube_url = os.getenv("YOUTUBE_CHANNEL_URL", "")
+    spotify_url = os.getenv("VITE_SPOTIFY_URL", "")
+    lines = [
+        "",
+        "Feel free to subscribe. And post your thoughts in the community section.",
+        "",
+        f"🌐 Website: {base_url}",
+    ]
+    if youtube_url:
+        lines.append(f"📺 YouTube: {youtube_url}")
+    if spotify_url:
+        lines.append(f"🎧 Spotify: {spotify_url}")
+    lines.append("\nHashtags:\n#AutoVid #AIVideo #ContentCreation #AIGenerated")
+    return "\n".join(lines)
 
-🌐 Website: https://4lifemystery.com
-🎧 Spotify: https://open.spotify.com/show/31b1tuqETLGjz0Oq6oqE8d
-📺 YouTube: https://www.youtube.com/@4life_mystery/videos
 
-Hashtags:
-#Existential #LifeMystery #LifeReflection #Mortality #Philosophy #DeepThoughts #Mindfulness #HumanExperience #Regret"""
+_PROMO_FOOTER_BASE = _build_promo_footer()
 
 _PROMO_FOOTER_SENTINEL = "Feel free to subscribe."
 

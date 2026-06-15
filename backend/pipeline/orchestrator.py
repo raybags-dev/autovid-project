@@ -24,23 +24,26 @@ Cleanup policy:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import os
-import time
-import subprocess
-import traceback
 import shutil
+import subprocess
+import time
+import traceback
 from typing import Callable, Optional
 
 import config
 import database as db
-from pipeline.storage import upload_to_storage, upload_narration_to_storage
-from pipeline import script_gen, tts, video_fetcher, video_assembler, youtube_uploader
+from pipeline import script_gen, tts, video_assembler, video_fetcher, youtube_uploader
+from pipeline.license_guard import verify_license
+from pipeline.storage import upload_narration_to_storage, upload_to_storage
+
 try:
-    import pipeline.caption as captioner       # caption.py
+    import pipeline.caption as captioner  # caption.py
 except ModuleNotFoundError:
-    import pipeline.caption as captioner     # captioner.py fallback
+    import pipeline.caption as captioner  # captioner.py fallback
 
 
 # Moods that use generated animations instead of Pexels stock footage
@@ -364,8 +367,8 @@ def _step_stickfigure_composite(video_path: str, script_text: str, duration: flo
     Returns composited path, or original path if no clips matched / on error.
     """
     try:
-        from pipeline.stickfigure_matcher import match_clips_to_script
         from pipeline.stickfigure_compositor import composite_video
+        from pipeline.stickfigure_matcher import match_clips_to_script
         _log("STICKFIGURES", "🕹 Matching stickfigure clips to script...", cb)
         overlays = match_clips_to_script(script_text, duration)
         if not overlays:
@@ -408,6 +411,7 @@ def run_pipeline(
     Returns:
         Final video record dict from the database
     """
+    verify_license()
     cb         = progress_callback
     start_time = time.time()
     # NOTE: do NOT reset video_id here — caller may pass a pre-created one
@@ -432,7 +436,7 @@ def run_pipeline(
         try:
             narration_url = upload_narration_to_storage(audio_path, video_id, cb)
             db.update_video(video_id, narration_url=narration_url)
-            _log("VOICE", f"✅ Narration MP3 saved to cloud", cb)
+            _log("VOICE", "✅ Narration MP3 saved to cloud", cb)
         except Exception as e:
             _log("VOICE", f"⚠️  Narration upload skipped: {e}", cb)
 
@@ -537,7 +541,7 @@ def run_pipeline(
             storage_url = upload_to_storage(final_path, video_id, cb)
             if storage_url:
                 db.update_video(video_id, file_path=storage_url)
-                _log("STORAGE", f"✅ Uploaded to Supabase Storage", cb)
+                _log("STORAGE", "✅ Uploaded to Supabase Storage", cb)
         except Exception as e:
             _log("STORAGE", f"⚠️  Storage upload failed (non-fatal): {e}", cb)
             # Keep local path in DB as fallback
@@ -560,7 +564,7 @@ def run_pipeline(
                 _title = script_data.get("title", prompt)
                 db.create_custom_content(
                     title=f"{_title} — Portrait (9:16)",
-                    description=f"Auto-generated vertical version",
+                    description="Auto-generated vertical version",
                     file_path=_portrait_url,
                     duration_seconds=int(audio_result["duration"]),
                 )
@@ -647,8 +651,8 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
     if include_unsubscribed_message and include_subscribed_message:
         raise ValueError("include_unsubscribed_message and include_subscribed_message are mutually exclusive.")
 
-    from pipeline.shorts_generator import generate_short_visual
     from pipeline.script_gen import generate_short_script
+    from pipeline.shorts_generator import generate_short_visual
 
     start_time = time.time()
     audio_path     = None
@@ -858,11 +862,11 @@ if __name__ == "__main__":
         prompt = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else \
             "A penguin tries stand-up comedy at a corporate event"
 
-        print(f"🎬 AutoVid Pipeline Test")
+        print("🎬 AutoVid Pipeline Test")
         print(f"   Prompt: '{prompt}'\n")
 
         result = run_pipeline(prompt, auto_upload=False)
-        print(f"\n📦 Final record:")
+        print("\n📦 Final record:")
         for k, v in result.items():
             if v:
                 print(f"   {k}: {str(v)[:80]}")

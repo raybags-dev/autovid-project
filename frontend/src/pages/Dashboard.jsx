@@ -433,7 +433,7 @@ function LegalNavDropdown({ T }) {
             Terms of Service ↗
           </a>
           <a
-            href="https://4lifemystery.com"
+            href={import.meta.env.VITE_APP_URL || "https://your-domain.com"}
             target="_blank"
             rel="noreferrer"
             style={{
@@ -452,7 +452,7 @@ function LegalNavDropdown({ T }) {
             onMouseEnter={(e) => { e.currentTarget.style.color = "#ff6633"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = T.textFaint; }}
           >
-            🌐 4lifemystery.com ↗
+            🌐 {(import.meta.env.VITE_APP_URL || "your-domain.com").replace(/^https?:\/\//, "")} ↗
           </a>
         </div>
       )}
@@ -2007,8 +2007,8 @@ export default function Dashboard() {
       setSpotifyShowUrlDraft(r.data.url || "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
     }).catch(() => {});
     api.get("/settings/tiktok-url").then(r => {
-      setTiktokProfileUrl(r.data.url || "https://www.tiktok.com/@4lifemystery183284");
-      setTiktokProfileUrlDraft(r.data.url || "https://www.tiktok.com/@4lifemystery183284");
+      setTiktokProfileUrl(r.data.url || "https://www.tiktok.com/@your-handle");
+      setTiktokProfileUrlDraft(r.data.url || "https://www.tiktok.com/@your-handle");
     }).catch(() => {});
     getBuzzsproutSettings().then(r => setBuzzsproutSettings(s => ({
       ...s,
@@ -2232,7 +2232,7 @@ export default function Dashboard() {
   const [spotifyUrlSaving, setSpotifyUrlSaving] = useState(false);
 
   // TikTok profile URL (editable in Settings)
-  const [tiktokProfileUrl, setTiktokProfileUrl] = useState("https://www.tiktok.com/@4lifemystery183284");
+  const [tiktokProfileUrl, setTiktokProfileUrl] = useState("https://www.tiktok.com/@your-handle");
   const [tiktokProfileUrlDraft, setTiktokProfileUrlDraft] = useState("");
   const [tiktokProfileUrlSaving, setTiktokProfileUrlSaving] = useState(false);
 
@@ -13157,7 +13157,7 @@ function PodcastStudio({ T, showToast, api }) {
   const [deletingId, setDeletingId]   = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // episode id pending confirm
   const [toggling, setToggling]       = useState({});
-  const FEED_URL = "https://4lifemystery.com/api/podcast/feed.xml";
+  const FEED_URL = `${import.meta.env.VITE_APP_URL || "https://your-domain.com"}/api/podcast/feed.xml`;
 
   const load = async () => {
     setLoading(true);

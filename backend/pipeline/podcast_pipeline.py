@@ -10,12 +10,13 @@ Generates a dedicated audio-only podcast episode:
 Manual: POST /podcast-episode/generate  (title + essay_prompt + music_style)
 Auto:   scheduler calls run_auto_podcast() on configured days/hour
 """
-import threading
-import time
 import datetime
 import json
 import sys
+import threading
+import time
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import config
@@ -251,7 +252,13 @@ def _synthesize_essay(essay: str, video_id: str, log_fn=None) -> str:
     Returns path to the final stitched MP3.
     """
     import subprocess
-    from pipeline.tts import _synthesize_elevenlabs, _clean_script, ELEVENLABS_FALLBACK_VOICE_ID, _get_active_voice_id
+
+    from pipeline.tts import (
+        ELEVENLABS_FALLBACK_VOICE_ID,
+        _clean_script,
+        _get_active_voice_id,
+        _synthesize_elevenlabs,
+    )
 
     clean  = _clean_script(essay)
     chunks = _chunk_text(clean)
@@ -405,7 +412,9 @@ def run_podcast_episode(
 
         # ── Optional: auto-upload to Podbean ──────────────────────────────────
         try:
-            from pipeline.podbean_client import get_podbean_settings, upload_podcast_episode as pb_upload, is_configured as pb_configured
+            from pipeline.podbean_client import get_podbean_settings
+            from pipeline.podbean_client import is_configured as pb_configured
+            from pipeline.podbean_client import upload_podcast_episode as pb_upload
             if pb_configured() and get_podbean_settings().get("auto_upload"):
                 _log("[PODBEAN] Auto-uploading to Podbean...")
                 pb_upload(video_id, log_fn=_log)
@@ -414,14 +423,16 @@ def run_podcast_episode(
 
         # ── Optional: auto-upload to Buzzsprout ───────────────────────────────
         try:
-            from pipeline.buzzsprout_client import get_buzzsprout_settings, upload_podcast_episode as bz_upload, is_configured as bz_configured
+            from pipeline.buzzsprout_client import get_buzzsprout_settings
+            from pipeline.buzzsprout_client import is_configured as bz_configured
+            from pipeline.buzzsprout_client import upload_podcast_episode as bz_upload
             if bz_configured() and get_buzzsprout_settings().get("auto_upload"):
                 _log("[BUZZSPROUT] Auto-uploading to Buzzsprout...")
                 bz_upload(video_id, log_fn=_log)
         except Exception as bz_err:
             _log(f"[BUZZSPROUT] ⚠ Auto-upload failed (episode still saved locally): {bz_err}")
 
-        _log(f"[DONE] Podcast pipeline complete.")
+        _log("[DONE] Podcast pipeline complete.")
         return video_id
 
     except Exception as e:

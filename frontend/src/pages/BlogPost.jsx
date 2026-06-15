@@ -280,7 +280,7 @@ export default function BlogPost() {
   // SEO
   useEffect(() => {
     if (!post) return;
-    document.title = `${post.title} | 4Life Mystery`;
+    document.title = `${post.title} | AutoVid`;
     const sm = (name, content, prop = false) => {
       const attr = prop ? "property" : "name";
       let el = document.querySelector(`meta[${attr}="${name}"]`);
@@ -290,12 +290,12 @@ export default function BlogPost() {
     const desc = post.excerpt || post.body?.replace(/<[^>]+>/g, "").slice(0, 160) || "";
     sm("description", desc); sm("robots", "index, follow");
     sm("og:title", post.title, true); sm("og:description", desc, true);
-    sm("og:type", "article", true); sm("og:url", `https://4lifemystery.com/blog/${post.slug}`, true);
+    sm("og:type", "article", true); sm("og:url", `https://your-domain.com/blog/${post.slug}`, true);
     if (post.cover_image_url) sm("og:image", post.cover_image_url, true);
     sm("twitter:card", "summary_large_image"); sm("twitter:title", post.title); sm("twitter:description", desc);
     let ld = document.getElementById("blogpost-jsonld");
     if (!ld) { ld = document.createElement("script"); ld.id = "blogpost-jsonld"; ld.type = "application/ld+json"; document.head.appendChild(ld); }
-    ld.textContent = JSON.stringify({ "@context": "https://schema.org", "@type": "BlogPosting", "headline": post.title, "description": desc, "url": `https://4lifemystery.com/blog/${post.slug}`, "datePublished": post.published_at || post.created_at, "dateModified": post.updated_at || post.created_at, "image": post.cover_image_url || undefined, "author": { "@type": "Organization", "name": "4Life Mystery" } });
+    ld.textContent = JSON.stringify({ "@context": "https://schema.org", "@type": "BlogPosting", "headline": post.title, "description": desc, "url": `https://your-domain.com/blog/${post.slug}`, "datePublished": post.published_at || post.created_at, "dateModified": post.updated_at || post.created_at, "image": post.cover_image_url || undefined, "author": { "@type": "Organization", "name": "AutoVid" } });
   }, [post]);
 
   const handleCopy = () => {
@@ -466,7 +466,7 @@ export default function BlogPost() {
               {/* About */}
               <div style={{ background: T.sidebarBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "18px 20px" }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: T.textDim, letterSpacing: "0.14em", marginBottom: 12 }}>ABOUT</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 6 }}>4Life Mystery</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 6 }}>AutoVid</div>
                 <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.65 }}>Exploring consciousness, philosophy, and life's deepest questions.</div>
                 <Link to="/blog" style={{ display: "block", marginTop: 12, fontSize: 10, color: T.accent, textDecoration: "none", letterSpacing: "0.08em" }}>← All Articles</Link>
               </div>
@@ -481,7 +481,7 @@ export default function BlogPost() {
           <span style={{ background: "linear-gradient(135deg,#34d399,#4f8ef0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>4LIFE</span>
           <span>MYSTERY</span>
         </div>
-        <div style={{ fontSize: 10, color: T.textDim, opacity: 0.55 }}>© {new Date().getFullYear()} 4Life Mystery. All rights reserved.</div>
+        <div style={{ fontSize: 10, color: T.textDim, opacity: 0.55 }}>© {new Date().getFullYear()} AutoVid. All rights reserved.</div>
       </footer>
 
       {/* ── Cookie bar ─────────────────────────────────────────────────────── */}

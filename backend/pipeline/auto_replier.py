@@ -10,12 +10,13 @@ Rules:
 - Respects frontend on/off toggle
 """
 import json
-import time
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-import database as db
+
 import config
+import database as db
 
 GROQ_MODEL            = "llama-3.3-70b-versatile"
 RUN_HOUR_UTC          = 10          # run once daily at 10:00 AM UTC

@@ -10,7 +10,8 @@
 
 set -euo pipefail
 
-SERVER="root@157.180.67.199"
+# Read from env or a local .deploy config (never commit real values)
+SERVER="${DEPLOY_SERVER:-root@your-server-ip}"
 SERVER_DIR="/opt/autovid"
 
 # SSH options that keep the connection alive through a long Docker build.
@@ -165,16 +166,17 @@ REMOTE
 print_step "Verifying deployment"
 sleep 3
 
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://157.180.67.199 2>/dev/null || echo "000")
+SERVER_HOST="${DEPLOY_SERVER_IP:-$(echo "$SERVER" | cut -d@ -f2)}"
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${SERVER_HOST}" 2>/dev/null || echo "000")
 
 if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "302" ]; then
-    print_ok "Site is live — http://157.180.67.199  (HTTP $HTTP_STATUS)"
+    print_ok "Site is live — http://${SERVER_HOST}  (HTTP $HTTP_STATUS)"
 else
     print_warn "Site returned HTTP $HTTP_STATUS — may still be warming up"
 fi
 
 echo -e "\n${GREEN}${BOLD}═══════════════════════════════════════${NC}"
 echo -e "${GREEN}${BOLD}  Deploy complete!${NC}"
-echo -e "${GREEN}${BOLD}  App:  http://157.180.67.199${NC}"
-echo -e "${GREEN}${BOLD}  API:  http://157.180.67.199:8000/docs${NC}"
+echo -e "${GREEN}${BOLD}  App:  http://${SERVER_HOST}${NC}"
+echo -e "${GREEN}${BOLD}  API:  http://${SERVER_HOST}:8000/docs${NC}"
 echo -e "${GREEN}${BOLD}═══════════════════════════════════════${NC}\n"

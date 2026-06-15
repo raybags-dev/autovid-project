@@ -10,11 +10,11 @@ import faceImg from "../assets/static/relaxedface.png";
 import sea_shower from "../assets/static/sea_shower.mp4";
 
 const SOCIAL = {
-  youtube: "https://www.youtube.com/@4life_mystery",
-  tiktok: "https://www.tiktok.com/@4lifemystery183284",
-  spotify: "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ",
+  youtube: import.meta.env.VITE_YOUTUBE_URL || "https://www.youtube.com/@your-channel",
+  tiktok: import.meta.env.VITE_TIKTOK_URL || "https://www.tiktok.com/@your-handle",
+  spotify: import.meta.env.VITE_SPOTIFY_URL || "https://open.spotify.com/show/your-show-id",
 };
-const SPOTIFY_SHOW_ID = "3d8WOqQD448znnyCASa7lQ";
+const SPOTIFY_SHOW_ID = import.meta.env.VITE_SPOTIFY_SHOW_ID || "";
 
 const SECTIONS = [
   { id: "hero", label: "HOME" },
@@ -3755,7 +3755,7 @@ export default function LandingPage() {
                   color: c.text,
                 }}
               >
-                {(tiktokUrl.split("tiktok.com/").pop() || "@4lifemystery183284")} on TikTok
+                {(tiktokUrl.split("tiktok.com/").pop() || "@your-handle")} on TikTok
               </div>
               <div style={{ fontSize: 12, color: c.textM }}>
                 60-second truths. Bite-sized thoughts that hit hard.
@@ -5197,7 +5197,7 @@ export default function LandingPage() {
                   CONTACT
                 </div>
                 <a
-                  href="mailto:contact@4lifemystery.com"
+                  href="mailto:contact@your-domain.com"
                   style={{
                     display: "block",
                     padding: "4px 0",
@@ -5212,10 +5212,10 @@ export default function LandingPage() {
                     (e.currentTarget.style.color = "#8ab8d4")
                   }
                 >
-                  General: contact@4lifemystery.com
+                  General: contact@your-domain.com
                 </a>
                 <a
-                  href="mailto:support@4lifemystery.com"
+                  href="mailto:support@your-domain.com"
                   style={{
                     display: "block",
                     padding: "4px 0",
@@ -5230,7 +5230,7 @@ export default function LandingPage() {
                     (e.currentTarget.style.color = "#8ab8d4")
                   }
                 >
-                  Support: support@4lifemystery.com
+                  Support: support@your-domain.com
                 </a>
                 <Link
                   to="/login"
@@ -5275,7 +5275,7 @@ export default function LandingPage() {
               © 2026 4Life Mystery · All rights reserved.
             </div>
             <div style={{ fontSize: 12, color: "#3d6882" }}>
-              Made with ♥ · 4lifemystery.com
+              Made with ♥ · your-domain.com
             </div>
             <div style={{ display: "flex", gap: 20 }}>
               {[

@@ -11,9 +11,9 @@ Pipeline:
   6. Captions — burn captions from the narration
   7. Upload to Supabase Storage
 """
-import sys
-import subprocess
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -85,7 +85,7 @@ def _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public
     try:
         for seg in config.VIDEOS_OUTPUT_DIR.glob(f"seg_*_{video_id[:8]}*.mp4"):
             seg.unlink(missing_ok=True)
-        for seg in config.VIDEOS_OUTPUT_DIR.glob(f"seg_*.mp4"):
+        for seg in config.VIDEOS_OUTPUT_DIR.glob("seg_*.mp4"):
             pass  # leave other videos' segments alone
     except Exception:
         pass
@@ -154,8 +154,8 @@ def run_script_pipeline(
         total_duration = duration + music_delay + 2.0
 
         # ── Step 2: Animated background (always the base layer) ───────────────
-        from pipeline.visual_generator import generate_visual
         from pipeline.video_fetcher import MOOD_QUERIES, get_mood_for_topic
+        from pipeline.visual_generator import generate_visual
 
         if use_stickfigures:
             _bg_mood = "rain"
@@ -171,8 +171,8 @@ def run_script_pipeline(
 
         # ── Step 2b: Composite stock footage on background (if requested) ──────
         if use_stock_footage and not use_stickfigures:
-            import pipeline.video_fetcher as _vf
             import pipeline.video_assembler as _va
+            import pipeline.video_fetcher as _vf
 
             _log("VISUAL", "Generating LLM visual plan for stock footage...", cb)
             plan = _vf.generate_visual_plan(script)
@@ -207,8 +207,8 @@ def run_script_pipeline(
         # ── Step 2c: Stickfigure overlay (only when requested) ────────────────
         if use_stickfigures:
             try:
-                from pipeline.stickfigure_matcher import match_clips_to_script
                 from pipeline.stickfigure_compositor import composite_video
+                from pipeline.stickfigure_matcher import match_clips_to_script
                 _log("STICKFIGURES", "🕹 Matching stickfigure clips...", cb)
                 overlays = match_clips_to_script(script, duration)
                 if overlays:
