@@ -46,6 +46,11 @@ frontend/.env.production
 *.webp
 backend/embeds/*
 
+# ── Frontend source assets are required for the build — track them ────────────
+!frontend/src/assets/**
+!frontend/public/favicon.png
+!frontend/public/og-image.png
+
 # ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
