@@ -88,7 +88,7 @@ AUDIO_BITRATE      = os.getenv("AUDIO_BITRATE", "192k")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # ── Podcast ───────────────────────────────────────────────────────────────────
-BASE_URL             = os.getenv("BASE_URL", "https://your-domain.com")
+BASE_URL             = os.getenv("BASE_URL", "")
 PODCAST_TITLE        = os.getenv("PODCAST_TITLE", "My AutoVid Podcast")
 PODCAST_DESCRIPTION  = os.getenv("PODCAST_DESCRIPTION", "AI-generated stories narrated for your ears")
 PODCAST_IMAGE_URL    = os.getenv("PODCAST_IMAGE_URL", "")          # 1400x1400 – 3000x3000 jpg/png, required by Spotify

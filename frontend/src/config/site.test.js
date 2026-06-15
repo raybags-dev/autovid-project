@@ -26,8 +26,9 @@ describe("SITE config", () => {
     const { SITE } = await import("./site.js");
     expect(SITE.contact).toHaveProperty("support");
     expect(SITE.contact).toHaveProperty("general");
-    expect(SITE.contact.support).toContain("@");
-    expect(SITE.contact.general).toContain("@");
+    // Fields are strings; non-empty only when VITE_*_EMAIL secrets are set
+    expect(typeof SITE.contact.support).toBe("string");
+    expect(typeof SITE.contact.general).toBe("string");
   });
 
   it("social has youtube, tiktok, spotify", async () => {
