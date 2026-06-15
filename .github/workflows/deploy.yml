@@ -87,7 +87,7 @@ jobs:
 
             echo "── Pulling latest code ──"
             git remote set-url origin https://github.com/raybags-dev/autovid-project.git
-            git pull origin main
+            GIT_TERMINAL_PROMPT=0 git -c credential.helper= pull origin main
 
             echo "── Rebuilding containers ──"
             docker compose up --build -d --remove-orphans
