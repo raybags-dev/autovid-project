@@ -19,13 +19,13 @@ export const SITE = {
     import.meta.env.VITE_APP_DESCRIPTION ||
     "Generate, assemble, caption, and publish AI-powered videos automatically.",
 
-  /** Canonical origin (no trailing slash) */
-  url: import.meta.env.VITE_APP_URL || "https://your-domain.com",
+  /** Canonical origin (no trailing slash) — MUST be set via VITE_APP_URL */
+  url: import.meta.env.VITE_APP_URL || "",
 
   // ── Contact ────────────────────────────────────────────────────────────────
   contact: {
-    support: import.meta.env.VITE_SUPPORT_EMAIL || "support@your-domain.com",
-    general: import.meta.env.VITE_CONTACT_EMAIL || "contact@your-domain.com",
+    support: import.meta.env.VITE_SUPPORT_EMAIL || "",
+    general: import.meta.env.VITE_CONTACT_EMAIL || "",
   },
 
   // ── Social ─────────────────────────────────────────────────────────────────
