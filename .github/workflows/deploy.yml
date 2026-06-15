@@ -76,10 +76,20 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          VITE_APP_NAME: ${{ secrets.VITE_APP_NAME }}
+          VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+          VITE_SUPPORT_EMAIL: ${{ secrets.VITE_SUPPORT_EMAIL }}
+          VITE_CONTACT_EMAIL: ${{ secrets.VITE_CONTACT_EMAIL }}
+          VITE_YOUTUBE_URL: ${{ secrets.VITE_YOUTUBE_URL }}
+          VITE_TIKTOK_URL: ${{ secrets.VITE_TIKTOK_URL }}
+          VITE_SPOTIFY_URL: ${{ secrets.VITE_SPOTIFY_URL }}
+          VITE_SPOTIFY_SHOW_ID: ${{ secrets.VITE_SPOTIFY_SHOW_ID }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          envs: VITE_APP_NAME,VITE_APP_URL,VITE_SUPPORT_EMAIL,VITE_CONTACT_EMAIL,VITE_YOUTUBE_URL,VITE_TIKTOK_URL,VITE_SPOTIFY_URL,VITE_SPOTIFY_SHOW_ID
           script_stop: true    # abort on first error
           script: |
             set -euo pipefail
@@ -91,7 +101,17 @@ jobs:
             git reset --hard origin/main
 
             echo "── Rebuilding containers ──"
-            docker compose up --build -d --remove-orphans
+            docker compose build \
+              --build-arg VITE_APP_NAME="${VITE_APP_NAME:-}" \
+              --build-arg VITE_APP_URL="${VITE_APP_URL:-}" \
+              --build-arg VITE_SUPPORT_EMAIL="${VITE_SUPPORT_EMAIL:-}" \
+              --build-arg VITE_CONTACT_EMAIL="${VITE_CONTACT_EMAIL:-}" \
+              --build-arg VITE_YOUTUBE_URL="${VITE_YOUTUBE_URL:-}" \
+              --build-arg VITE_TIKTOK_URL="${VITE_TIKTOK_URL:-}" \
+              --build-arg VITE_SPOTIFY_URL="${VITE_SPOTIFY_URL:-}" \
+              --build-arg VITE_SPOTIFY_SHOW_ID="${VITE_SPOTIFY_SHOW_ID:-}" \
+              frontend
+            docker compose up -d --remove-orphans
 
             echo "── Waiting for backend health check ──"
             for i in $(seq 1 12); do
