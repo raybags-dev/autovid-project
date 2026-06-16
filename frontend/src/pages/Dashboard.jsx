@@ -988,6 +988,162 @@ function ExclusiveVideoSetting({ T, showToast }) {
 
 const PAGE_SIZE = 20;
 
+/* ── Task Queues Tab ─────────────────────────────────────────────────────────── */
+function TaskQueuesTab({ T, showToast, api }) {
+  const [queues, setQueues]     = useState(null);
+  const [loading, setLoading]   = useState(false);
+  const [revoking, setRevoking] = useState({});
+  const [error, setError]       = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await api.get("/admin/queues");
+      setQueues(data);
+    } catch (e) {
+      setError(e.response?.data?.detail || "Failed to load queue data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const revoke = async (taskId) => {
+    setRevoking((r) => ({ ...r, [taskId]: true }));
+    try {
+      await api.delete(`/admin/queues/${taskId}`);
+      showToast({ msg: `Task ${taskId.slice(0, 8)}… revoked`, type: "success" });
+      load();
+    } catch {
+      showToast({ msg: "Failed to revoke task", type: "error" });
+    } finally {
+      setRevoking((r) => ({ ...r, [taskId]: false }));
+    }
+  };
+
+  const STATE_COLOR = { active: "#22c55e", reserved: "#f59e0b", scheduled: "#818cf8" };
+
+  const tasks = queues?.tasks || [];
+  const workers = queues?.workers || [];
+
+  return (
+    <div style={{ padding: "28px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.text, letterSpacing: "-0.01em" }}>Task Queues</div>
+          <div style={{ fontSize: 12, color: T.textDim, marginTop: 3 }}>
+            Celery + Redis broker · {workers.length} worker{workers.length !== 1 ? "s" : ""} online
+          </div>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          style={{
+            background: T.bgCard, border: `1px solid ${T.border}`, color: T.textMid,
+            padding: "7px 16px", borderRadius: 7, fontSize: 11, cursor: loading ? "not-allowed" : "pointer",
+            letterSpacing: "0.08em", fontFamily: "inherit",
+          }}
+        >
+          {loading ? "LOADING…" : "↺ REFRESH"}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ background: `${T.accentRed}12`, border: `1px solid ${T.accentRed}33`, color: T.accentRed, padding: "10px 14px", borderRadius: 8, fontSize: 12, marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
+
+      {/* Worker status */}
+      {workers.length > 0 && (
+        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
+          <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>ONLINE WORKERS</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {workers.map((w) => (
+              <span key={w} style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontFamily: "monospace" }}>
+                ● {w.split("@").pop()}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tasks */}
+      {tasks.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 24px", color: T.textFaint, fontSize: 12, letterSpacing: "0.1em" }}>
+          {loading ? "LOADING QUEUE DATA…" : "NO ACTIVE TASKS — QUEUE IS IDLE"}
+          {!loading && (
+            <div style={{ marginTop: 8, fontSize: 11, color: T.textFaint, opacity: 0.6 }}>
+              {queues?.ok === false ? `Worker offline or unreachable: ${queues?.error}` : "All workers are idle. Tasks run in background when videos are requested."}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {tasks.map((t) => (
+            <div key={t.id} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 18px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{
+                      background: `${STATE_COLOR[t.state] || T.accent}18`,
+                      border: `1px solid ${STATE_COLOR[t.state] || T.accent}40`,
+                      color: STATE_COLOR[t.state] || T.accent,
+                      padding: "1px 8px", borderRadius: 10, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+                    }}>
+                      {t.state.toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: T.textMid }}>
+                      {t.name.split(".").pop()}
+                    </span>
+                    {t.time_start && (
+                      <span style={{ fontSize: 10, color: T.textFaint, marginLeft: "auto" }}>
+                        started {new Date(t.time_start * 1000).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, fontFamily: "monospace", color: T.textFaint, marginBottom: 4 }}>
+                    ID: {t.id}
+                  </div>
+                  <div style={{ fontSize: 10, color: T.textFaint, wordBreak: "break-all" }}>
+                    worker: {t.worker.split("@").pop()} · args: {t.args}
+                  </div>
+                  {t.eta && (
+                    <div style={{ fontSize: 10, color: T.textFaint, marginTop: 3 }}>
+                      eta: {new Date(t.eta).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => revoke(t.id)}
+                  disabled={revoking[t.id]}
+                  style={{
+                    background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
+                    color: "#f87171", padding: "5px 12px", borderRadius: 6, fontSize: 10,
+                    cursor: revoking[t.id] ? "not-allowed" : "pointer", fontFamily: "inherit",
+                    letterSpacing: "0.05em", fontWeight: 600, whiteSpace: "nowrap",
+                  }}
+                >
+                  {revoking[t.id] ? "REVOKING…" : "✕ REVOKE"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 24, padding: "14px 18px", background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 11, color: T.textFaint, lineHeight: 1.7 }}>
+        <strong style={{ color: T.textDim }}>Queue notes:</strong> This platform uses Celery + Redis (not RabbitMQ/Kafka).
+        Active = currently running. Reserved = picked up, waiting to start. Scheduled = queued by beat scheduler.
+        Revoking sends SIGTERM to the worker — ongoing pipeline tasks will attempt clean shutdown.
+        For real-time monitoring, add <code style={{ color: T.accent }}>celery flower</code> to the compose stack.
+      </div>
+    </div>
+  );
+}
+
 function SubscribersTabContent({ T, showToast }) {
   const [subRequests, setSubRequests] = useState(null);
   const [subLoading, setSubLoading] = useState(false);
@@ -3028,6 +3184,7 @@ export default function Dashboard() {
               { id: "custom_content", icon: "📦", label: "Custom Content" },
               { id: "reviews", icon: "◈", label: "Reviews", count: pendingReviewCount },
               { id: "subscribers", icon: "🔐", label: "Subscribers", count: pendingSubCount },
+              { id: "queues",      icon: "⚡", label: "Task Queues" },
               { id: "editor", icon: "✂", label: "Video Editor" },
               { id: "stickfigures", icon: "🕹", label: "Stickfigures" },
               { id: "podcast_studio", icon: "🎙", label: "Podcast Studio" },
@@ -11356,6 +11513,9 @@ export default function Dashboard() {
             {tab === "subscribers" && (
               <SubscribersTabContent T={T} showToast={showToast} />
             )}
+
+            {/* ── TASK QUEUES TAB ───────────────────────────────────────────────── */}
+            {tab === "queues" && <TaskQueuesTab T={T} showToast={showToast} api={api} />}
 
             {/* ── VIDEO EDITOR TAB ──────────────────────────────────────────────── */}
             {tab === "editor" && (

@@ -81,4 +81,14 @@ export const retryVideo = async (videoId) => {
   return data;
 };
 
+export const requestAccountDeletion = async () => {
+  const { data } = await api.delete("/subscribe/account");
+  return data;
+};
+
+export const cancelAccountDeletion = async () => {
+  const { data } = await api.post("/subscribe/account/cancel-deletion");
+  return data;
+};
+
 export default api;

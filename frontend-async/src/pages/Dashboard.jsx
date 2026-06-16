@@ -2,11 +2,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
+  cancelAccountDeletion,
   createVideo,
   getCreateYourWebsite,
   getMyVideos,
   getSampleVideos,
+  getVideoStatus,
   getVideoStreamUrl,
+  requestAccountDeletion,
   retryVideo,
   updateSubscriberSettings,
 } from "../config/api";
@@ -43,6 +46,109 @@ function ToastContainer({ toasts, dismiss }) {
         </div>
       ))}
       <style>{`@keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:none; } }`}</style>
+    </div>
+  );
+}
+
+/* ─── Video progress panel ───────────────────────────────────────────────────── */
+
+const PIPELINE_STEPS = [
+  { key: "generating",  label: "Writing script",     desc: "AI is crafting your script" },
+  { key: "scripted",    label: "Generating voice",    desc: "Converting text to speech" },
+  { key: "voiced",      label: "Building video",      desc: "Combining audio with visuals" },
+  { key: "assembled",   label: "Adding captions",     desc: "Burning in subtitles" },
+  { key: "captioned",   label: "Finishing up",        desc: "Final processing" },
+  { key: "labeled",     label: "Uploading to YouTube", desc: "Uploading as private draft" },
+  { key: "ready",       label: "Ready!",              desc: "Your video is complete" },
+  { key: "posted",      label: "Published",           desc: "Uploaded to YouTube" },
+];
+
+function VideoProgressPanel({ videoId, onComplete }) {
+  const [status, setStatus] = useState("generating");
+  const [title, setTitle]   = useState("");
+  const pollRef = useRef(null);
+
+  useEffect(() => {
+    if (!videoId) return;
+    const poll = async () => {
+      try {
+        const data = await getVideoStatus(videoId);
+        setStatus(data.status);
+        if (data.title) setTitle(data.title);
+        if (["ready", "posted", "failed"].includes(data.status)) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          onComplete?.();
+        }
+      } catch { /* ignore */ }
+    };
+    poll();
+    pollRef.current = setInterval(poll, 6000);
+    return () => clearInterval(pollRef.current);
+  }, [videoId]);
+
+  const stepIndex  = PIPELINE_STEPS.findIndex((s) => s.key === status);
+  const isFailed   = status === "failed";
+  const isDone     = status === "ready" || status === "posted";
+  const pct        = isDone ? 100 : Math.round(((stepIndex < 0 ? 0 : stepIndex) / (PIPELINE_STEPS.length - 3)) * 100);
+
+  return (
+    <div style={{
+      background: "#050e1a", border: "1px solid #1a3a6a", borderRadius: 12,
+      padding: "20px 24px", marginBottom: 20,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: isFailed ? "#f87171" : isDone ? "#22c55e" : "#4f46e5",
+          animation: (!isFailed && !isDone) ? "pulse 1.5s ease-in-out infinite" : "none",
+        }} />
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#e0eaf5" }}>
+          {isFailed ? "Pipeline failed" : isDone ? "Video ready!" : "Generating your video…"}
+        </div>
+        {title && <div style={{ fontSize: 11, color: "#4a6a8a", marginLeft: "auto", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
+      </div>
+
+      {/* Progress bar */}
+      {!isFailed && (
+        <div style={{ background: "#0d1b2a", borderRadius: 4, height: 4, marginBottom: 16, overflow: "hidden" }}>
+          <div style={{
+            height: "100%", width: `${pct}%`,
+            background: isDone ? "#22c55e" : "linear-gradient(90deg,#4f46e5,#818cf8)",
+            borderRadius: 4,
+            transition: "width 1s ease",
+          }} />
+        </div>
+      )}
+
+      {/* Steps */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {PIPELINE_STEPS.filter((s) => !["posted"].includes(s.key)).map((s, i) => {
+          const done    = stepIndex > i || isDone;
+          const current = stepIndex === i && !isDone;
+          return (
+            <div key={s.key} style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "4px 10px", borderRadius: 20,
+              background: done ? "#0d2a1a" : current ? "#0d1b3a" : "#0a0f1a",
+              border: `1px solid ${done ? "#22c55e33" : current ? "#4f46e5" : "#0d1b2a"}`,
+              fontSize: 11,
+              color: done ? "#22c55e" : current ? "#e0eaf5" : "#4a6a8a",
+              fontWeight: current ? 700 : 400,
+            }}>
+              {done ? "✓" : current ? "…" : String(i + 1)}
+              {" "}{s.label}
+            </div>
+          );
+        })}
+      </div>
+
+      {isFailed && (
+        <div style={{ marginTop: 12, fontSize: 12, color: "#f87171" }}>
+          Pipeline failed — go to My Videos and click Retry.
+        </div>
+      )}
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
     </div>
   );
 }
@@ -414,10 +520,10 @@ function CreateVideoPanel({ user, onCreated, onUpgrade }) {
     setLoading(true);
     setError("");
     try {
-      await createVideo(topic.trim(), style);
+      const result = await createVideo(topic.trim(), style);
       setSuccess(true);
       setTopic("");
-      onCreated?.();
+      onCreated?.(result?.video_id);
     } catch (err) {
       const msg = err.response?.data?.detail || "Failed to queue video.";
       setError(msg);
@@ -637,11 +743,16 @@ function CreateYourWebsitePanel() {
 // ── Account Tab ───────────────────────────────────────────────────────────────
 
 function AccountTab({ user, onSaved, navigate, onUpgrade }) {
-  const [youtube, setYoutube]   = useState(user?.youtube_channel_url || "");
-  const [tiktok,  setTiktok]    = useState(user?.tiktok_profile_url  || "");
-  const [saving,  setSaving]    = useState(false);
-  const [saved,   setSaved]     = useState(false);
-  const [error,   setError]     = useState("");
+  const [youtube,  setYoutube]  = useState(user?.youtube_channel_url || "");
+  const [tiktok,   setTiktok]   = useState(user?.tiktok_profile_url  || "");
+  const [voiceId,  setVoiceId]  = useState(user?.tts_voice_id || "");
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [error,    setError]    = useState("");
+  const [delPending, setDelPending]   = useState(user?.deletion_status === "pending_deletion");
+  const [delLoading, setDelLoading]   = useState(false);
+  const [delConfirm, setDelConfirm]   = useState(false);
+  const [delError,   setDelError]     = useState("");
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -649,7 +760,11 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
     setError("");
     setSaved(false);
     try {
-      await updateSubscriberSettings({ youtube_channel_url: youtube.trim(), tiktok_profile_url: tiktok.trim() });
+      await updateSubscriberSettings({
+        youtube_channel_url: youtube.trim(),
+        tiktok_profile_url:  tiktok.trim(),
+        tts_voice_id:        voiceId.trim() || null,
+      });
       await onSaved?.();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -657,6 +772,33 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
       setError("Failed to save settings.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRequestDeletion = async () => {
+    setDelLoading(true);
+    setDelError("");
+    try {
+      await requestAccountDeletion();
+      setDelPending(true);
+      setDelConfirm(false);
+    } catch (err) {
+      setDelError(err.response?.data?.detail || "Failed to queue deletion. Contact help@async-mode.com.");
+    } finally {
+      setDelLoading(false);
+    }
+  };
+
+  const handleCancelDeletion = async () => {
+    setDelLoading(true);
+    setDelError("");
+    try {
+      await cancelAccountDeletion();
+      setDelPending(false);
+    } catch (err) {
+      setDelError(err.response?.data?.detail || "Failed to cancel. Contact help@async-mode.com.");
+    } finally {
+      setDelLoading(false);
     }
   };
 
@@ -732,6 +874,30 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
               </div>
             </div>
           ))}
+          {/* TTS voice */}
+          <div style={{ marginBottom: 20, paddingTop: 16, borderTop: "1px solid #0d1b2a" }}>
+            <div style={{ fontSize: 12, color: "#4a6a8a", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>TTS Voice</div>
+            <p style={{ fontSize: 12, color: "#4a6a8a", margin: "0 0 10px", lineHeight: 1.6 }}>
+              Custom ElevenLabs voice ID for your videos. Leave blank to use the platform default.
+            </p>
+            <input
+              type="text"
+              value={voiceId}
+              onChange={(e) => setVoiceId(e.target.value)}
+              placeholder="ElevenLabs voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
+              style={{
+                width: "100%", background: "#050a14", border: "1px solid #1a2a3a",
+                color: "#e0eaf5", borderRadius: 7, padding: "9px 12px",
+                fontSize: 13, outline: "none", fontFamily: "monospace", boxSizing: "border-box",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#4f46e5")}
+              onBlur={(e)  => (e.target.style.borderColor = "#1a2a3a")}
+            />
+            <div style={{ fontSize: 10, color: "#2a4a6a", marginTop: 5 }}>
+              Find your voice ID in the ElevenLabs dashboard → Voices
+            </div>
+          </div>
+
           {error && (
             <div style={{ background: "#2a0f0f", border: "1px solid #4a1f1f", color: "#f87171", padding: "9px 12px", borderRadius: 7, fontSize: 12, marginBottom: 14 }}>
               {error}
@@ -748,7 +914,7 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
                 fontFamily: "inherit",
               }}
             >
-              {saving ? "Saving…" : "Save channels"}
+              {saving ? "Saving…" : "Save settings"}
             </button>
             {saved && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ Saved</span>}
             <button
@@ -764,6 +930,78 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
           </div>
         </form>
       </div>
+
+      {/* Danger Zone — account deletion */}
+      <div style={{ background: "#0c0608", border: "1px solid #2a1018", borderRadius: 10, padding: "24px", marginTop: 20 }}>
+        <div style={{ fontSize: 12, color: "#6a2a3a", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+          Danger Zone
+        </div>
+        {delPending ? (
+          <div>
+            <p style={{ fontSize: 13, color: "#c8a0a8", lineHeight: 1.6, margin: "0 0 16px" }}>
+              Your account is queued for permanent deletion in 24 hours. This includes all generated videos and account data.
+            </p>
+            {delError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{delError}</div>}
+            <button
+              onClick={handleCancelDeletion}
+              disabled={delLoading}
+              style={{
+                background: "#4f46e5", color: "#fff", border: "none",
+                padding: "8px 20px", borderRadius: 7, fontSize: 13, fontWeight: 700,
+                cursor: delLoading ? "not-allowed" : "pointer",
+              }}
+            >
+              {delLoading ? "Cancelling…" : "Cancel deletion — keep my account"}
+            </button>
+          </div>
+        ) : delConfirm ? (
+          <div>
+            <p style={{ fontSize: 13, color: "#f87171", lineHeight: 1.6, margin: "0 0 16px" }}>
+              Are you sure? This will permanently delete your account and ALL generated videos after 24 hours. This cannot be undone.
+            </p>
+            {delError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{delError}</div>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={handleRequestDeletion}
+                disabled={delLoading}
+                style={{
+                  background: "#7f1d1d", color: "#fca5a5", border: "1px solid #991b1b",
+                  padding: "8px 20px", borderRadius: 7, fontSize: 13, fontWeight: 700,
+                  cursor: delLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {delLoading ? "Processing…" : "Yes, delete my account"}
+              </button>
+              <button
+                onClick={() => setDelConfirm(false)}
+                style={{
+                  background: "transparent", border: "1px solid #2a1a1a", color: "#6a5a5a",
+                  padding: "8px 16px", borderRadius: 7, fontSize: 13, cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p style={{ fontSize: 13, color: "#6a5a5a", lineHeight: 1.6, margin: "0 0 16px" }}>
+              Permanently delete your account and all generated videos. After requesting, you have 24 hours to cancel.
+              You'll receive an email confirmation.
+            </p>
+            <button
+              onClick={() => setDelConfirm(true)}
+              style={{
+                background: "transparent", border: "1px solid #3a1a1a", color: "#b06060",
+                padding: "8px 20px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Request account deletion
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -775,11 +1013,12 @@ export default function Dashboard() {
   const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
 
-  const [myVideos,     setMyVideos]     = useState(null);
-  const [sampleVideos, setSampleVideos] = useState(null);
-  const [activeTab,    setActiveTab]    = useState("create");
-  const [trialExpired, setTrialExpired] = useState(false);
-  const [showUpgrade,  setShowUpgrade]  = useState(false);
+  const [myVideos,       setMyVideos]       = useState(null);
+  const [sampleVideos,   setSampleVideos]   = useState(null);
+  const [activeTab,      setActiveTab]      = useState("create");
+  const [trialExpired,   setTrialExpired]   = useState(false);
+  const [showUpgrade,    setShowUpgrade]    = useState(false);
+  const [trackingVideoId, setTrackingVideoId] = useState(null);
 
   const { toasts, addToast, dismiss } = useNotifications();
 
@@ -829,11 +1068,12 @@ export default function Dashboard() {
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
-  const handleVideoCreated = () => {
+  const handleVideoCreated = (videoId) => {
     setActiveTab("my-videos");
+    if (videoId) setTrackingVideoId(videoId);
     loadMyVideos();
     refreshUser?.();
-    addToast("🎬 Video queued! It'll be ready in 8–15 minutes.", "success");
+    addToast("Video queued! Tracking progress below. Ready in 8–15 minutes.", "success");
   };
 
   const handleTrialExpired = () => {
@@ -899,34 +1139,46 @@ export default function Dashboard() {
         )}
 
         {/* Tab bar */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "1px solid #0d1b2a", paddingBottom: 0 }}>
-          {[
-            { id: "create",     label: "Create" },
-            { id: "my-videos",  label: `My Videos${pendingCount ? ` (${pendingCount} processing)` : ""}` },
-            { id: "samples",    label: "Sample Library" },
-            { id: "website",    label: "Create Your Website" },
-            { id: "account",    label: "Account" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                background: "transparent",
-                border: "none",
-                borderBottom: activeTab === tab.id ? "2px solid #4f46e5" : "2px solid transparent",
-                color: activeTab === tab.id ? "#e0eaf5" : "#4a6a8a",
-                padding: "10px 16px",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: activeTab === tab.id ? 700 : 400,
-                marginBottom: -1,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {(() => {
+          const isTrial = user?.plan === "trial";
+          const TABS = [
+            { id: "create",    label: "Create",              locked: false },
+            { id: "my-videos", label: `My Videos${pendingCount ? ` (${pendingCount})` : ""}`, locked: false },
+            { id: "samples",   label: "Sample Library",      locked: false },
+            { id: "website",   label: "Create Your Website", locked: isTrial },
+            { id: "account",   label: "Account",             locked: isTrial },
+          ];
+          return (
+            <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "1px solid #0d1b2a", paddingBottom: 0, flexWrap: "wrap" }}>
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    if (t.locked) { setShowUpgrade(true); addToast("Upgrade to access this feature.", "warning"); return; }
+                    setActiveTab(t.id);
+                  }}
+                  title={t.locked ? "Upgrade to unlock" : undefined}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    borderBottom: activeTab === t.id ? "2px solid #4f46e5" : "2px solid transparent",
+                    color: t.locked ? "#2a3a4a" : activeTab === t.id ? "#e0eaf5" : "#4a6a8a",
+                    padding: "10px 16px",
+                    cursor: t.locked ? "not-allowed" : "pointer",
+                    fontSize: 13,
+                    fontWeight: activeTab === t.id ? 700 : 400,
+                    marginBottom: -1,
+                    whiteSpace: "nowrap",
+                    position: "relative",
+                  }}
+                >
+                  {t.locked && <span style={{ marginRight: 4, fontSize: 10, opacity: 0.5 }}>🔒</span>}
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Create tab */}
         {activeTab === "create" && (
@@ -957,6 +1209,17 @@ export default function Dashboard() {
                 {pendingCount > 0 && <span style={{ color: "#f59e0b" }}> · {pendingCount} still processing…</span>}
               </p>
             </div>
+
+            {trackingVideoId && (
+              <VideoProgressPanel
+                videoId={trackingVideoId}
+                onComplete={() => {
+                  loadMyVideos();
+                  refreshUser?.();
+                  setTrackingVideoId(null);
+                }}
+              />
+            )}
 
             {myVideos === null ? (
               <p style={{ color: "#4a6a8a", fontSize: 14 }}>Loading…</p>
@@ -992,6 +1255,7 @@ export default function Dashboard() {
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>Sample Library</h2>
               <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0 }}>
                 Example videos produced by AutoVid — showing what you can create.
+                {user?.plan === "trial" && <span style={{ color: "#4f46e5", marginLeft: 8 }}>Trial: 5 previews shown</span>}
               </p>
             </div>
             {sampleVideos === null ? (
@@ -1004,11 +1268,45 @@ export default function Dashboard() {
                 <div style={{ fontSize: 32, marginBottom: 12 }}>📚</div>
                 <p style={{ color: "#4a6a8a", fontSize: 14 }}>No sample videos available yet.</p>
               </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-                {sampleVideos.map((v) => <VideoCard key={v.id} video={v} isOwned={false} />)}
-              </div>
-            )}
+            ) : (() => {
+              const isTrial = user?.plan === "trial";
+              const displayed = isTrial ? sampleVideos.slice(0, 5) : sampleVideos;
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
+                  {displayed.map((v) => (
+                    <div key={v.id} style={{ position: "relative" }}>
+                      <div style={{ pointerEvents: isTrial ? "none" : undefined, opacity: isTrial ? 0.45 : 1, filter: isTrial ? "grayscale(0.5)" : "none" }}>
+                        <VideoCard video={v} isOwned={false} />
+                      </div>
+                      {isTrial && (
+                        <div style={{
+                          position: "absolute", inset: 0, borderRadius: 10,
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          gap: 6, cursor: "pointer",
+                        }} onClick={() => setShowUpgrade(true)}>
+                          <div style={{ fontSize: 18, opacity: 0.6 }}>🔒</div>
+                          <div style={{ fontSize: 10, color: "#4a6a8a", fontWeight: 600, letterSpacing: "0.05em" }}>UPGRADE TO WATCH</div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {isTrial && sampleVideos.length > 5 && (
+                    <div
+                      onClick={() => setShowUpgrade(true)}
+                      style={{
+                        background: "#080e1a", border: "1px dashed #1a2a3a",
+                        borderRadius: 10, display: "flex", flexDirection: "column",
+                        alignItems: "center", justifyContent: "center",
+                        padding: 32, cursor: "pointer", gap: 8, minHeight: 160,
+                      }}
+                    >
+                      <div style={{ fontSize: 22, opacity: 0.4 }}>+{sampleVideos.length - 5}</div>
+                      <div style={{ fontSize: 11, color: "#4a6a8a", fontWeight: 600 }}>Upgrade to see all</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
