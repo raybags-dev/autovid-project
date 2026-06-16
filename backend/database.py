@@ -69,11 +69,23 @@ CREATE TABLE IF NOT EXISTS subscription_users (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email         TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    status        TEXT NOT NULL DEFAULT 'pending',  -- pending/approved/rejected
+    status        TEXT NOT NULL DEFAULT 'pending',  -- pending/approved/rejected/expired
     access_token  TEXT,
+    plan          TEXT NOT NULL DEFAULT 'trial',
+    trial_expires_at TIMESTAMPTZ,
+    videos_created INT DEFAULT 0,
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_subu_status ON subscription_users(status);
+
+-- Subscriber-created videos (run once in Supabase SQL Editor):
+ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'trial';
+ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS trial_expires_at TIMESTAMPTZ;
+ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS videos_created INT DEFAULT 0;
+
+-- Subscriber-owned videos — tagged on the shared videos table (run once in Supabase SQL Editor):
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS subscriber_user_id UUID;
+CREATE INDEX IF NOT EXISTS idx_videos_subscriber ON videos(subscriber_user_id) WHERE subscriber_user_id IS NOT NULL;
 
 -- Exclusive videos flag — run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
@@ -237,7 +249,7 @@ def get_video(video_id: str) -> dict:
     return result.data
 
 
-def list_videos(status: Optional[str] = None, limit: int = 50) -> list[dict]:
+def list_videos(status: Optional[str] = None, limit: int = 50, subscriber_user_id: Optional[str] = None) -> list[dict]:
     db = get_client()
     try:
         query = (db.table("videos")
@@ -247,14 +259,58 @@ def list_videos(status: Optional[str] = None, limit: int = 50) -> list[dict]:
                     .limit(limit))
         if status:
             query = query.eq("status", status)
+        if subscriber_user_id:
+            query = query.eq("subscriber_user_id", subscriber_user_id)
+        else:
+            # Admin view: exclude subscriber-owned videos
+            query = query.is_("subscriber_user_id", "null")
         result = query.execute()
         return result.data
     except Exception:
-        # Graceful fallback if 'archived' column not yet added via SQL migration
         query = db.table("videos").select("*").order("created_at", desc=True).limit(limit)
         if status:
             query = query.eq("status", status)
         return query.execute().data
+
+
+def create_subscriber_video(prompt: str, subscriber_user_id: str) -> dict:
+    """Create a video record owned by a subscriber. Not shown in admin library."""
+    db = get_client()
+    data = {
+        "prompt": prompt,
+        "status": "generating",
+        "labels": ["subscriber_video"],
+        "views_count": 0,
+        "likes_count": 0,
+        "subscriber_user_id": subscriber_user_id,
+    }
+    result = db.table("videos").insert(data).execute()
+    row = result.data[0]
+    print(f"📼 Created subscriber video record: {row['id']}")
+    return row
+
+
+def list_subscriber_videos(subscriber_user_id: str, limit: int = 50) -> list[dict]:
+    """List all videos created by a specific subscriber."""
+    db = get_client()
+    result = (db.table("videos")
+                .select("id,title,status,thumbnail_url,file_path,duration_seconds,created_at,error_message,prompt")
+                .eq("subscriber_user_id", subscriber_user_id)
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute())
+    return result.data or []
+
+
+def get_subscriber_video(video_id: str, subscriber_user_id: str) -> dict | None:
+    """Get a video only if it belongs to the given subscriber."""
+    db = get_client()
+    result = (db.table("videos")
+                .select("*")
+                .eq("id", video_id)
+                .eq("subscriber_user_id", subscriber_user_id)
+                .execute())
+    return result.data[0] if result.data else None
 
 
 def get_stats() -> dict:
@@ -555,9 +611,48 @@ def danger_clear_storage() -> dict:
 
 def create_subscription_user(email: str, password_hash: str) -> dict:
     db = get_client()
-    row = {"email": email, "password_hash": password_hash, "status": "pending"}
+    row = {"email": email, "password_hash": password_hash, "status": "pending", "plan": "trial", "videos_created": 0}
     result = db.table("subscription_users").insert(row).execute()
     return result.data[0]
+
+
+def expire_old_trials() -> int:
+    """Set status='expired' for approved trial accounts past their trial_expires_at. Returns count updated."""
+    from datetime import datetime, timezone
+    db = get_client()
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        result = (db.table("subscription_users")
+                    .update({"status": "expired"})
+                    .eq("status", "approved")
+                    .lt("trial_expires_at", now)
+                    .execute())
+        count = len(result.data or [])
+        if count:
+            print(f"[trial-cleanup] Expired {count} trial account(s)")
+        return count
+    except Exception as e:
+        print(f"[trial-cleanup] Failed: {e}")
+        return 0
+
+
+def get_trials_expiring_soon(hours: int = 24) -> list[dict]:
+    """Return approved trial accounts expiring within `hours` hours (for warning emails)."""
+    from datetime import datetime, timezone, timedelta
+    db = get_client()
+    now = datetime.now(timezone.utc)
+    cutoff = (now + timedelta(hours=hours)).isoformat()
+    try:
+        result = (db.table("subscription_users")
+                    .select("id,email,trial_expires_at")
+                    .eq("status", "approved")
+                    .gt("trial_expires_at", now.isoformat())
+                    .lt("trial_expires_at", cutoff)
+                    .execute())
+        return result.data or []
+    except Exception as e:
+        print(f"[trial-expiry-warn] Failed: {e}")
+        return []
 
 
 def get_subscription_user_by_email(email: str) -> dict | None:

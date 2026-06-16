@@ -1820,6 +1820,11 @@ def _create_access_token(user_id: str) -> str:
     return jwt.encode(payload, config.SECRET_KEY, algorithm="HS256")
 
 
+TRIAL_VIDEO_LIMIT = 2
+TRIAL_MAX_DURATION_SECONDS = 300  # 5 minutes
+TRIAL_HOURS = 24
+
+
 def verify_subscriber_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """Returns subscriber user_id if token is valid AND matches the token stored in the DB."""
     if not credentials:
@@ -1829,14 +1834,31 @@ def verify_subscriber_token(credentials: HTTPAuthorizationCredentials = Depends(
         if payload.get("role") != "subscriber":
             raise HTTPException(status_code=403, detail="Not a subscriber token")
         user_id = payload["sub"]
-        # Cross-check with DB — catches revoked tokens
         user = db.get_subscription_user_by_id(user_id)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         if user.get("access_token") != credentials.credentials:
             raise HTTPException(status_code=401, detail="Token revoked — please log in again")
-        if user.get("status") != "approved":
+        status = user.get("status")
+        if status == "expired":
+            raise HTTPException(status_code=403, detail="trial_expired")
+        if status == "rejected":
+            raise HTTPException(status_code=403, detail="Account access denied")
+        if status != "approved":
             raise HTTPException(status_code=403, detail="Account not approved")
+        # Check trial expiry live (in case cleanup task hasn't run yet)
+        trial_expires_at = user.get("trial_expires_at")
+        if trial_expires_at and user.get("plan", "trial") == "trial":
+            try:
+                from datetime import datetime, timezone
+                exp = datetime.fromisoformat(trial_expires_at.replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) > exp:
+                    db.update_subscription_user(user_id, status="expired")
+                    raise HTTPException(status_code=403, detail="trial_expired")
+            except HTTPException:
+                raise
+            except Exception:
+                pass
         return user_id
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -1893,9 +1915,29 @@ def subscribe_login(req: SubLoginRequest):
 
 @app.get("/subscribe/verify")
 def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
-    """Verify a subscriber token is valid and return user info. Used by frontend on page load."""
+    """Verify token and return full account state including trial info."""
+    from datetime import datetime, timezone
     user = db.get_subscription_user_by_id(user_id)
-    return {"email": user["email"], "status": user["status"], "role": "subscriber", "user_id": user_id}
+    trial_expires_at = user.get("trial_expires_at")
+    trial_remaining_seconds = None
+    if trial_expires_at and user.get("plan", "trial") == "trial":
+        try:
+            exp = datetime.fromisoformat(trial_expires_at.replace("Z", "+00:00"))
+            diff = (exp - datetime.now(timezone.utc)).total_seconds()
+            trial_remaining_seconds = max(0, int(diff))
+        except Exception:
+            pass
+    return {
+        "email": user["email"],
+        "status": user["status"],
+        "role": "subscriber",
+        "user_id": user_id,
+        "plan": user.get("plan", "trial"),
+        "trial_expires_at": trial_expires_at,
+        "trial_remaining_seconds": trial_remaining_seconds,
+        "videos_created": user.get("videos_created") or 0,
+        "video_limit": TRIAL_VIDEO_LIMIT,
+    }
 
 
 def _generate_thumbnail(file_path: str, video_id: str) -> str | None:
@@ -1932,8 +1974,8 @@ def generate_video_thumbnail(video_id: str, _u: str = Depends(verify_token)):
 
 @app.get("/subscribe/videos")
 def get_subscriber_videos(user_id: str = Depends(verify_subscriber_token)):
-    """Approved subscribers — returns is_exclusive=True items from both videos and custom_content."""
-    all_videos = db.list_videos(limit=500)
+    """Approved subscribers — returns is_exclusive=True sample/demo items from the library."""
+    all_videos = db.list_videos(limit=100)
     exclusive = [v for v in all_videos if v.get("is_exclusive") and not v.get("archived")]
 
     cc_items = db.list_custom_content(include_archived=False)
@@ -1948,6 +1990,125 @@ def get_subscriber_videos(user_id: str = Depends(verify_subscriber_token)):
     return {"videos": exclusive}
 
 
+# ── Subscriber Video Creation ─────────────────────────────────────────────────
+
+class CreateVideoRequest(BaseModel):
+    topic: str
+    style: str = "educational"
+
+
+@app.post("/subscribe/create-video")
+def subscriber_create_video(req: CreateVideoRequest, user_id: str = Depends(verify_subscriber_token)):
+    """Subscriber — queue a new video generation. Enforces trial limits."""
+    user = db.get_subscription_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    videos_created = user.get("videos_created") or 0
+    if videos_created >= TRIAL_VIDEO_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Trial limit reached — maximum {TRIAL_VIDEO_LIMIT} videos per trial"
+        )
+
+    topic = req.topic.strip()[:300]
+    if not topic:
+        raise HTTPException(status_code=422, detail="Topic cannot be empty")
+
+    # Add trial constraint note to prompt to keep videos short
+    trial_prompt = f"{topic} [Keep this concise — target 3-4 minutes maximum]"
+
+    video_record = db.create_subscriber_video(trial_prompt, subscriber_user_id=user_id)
+    video_id = video_record["id"]
+
+    from workers.celery_worker import run_subscriber_video_pipeline
+    task = run_subscriber_video_pipeline.delay(video_id, user_id, topic, req.style)
+
+    return {
+        "ok": True,
+        "video_id": video_id,
+        "status": "queued",
+        "task_id": task.id,
+        "message": "Video queued — generation takes 5–20 minutes. You'll get an email when it's ready.",
+    }
+
+
+@app.get("/subscribe/my-videos")
+def subscriber_my_videos(user_id: str = Depends(verify_subscriber_token)):
+    """Subscriber — list videos they have created."""
+    videos = db.list_subscriber_videos(subscriber_user_id=user_id)
+    return {"videos": videos}
+
+
+@app.get("/subscribe/video/{video_id}/status")
+def subscriber_video_status(video_id: str, user_id: str = Depends(verify_subscriber_token)):
+    """Subscriber — poll status of a specific video."""
+    video = db.get_subscriber_video(video_id, subscriber_user_id=user_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return {
+        "id": video["id"],
+        "status": video["status"],
+        "title": video.get("title"),
+        "thumbnail_url": video.get("thumbnail_url"),
+        "duration_seconds": video.get("duration_seconds"),
+        "error_message": video.get("error_message"),
+        "created_at": video.get("created_at"),
+        "has_file": bool(video.get("file_path")),
+    }
+
+
+@app.get("/subscribe/video/{video_id}/stream")
+def subscriber_video_stream(video_id: str, user_id: str = Depends(verify_subscriber_token)):
+    """Subscriber — download/stream a completed video they own."""
+    from fastapi.responses import FileResponse
+    video = db.get_subscriber_video(video_id, subscriber_user_id=user_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    file_path = video.get("file_path")
+    import pathlib
+    if not file_path or not pathlib.Path(file_path).exists():
+        raise HTTPException(status_code=404, detail="Video file not available yet")
+    title_slug = (video.get("title") or "video").replace(" ", "_")[:60]
+    return FileResponse(
+        file_path,
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{title_slug}.mp4"'},
+    )
+
+
+@app.get("/subscribe/create-your-website")
+def create_your_website(_u: str = Depends(verify_subscriber_token)):
+    """Subscriber — guide to deploying your own AutoVid-powered website."""
+    return {
+        "product": "AutoVid Platform",
+        "tagline": "Run your own AI video automation website — exactly like async-mode.com",
+        "what_you_get": [
+            "Full AutoVid source code (backend + 4lifemystery-style frontend)",
+            "Docker Compose deployment stack (runs on any $6/mo VPS)",
+            "Admin dashboard for managing videos, blog posts, subscribers",
+            "Automated YouTube pipeline with scheduling",
+            "Custom domain + Cloudflare SSL setup guide",
+        ],
+        "requirements": [
+            "A VPS with 4GB+ RAM (e.g. Hetzner CX22, DigitalOcean Basic $12/mo)",
+            "A domain name (~$12/year)",
+            "Supabase account (free tier works)",
+            "ElevenLabs API key (for voice synthesis)",
+            "Groq API key (for script generation — free tier available)",
+        ],
+        "steps": [
+            {"step": 1, "title": "Get the code", "detail": "Email help@async-mode.com with subject 'Platform License Request' — include your email and use case"},
+            {"step": 2, "title": "Deploy to VPS", "detail": "Follow the included DEPLOY.md — takes about 30 minutes with the provided scripts"},
+            {"step": 3, "title": "Configure APIs", "detail": "Add your ElevenLabs, Groq, and Supabase keys to the .env file"},
+            {"step": 4, "title": "Point your domain", "detail": "Update Cloudflare DNS to point to your VPS IP and set SSL to Flexible"},
+            {"step": 5, "title": "You're live", "detail": "Start generating videos from your own admin dashboard at yourdomain.com/admin"},
+        ],
+        "contact": "help@async-mode.com",
+        "pricing": "Contact us for platform licensing — one-time fee + self-hosted forever",
+    }
+
+
 @app.get("/admin/subscription-requests")
 def list_subscription_requests(_u: str = Depends(verify_token)):
     """Admin — list all subscription requests."""
@@ -1959,8 +2120,10 @@ def list_subscription_requests(_u: str = Depends(verify_token)):
 
 @app.post("/admin/subscription-requests/{user_id}/approve")
 def approve_subscription(user_id: str, _u: str = Depends(verify_token)):
-    """Admin — approve a subscription request."""
-    user = db.update_subscription_user(user_id, status="approved")
+    """Admin — approve a subscription request and start the 24-hour trial clock."""
+    from datetime import datetime, timezone, timedelta
+    trial_expires_at = (datetime.now(timezone.utc) + timedelta(hours=TRIAL_HOURS)).isoformat()
+    user = db.update_subscription_user(user_id, status="approved", trial_expires_at=trial_expires_at, videos_created=0)
     if user.get("email"):
         email_svc.send_approval_notification(user["email"])
     return {"ok": True, "user": user}

@@ -36,7 +36,7 @@ _HEAVY = [
     "pipeline.tts", "pipeline.video_assembler", "pipeline.labeler",
     "pipeline.email",
     # license_guard is NOT stubbed here — test_license_guard.py imports and patches it directly
-    "workers", "workers.celery_app",
+    "workers", "workers.celery_app", "workers.celery_worker",
     "celery", "celery.app", "celery.result",
     "redis", "redis.exceptions", "redis.client",
     "faster_whisper", "moviepy", "moviepy.editor",
@@ -49,6 +49,9 @@ for mod in _HEAVY:
 sys.modules["pipeline.orchestrator"].run_pipeline = MagicMock(return_value=None)
 sys.modules["pipeline.orchestrator"].retry_failed = MagicMock(return_value=None)
 sys.modules["pipeline.youtube_uploader"].check_quota_status = MagicMock(return_value={"ok": True})
+_celery_task_stub = MagicMock()
+_celery_task_stub.delay = MagicMock(return_value=MagicMock(id="test-task-id"))
+sys.modules["workers.celery_worker"].run_subscriber_video_pipeline = _celery_task_stub
 
 # Replace the `database` module with a MagicMock BEFORE importing main.
 # `main.py` does `import database as db` at module scope; since we put a mock

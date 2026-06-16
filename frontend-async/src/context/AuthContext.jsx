@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem("async_token");
     if (token) {
       getMe()
-        .then(setUser)
+        .then((me) => setUser(me))
         .catch(() => {
           localStorage.removeItem("async_token");
           setUser(null);
@@ -24,8 +24,20 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const data = await apiLogin(email, password);
-    setUser({ email: data.email, role: data.role });
+    // Fetch full profile (includes trial info)
+    const me = await getMe();
+    setUser(me);
     return data;
+  };
+
+  const refreshUser = async () => {
+    try {
+      const me = await getMe();
+      setUser(me);
+      return me;
+    } catch {
+      return null;
+    }
   };
 
   const logout = () => {
@@ -34,7 +46,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
