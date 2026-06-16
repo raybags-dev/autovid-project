@@ -1951,25 +1951,87 @@ def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
 class SubscriberSettingsRequest(BaseModel):
     youtube_channel_url: Optional[str] = None
     tiktok_profile_url:  Optional[str] = None
+    tts_voice_id:        Optional[str] = None
 
 
 @app.patch("/subscribe/settings")
 def update_subscriber_settings(req: SubscriberSettingsRequest, user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — update their YouTube / TikTok channel URLs."""
+    """Subscriber — update their channel URLs and TTS voice preference."""
     fields = {}
     if req.youtube_channel_url is not None:
         fields["youtube_channel_url"] = req.youtube_channel_url.strip()[:500]
     if req.tiktok_profile_url is not None:
         fields["tiktok_profile_url"] = req.tiktok_profile_url.strip()[:500]
+    if req.tts_voice_id is not None:
+        fields["tts_voice_id"] = req.tts_voice_id.strip()[:100] or None
     if fields:
         try:
             db.update_subscription_user(user_id, **fields)
         except Exception as e:
-            if "column" in str(e).lower() or "youtube_channel_url" in str(e):
-                pass  # Migration not yet run — ignore
+            if "column" in str(e).lower():
+                pass  # Migration not yet run — ignore gracefully
             else:
                 raise HTTPException(status_code=500, detail="Failed to save settings")
     return {"ok": True}
+
+
+@app.delete("/subscribe/account")
+def subscriber_request_account_deletion(user_id: str = Depends(verify_subscriber_token)):
+    """Request account deletion — queued with 24-hour grace period to allow cancellation.
+
+    Required Supabase migration (run once in SQL Editor):
+      ALTER TABLE subscription_users
+        ADD COLUMN IF NOT EXISTS deletion_status TEXT DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS deletion_scheduled_at TIMESTAMPTZ;
+    """
+    import datetime
+    user = db.get_subscription_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    scheduled_at = now + datetime.timedelta(hours=24)
+    try:
+        db.update_subscription_user(
+            user_id,
+            deletion_status="pending_deletion",
+            deletion_requested_at=now.isoformat(),
+            deletion_scheduled_at=scheduled_at.isoformat(),
+        )
+    except Exception as e:
+        if "column" in str(e).lower():
+            raise HTTPException(
+                status_code=503,
+                detail="Account deletion requires a database migration. Contact help@async-mode.com."
+            )
+        raise HTTPException(status_code=500, detail="Failed to queue deletion.")
+    try:
+        import pipeline.email as email_svc
+        email_svc.send_account_deletion_requested(user["email"], scheduled_at.strftime("%Y-%m-%d %H:%M UTC"))
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "deletion_scheduled_at": scheduled_at.isoformat(),
+        "message": "Deletion queued. Your account and all data will be permanently deleted in 24 hours. You can cancel this before then.",
+    }
+
+
+@app.post("/subscribe/account/cancel-deletion")
+def subscriber_cancel_account_deletion(user_id: str = Depends(verify_subscriber_token)):
+    """Cancel a pending account deletion request."""
+    try:
+        db.update_subscription_user(
+            user_id,
+            deletion_status="active",
+            deletion_requested_at=None,
+            deletion_scheduled_at=None,
+        )
+    except Exception as e:
+        if "column" in str(e).lower():
+            raise HTTPException(status_code=503, detail="Feature requires database migration.")
+        raise HTTPException(status_code=500, detail="Failed to cancel deletion.")
+    return {"ok": True, "message": "Account deletion cancelled. Your account remains active."}
 
 
 @app.post("/subscribe/retry-video/{video_id}")
@@ -2201,6 +2263,52 @@ def delete_subscription_user(user_id: str, _u: str = Depends(verify_token)):
     client = db.get_client()
     client.table("subscription_users").delete().eq("id", user_id).execute()
     return {"ok": True}
+
+
+@app.get("/admin/queues")
+def admin_get_task_queues(_u: str = Depends(verify_token)):
+    """Admin — inspect Celery task queue (active, reserved, scheduled jobs)."""
+    from workers.celery_worker import celery_app
+
+    def _flatten(task_dict: dict, state: str) -> list:
+        out = []
+        for worker, tasks in (task_dict or {}).items():
+            for t in (tasks or []):
+                req = t.get("request") or t
+                out.append({
+                    "id":         req.get("id") or t.get("id", ""),
+                    "name":       req.get("name") or t.get("name", "unknown"),
+                    "worker":     worker,
+                    "state":      state,
+                    "args":       str(req.get("args", [])),
+                    "kwargs":     str(req.get("kwargs", {})),
+                    "time_start": t.get("time_start"),
+                    "eta":        t.get("eta"),
+                })
+        return out
+
+    try:
+        insp = celery_app.control.inspect(timeout=2.5)
+        active    = insp.active()    or {}
+        reserved  = insp.reserved()  or {}
+        scheduled = insp.scheduled() or {}
+        tasks = (
+            _flatten(active, "active") +
+            _flatten(reserved, "reserved") +
+            _flatten(scheduled, "scheduled")
+        )
+        workers = list(set(list(active.keys()) + list(reserved.keys())))
+        return {"tasks": tasks, "workers": workers, "ok": True}
+    except Exception as e:
+        return {"tasks": [], "workers": [], "ok": False, "error": str(e)}
+
+
+@app.delete("/admin/queues/{task_id}")
+def admin_revoke_task(task_id: str, _u: str = Depends(verify_token)):
+    """Admin — revoke (cancel) a Celery task by ID. If active, sends SIGTERM."""
+    from workers.celery_worker import celery_app
+    celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+    return {"ok": True, "revoked": task_id}
 
 
 class SetExclusiveRequest(BaseModel):

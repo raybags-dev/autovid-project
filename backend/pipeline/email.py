@@ -135,3 +135,26 @@ def send_video_ready_notification(email: str, title: str) -> bool:
         </a>
       </p>""")
     return _send(email, f"{_BRAND} — your video is ready", html)
+
+
+def send_account_deletion_requested(email: str, deletion_time: str) -> bool:
+    html = _base(f"""
+      <h2 style="margin:0 0 12px;font-size:22px;color:#111">Account deletion requested</h2>
+      <p style="color:#444;line-height:1.7;margin:0 0 16px">
+        We received a request to permanently delete your account and all associated data.
+      </p>
+      <p style="color:#444;line-height:1.7;margin:0 0 24px">
+        Your account is scheduled for deletion on <strong>{deletion_time}</strong>.
+        If you change your mind, log in before that time and cancel the deletion from your Account settings.
+      </p>
+      <p style="margin:0 0 24px">
+        <a href="{_SITE}/dashboard"
+           style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 28px;
+                  border-radius:7px;text-decoration:none;font-weight:600;font-size:14px">
+          Cancel deletion →
+        </a>
+      </p>
+      <p style="color:#999;font-size:12px;margin:0">
+        If you did not request this, contact us immediately at help@async-mode.com.
+      </p>""")
+    return _send(email, f"{_BRAND} — account deletion scheduled", html)

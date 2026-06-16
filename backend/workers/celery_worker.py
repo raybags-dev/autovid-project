@@ -61,6 +61,10 @@ celery_app.conf.beat_schedule = {
         "task": "workers.celery_worker.send_trial_expiry_warnings",
         "schedule": crontab(hour="*/6"),
     },
+    "process-account-deletions": {
+        "task": "workers.celery_worker.process_account_deletions",
+        "schedule": crontab(minute="0"),  # hourly
+    },
 }
 
 
@@ -334,3 +338,41 @@ def send_trial_expiry_warnings():
         except Exception as e:
             print(f"[trial-warn] Failed to email {user['email']}: {e}")
     return {"warned": sent}
+
+
+@celery_app.task(name="workers.celery_worker.process_account_deletions")
+def process_account_deletions():
+    """
+    Scheduled: permanently delete accounts that have passed their 24-hour deletion window.
+    Runs every hour. Requires Supabase migration to add deletion_status/deletion_scheduled_at columns.
+    """
+    import datetime
+    import database as db
+
+    try:
+        client = db.get_client()
+        result = client.table("subscription_users").select("*").eq("deletion_status", "pending_deletion").execute()
+        users = result.data or []
+        deleted = 0
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for user in users:
+            scheduled = user.get("deletion_scheduled_at")
+            if not scheduled:
+                continue
+            try:
+                deletion_time = datetime.datetime.fromisoformat(scheduled.replace("Z", "+00:00"))
+                if now >= deletion_time:
+                    uid = user["id"]
+                    # Delete all subscriber videos
+                    client.table("subscriber_videos").delete().eq("subscriber_user_id", uid).execute()
+                    # Delete the account
+                    client.table("subscription_users").delete().eq("id", uid).execute()
+                    deleted += 1
+                    print(f"[deletion] Deleted account {uid} ({user.get('email', '?')})")
+            except Exception as e:
+                print(f"[deletion] Failed to process user {user.get('id')}: {e}")
+        return {"deleted": deleted}
+    except Exception as e:
+        # Likely means migration hasn't been run yet — not an error
+        print(f"[deletion] Task skipped (migration may not be run): {e}")
+        return {"deleted": 0, "note": str(e)}
