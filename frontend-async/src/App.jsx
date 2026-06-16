@@ -5,6 +5,11 @@ import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Setup from "./pages/Setup";
+import Docs from "./pages/Docs";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import RefundPolicy from "./pages/RefundPolicy";
+import CookiePolicy from "./pages/CookiePolicy";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -24,21 +29,17 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/"          element={<Landing />} />
-          <Route path="/register"  element={<Register />} />
-          <Route path="/login"     element={<Login />} />
-          <Route
-            path="/setup"
-            element={<PrivateRoute><Setup /></PrivateRoute>}
-          />
-          <Route
-            path="/dashboard"
-            element={<PrivateRoute><Dashboard /></PrivateRoute>}
-          />
-          <Route
-            path="/dashboard/*"
-            element={<PrivateRoute><Dashboard /></PrivateRoute>}
-          />
+          <Route path="/"         element={<Landing />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login"    element={<Login />} />
+          <Route path="/privacy"  element={<PrivacyPolicy />} />
+          <Route path="/terms"    element={<TermsOfService />} />
+          <Route path="/refund"   element={<RefundPolicy />} />
+          <Route path="/cookies"  element={<CookiePolicy />} />
+          <Route path="/docs"     element={<Docs />} />
+          <Route path="/setup"    element={<PrivateRoute><Setup /></PrivateRoute>} />
+          <Route path="/dashboard"   element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/dashboard/*" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
