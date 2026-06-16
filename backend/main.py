@@ -2123,7 +2123,11 @@ def approve_subscription(user_id: str, _u: str = Depends(verify_token)):
     """Admin — approve a subscription request and start the 24-hour trial clock."""
     from datetime import datetime, timezone, timedelta
     trial_expires_at = (datetime.now(timezone.utc) + timedelta(hours=TRIAL_HOURS)).isoformat()
-    user = db.update_subscription_user(user_id, status="approved", trial_expires_at=trial_expires_at, videos_created=0)
+    try:
+        user = db.update_subscription_user(user_id, status="approved", trial_expires_at=trial_expires_at, videos_created=0)
+    except Exception:
+        # Migration not yet run — update without new columns
+        user = db.update_subscription_user(user_id, status="approved")
     if user.get("email"):
         email_svc.send_approval_notification(user["email"])
     return {"ok": True, "user": user}

@@ -284,7 +284,16 @@ def create_subscriber_video(prompt: str, subscriber_user_id: str) -> dict:
         "likes_count": 0,
         "subscriber_user_id": subscriber_user_id,
     }
-    result = db.table("videos").insert(data).execute()
+    try:
+        result = db.table("videos").insert(data).execute()
+    except Exception as e:
+        if "subscriber_user_id" in str(e) or "column" in str(e).lower():
+            # Migration not yet run — insert without subscriber_user_id, add label to track
+            data.pop("subscriber_user_id", None)
+            data["labels"] = ["subscriber_video", f"owner:{subscriber_user_id}"]
+            result = db.table("videos").insert(data).execute()
+        else:
+            raise
     row = result.data[0]
     print(f"📼 Created subscriber video record: {row['id']}")
     return row
@@ -611,9 +620,17 @@ def danger_clear_storage() -> dict:
 
 def create_subscription_user(email: str, password_hash: str) -> dict:
     db = get_client()
-    row = {"email": email, "password_hash": password_hash, "status": "pending", "plan": "trial", "videos_created": 0}
-    result = db.table("subscription_users").insert(row).execute()
-    return result.data[0]
+    try:
+        row = {"email": email, "password_hash": password_hash, "status": "pending", "plan": "trial", "videos_created": 0}
+        result = db.table("subscription_users").insert(row).execute()
+        return result.data[0]
+    except Exception as e:
+        if "plan" in str(e) or "videos_created" in str(e) or "column" in str(e).lower():
+            # Migration hasn't run yet — insert without new columns
+            row = {"email": email, "password_hash": password_hash, "status": "pending"}
+            result = db.table("subscription_users").insert(row).execute()
+            return result.data[0]
+        raise
 
 
 def expire_old_trials() -> int:
