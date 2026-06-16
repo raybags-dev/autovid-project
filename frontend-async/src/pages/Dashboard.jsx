@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   createVideo,
@@ -10,6 +10,158 @@ import {
   retryVideo,
   updateSubscriberSettings,
 } from "../config/api";
+
+/* ─── Toast / Notification system ───────────────────────────────────────────── */
+
+function useNotifications() {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, msg, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 5000);
+  }, []);
+  const dismiss = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+  return { toasts, addToast: add, dismiss };
+}
+
+function ToastContainer({ toasts, dismiss }) {
+  if (!toasts.length) return null;
+  const colors = { info: "#4f46e5", success: "#22c55e", error: "#f87171", warning: "#f59e0b" };
+  return (
+    <div style={{ position: "fixed", top: 68, right: 20, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8, maxWidth: 340 }}>
+      {toasts.map((t) => (
+        <div key={t.id} style={{
+          background: "#0d1b2a", border: `1px solid ${colors[t.type] || colors.info}33`,
+          borderLeft: `3px solid ${colors[t.type] || colors.info}`,
+          borderRadius: 8, padding: "12px 14px",
+          display: "flex", gap: 12, alignItems: "flex-start",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+          animation: "slideIn 0.2s ease",
+        }}>
+          <span style={{ fontSize: 12, color: "#c8d8e8", flex: 1, lineHeight: 1.5 }}>{t.msg}</span>
+          <button onClick={() => dismiss(t.id)} style={{ background: "none", border: "none", color: "#4a6a8a", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+      ))}
+      <style>{`@keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:none; } }`}</style>
+    </div>
+  );
+}
+
+/* ─── Capabilities panel ─────────────────────────────────────────────────────── */
+
+function CapabilitiesPanel({ user }) {
+  const isTrialActive = user.plan === "trial" && (user.trial_remaining_seconds ?? 0) > 0 && user.status !== "expired";
+  const isExpired = user.status === "expired" || (user.plan === "trial" && (user.trial_remaining_seconds ?? 0) <= 0);
+  const isFull = user.plan === "subscriber" || user.plan === "full";
+  const videosLeft = Math.max(0, (user.video_limit ?? 2) - (user.videos_created ?? 0));
+
+  const caps = [
+    { label: "Create videos", ok: !isExpired, note: isExpired ? "Upgrade required" : isFull ? "Unlimited" : `${videosLeft} credit${videosLeft !== 1 ? "s" : ""} left` },
+    { label: "Download videos", ok: true, note: "Always available" },
+    { label: "YouTube (private draft)", ok: !isExpired, note: isExpired ? "Upgrade required" : "Auto-uploaded as private" },
+    { label: "Retry failed videos", ok: true, note: "No credits deducted" },
+    { label: "All voice profiles", ok: isFull, note: isFull ? "15+ profiles" : "5 profiles on trial" },
+    { label: "Priority queue", ok: isFull, note: isFull ? "Enabled" : "Standard queue" },
+    { label: "Shorts automation", ok: isFull, note: isFull ? "Enabled" : "Creator plan" },
+    { label: "Podcast pipeline", ok: isFull, note: isFull ? "Enabled" : "Creator plan" },
+  ];
+
+  return (
+    <div style={{ background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 10, padding: "20px 24px", marginBottom: 20 }}>
+      <div style={{ fontSize: 12, color: "#4a6a8a", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 14 }}>
+        What you can do
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+        {caps.map((c) => (
+          <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+            <span style={{ fontSize: 12, flexShrink: 0, color: c.ok ? "#22c55e" : "#4a6a8a" }}>{c.ok ? "✓" : "○"}</span>
+            <div>
+              <div style={{ fontSize: 12, color: c.ok ? "#c8d8e8" : "#4a6a8a", fontWeight: c.ok ? 600 : 400 }}>{c.label}</div>
+              <div style={{ fontSize: 10, color: "#4a6a8a" }}>{c.note}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Upgrade modal ──────────────────────────────────────────────────────────── */
+
+function UpgradeModal({ onClose }) {
+  const plans = [
+    { name: "Starter", price: "$29/mo", features: ["10 videos/month", "YouTube (private upload)", "5 voice profiles", "Auto-captions", "Email support"] },
+    { name: "Creator", price: "$79/mo", features: ["Unlimited videos", "Shorts automation", "Podcast pipeline", "All 15+ voices", "Priority queue"], highlight: true },
+    { name: "Studio", price: "Custom", features: ["Everything in Creator", "Dedicated worker", "White-label output", "API access", "SLA support"] },
+  ];
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9998,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: "20px",
+    }} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: "#080e1a", border: "1px solid #1a2a4a", borderRadius: 16,
+        padding: "32px 28px", maxWidth: 720, width: "100%", maxHeight: "90vh", overflowY: "auto",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "#e0eaf5", margin: "0 0 6px" }}>Upgrade your plan</h2>
+            <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0 }}>Choose the plan that fits your content goals.</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#4a6a8a", cursor: "pointer", fontSize: 22, lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 28 }}>
+          {plans.map((plan) => (
+            <div key={plan.name} style={{
+              background: plan.highlight ? "#090c1e" : "#050a14",
+              border: `1px solid ${plan.highlight ? "#4f46e5" : "#0d1b2a"}`,
+              borderRadius: 12, padding: "20px",
+              position: "relative",
+            }}>
+              {plan.highlight && (
+                <div style={{ position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)", background: "#4f46e5", color: "#fff", fontSize: 9, fontWeight: 800, padding: "2px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>
+                  MOST POPULAR
+                </div>
+              )}
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#4a6a8a", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>{plan.name}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "#e0eaf5", marginBottom: 16 }}>{plan.price}</div>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {plan.features.map((f) => (
+                  <li key={f} style={{ fontSize: 12, color: "#8a9ab8", padding: "4px 0", display: "flex", gap: 6, alignItems: "flex-start" }}>
+                    <span style={{ color: "#4f46e5", fontWeight: 800 }}>✓</span>{f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: "#050a14", border: "1px solid #1a2a4a", borderRadius: 10, padding: "20px 24px", marginBottom: 20 }}>
+          <p style={{ fontSize: 13, color: "#6a8ab0", margin: "0 0 12px", lineHeight: 1.7 }}>
+            To upgrade, email us with your preferred plan. We'll confirm payment details and activate your account — usually within 24 hours.
+          </p>
+          <a
+            href="mailto:help@async-mode.com?subject=Upgrade%20Request&body=Hi%2C%20I'd%20like%20to%20upgrade%20my%20async-mode.com%20account.%20My%20preferred%20plan%20is%3A%20"
+            style={{
+              display: "inline-block", background: "#4f46e5", color: "#fff",
+              padding: "10px 28px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none",
+            }}
+          >
+            Email to upgrade →
+          </a>
+          <span style={{ fontSize: 12, color: "#4a6a8a", marginLeft: 12 }}>help@async-mode.com</span>
+        </div>
+
+        <p style={{ fontSize: 12, color: "#4a6a8a", margin: 0, textAlign: "center" }}>
+          All plans include a 7-day money-back guarantee. Cancel anytime. See our{" "}
+          <Link to="/refund" onClick={onClose} style={{ color: "#818cf8" }}>Refund Policy</Link>.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -125,16 +277,16 @@ function TrialBanner({ user, onExpired }) {
               }} />
             </div>
           )}
-          <a
-            href="mailto:help@async-mode.com?subject=Upgrade%20Request"
+          <button
+            onClick={() => setShowUpgrade(true)}
             style={{
               background: "transparent", border: "1px solid #4f46e5",
               color: "#818cf8", padding: "5px 14px", borderRadius: 6,
-              fontSize: 12, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
             }}
           >
             Upgrade →
-          </a>
+          </button>
         </div>
       </div>
     </div>
@@ -246,7 +398,7 @@ function VideoCard({ video, isOwned, onRetry }) {
   );
 }
 
-function CreateVideoPanel({ user, onCreated }) {
+function CreateVideoPanel({ user, onCreated, onUpgrade }) {
   const [topic, setTopic]   = useState("");
   const [style, setStyle]   = useState("educational");
   const [loading, setLoading] = useState(false);
@@ -287,15 +439,16 @@ function CreateVideoPanel({ user, onCreated }) {
             : "Your 24-hour trial has ended."}
           {" "}Upgrade to full access to create unlimited videos.
         </div>
-        <a
-          href="mailto:help@async-mode.com?subject=Upgrade%20Request"
+        <button
+          onClick={() => onUpgrade?.()}
           style={{
             display: "inline-block", background: "#4f46e5", color: "#fff",
-            padding: "10px 24px", borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
+            padding: "10px 24px", borderRadius: 7, fontSize: 13, fontWeight: 700,
+            border: "none", cursor: "pointer",
           }}
         >
-          Request full access →
-        </a>
+          Upgrade to full access →
+        </button>
       </div>
     );
   }
@@ -483,7 +636,7 @@ function CreateYourWebsitePanel() {
 
 // ── Account Tab ───────────────────────────────────────────────────────────────
 
-function AccountTab({ user, onSaved, navigate }) {
+function AccountTab({ user, onSaved, navigate, onUpgrade }) {
   const [youtube, setYoutube]   = useState(user?.youtube_channel_url || "");
   const [tiktok,  setTiktok]    = useState(user?.tiktok_profile_url  || "");
   const [saving,  setSaving]    = useState(false);
@@ -530,10 +683,11 @@ function AccountTab({ user, onSaved, navigate }) {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #0d1b2a" }}>
-          <a href="mailto:help@async-mode.com?subject=Upgrade%20Request" style={{ color: "#818cf8", fontSize: 13, fontWeight: 600 }}>
-            Upgrade or extend access →
-          </a>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #0d1b2a", display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={() => onUpgrade?.()} style={{ background: "#4f46e5", color: "#fff", border: "none", padding: "8px 20px", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            Upgrade plan →
+          </button>
+          <Link to="/docs" style={{ color: "#6a8ab0", fontSize: 13 }}>View documentation</Link>
         </div>
       </div>
 
@@ -625,6 +779,9 @@ export default function Dashboard() {
   const [sampleVideos, setSampleVideos] = useState(null);
   const [activeTab,    setActiveTab]    = useState("create");
   const [trialExpired, setTrialExpired] = useState(false);
+  const [showUpgrade,  setShowUpgrade]  = useState(false);
+
+  const { toasts, addToast, dismiss } = useNotifications();
 
   const pollRef = useRef(null);
 
@@ -676,11 +833,13 @@ export default function Dashboard() {
     setActiveTab("my-videos");
     loadMyVideos();
     refreshUser?.();
+    addToast("🎬 Video queued! It'll be ready in 8–15 minutes.", "success");
   };
 
   const handleTrialExpired = () => {
     setTrialExpired(true);
     refreshUser?.();
+    addToast("Your trial has expired. Upgrade to continue creating videos.", "warning");
   };
 
   const pendingCount = (myVideos || []).filter(
@@ -692,6 +851,8 @@ export default function Dashboard() {
       minHeight: "100vh", background: "#08080f", color: "#e0eaf5",
       fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
     }}>
+      <ToastContainer toasts={toasts} dismiss={dismiss} />
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
       {/* Nav */}
       <nav style={{
         borderBottom: "1px solid #0d1b2a", padding: "0 28px",
@@ -705,8 +866,19 @@ export default function Dashboard() {
           async<span style={{ color: "#4f46e5" }}>-mode</span>
           <span style={{ color: "#4a6a8a", fontSize: 11, fontWeight: 400, marginLeft: 10 }}>workspace</span>
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link to="/docs" style={{ fontSize: 12, color: "#4a6a8a", padding: "5px 10px" }}>Docs</Link>
           <span style={{ fontSize: 12, color: "#4a6a8a" }}>{user?.email}</span>
+          <button
+            onClick={() => setShowUpgrade(true)}
+            style={{
+              background: "#4f46e5", border: "none",
+              color: "#fff", padding: "5px 14px", borderRadius: 6,
+              cursor: "pointer", fontSize: 12, fontWeight: 700,
+            }}
+          >
+            Upgrade
+          </button>
           <button
             onClick={handleLogout}
             style={{
@@ -763,12 +935,15 @@ export default function Dashboard() {
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>
                 Generate a video
               </h2>
-              <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0 }}>
+              <p style={{ fontSize: 13, color: "#4a6a8a", margin: "0 0 12px" }}>
                 Give a topic and style — AutoVid writes the script, records the voice, and assembles the full video.
-                Trial videos are up to 5 minutes long.
               </p>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#0d1a2a", border: "1px solid #1a3a5a", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "#6a8ab0" }}>
+                🔒 Videos are uploaded to YouTube as <strong style={{ color: "#818cf8" }}>private drafts</strong> — only you can see them until you publish
+              </div>
             </div>
-            <CreateVideoPanel user={user || {}} onCreated={handleVideoCreated} />
+            <CapabilitiesPanel user={user || {}} />
+            <CreateVideoPanel user={user || {}} onCreated={handleVideoCreated} onUpgrade={() => setShowUpgrade(true)} />
           </div>
         )}
 
@@ -852,7 +1027,7 @@ export default function Dashboard() {
 
         {/* Account tab */}
         {activeTab === "account" && (
-          <AccountTab user={user} onSaved={refreshUser} navigate={navigate} />
+          <AccountTab user={user} onSaved={refreshUser} navigate={navigate} onUpgrade={() => setShowUpgrade(true)} />
         )}
       </div>
     </div>

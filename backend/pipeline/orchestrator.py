@@ -197,7 +197,7 @@ def step_upload_youtube(
         labels=label_data.get("labels", []) + label_data.get("youtube_tags", []),
         category=label_data.get("category", "Entertainment"),
         thumbnail_path=thumb_path,
-        privacy="public",
+        privacy="private",
     )
     youtube_uploader.record_upload()
     db.set_posted(video_id, result["youtube_id"], result["youtube_url"])

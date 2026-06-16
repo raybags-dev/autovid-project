@@ -206,6 +206,7 @@ def auto_upload_ready_videos():
                 labels=video.get("labels") or [],
                 category=video.get("category") or "Entertainment",
                 thumbnail_path=video.get("thumbnail_url"),
+                privacy="private",
             )
             db.set_posted(video["id"], result["youtube_id"], result["youtube_url"])
             record_upload()
