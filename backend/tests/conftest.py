@@ -34,6 +34,7 @@ _HEAVY = [
     "pipeline.caption", "pipeline.captioner", "pipeline.storage",
     "pipeline.shorts_generator", "pipeline.script_writer",
     "pipeline.tts", "pipeline.video_assembler", "pipeline.labeler",
+    "pipeline.email",
     # license_guard is NOT stubbed here — test_license_guard.py imports and patches it directly
     "workers", "workers.celery_app",
     "celery", "celery.app", "celery.result",

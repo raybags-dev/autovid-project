@@ -71,6 +71,9 @@ YOUTUBE_CLIENT_SECRETS_PATH = os.getenv("YOUTUBE_CLIENT_SECRETS_PATH", "./client
 YOUTUBE_TOKEN_PATH          = os.getenv("YOUTUBE_TOKEN_PATH", "./youtube_token.json")
 YOUTUBE_CHANNEL_ID          = os.getenv("YOUTUBE_CHANNEL_ID", "")
 
+# ── Email ────────────────────────────────────────────────────────────────────
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+
 # ── Auth ─────────────────────────────────────────────────────────────────────
 SECRET_KEY         = os.getenv("SECRET_KEY", "change-me")
 SUPERUSER_EMAIL    = os.getenv("SUPERUSER_EMAIL", "admin@autovid.ai")
