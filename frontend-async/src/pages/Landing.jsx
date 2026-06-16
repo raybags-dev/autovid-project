@@ -595,7 +595,7 @@ export default function Landing() {
           <p style={{ textAlign: "center", color: "#8a9ab8", fontSize: 15, marginBottom: 52 }}>
             Videos are uploaded privately so you can review before going public.
           </p>
-          <div className="am-steps-grid">
+          <div className="am-steps-grid" style={{ padding: "0.3rem" }}>
             {STEPS.map((step, i) => <StepCard key={step.n} step={step} i={i} />)}
           </div>
         </div>
