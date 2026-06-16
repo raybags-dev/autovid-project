@@ -10,6 +10,7 @@ ignore = [
     "E722",   # bare except
     "E741",   # ambiguous variable name
     "F841",   # local variable assigned but never used
+    "I001",   # import sorting — local config imports mixed with third-party throughout codebase
 ]
 exclude = ["venv", "__pycache__", "output"]
 

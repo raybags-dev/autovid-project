@@ -37,6 +37,10 @@ frontend/node_modules/
 frontend/dist/
 frontend/.env.local
 frontend/.env.production
+frontend-async/node_modules/
+frontend-async/dist/
+frontend-async/.env.local
+frontend-async/.env.production
 
 # ── Media assets (large, not source-controlled) ───────────────────────────────
 *.jpg

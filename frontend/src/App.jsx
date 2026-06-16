@@ -10,6 +10,7 @@ import TermsOfService from "./pages/TermsOfService";
 import Docs from "./pages/Docs";
 import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
+import SubscriptionRequests from "./pages/SubscriptionRequests";
 
 export default function App() {
   return (
@@ -36,6 +37,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Docs />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/requests"
+            element={
+              <ProtectedRoute>
+                <SubscriptionRequests />
               </ProtectedRoute>
             }
           />

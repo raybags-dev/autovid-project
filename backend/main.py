@@ -44,6 +44,7 @@ def _invalidate_cache(key: str):
 # ──────────────────────────────────────────────────────────────────────────────
 import config
 import database as db
+import pipeline.email as email_svc
 from pipeline.orchestrator import retry_failed, run_pipeline
 from pipeline.youtube_uploader import check_quota_status
 
@@ -1870,6 +1871,7 @@ def subscribe_signup(req: SubSignupRequest):
         if "does not exist" in err or "relation" in err:
             raise HTTPException(status_code=503, detail="Subscription system not yet configured — run the DB migration")
         raise HTTPException(status_code=500, detail="Database error")
+    email_svc.send_registration_confirmation(em)
     return {"ok": True, "status": "pending", "message": "Account created — awaiting admin approval"}
 
 
@@ -1959,6 +1961,8 @@ def list_subscription_requests(_u: str = Depends(verify_token)):
 def approve_subscription(user_id: str, _u: str = Depends(verify_token)):
     """Admin — approve a subscription request."""
     user = db.update_subscription_user(user_id, status="approved")
+    if user.get("email"):
+        email_svc.send_approval_notification(user["email"])
     return {"ok": True, "user": user}
 
 
@@ -1966,6 +1970,8 @@ def approve_subscription(user_id: str, _u: str = Depends(verify_token)):
 def reject_subscription(user_id: str, _u: str = Depends(verify_token)):
     """Admin — reject a subscription request."""
     user = db.update_subscription_user(user_id, status="rejected")
+    if user.get("email"):
+        email_svc.send_rejection_notification(user["email"])
     return {"ok": True, "user": user}
 
 
