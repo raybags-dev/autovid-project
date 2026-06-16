@@ -319,7 +319,7 @@ export default function Landing() {
         .am-steps-grid {
           display: grid;
           grid-template-columns: repeat(6, 1fr);
-          gap: 2px;
+          gap: 20px;
         }
         .am-step-arrow { display: block; }
 

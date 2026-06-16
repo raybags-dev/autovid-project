@@ -67,9 +67,13 @@ SUPABASE_ANON_KEY    = os.getenv("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 
 # ── YouTube ──────────────────────────────────────────────────────────────────
-YOUTUBE_CLIENT_SECRETS_PATH = os.getenv("YOUTUBE_CLIENT_SECRETS_PATH", "./client_secrets.json")
-YOUTUBE_TOKEN_PATH          = os.getenv("YOUTUBE_TOKEN_PATH", "./youtube_token.json")
-YOUTUBE_CHANNEL_ID          = os.getenv("YOUTUBE_CHANNEL_ID", "")
+YOUTUBE_CLIENT_SECRETS_PATH   = os.getenv("YOUTUBE_CLIENT_SECRETS_PATH", "./client_secrets.json")
+YOUTUBE_TOKEN_PATH             = os.getenv("YOUTUBE_TOKEN_PATH", "./youtube_token.json")
+YOUTUBE_CHANNEL_ID             = os.getenv("YOUTUBE_CHANNEL_ID", "")
+# Subscriber YouTube OAuth — redirect URI must be whitelisted in Google Cloud Console
+YOUTUBE_SUBSCRIBER_SECRETS_PATH = os.getenv("YOUTUBE_SUBSCRIBER_SECRETS_PATH", "./client_secrets_subscriber.json")
+YOUTUBE_OAUTH_REDIRECT_URI      = os.getenv("YOUTUBE_OAUTH_REDIRECT_URI", "https://async-mode.com/api/subscribe/youtube/callback")
+FRONTEND_ASYNC_URL              = os.getenv("FRONTEND_ASYNC_URL", "https://async-mode.com")
 
 # ── Email ────────────────────────────────────────────────────────────────────
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")

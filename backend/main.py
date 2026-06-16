@@ -1932,6 +1932,7 @@ def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
             pass
     youtube_channel_url = user.get("youtube_channel_url") or ""
     tiktok_profile_url  = user.get("tiktok_profile_url")  or ""
+    youtube_connected   = bool(user.get("youtube_oauth_token"))
     return {
         "email": user["email"],
         "status": user["status"],
@@ -1944,6 +1945,7 @@ def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
         "video_limit": TRIAL_VIDEO_LIMIT,
         "youtube_channel_url": youtube_channel_url,
         "tiktok_profile_url":  tiktok_profile_url,
+        "youtube_connected":   youtube_connected,
         "setup_complete": bool(youtube_channel_url or tiktok_profile_url),
     }
 
@@ -2175,14 +2177,18 @@ def subscriber_video_status(video_id: str, user_id: str = Depends(verify_subscri
 
 @app.get("/subscribe/video/{video_id}/stream")
 def subscriber_video_stream(video_id: str, user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — download/stream a completed video they own."""
-    from fastapi.responses import FileResponse
+    """Subscriber — stream a completed video they own. Redirects to Supabase URL if stored remotely."""
+    from fastapi.responses import FileResponse, RedirectResponse
     video = db.get_subscriber_video(video_id, subscriber_user_id=user_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     file_path = video.get("file_path")
+    if not file_path:
+        raise HTTPException(status_code=404, detail="Video file not available yet")
+    if file_path.startswith("http"):
+        return RedirectResponse(url=file_path)
     import pathlib
-    if not file_path or not pathlib.Path(file_path).exists():
+    if not pathlib.Path(file_path).exists():
         raise HTTPException(status_code=404, detail="Video file not available yet")
     title_slug = (video.get("title") or "video").replace(" ", "_")[:60]
     return FileResponse(
@@ -2222,6 +2228,100 @@ def create_your_website(_u: str = Depends(verify_subscriber_token)):
         "contact": "help@async-mode.com",
         "pricing": "Contact us for platform licensing — one-time fee + self-hosted forever",
     }
+
+
+@app.get("/subscribe/youtube/auth-url")
+def subscriber_youtube_auth_url(user_id: str = Depends(verify_subscriber_token)):
+    """Return the Google OAuth URL so the subscriber can connect their YouTube channel."""
+    import json, urllib.parse
+    try:
+        with open(config.YOUTUBE_SUBSCRIBER_SECRETS_PATH) as f:
+            secrets = json.load(f)
+        client_data = secrets.get("web") or secrets.get("installed") or {}
+        client_id = client_data.get("client_id", "")
+    except Exception:
+        raise HTTPException(status_code=500, detail="YouTube credentials not configured on server")
+    params = {
+        "client_id":     client_id,
+        "redirect_uri":  config.YOUTUBE_OAUTH_REDIRECT_URI,
+        "response_type": "code",
+        "scope":         "https://www.googleapis.com/auth/youtube.upload",
+        "access_type":   "offline",
+        "prompt":        "consent",
+        "state":         user_id,
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    return {"auth_url": auth_url}
+
+
+@app.get("/subscribe/youtube/callback")
+def subscriber_youtube_callback(code: str = None, state: str = None, error: str = None):
+    """Google redirects here after the subscriber grants YouTube access."""
+    from fastapi.responses import HTMLResponse
+    import json, urllib.request, urllib.parse
+
+    frontend = config.FRONTEND_ASYNC_URL
+
+    if error:
+        return HTMLResponse(f"""
+        <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>YouTube Auth Failed</h2><p>{error}</p>
+        <a href="{frontend}/dashboard?tab=account" style="color:#818cf8">← Back to dashboard</a></div></body></html>
+        """)
+
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="Missing code or state")
+
+    user_id = state
+    user = db.get_subscription_user_by_id(user_id)
+    if not user:
+        return HTMLResponse(f"""
+        <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>Session expired</h2><p>Please log in again and reconnect.</p>
+        <a href="{frontend}/login" style="color:#818cf8">Log in</a></div></body></html>
+        """)
+
+    try:
+        with open(config.YOUTUBE_SUBSCRIBER_SECRETS_PATH) as f:
+            secrets = json.load(f)
+        client_data = secrets.get("web") or secrets.get("installed") or {}
+
+        post_data = urllib.parse.urlencode({
+            "code":          code,
+            "client_id":     client_data["client_id"],
+            "client_secret": client_data["client_secret"],
+            "redirect_uri":  config.YOUTUBE_OAUTH_REDIRECT_URI,
+            "grant_type":    "authorization_code",
+        }).encode()
+        req = urllib.request.Request(
+            "https://oauth2.googleapis.com/token",
+            data=post_data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with urllib.request.urlopen(req) as resp:
+            tokens = json.loads(resp.read())
+
+        db.update_subscription_user(user_id, youtube_oauth_token=json.dumps(tokens))
+
+        return HTMLResponse(f"""
+        <html><head><meta http-equiv="refresh" content="2;url={frontend}/dashboard?tab=account&youtube_connected=1"></head>
+        <body style="background:#08080f;color:#4ade80;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>✅ YouTube Connected!</h2><p>Redirecting to your dashboard…</p></div></body></html>
+        """)
+    except Exception as e:
+        print(f"[youtube-oauth] callback error: {e}")
+        return HTMLResponse(f"""
+        <html><body style="background:#08080f;color:#f87171;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center"><h2>Connection failed</h2><p>Could not exchange token. Please try again.</p>
+        <a href="{frontend}/dashboard?tab=account" style="color:#818cf8">← Back to dashboard</a></div></body></html>
+        """)
+
+
+@app.post("/subscribe/youtube/disconnect")
+def subscriber_youtube_disconnect(user_id: str = Depends(verify_subscriber_token)):
+    """Remove stored YouTube OAuth token so the subscriber can reconnect."""
+    db.update_subscription_user(user_id, youtube_oauth_token=None)
+    return {"disconnected": True}
 
 
 @app.get("/admin/subscription-requests")
