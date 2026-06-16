@@ -7,6 +7,8 @@ import {
   getMyVideos,
   getSampleVideos,
   getVideoStreamUrl,
+  retryVideo,
+  updateSubscriberSettings,
 } from "../config/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -139,22 +141,36 @@ function TrialBanner({ user, onExpired }) {
   );
 }
 
-function VideoCard({ video, isOwned }) {
+function VideoCard({ video, isOwned, onRetry }) {
   const thumb = video.thumbnail_url;
   const dur   = fmtDuration(video.duration_seconds);
   const status = video.status;
   const isPending = status && !["ready", "posted", "failed"].includes(status);
   const isDone    = ["ready", "posted"].includes(status);
   const isFailed  = status === "failed";
+  const [retrying, setRetrying] = useState(false);
+
+  const handleRetry = async (e) => {
+    e.stopPropagation();
+    setRetrying(true);
+    try {
+      await retryVideo(video.id);
+      onRetry?.();
+    } catch {
+      // silent — status will update on next poll
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   return (
     <div style={{
-      background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 10,
+      background: "#080e1a", border: `1px solid ${isFailed ? "#2a1010" : "#0d1b2a"}`, borderRadius: 10,
       overflow: "hidden", transition: "border-color 0.2s, transform 0.15s",
       cursor: isDone ? "pointer" : "default",
     }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#1a2a4a"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#0d1b2a"; e.currentTarget.style.transform = "none"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = isFailed ? "#3a1515" : "#1a2a4a"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isFailed ? "#2a1010" : "#0d1b2a"; e.currentTarget.style.transform = "none"; }}
     >
       <div style={{ position: "relative", paddingBottom: "56.25%", background: "#050a14" }}>
         {thumb ? (
@@ -166,6 +182,8 @@ function VideoCard({ video, isOwned }) {
                 <div style={{ fontSize: 22, marginBottom: 6 }}>⚙️</div>
                 <div style={{ fontSize: 11, color: "#4a6a8a" }}>Processing…</div>
               </div>
+            ) : isFailed ? (
+              <div style={{ fontSize: 28, color: "#3a1515" }}>✕</div>
             ) : (
               <div style={{ fontSize: 28, color: "#1a2a3a" }}>🎬</div>
             )}
@@ -187,6 +205,11 @@ function VideoCard({ video, isOwned }) {
         <div style={{ fontSize: 13, fontWeight: 600, color: "#e0eaf5", marginBottom: 6, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
           {video.title || video.prompt?.replace(" [Keep this concise", "") || "Untitled"}
         </div>
+        {isFailed && video.error_message && (
+          <div style={{ fontSize: 10, color: "#6a3a3a", marginBottom: 6, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            {video.error_message}
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           {video.created_at && <div style={{ fontSize: 11, color: "#4a6a8a" }}>{fmtRelative(video.created_at)}</div>}
           {isOwned && isDone && video.id && (
@@ -204,7 +227,18 @@ function VideoCard({ video, isOwned }) {
             </a>
           )}
           {isOwned && isFailed && (
-            <span style={{ fontSize: 11, color: "#f87171" }}>Generation failed</span>
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              style={{
+                background: "transparent", border: "1px solid #3a2020",
+                color: "#f87171", padding: "4px 10px", borderRadius: 5,
+                fontSize: 11, fontWeight: 600, cursor: retrying ? "not-allowed" : "pointer",
+                opacity: retrying ? 0.6 : 1,
+              }}
+            >
+              {retrying ? "Retrying…" : "↺ Retry"}
+            </button>
           )}
         </div>
       </div>
@@ -447,6 +481,140 @@ function CreateYourWebsitePanel() {
   );
 }
 
+// ── Account Tab ───────────────────────────────────────────────────────────────
+
+function AccountTab({ user, onSaved, navigate }) {
+  const [youtube, setYoutube]   = useState(user?.youtube_channel_url || "");
+  const [tiktok,  setTiktok]    = useState(user?.tiktok_profile_url  || "");
+  const [saving,  setSaving]    = useState(false);
+  const [saved,   setSaved]     = useState(false);
+  const [error,   setError]     = useState("");
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    setSaved(false);
+    try {
+      await updateSubscriberSettings({ youtube_channel_url: youtube.trim(), tiktok_profile_url: tiktok.trim() });
+      await onSaved?.();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError("Failed to save settings.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>Account</h2>
+      </div>
+
+      {/* Plan info */}
+      <div style={{ background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 10, padding: "24px", marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: "#4a6a8a", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>Plan & Usage</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 20 }}>
+          {[
+            { label: "Email",         value: user?.email },
+            { label: "Plan",          value: user?.plan === "trial" ? "Free Trial" : "Full Access" },
+            { label: "Status",        value: user?.status?.charAt(0).toUpperCase() + user?.status?.slice(1) },
+            { label: "Videos used",   value: `${user?.videos_created ?? 0} / ${user?.video_limit ?? 2}` },
+            { label: "Trial expires", value: user?.trial_remaining_seconds != null ? fmtCountdown(user.trial_remaining_seconds) : "—" },
+          ].map((row) => (
+            <div key={row.label}>
+              <div style={{ fontSize: 10, color: "#4a6a8a", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{row.label}</div>
+              <div style={{ fontSize: 13, color: "#c8d8e8" }}>{row.value || "—"}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #0d1b2a" }}>
+          <a href="mailto:help@async-mode.com?subject=Upgrade%20Request" style={{ color: "#818cf8", fontSize: 13, fontWeight: 600 }}>
+            Upgrade or extend access →
+          </a>
+        </div>
+      </div>
+
+      {/* Channel settings */}
+      <div style={{ background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 10, padding: "24px" }}>
+        <div style={{ fontSize: 12, color: "#4a6a8a", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>Publishing Channels</div>
+        <p style={{ fontSize: 13, color: "#6a8ab0", margin: "0 0 20px", lineHeight: 1.6 }}>
+          Your videos are downloaded and can be published to these channels. Enter your channel URLs
+          so AutoVid knows where to route your content.
+        </p>
+        <form onSubmit={handleSave}>
+          {[
+            { label: "▶ YouTube Channel", key: "youtube", val: youtube, set: setYoutube, ph: "https://youtube.com/@yourchannel" },
+            { label: "♪ TikTok Profile",  key: "tiktok",  val: tiktok,  set: setTiktok,  ph: "https://tiktok.com/@yourhandle" },
+          ].map((f) => (
+            <div key={f.key} style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 12, color: "#6a8ab0", marginBottom: 6 }}>{f.label}</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="url"
+                  value={f.val}
+                  onChange={(e) => f.set(e.target.value)}
+                  placeholder={f.ph}
+                  style={{
+                    flex: 1, background: "#050a14", border: "1px solid #1a2a3a",
+                    color: "#e0eaf5", borderRadius: 7, padding: "9px 12px",
+                    fontSize: 13, outline: "none", fontFamily: "inherit",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "#4f46e5")}
+                  onBlur={(e) => (e.target.style.borderColor = "#1a2a3a")}
+                />
+                {f.val && (
+                  <a href={f.val} target="_blank" rel="noopener noreferrer"
+                    style={{
+                      background: "#050a14", border: "1px solid #1a2a3a", color: "#6a8ab0",
+                      padding: "9px 14px", borderRadius: 7, fontSize: 11, fontWeight: 600,
+                      textDecoration: "none", whiteSpace: "nowrap",
+                    }}>
+                    Verify ↗
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+          {error && (
+            <div style={{ background: "#2a0f0f", border: "1px solid #4a1f1f", color: "#f87171", padding: "9px 12px", borderRadius: 7, fontSize: 12, marginBottom: 14 }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                background: saving ? "#1a2a3a" : "#4f46e5", color: saving ? "#4a6a8a" : "#fff",
+                border: "none", borderRadius: 7, padding: "9px 22px",
+                fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {saving ? "Saving…" : "Save channels"}
+            </button>
+            {saved && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ Saved</span>}
+            <button
+              type="button"
+              onClick={() => navigate("/setup")}
+              style={{
+                background: "transparent", border: "1px solid #1a2a3a", color: "#4a6a8a",
+                borderRadius: 7, padding: "9px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Setup guide
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -530,7 +698,10 @@ export default function Dashboard() {
         display: "flex", alignItems: "center", height: 56, background: "#050a14",
         position: "sticky", top: 0, zIndex: 100,
       }}>
-        <span style={{ fontWeight: 800, fontSize: 16, flex: 1, color: "#e0eaf5" }}>
+        <span
+          onClick={() => navigate("/")}
+          style={{ fontWeight: 800, fontSize: 16, flex: 1, color: "#e0eaf5", cursor: "pointer" }}
+        >
           async<span style={{ color: "#4f46e5" }}>-mode</span>
           <span style={{ color: "#4a6a8a", fontSize: 11, fontWeight: 400, marginLeft: 10 }}>workspace</span>
         </span>
@@ -633,7 +804,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-                {myVideos.map((v) => <VideoCard key={v.id} video={v} isOwned />)}
+                {myVideos.map((v) => <VideoCard key={v.id} video={v} isOwned onRetry={handleVideoCreated} />)}
               </div>
             )}
           </div>
@@ -681,38 +852,7 @@ export default function Dashboard() {
 
         {/* Account tab */}
         {activeTab === "account" && (
-          <div>
-            <div style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>Account</h2>
-            </div>
-            <div style={{ background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 10, padding: "24px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 24 }}>
-                {[
-                  { label: "Email",         value: user?.email },
-                  { label: "Plan",          value: user?.plan === "trial" ? "Free Trial" : "Full Access" },
-                  { label: "Status",        value: user?.status?.charAt(0).toUpperCase() + user?.status?.slice(1) },
-                  { label: "Videos used",   value: `${user?.videos_created ?? 0} / ${user?.video_limit ?? 2}` },
-                  { label: "Trial expires", value: user?.trial_remaining_seconds != null ? fmtCountdown(user.trial_remaining_seconds) : "—" },
-                ].map((row) => (
-                  <div key={row.label}>
-                    <div style={{ fontSize: 11, color: "#4a6a8a", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{row.label}</div>
-                    <div style={{ fontSize: 14, color: "#c8d8e8" }}>{row.value || "—"}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid #0d1b2a" }}>
-                <div style={{ fontSize: 13, color: "#4a6a8a", marginBottom: 12 }}>
-                  Want to keep access or upgrade to full? Email us:
-                </div>
-                <a
-                  href="mailto:help@async-mode.com?subject=Upgrade%20Request"
-                  style={{ color: "#818cf8", fontSize: 13, fontWeight: 600 }}
-                >
-                  help@async-mode.com
-                </a>
-              </div>
-            </div>
-          </div>
+          <AccountTab user={user} onSaved={refreshUser} navigate={navigate} />
         )}
       </div>
     </div>

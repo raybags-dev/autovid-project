@@ -4,6 +4,7 @@ import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Setup from "./pages/Setup";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -26,6 +27,10 @@ export default function App() {
           <Route path="/"          element={<Landing />} />
           <Route path="/register"  element={<Register />} />
           <Route path="/login"     element={<Login />} />
+          <Route
+            path="/setup"
+            element={<PrivateRoute><Setup /></PrivateRoute>}
+          />
           <Route
             path="/dashboard"
             element={<PrivateRoute><Dashboard /></PrivateRoute>}

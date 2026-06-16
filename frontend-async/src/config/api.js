@@ -71,4 +71,14 @@ export const getCreateYourWebsite = async () => {
   return data;
 };
 
+export const updateSubscriberSettings = async (settings) => {
+  const { data } = await api.patch("/subscribe/settings", settings);
+  return data;
+};
+
+export const retryVideo = async (videoId) => {
+  const { data } = await api.post(`/subscribe/retry-video/${videoId}`);
+  return data;
+};
+
 export default api;

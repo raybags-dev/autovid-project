@@ -15,8 +15,14 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(email.trim().toLowerCase(), password);
-      navigate("/dashboard");
+      const result = await login(email.trim().toLowerCase(), password);
+      // First-time users (no channels configured) go to setup
+      const me = result?.user;
+      if (me && !me.setup_complete) {
+        navigate("/setup");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (detail === "Account pending approval")
