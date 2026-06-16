@@ -332,7 +332,7 @@ const STYLES = [
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function TrialBanner({ user, onExpired }) {
+function TrialBanner({ user, onExpired, onConnect, onUpgrade }) {
   const [remaining, setRemaining] = useState(user.trial_remaining_seconds ?? null);
 
   useEffect(() => {
@@ -375,9 +375,22 @@ function TrialBanner({ user, onExpired }) {
               : `${fmtCountdown(remaining)} · ${user.videos_created ?? 0}/${user.video_limit ?? 2} videos used`}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {!user.youtube_connected && !expired && (
+            <button
+              onClick={() => onConnect?.()}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: "rgba(79,70,229,0.12)", border: "1px solid #4f46e550",
+                color: "#818cf8", padding: "5px 13px", borderRadius: 6,
+                fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              <span style={{ color: "#ff4444", fontSize: 10 }}>▶</span> Link YouTube
+            </button>
+          )}
           {!expired && (
-            <div style={{ width: 100, height: 4, background: "#0a1520", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ width: 80, height: 4, background: "#0a1520", borderRadius: 2, overflow: "hidden" }}>
               <div style={{
                 height: "100%", width: `${pct}%`,
                 background: urgent ? "#f59e0b" : "#4f46e5",
@@ -386,7 +399,7 @@ function TrialBanner({ user, onExpired }) {
             </div>
           )}
           <button
-            onClick={() => setShowUpgrade(true)}
+            onClick={() => onUpgrade?.()}
             style={{
               background: "transparent", border: "1px solid #4f46e5",
               color: "#818cf8", padding: "5px 14px", borderRadius: 6,
@@ -1398,7 +1411,7 @@ export default function Dashboard() {
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 24px" }}>
         {/* Trial banner */}
         {user?.plan === "trial" && (
-          <TrialBanner user={user} onExpired={handleTrialExpired} />
+          <TrialBanner user={user} onExpired={handleTrialExpired} onConnect={() => setShowConnectAccounts(true)} onUpgrade={() => setShowUpgrade(true)} />
         )}
 
         {/* Tab bar */}
