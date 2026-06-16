@@ -840,9 +840,11 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
     setYtConnecting(true);
     try {
       const url = await getYouTubeAuthUrl();
+      if (!url) throw new Error("No URL returned");
       window.location.href = url;
-    } catch {
+    } catch (err) {
       setYtConnecting(false);
+      setError(err?.response?.data?.detail || "Failed to start YouTube auth — please try again.");
     }
   };
 
@@ -1146,14 +1148,18 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
 
 function ConnectAccountsModal({ user, onClose }) {
   const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState("");
 
   const handleYouTubeConnect = async () => {
     setConnecting(true);
+    setConnectError("");
     try {
       const url = await getYouTubeAuthUrl();
+      if (!url) throw new Error("No URL returned");
       window.location.href = url;
-    } catch {
+    } catch (err) {
       setConnecting(false);
+      setConnectError(err?.response?.data?.detail || "Failed to start YouTube auth. Please try again.");
     }
   };
 
@@ -1246,6 +1252,12 @@ function ConnectAccountsModal({ user, onClose }) {
             }}>Optional</span>
           </div>
         </div>
+
+        {connectError && (
+          <div style={{ fontSize: 12, color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
+            ⚠ {connectError}
+          </div>
+        )}
 
         <button
           onClick={onClose}
