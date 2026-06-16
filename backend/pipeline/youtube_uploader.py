@@ -243,6 +243,81 @@ def upload_video(
     return {"youtube_id": youtube_id, "youtube_url": youtube_url}
 
 
+def upload_with_user_tokens(tokens_json, video_path: str, title: str, description: str = "", privacy: str = "private") -> dict:
+    """Upload a video to a subscriber's own YouTube channel using their stored OAuth tokens."""
+    if not YOUTUBE_AVAILABLE:
+        raise RuntimeError("YouTube libraries not installed")
+
+    tokens = json.loads(tokens_json) if isinstance(tokens_json, str) else tokens_json
+
+    with open(config.YOUTUBE_SUBSCRIBER_SECRETS_PATH) as f:
+        secrets = json.load(f)
+    client_data = secrets.get("web") or secrets.get("installed") or {}
+
+    creds = Credentials(
+        token=tokens.get("access_token"),
+        refresh_token=tokens.get("refresh_token"),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_data["client_id"],
+        client_secret=client_data["client_secret"],
+        scopes=["https://www.googleapis.com/auth/youtube.upload"],
+    )
+
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+
+    service = build("youtube", "v3", credentials=creds)
+
+    body = {
+        "snippet": {
+            "title": title[:100],
+            "description": (description or "")[:5000],
+            "tags": ["AutoVid", "AI generated"],
+            "categoryId": "24",
+        },
+        "status": {
+            "privacyStatus": privacy,
+            "selfDeclaredMadeForKids": False,
+        },
+    }
+
+    import tempfile
+    import urllib.request as _urlreq
+    _temp_file = None
+    actual_path = video_path
+
+    if video_path.startswith("http://") or video_path.startswith("https://"):
+        print(f"⬇️  Downloading for subscriber upload: {video_path[:60]}...")
+        _temp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+        _urlreq.urlretrieve(video_path, _temp_file.name)
+        actual_path = _temp_file.name
+
+    try:
+        media = MediaFileUpload(actual_path, chunksize=5 * 1024 * 1024, resumable=True, mimetype="video/mp4")
+        request = service.videos().insert(part="snippet,status", body=body, media_body=media)
+        response = None
+        while response is None:
+            _, response = request.next_chunk()
+
+        video_id = response["id"]
+        result = {
+            "youtube_id": video_id,
+            "youtube_url": f"https://youtu.be/{video_id}",
+        }
+
+        if creds.token != tokens.get("access_token"):
+            result["updated_tokens"] = json.dumps({**tokens, "access_token": creds.token})
+
+        print(f"✅ Subscriber upload done: https://youtu.be/{video_id}")
+        return result
+    finally:
+        if _temp_file:
+            try:
+                os.unlink(_temp_file.name)
+            except Exception:
+                pass
+
+
 def _upload_thumbnail(service, video_id: str, thumbnail_path: str):
     """Upload a custom thumbnail to an uploaded video."""
     try:

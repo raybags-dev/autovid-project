@@ -2233,7 +2233,8 @@ def create_your_website(_u: str = Depends(verify_subscriber_token)):
 @app.get("/subscribe/youtube/auth-url")
 def subscriber_youtube_auth_url(user_id: str = Depends(verify_subscriber_token)):
     """Return the Google OAuth URL so the subscriber can connect their YouTube channel."""
-    import json, urllib.parse
+    import json
+    import urllib.parse
     try:
         with open(config.YOUTUBE_SUBSCRIBER_SECRETS_PATH) as f:
             secrets = json.load(f)
@@ -2258,7 +2259,9 @@ def subscriber_youtube_auth_url(user_id: str = Depends(verify_subscriber_token))
 def subscriber_youtube_callback(code: str = None, state: str = None, error: str = None):
     """Google redirects here after the subscriber grants YouTube access."""
     from fastapi.responses import HTMLResponse
-    import json, urllib.request, urllib.parse
+    import json
+    import urllib.parse
+    import urllib.request
 
     frontend = config.FRONTEND_ASYNC_URL
 
