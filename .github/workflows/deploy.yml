@@ -139,6 +139,10 @@ lines.append("RESEND_API_KEY="+os.environ.get("RESEND_API_KEY",""))
 f.write_text("\n".join(lines)+"\n")
 '
 
+            echo "── Freeing disk space before build ──"
+            docker builder prune -f 2>/dev/null || true
+            docker image prune -f 2>/dev/null || true
+
             echo "── Rebuilding containers ──"
             docker compose build \
               --build-arg VITE_APP_NAME="${VITE_APP_NAME:-}" \
@@ -157,7 +161,7 @@ f.write_text("\n".join(lines)+"\n")
             docker compose up -d --remove-orphans
 
             echo "── Reloading nginx-router config ──"
-            docker compose restart nginx-router
+            docker compose up -d --no-deps nginx-router
 
             echo "── Waiting for backend health check ──"
             for i in $(seq 1 12); do
