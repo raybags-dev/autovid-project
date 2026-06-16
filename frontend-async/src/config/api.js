@@ -46,7 +46,7 @@ export const getMe = async () => {
 
 export const getVideos = async () => {
   const { data } = await api.get("/subscribe/videos");
-  return data;
+  return Array.isArray(data) ? data : (data.videos ?? []);
 };
 
 export default api;
