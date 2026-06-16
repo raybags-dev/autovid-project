@@ -298,6 +298,33 @@ def run_subscriber_video_pipeline(self, video_id: str, user_id: str, topic: str,
         if user:
             current = user.get("videos_created") or 0
             db.update_subscription_user(user_id, videos_created=current + 1)
+
+            # Auto-upload to subscriber's own YouTube if they've connected their account
+            if user.get("youtube_oauth_token"):
+                try:
+                    from pipeline.youtube_uploader import upload_with_user_tokens
+                    yt_result = upload_with_user_tokens(
+                        tokens_json=user["youtube_oauth_token"],
+                        video_path=result.get("file_path") or "",
+                        title=result.get("title") or topic,
+                        description=(
+                            "Auto-generated with AutoVid — your AI video automation platform.\n\n"
+                            "This is a private draft. Review it and publish when you're ready."
+                        ),
+                        privacy="private",
+                    )
+                    db.update_video(
+                        result["id"],
+                        youtube_id=yt_result.get("youtube_id"),
+                        youtube_url=yt_result.get("youtube_url"),
+                        status="posted",
+                    )
+                    if "updated_tokens" in yt_result:
+                        db.update_subscription_user(user_id, youtube_oauth_token=yt_result["updated_tokens"])
+                    print(f"✅ Subscriber video uploaded: {yt_result.get('youtube_url')}")
+                except Exception as yt_err:
+                    print(f"⚠️  Subscriber YouTube upload failed (video still available): {yt_err}")
+
             # Email notification
             try:
                 import pipeline.email as email_svc

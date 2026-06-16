@@ -542,7 +542,7 @@ function VideoCard({ video, isOwned, onRetry, onPlay }) {
   );
 }
 
-function CreateVideoPanel({ user, onCreated, onUpgrade }) {
+function CreateVideoPanel({ user, onCreated, onUpgrade, onNeedConnect }) {
   const [topic, setTopic]   = useState("");
   const [style, setStyle]   = useState("educational");
   const [loading, setLoading] = useState(false);
@@ -555,6 +555,7 @@ function CreateVideoPanel({ user, onCreated, onUpgrade }) {
   const submit = async (e) => {
     e.preventDefault();
     if (!topic.trim()) { setError("Enter a topic first."); return; }
+    if (!user.youtube_connected) { onNeedConnect?.(); return; }
     setLoading(true);
     setError("");
     try {
@@ -1128,6 +1129,136 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
 }
 
 
+/* ─── Connect Accounts Modal ─────────────────────────────────────────────────── */
+
+function ConnectAccountsModal({ user, onClose }) {
+  const [connecting, setConnecting] = useState(false);
+
+  const handleYouTubeConnect = async () => {
+    setConnecting(true);
+    try {
+      const url = await getYouTubeAuthUrl();
+      window.location.href = url;
+    } catch {
+      setConnecting(false);
+    }
+  };
+
+  const ytConnected = user?.youtube_connected;
+
+  return (
+    <div
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9990,
+        background: "rgba(4,8,16,0.88)", backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+      }}
+    >
+      <div style={{
+        background: "#080e1a", border: "1px solid #1a2a4a",
+        borderRadius: 16, padding: "36px 32px", maxWidth: 460, width: "100%",
+        boxShadow: "0 28px 80px rgba(0,0,0,0.8)",
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🔗</div>
+          <h2 style={{ fontSize: 17, fontWeight: 800, color: "#e0eaf5", margin: "0 0 8px" }}>
+            Connect your YouTube channel
+          </h2>
+          <p style={{ fontSize: 13, color: "#5a7a9a", margin: 0, lineHeight: 1.65 }}>
+            AutoVid uploads every video directly to your channel as a <strong style={{ color: "#818cf8" }}>private draft</strong>. You review it, then decide when to publish.
+          </p>
+        </div>
+
+        {/* YouTube — required */}
+        <div style={{
+          background: "#050a14", border: `1px solid ${ytConnected ? "#22c55e30" : "#1a2a4a"}`,
+          borderRadius: 12, padding: "16px 18px", marginBottom: 10,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+              background: "#ff000015", border: "1px solid #ff000030",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 16,
+            }}>▶</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#e0eaf5" }}>YouTube</div>
+              <div style={{ fontSize: 11, color: "#4a6a8a" }}>Videos auto-upload as private drafts</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+                background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)",
+              }}>Required</span>
+              {ytConnected ? (
+                <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 700 }}>✓ Connected</span>
+              ) : (
+                <button
+                  onClick={handleYouTubeConnect}
+                  disabled={connecting}
+                  style={{
+                    background: "#4f46e5", color: "#fff", border: "none",
+                    borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700,
+                    cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.7 : 1,
+                  }}
+                >
+                  {connecting ? "Redirecting…" : "Connect"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* TikTok — optional */}
+        <div style={{
+          background: "#050a14", border: "1px solid #1a2a4a",
+          borderRadius: 12, padding: "16px 18px", marginBottom: 24,
+          opacity: 0.65,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+              background: "#69c9d010", border: "1px solid #69c9d020",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 16, color: "#69c9d0",
+            }}>♬</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#c8d8e8" }}>TikTok</div>
+              <div style={{ fontSize: 11, color: "#4a6a8a" }}>Cross-post Shorts automatically</div>
+            </div>
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+              background: "rgba(74,106,138,0.1)", color: "#4a6a8a", border: "1px solid rgba(74,106,138,0.2)",
+            }}>Optional</span>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          disabled={!ytConnected}
+          style={{
+            width: "100%", border: "none", borderRadius: 9, padding: "13px",
+            fontSize: 14, fontWeight: 700, cursor: ytConnected ? "pointer" : "not-allowed",
+            background: ytConnected ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : "#0d1a2a",
+            color: ytConnected ? "#fff" : "#2a3a4a",
+            boxShadow: ytConnected ? "0 4px 20px rgba(79,70,229,0.35)" : "none",
+            transition: "all 0.2s",
+          }}
+        >
+          {ytConnected ? "Continue — create your video →" : "Connect YouTube to continue"}
+        </button>
+        {!ytConnected && (
+          <p style={{ fontSize: 11, color: "#2a3a4a", textAlign: "center", margin: "10px 0 0" }}>
+            YouTube must be connected before creating videos
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -1139,6 +1270,7 @@ export default function Dashboard() {
   const [activeTab,      setActiveTab]      = useState("create");
   const [trialExpired,   setTrialExpired]   = useState(false);
   const [showUpgrade,    setShowUpgrade]    = useState(false);
+  const [showConnectAccounts, setShowConnectAccounts] = useState(false);
   const [trackingVideoId, setTrackingVideoId] = useState(null);
   const [playingVideo,   setPlayingVideo]   = useState(null);
 
@@ -1216,6 +1348,7 @@ export default function Dashboard() {
       <ToastContainer toasts={toasts} dismiss={dismiss} />
       {playingVideo && <VideoPlayerModal video={playingVideo} onClose={() => setPlayingVideo(null)} />}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+      {showConnectAccounts && <ConnectAccountsModal user={user} onClose={() => setShowConnectAccounts(false)} />}
       {/* Nav */}
       <nav style={{
         borderBottom: "1px solid #0d1b2a", padding: "0 28px",
@@ -1224,10 +1357,17 @@ export default function Dashboard() {
       }}>
         <span
           onClick={() => navigate("/")}
-          style={{ fontWeight: 800, fontSize: 16, flex: 1, color: "#e0eaf5", cursor: "pointer" }}
+          style={{ flex: 1, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, userSelect: "none" }}
         >
-          async<span style={{ color: "#4f46e5" }}>-mode</span>
-          <span style={{ color: "#4a6a8a", fontSize: 11, fontWeight: 400, marginLeft: 10 }}>workspace</span>
+          <span style={{
+            fontWeight: 900, fontSize: 17, letterSpacing: "-0.04em",
+            background: "linear-gradient(125deg, #818cf8 0%, #a78bfa 45%, #e879f9 100%)",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+          }}>async-mode</span>
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase",
+            color: "#3a4a6a", border: "1px solid #1a2a4a", padding: "2px 7px", borderRadius: 4,
+          }}>workspace</span>
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Link to="/docs" style={{ fontSize: 12, color: "#4a6a8a", padding: "5px 10px" }}>Docs</Link>
@@ -1318,7 +1458,7 @@ export default function Dashboard() {
               </div>
             </div>
             <CapabilitiesPanel user={user || {}} />
-            <CreateVideoPanel user={user || {}} onCreated={handleVideoCreated} onUpgrade={() => setShowUpgrade(true)} />
+            <CreateVideoPanel user={user || {}} onCreated={handleVideoCreated} onUpgrade={() => setShowUpgrade(true)} onNeedConnect={() => setShowConnectAccounts(true)} />
           </div>
         )}
 

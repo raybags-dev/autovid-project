@@ -189,50 +189,68 @@ function FeatureCard({ f, i }) {
   );
 }
 
+const STEP_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#ec4899", "#3b82f6", "#10b981"];
+
 function StepCard({ step, i }) {
   const [hovered, setHovered] = useState(false);
+  const color = STEP_COLORS[i] || "#6366f1";
   return (
     <div
       className="am-step-card"
       style={{
-        padding: "28px 22px",
-        background: hovered ? "#0a1428" : "#080e1a",
-        border: `1px solid ${hovered ? "#4f46e5" : "#0d1b2a"}`,
-        borderRadius: 12,
+        padding: "24px 22px 22px",
+        background: hovered ? "#080e1a" : "#060c18",
+        border: `1px solid ${hovered ? color + "55" : "#0d1b2a"}`,
+        borderTop: `2px solid ${hovered ? color : color + "50"}`,
+        borderRadius: 14,
         transition: "all 0.25s",
-        transform: hovered ? "translateY(-4px)" : "none",
-        boxShadow: hovered ? "0 12px 40px rgba(79,70,229,0.15)" : "none",
+        transform: hovered ? "translateY(-6px)" : "none",
+        boxShadow: hovered
+          ? `0 20px 48px ${color}18, 0 4px 16px rgba(0,0,0,0.35)`
+          : "0 2px 8px rgba(0,0,0,0.25)",
         animationDelay: `${i * 0.08}s`,
-        textAlign: "center",
         position: "relative",
         overflow: "hidden",
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {/* Radial glow bg */}
       <div style={{
-        position: "absolute", top: 12, right: 14,
-        fontSize: 11, fontWeight: 800, color: hovered ? "#4f46e5" : "#1a2a4a",
-        letterSpacing: "0.1em", transition: "color 0.25s",
-      }}>{step.n}</div>
+        position: "absolute", inset: 0, pointerEvents: "none",
+        background: `radial-gradient(ellipse at 50% -10%, ${color}14 0%, transparent 65%)`,
+        opacity: hovered ? 1 : 0,
+        transition: "opacity 0.3s",
+      }} />
+
+      {/* Step badge + icon row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+          background: hovered ? color : color + "1a",
+          border: `1px solid ${color}50`,
+          fontSize: 11, fontWeight: 800,
+          color: hovered ? "#fff" : color,
+          transition: "all 0.25s",
+          letterSpacing: "0.04em",
+        }}>
+          {step.n}
+        </div>
+        <div style={{
+          fontSize: 28,
+          filter: hovered ? `drop-shadow(0 0 8px ${color}90)` : "none",
+          transition: "filter 0.3s",
+        }}>{step.icon}</div>
+      </div>
+
       <div style={{
-        fontSize: 36, marginBottom: 14,
-        filter: hovered ? "drop-shadow(0 0 10px rgba(79,70,229,0.6))" : "none",
-        transition: "filter 0.3s",
-      }}>{step.icon}</div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#c8d8e8", marginBottom: 8 }}>{step.title}</div>
-      <div style={{ fontSize: 12, color: "#4a6a8a", lineHeight: 1.7 }}>{step.desc}</div>
-      {i < STEPS.length - 1 && (
-        <div className="am-step-arrow" style={{
-          position: "absolute", right: -1, top: "50%", transform: "translateY(-50%)",
-          width: 0, height: 0,
-          borderTop: "6px solid transparent",
-          borderBottom: "6px solid transparent",
-          borderLeft: `6px solid ${hovered ? "#4f46e5" : "#0d1b2a"}`,
-          transition: "border-left-color 0.25s",
-          zIndex: 2,
-        }} />
-      )}
+        fontSize: 13, fontWeight: 700,
+        color: hovered ? "#e0eaf5" : "#b8cce0",
+        marginBottom: 8, transition: "color 0.25s",
+        lineHeight: 1.3,
+      }}>{step.title}</div>
+      <div style={{ fontSize: 12, color: "#4a6080", lineHeight: 1.75 }}>{step.desc}</div>
     </div>
   );
 }
@@ -318,10 +336,10 @@ export default function Landing() {
         /* Step cards grid */
         .am-steps-grid {
           display: grid;
-          grid-template-columns: repeat(6, 1fr);
-          gap: 20px;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
         }
-        .am-step-arrow { display: block; }
+        .am-step-arrow { display: none; }
 
         /* Features grid */
         .am-features-grid {
@@ -397,7 +415,6 @@ export default function Landing() {
             grid-template-columns: 1fr 1fr;
             gap: 12px;
           }
-          .am-step-arrow { display: none; }
 
           .am-features-grid { grid-template-columns: 1fr; }
 
