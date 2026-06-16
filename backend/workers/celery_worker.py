@@ -45,15 +45,20 @@ celery_app.conf.update(
 # ── Scheduled Tasks ───────────────────────────────────────────────────────────
 
 celery_app.conf.beat_schedule = {
-    # Auto-upload any 'ready' videos that haven't been uploaded yet
-    # Runs every 30 minutes
     "auto-upload-ready-videos": {
         "task": "workers.celery_worker.auto_upload_ready_videos",
         "schedule": crontab(minute="*/30"),
     },
-    # Sync view/like counts from YouTube (runs every 6 hours)
     "sync-youtube-stats": {
         "task": "workers.celery_worker.sync_youtube_stats",
+        "schedule": crontab(hour="*/6"),
+    },
+    "cleanup-expired-trials": {
+        "task": "workers.celery_worker.cleanup_expired_trials",
+        "schedule": crontab(minute="*/30"),
+    },
+    "send-trial-expiry-warnings": {
+        "task": "workers.celery_worker.send_trial_expiry_warnings",
         "schedule": crontab(hour="*/6"),
     },
 }
@@ -188,3 +193,74 @@ def sync_youtube_stats():
 
     print(f"📊 Synced stats for {synced} videos")
     return {"synced": synced}
+
+
+@celery_app.task(bind=True, name="workers.celery_worker.run_subscriber_video_pipeline")
+def run_subscriber_video_pipeline(self, video_id: str, user_id: str, topic: str, style: str = "educational"):
+    """
+    Celery task: Generate a subscriber-owned video.
+    - auto_upload=False (never posts to YouTube)
+    - Trial limit: enforced before queuing in the API layer
+    """
+    import database as db
+    from pipeline.orchestrator import run_pipeline
+
+    self.update_state(state="STARTED", meta={"topic": topic, "video_id": video_id, "step": "initializing"})
+
+    try:
+        profile = style if style in ("educational", "serious", "inspirational", "reflective", "funny") else "educational"
+        result = run_pipeline(
+            prompt=topic,
+            auto_upload=False,
+            profile=profile,
+            music_style="ambient",
+            music_volume=0.05,
+            video_id=video_id,
+        )
+        # Increment videos_created counter on the subscription user
+        user = db.get_subscription_user_by_id(user_id)
+        if user:
+            current = user.get("videos_created") or 0
+            db.update_subscription_user(user_id, videos_created=current + 1)
+            # Email notification
+            try:
+                import pipeline.email as email_svc
+                email_svc.send_video_ready_notification(user["email"], result.get("title") or topic)
+            except Exception:
+                pass
+        return {"status": "success", "video_id": result["id"], "title": result.get("title")}
+    except Exception as e:
+        db.set_failed(video_id, str(e)[:500])
+        self.update_state(state="FAILURE", meta={"error": str(e)})
+        raise
+
+
+@celery_app.task(name="workers.celery_worker.cleanup_expired_trials")
+def cleanup_expired_trials():
+    """
+    Scheduled: expire trial accounts past their trial_expires_at timestamp.
+    Runs every 30 minutes.
+    """
+    import database as db
+    expired = db.expire_old_trials()
+    return {"expired": expired}
+
+
+@celery_app.task(name="workers.celery_worker.send_trial_expiry_warnings")
+def send_trial_expiry_warnings():
+    """
+    Scheduled: email subscribers whose trial expires within 24 hours.
+    Runs every 6 hours.
+    """
+    import database as db
+    import pipeline.email as email_svc
+
+    expiring = db.get_trials_expiring_soon(hours=24)
+    sent = 0
+    for user in expiring:
+        try:
+            email_svc.send_trial_expiry_warning(user["email"], user.get("trial_expires_at", ""))
+            sent += 1
+        except Exception as e:
+            print(f"[trial-warn] Failed to email {user['email']}: {e}")
+    return {"warned": sent}
