@@ -125,11 +125,7 @@ jobs:
             git reset --hard origin/main
 
             echo "── Writing RESEND_API_KEY to .env ──"
-            if grep -q "^RESEND_API_KEY=" .env 2>/dev/null; then
-              sed -i "s|^RESEND_API_KEY=.*|RESEND_API_KEY=${RESEND_API_KEY:-}|" .env
-            else
-              echo "RESEND_API_KEY=${RESEND_API_KEY:-}" >> .env
-            fi
+            python3 -c 'import os,pathlib;f=pathlib.Path(".env");f.touch();lines=[l for l in f.read_text().splitlines(keepends=True) if not l.startswith("RESEND_API_KEY=")];lines.append("RESEND_API_KEY="+os.environ.get("RESEND_API_KEY","")+"\n");f.write_text("".join(lines))'
 
             echo "── Rebuilding containers ──"
             docker compose build \
