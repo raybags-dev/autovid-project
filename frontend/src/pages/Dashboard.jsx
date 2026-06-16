@@ -1332,6 +1332,7 @@ export default function Dashboard() {
   const shortsOffsetRef = useRef(0);
   const shortsListRef = useRef(null);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
+  const [pendingSubCount, setPendingSubCount] = useState(0);
   const [reviewsTab, setReviewsTab] = useState("pending"); // pending | approved | rejected | all
   const [reviewComments, setReviewComments] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
@@ -1977,6 +1978,13 @@ export default function Dashboard() {
   useEffect(() => {
     api.get("/admin/blog/comments?status=pending&limit=1")
       .then(r => setPendingReviewCount(r.data.pending_count || 0))
+      .catch(() => {});
+  }, []); // eslint-disable-line
+
+  // Fetch pending async-mode.com subscriber requests on initial load
+  useEffect(() => {
+    api.get("/admin/subscription-requests")
+      .then(r => setPendingSubCount((r.data.pending || []).length))
       .catch(() => {});
   }, []); // eslint-disable-line
 
@@ -3015,7 +3023,7 @@ export default function Dashboard() {
               { id: "compilations", icon: "🎬", label: "Compilations" },
               { id: "custom_content", icon: "📦", label: "Custom Content" },
               { id: "reviews", icon: "◈", label: "Reviews", count: pendingReviewCount },
-              { id: "subscribers", icon: "🔐", label: "Subscribers" },
+              { id: "subscribers", icon: "🔐", label: "Subscribers", count: pendingSubCount },
               { id: "editor", icon: "✂", label: "Video Editor" },
               { id: "stickfigures", icon: "🕹", label: "Stickfigures" },
               { id: "podcast_studio", icon: "🎙", label: "Podcast Studio" },
