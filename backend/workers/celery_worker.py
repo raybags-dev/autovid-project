@@ -64,6 +64,67 @@ celery_app.conf.beat_schedule = {
 }
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _auto_create_blog_post(video_id: str, video_data: dict):
+    """Create a draft blog post from a completed video (called when auto_blog_post_enabled=true)."""
+    import re
+    import unicodedata
+    from datetime import datetime, timezone
+    import database as db
+
+    # Skip if a blog post already exists for this video
+    existing_video = db.get_video(video_id)
+    if not existing_video or existing_video.get("blog_post_id"):
+        return
+
+    title   = video_data.get("title") or existing_video.get("title") or "Untitled"
+    desc    = video_data.get("description") or existing_video.get("description") or ""
+    script  = video_data.get("script") or existing_video.get("script") or ""
+    yt_url  = video_data.get("youtube_url") or existing_video.get("youtube_url") or ""
+    yt_id   = video_data.get("youtube_id") or existing_video.get("youtube_id") or ""
+    labels  = existing_video.get("labels") or []
+
+    embed_block = (
+        f'\n\n<div class="blog-video-embed">'
+        f'<iframe src="https://www.youtube.com/embed/{yt_id}" '
+        f'frameborder="0" allowfullscreen></iframe></div>\n'
+    ) if yt_id else ""
+
+    intro          = f"<p>{desc}</p>" if desc else ""
+    script_section = f"<h2>Full Script</h2>\n<p>{script.replace(chr(10), '</p><p>')}</p>" if script else ""
+    body_text      = f"{intro}{embed_block}\n{script_section}".strip()
+
+    slug = re.sub(
+        r"[^a-z0-9]+", "-",
+        unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()
+    ).strip("-") or f"post-{int(datetime.now().timestamp())}"
+    try:
+        db.get_blog_post_by_slug(slug)
+        slug = f"{slug}-{int(datetime.now().timestamp())}"
+    except Exception:
+        pass
+
+    post_data = {
+        "title":           title,
+        "slug":            slug,
+        "excerpt":         (desc or script)[:300],
+        "body":            body_text,
+        "cover_image_url": existing_video.get("thumbnail_url") or "",
+        "tags":            labels,
+        "status":          "draft",
+        "video_id":        video_id,
+        "youtube_url":     yt_url,
+        "published_at":    None,
+    }
+    post = db.create_blog_post(post_data)
+    try:
+        db.update_video(video_id, blog_post_id=post["id"])
+    except Exception as e:
+        print(f"⚠️  Could not set blog_post_id: {e}")
+    print(f"📝 Auto-created blog draft '{title}' for video {video_id[:8]}")
+
+
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
 @celery_app.task(bind=True, name="workers.celery_worker.run_video_pipeline")
@@ -95,6 +156,14 @@ def run_video_pipeline(
             music_volume=music_volume,
             video_id=video_id,
         )
+        # Auto-create blog post if the setting is enabled
+        try:
+            import database as db
+            auto_blog = db.get_setting("auto_blog_post_enabled", default="false")
+            if str(auto_blog).lower() == "true":
+                _auto_create_blog_post(result["id"], result)
+        except Exception as blog_err:
+            print(f"⚠️  Auto-blog post failed for {result['id'][:8]}: {blog_err}")
         return {"status": "success", "video_id": result["id"], "title": result.get("title")}
     except Exception as e:
         self.update_state(state="FAILURE", meta={"error": str(e)})

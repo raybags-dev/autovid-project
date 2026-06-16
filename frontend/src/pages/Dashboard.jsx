@@ -84,6 +84,8 @@ import api, {
   postVideoToBlog,
   getDevTtsMode,
   setDevTtsMode as apiSetDevTtsMode,
+  getAutoBlogPost,
+  setAutoBlogPost as apiSetAutoBlogPost,
   getVoiceSettings,
   saveVoiceSettings,
   listCustomContent,
@@ -2034,6 +2036,7 @@ export default function Dashboard() {
     listStickFiguresPaged(0, 1, false).then(r => setSfClipCount(r.total ?? 0)).catch(() => setSfClipCount(0));
     getBmcSettings().then(r => { setBmcUrl(r.url || ""); setBmcPlatform(r.platform || "kofi"); }).catch(() => {});
     getDevTtsMode().then(r => setDevTtsMode(r.enabled)).catch(() => {});
+    getAutoBlogPost().then(r => setAutoBlogPostEnabled(r.enabled)).catch(() => {});
     getVoiceSettings().then(r => { setSavedVoices(r.voices || []); setActiveVoiceId(r.active_voice_id || ""); }).catch(() => {});
 
     // ── Batch 2: external-API status checks — staggered to avoid thread exhaustion ──
@@ -2190,6 +2193,7 @@ export default function Dashboard() {
   const [autoShortSettings, setAutoShortSettings] = useState(null);
   const [autoShortSaving, setAutoShortSaving] = useState(false);
   const [devTtsMode, setDevTtsMode] = useState(false);
+  const [autoBlogPostEnabled, setAutoBlogPostEnabled] = useState(false);
   const [savedVoices, setSavedVoices] = useState([]);
   const [activeVoiceId, setActiveVoiceId] = useState("");
   const [voiceSaving, setVoiceSaving] = useState(false);
@@ -10990,6 +10994,44 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
+
+                    {/* Auto Blog Post toggle */}
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{
+                        background: autoBlogPostEnabled ? "#0a1f10" : T.bgCard,
+                        border: `1px solid ${autoBlogPostEnabled ? "#2a5a30" : T.border}`,
+                        borderRadius: 10, padding: "12px 14px",
+                        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: autoBlogPostEnabled ? "#4ade80" : T.text }}>
+                            📝 Auto Blog Post
+                          </div>
+                          <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2, lineHeight: 1.5 }}>
+                            {autoBlogPostEnabled ? "✓ Blog draft created automatically after each video" : "Automatically create a blog draft when a video is generated"}
+                          </div>
+                        </div>
+                        <div
+                          onClick={async () => {
+                            const next = !autoBlogPostEnabled;
+                            setAutoBlogPostEnabled(next);
+                            try { await apiSetAutoBlogPost(next); }
+                            catch { setAutoBlogPostEnabled(!next); showToast("Failed to update auto blog setting", "error"); }
+                          }}
+                          style={{
+                            width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+                            background: autoBlogPostEnabled ? "#4ade80" : T.border,
+                            position: "relative", cursor: "pointer", transition: "background 0.2s",
+                          }}
+                        >
+                          <div style={{
+                            position: "absolute", top: 3, left: autoBlogPostEnabled ? 21 : 3,
+                            width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                            transition: "left 0.2s",
+                          }} />
+                        </div>
+                      </div>
+                    </div>
 
                   {/* ── ElevenLabs Voice Settings ── */}
                   <div style={{ marginBottom: 20 }}>

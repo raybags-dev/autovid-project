@@ -683,6 +683,8 @@ export const getBlogPost   = async (slug)        => { const { data } = await api
 // ── Dev Settings ──────────────────────────────────────────────────────────────
 export const getDevTtsMode = async () => { const { data } = await api.get("/settings/dev-tts"); return data; };
 export const setDevTtsMode = async (enabled) => { const { data } = await api.post("/settings/dev-tts", { enabled }); return data; };
+export const getAutoBlogPost = async () => { const { data } = await api.get("/settings/auto-blog-post"); return data; };
+export const setAutoBlogPost = async (enabled) => { const { data } = await api.post("/settings/auto-blog-post", { enabled }); return data; };
 export const getVoiceSettings = async () => { const { data } = await api.get("/settings/voices"); return data; };
 export const saveVoiceSettings = async (payload) => { const { data } = await api.post("/settings/voices", payload); return data; };
 

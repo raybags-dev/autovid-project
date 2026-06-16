@@ -554,6 +554,9 @@ def fix_stuck_videos(user: str = Depends(verify_token)):
             # Skip videos that are actively running or queued in the executor
             if v['id'] in _active_pipelines:
                 continue
+            # Skip subscriber-owned videos — their Celery tasks run independently
+            if v.get('subscriber_user_id'):
+                continue
             # If it has a youtube_id it was actually posted — mark posted
             if v.get('youtube_id'):
                 db.set_posted(v['id'], v['youtube_id'], v.get('youtube_url',''))
@@ -1927,6 +1930,8 @@ def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
             trial_remaining_seconds = max(0, int(diff))
         except Exception:
             pass
+    youtube_channel_url = user.get("youtube_channel_url") or ""
+    tiktok_profile_url  = user.get("tiktok_profile_url")  or ""
     return {
         "email": user["email"],
         "status": user["status"],
@@ -1937,7 +1942,55 @@ def verify_subscriber(user_id: str = Depends(verify_subscriber_token)):
         "trial_remaining_seconds": trial_remaining_seconds,
         "videos_created": user.get("videos_created") or 0,
         "video_limit": TRIAL_VIDEO_LIMIT,
+        "youtube_channel_url": youtube_channel_url,
+        "tiktok_profile_url":  tiktok_profile_url,
+        "setup_complete": bool(youtube_channel_url or tiktok_profile_url),
     }
+
+
+class SubscriberSettingsRequest(BaseModel):
+    youtube_channel_url: Optional[str] = None
+    tiktok_profile_url:  Optional[str] = None
+
+
+@app.patch("/subscribe/settings")
+def update_subscriber_settings(req: SubscriberSettingsRequest, user_id: str = Depends(verify_subscriber_token)):
+    """Subscriber — update their YouTube / TikTok channel URLs."""
+    fields = {}
+    if req.youtube_channel_url is not None:
+        fields["youtube_channel_url"] = req.youtube_channel_url.strip()[:500]
+    if req.tiktok_profile_url is not None:
+        fields["tiktok_profile_url"] = req.tiktok_profile_url.strip()[:500]
+    if fields:
+        try:
+            db.update_subscription_user(user_id, **fields)
+        except Exception as e:
+            if "column" in str(e).lower() or "youtube_channel_url" in str(e):
+                pass  # Migration not yet run — ignore
+            else:
+                raise HTTPException(status_code=500, detail="Failed to save settings")
+    return {"ok": True}
+
+
+@app.post("/subscribe/retry-video/{video_id}")
+def subscriber_retry_video(video_id: str, user_id: str = Depends(verify_subscriber_token)):
+    """Subscriber — requeue a failed video for reprocessing."""
+    video = db.get_subscriber_video(video_id, subscriber_user_id=user_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if video.get("status") != "failed":
+        raise HTTPException(status_code=400, detail="Video is not in failed state")
+    user = db.get_subscription_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    # Reset status and clear error
+    db.update_video(video_id, status="generating", error_message=None)
+    # Strip the trial suffix before re-queuing so we don't double-add it
+    raw_topic = (video.get("prompt") or "").replace(" [Keep this concise — target 3-4 minutes maximum]", "").strip()
+    topic = raw_topic or "general topic"
+    from workers.celery_worker import run_subscriber_video_pipeline
+    task = run_subscriber_video_pipeline.delay(video_id, user_id, topic, "educational")
+    return {"ok": True, "video_id": video_id, "task_id": task.id}
 
 
 def _generate_thumbnail(file_path: str, video_id: str) -> str | None:
@@ -2210,6 +2263,21 @@ def save_tiktok_url(body: dict, _u: str = Depends(verify_token)):
     url = str(body.get("url", "")).strip()
     db.set_setting("tiktok_profile_url", url)
     return {"ok": True, "url": url}
+
+
+@app.get("/settings/auto-blog-post")
+def get_auto_blog_post_setting(_u: str = Depends(verify_token)):
+    """Admin — get the auto-create blog post after video generation setting."""
+    enabled = db.get_setting("auto_blog_post_enabled", default="false")
+    return {"enabled": str(enabled).lower() == "true"}
+
+
+@app.post("/settings/auto-blog-post")
+def save_auto_blog_post_setting(body: dict, _u: str = Depends(verify_token)):
+    """Admin — toggle auto-create blog post after each video is generated."""
+    enabled = bool(body.get("enabled", False))
+    db.set_setting("auto_blog_post_enabled", "true" if enabled else "false")
+    return {"ok": True, "enabled": enabled}
 
 
 class ExclusiveVideoUrlRequest(BaseModel):

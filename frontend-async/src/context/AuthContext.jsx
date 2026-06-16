@@ -24,10 +24,10 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const data = await apiLogin(email, password);
-    // Fetch full profile (includes trial info)
+    // Fetch full profile (includes trial info + channel URLs)
     const me = await getMe();
     setUser(me);
-    return data;
+    return { ...data, user: me };
   };
 
   const refreshUser = async () => {
