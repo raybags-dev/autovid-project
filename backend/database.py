@@ -87,6 +87,9 @@ ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS videos_created INT DEFAU
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS subscriber_user_id UUID;
 CREATE INDEX IF NOT EXISTS idx_videos_subscriber ON videos(subscriber_user_id) WHERE subscriber_user_id IS NOT NULL;
 
+-- Subscriber YouTube OAuth tokens (run once in Supabase SQL Editor):
+ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS youtube_oauth_token JSONB;
+
 -- Subscriber channel URLs — for auto-publish routing (run once in Supabase SQL Editor):
 ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS youtube_channel_url TEXT DEFAULT '';
 ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS tiktok_profile_url TEXT DEFAULT '';

@@ -195,6 +195,8 @@ def auto_upload_ready_videos():
         return {"uploaded": 0, "reason": "quota_exhausted"}
 
     ready_videos = db.list_videos(status="ready", limit=max_uploads)
+    # Never auto-upload subscriber-owned videos to the admin's YouTube channel
+    ready_videos = [v for v in ready_videos if "subscriber_video" not in (v.get("labels") or [])]
     if not ready_videos:
         print("✅ No ready videos to upload.")
         return {"uploaded": 0}

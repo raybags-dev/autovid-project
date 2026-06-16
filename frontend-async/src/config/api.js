@@ -91,4 +91,14 @@ export const cancelAccountDeletion = async () => {
   return data;
 };
 
+export const getYouTubeAuthUrl = async () => {
+  const { data } = await api.get("/subscribe/youtube/auth-url");
+  return data.auth_url;
+};
+
+export const disconnectYouTube = async () => {
+  const { data } = await api.post("/subscribe/youtube/disconnect");
+  return data;
+};
+
 export default api;

@@ -4,11 +4,13 @@ import { useAuth } from "../context/AuthContext";
 import {
   cancelAccountDeletion,
   createVideo,
+  disconnectYouTube,
   getCreateYourWebsite,
   getMyVideos,
   getSampleVideos,
   getVideoStatus,
   getVideoStreamUrl,
+  getYouTubeAuthUrl,
   requestAccountDeletion,
   retryVideo,
   updateSubscriberSettings,
@@ -399,7 +401,44 @@ function TrialBanner({ user, onExpired }) {
   );
 }
 
-function VideoCard({ video, isOwned, onRetry }) {
+function VideoPlayerModal({ video, onClose }) {
+  const streamUrl = getVideoStreamUrl(video.id);
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ position: "relative", width: "100%", maxWidth: 900, background: "#080e1a", borderRadius: 12, overflow: "hidden", border: "1px solid #1a2a4a", boxShadow: "0 24px 80px rgba(0,0,0,0.8)" }}>
+        <video
+          src={streamUrl}
+          controls
+          autoPlay
+          playsInline
+          style={{ width: "100%", display: "block", maxHeight: "70vh", background: "#000" }}
+        />
+        <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#e0eaf5", lineHeight: 1.4, flex: 1, marginRight: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {video.title || video.prompt?.slice(0, 80) || "Untitled"}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <a
+              href={streamUrl}
+              download
+              style={{ background: "#0d1b2a", border: "1px solid #1a2a4a", color: "#6a8ab0", padding: "5px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, textDecoration: "none" }}
+            >
+              ↓ Download
+            </a>
+            <button onClick={onClose} style={{ background: "transparent", border: "1px solid #1a2a4a", color: "#6a8ab0", padding: "5px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VideoCard({ video, isOwned, onRetry, onPlay }) {
   const thumb = video.thumbnail_url;
   const dur   = fmtDuration(video.duration_seconds);
   const status = video.status;
@@ -425,8 +464,9 @@ function VideoCard({ video, isOwned, onRetry }) {
     <div style={{
       background: "#080e1a", border: `1px solid ${isFailed ? "#2a1010" : "#0d1b2a"}`, borderRadius: 10,
       overflow: "hidden", transition: "border-color 0.2s, transform 0.15s",
-      cursor: isDone ? "pointer" : "default",
+      cursor: isOwned && isDone ? "pointer" : "default",
     }}
+      onClick={() => isOwned && isDone && onPlay?.(video)}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = isFailed ? "#3a1515" : "#1a2a4a"; e.currentTarget.style.transform = "translateY(-1px)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isFailed ? "#2a1010" : "#0d1b2a"; e.currentTarget.style.transform = "none"; }}
     >
@@ -471,18 +511,16 @@ function VideoCard({ video, isOwned, onRetry }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           {video.created_at && <div style={{ fontSize: 11, color: "#4a6a8a" }}>{fmtRelative(video.created_at)}</div>}
           {isOwned && isDone && video.id && (
-            <a
-              href={getVideoStreamUrl(video.id)}
-              target="_blank" rel="noopener noreferrer"
+            <button
+              onClick={(e) => { e.stopPropagation(); onPlay?.(video); }}
               style={{
                 background: "#4f46e5", color: "#fff", padding: "4px 12px",
-                borderRadius: 5, fontSize: 11, fontWeight: 600, textDecoration: "none",
-                whiteSpace: "nowrap",
+                borderRadius: 5, fontSize: 11, fontWeight: 600, border: "none",
+                cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
-              Download
-            </a>
+              ▶ Watch
+            </button>
           )}
           {isOwned && isFailed && (
             <button
@@ -753,6 +791,15 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
   const [delLoading, setDelLoading]   = useState(false);
   const [delConfirm, setDelConfirm]   = useState(false);
   const [delError,   setDelError]     = useState("");
+  const [ytConnected, setYtConnected] = useState(user?.youtube_connected || false);
+  const [ytConnecting, setYtConnecting] = useState(false);
+  const [ytDisconnecting, setYtDisconnecting] = useState(false);
+
+  // Show success banner if redirected back from YouTube OAuth
+  const [ytJustConnected, setYtJustConnected] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("youtube_connected") === "1";
+  });
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -772,6 +819,28 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
       setError("Failed to save settings.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleConnectYouTube = async () => {
+    setYtConnecting(true);
+    try {
+      const url = await getYouTubeAuthUrl();
+      window.location.href = url;
+    } catch {
+      setYtConnecting(false);
+    }
+  };
+
+  const handleDisconnectYouTube = async () => {
+    setYtDisconnecting(true);
+    try {
+      await disconnectYouTube();
+      setYtConnected(false);
+    } catch {
+      /* ignore */
+    } finally {
+      setYtDisconnecting(false);
     }
   };
 
@@ -931,6 +1000,58 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
         </form>
       </div>
 
+      {/* YouTube Account Authorization */}
+      <div style={{ background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 10, padding: "24px", marginTop: 20 }}>
+        <div style={{ fontSize: 12, color: "#4a6a8a", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>YouTube Authorization</div>
+        {ytJustConnected && (
+          <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
+            ✓ YouTube account connected successfully!
+          </div>
+        )}
+        {ytConnected ? (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 18, color: "#22c55e" }}>✓</span>
+              <div>
+                <div style={{ fontSize: 13, color: "#c8d8e8", fontWeight: 600 }}>YouTube Connected</div>
+                <div style={{ fontSize: 11, color: "#4a6a8a", marginTop: 2 }}>Videos you generate will upload to your YouTube channel.</div>
+              </div>
+            </div>
+            <button
+              onClick={handleDisconnectYouTube}
+              disabled={ytDisconnecting}
+              style={{
+                background: "transparent", border: "1px solid #2a1a1a", color: "#6a4a4a",
+                borderRadius: 7, padding: "8px 16px", fontSize: 12, cursor: ytDisconnecting ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {ytDisconnecting ? "Disconnecting…" : "Disconnect YouTube"}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p style={{ fontSize: 13, color: "#6a8ab0", margin: "0 0 16px", lineHeight: 1.6 }}>
+              Connect your YouTube account so AutoVid can upload videos directly to your channel.
+              Videos are uploaded as <strong style={{ color: "#818cf8" }}>private drafts</strong> — only you can see them until you publish.
+            </p>
+            <button
+              onClick={handleConnectYouTube}
+              disabled={ytConnecting}
+              style={{
+                background: ytConnecting ? "#1a2a3a" : "#4f46e5",
+                color: ytConnecting ? "#4a6a8a" : "#fff",
+                border: "none", borderRadius: 7, padding: "10px 22px",
+                fontSize: 13, fontWeight: 700, cursor: ytConnecting ? "not-allowed" : "pointer",
+                fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              {ytConnecting ? "Redirecting…" : "▶ Connect YouTube Account"}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Danger Zone — account deletion */}
       <div style={{ background: "#0c0608", border: "1px solid #2a1018", borderRadius: 10, padding: "24px", marginTop: 20 }}>
         <div style={{ fontSize: 12, color: "#6a2a3a", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
@@ -1019,6 +1140,7 @@ export default function Dashboard() {
   const [trialExpired,   setTrialExpired]   = useState(false);
   const [showUpgrade,    setShowUpgrade]    = useState(false);
   const [trackingVideoId, setTrackingVideoId] = useState(null);
+  const [playingVideo,   setPlayingVideo]   = useState(null);
 
   const { toasts, addToast, dismiss } = useNotifications();
 
@@ -1092,6 +1214,7 @@ export default function Dashboard() {
       fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
     }}>
       <ToastContainer toasts={toasts} dismiss={dismiss} />
+      {playingVideo && <VideoPlayerModal video={playingVideo} onClose={() => setPlayingVideo(null)} />}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
       {/* Nav */}
       <nav style={{
@@ -1242,7 +1365,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-                {myVideos.map((v) => <VideoCard key={v.id} video={v} isOwned onRetry={handleVideoCreated} />)}
+                {myVideos.map((v) => <VideoCard key={v.id} video={v} isOwned onRetry={handleVideoCreated} onPlay={setPlayingVideo} />)}
               </div>
             )}
           </div>

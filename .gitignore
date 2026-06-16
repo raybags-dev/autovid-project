@@ -2,6 +2,7 @@
 backend/.env
 .env
 backend/client_secrets.json
+backend/client_secrets_subscriber.json
 backend/youtube_token.json
 backend/token.json
 backend/tiktok*.txt
