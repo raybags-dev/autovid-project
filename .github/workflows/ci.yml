@@ -142,17 +142,23 @@ jobs:
             set -e
             cd /opt/autovid
 
-            # Free disk space — build cache accumulates fast on a small VPS
-            docker system prune -af 2>/dev/null || true
-            docker builder prune -af 2>/dev/null || true
+            # Remove old unused images (frees 10-20 GB of stale layers).
+            # We do NOT prune build cache — cached pip layers (torch, faster-whisper)
+            # make backend builds ~5 min instead of ~25 min and avoid disk pressure.
+            docker image prune -af 2>/dev/null || true
 
-            # Discard any local-only file changes (from previous rsync deploys)
-            # Untracked files (.env, client_secrets*.json) are untouched
+            # Discard any local-only file changes; untracked files (.env, secrets) are safe
             git reset --hard HEAD
             git pull origin main
 
-            # Rebuild images and bring containers up
-            docker compose build
+            # Frontends first: no-cache (small, fast, always need fresh JS bundle)
+            docker compose build --no-cache frontend frontend-async
+
+            # Backends sequentially (layer cache keeps torch from re-downloading)
+            docker compose build backend-1
+            docker compose build backend-2
+            docker compose build celery-worker
+
             docker compose up -d
 
             echo "✅ Deploy complete — $(git log -1 --oneline)"
