@@ -12,9 +12,13 @@ export function AuthProvider({ children }) {
     if (token) {
       getMe()
         .then((me) => setUser(me))
-        .catch(() => {
-          localStorage.removeItem("async_token");
-          setUser(null);
+        .catch((err) => {
+          // Only clear the token on a real auth failure (401); keep users
+          // logged in if the backend returns a 500 or network blips occur.
+          if (err?.response?.status === 401 || err?.status === 401) {
+            localStorage.removeItem("async_token");
+            setUser(null);
+          }
         })
         .finally(() => setLoading(false));
     } else {

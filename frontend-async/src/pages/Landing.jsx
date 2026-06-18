@@ -458,6 +458,12 @@ export default function Landing() {
 
         @media (max-width: 480px) {
           .am-steps-grid { grid-template-columns: 1fr; }
+          .am-hero-section { padding: 56px 16px 44px !important; }
+          .am-section { padding: 64px 16px !important; }
+          .am-hero-badge { font-size: 11px !important; }
+          .am-section-title { font-size: 20px !important; }
+          .am-footer-grid { padding: 36px 16px 24px !important; }
+          .am-faq-question { font-size: 14px !important; }
         }
       `}</style>
 
@@ -511,7 +517,7 @@ export default function Landing() {
       )}
 
       {/* ─── Hero ────────────────────────────────────────────────────────────────── */}
-      <section style={{ maxWidth: 920, margin: "0 auto", padding: "88px 24px 72px", textAlign: "center" }}>
+      <section className="am-hero-section" style={{ maxWidth: 920, margin: "0 auto", padding: "88px 24px 72px", textAlign: "center" }}>
         <div className="am-hero-badge" style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           background: "#0d1020", border: "1px solid #2a2060",

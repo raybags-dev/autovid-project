@@ -134,7 +134,7 @@ jobs:
       - name: Deploy to Hetzner VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
+          host: "157.180.67.199"
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           command_timeout: 20m
