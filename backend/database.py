@@ -309,24 +309,47 @@ def create_subscriber_video(prompt: str, subscriber_user_id: str) -> dict:
 def list_subscriber_videos(subscriber_user_id: str, limit: int = 50) -> list[dict]:
     """List all videos created by a specific subscriber."""
     db = get_client()
-    result = (db.table("videos")
-                .select("id,title,status,thumbnail_url,file_path,duration_seconds,created_at,error_message,prompt")
-                .eq("subscriber_user_id", subscriber_user_id)
-                .order("created_at", desc=True)
-                .limit(limit)
-                .execute())
-    return result.data or []
+    try:
+        result = (db.table("videos")
+                    .select("id,title,status,thumbnail_url,file_path,duration_seconds,created_at,error_message,prompt")
+                    .eq("subscriber_user_id", subscriber_user_id)
+                    .order("created_at", desc=True)
+                    .limit(limit)
+                    .execute())
+        return result.data or []
+    except Exception as e:
+        if "subscriber_user_id" in str(e) or "42703" in str(e):
+            # Column not yet migrated — fall back to label-based lookup
+            owner_label = f"owner:{subscriber_user_id}"
+            result = (db.table("videos")
+                        .select("id,title,status,thumbnail_url,file_path,duration_seconds,created_at,error_message,prompt,labels")
+                        .contains("labels", ["subscriber_video"])
+                        .order("created_at", desc=True)
+                        .limit(limit)
+                        .execute())
+            return [v for v in (result.data or []) if owner_label in (v.get("labels") or [])]
+        raise
 
 
 def get_subscriber_video(video_id: str, subscriber_user_id: str) -> dict | None:
     """Get a video only if it belongs to the given subscriber."""
     db = get_client()
-    result = (db.table("videos")
-                .select("*")
-                .eq("id", video_id)
-                .eq("subscriber_user_id", subscriber_user_id)
-                .execute())
-    return result.data[0] if result.data else None
+    try:
+        result = (db.table("videos")
+                    .select("*")
+                    .eq("id", video_id)
+                    .eq("subscriber_user_id", subscriber_user_id)
+                    .execute())
+        return result.data[0] if result.data else None
+    except Exception as e:
+        if "subscriber_user_id" in str(e) or "42703" in str(e):
+            owner_label = f"owner:{subscriber_user_id}"
+            result = (db.table("videos").select("*").eq("id", video_id).execute())
+            row = result.data[0] if result.data else None
+            if row and owner_label in (row.get("labels") or []):
+                return row
+            return None
+        raise
 
 
 def get_stats() -> dict:

@@ -179,7 +179,7 @@ function CapabilitiesPanel({ user }) {
       <div style={{ fontSize: 12, color: "#4a6a8a", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 14 }}>
         What you can do
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+      <div className="am-grid-caps">
         {caps.map((c) => (
           <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
             <span style={{ fontSize: 12, flexShrink: 0, color: c.ok ? "#22c55e" : "#4a6a8a" }}>{c.ok ? "✓" : "○"}</span>
@@ -220,7 +220,7 @@ function UpgradeModal({ onClose }) {
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#4a6a8a", cursor: "pointer", fontSize: 22, lineHeight: 1 }}>×</button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 28 }}>
+        <div className="am-grid-plans">
           {plans.map((plan) => (
             <div key={plan.name} style={{
               background: plan.highlight ? "#090c1e" : "#050a14",
@@ -361,7 +361,7 @@ function TrialBanner({ user, onExpired, onConnect, onUpgrade }) {
       border: `1px solid ${expired ? "#4a1f1f" : urgent ? "#78350f" : "#1a2a4a"}`,
       borderRadius: 10, padding: "16px 20px", marginBottom: 28,
     }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+      <div className="am-trial-banner-inner">
         <div>
           <div style={{
             fontSize: 13, fontWeight: 700, color: expired ? "#f87171" : urgent ? "#fbbf24" : "#60a5fa",
@@ -742,7 +742,7 @@ function CreateYourWebsitePanel() {
           <p style={{ fontSize: 13, color: "#6a8ab0", marginTop: 16, lineHeight: 1.7 }}>
             {data.tagline}
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "16px 0" }}>
+          <div className="am-grid-website">
             <div style={{ background: "#050a14", border: "1px solid #0d1b2a", borderRadius: 8, padding: "14px 16px" }}>
               <div style={{ fontSize: 11, color: "#4a6a8a", marginBottom: 8, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }}>What you get</div>
               {(data.what_you_get || []).map((item, i) => (
@@ -1144,6 +1144,128 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
 }
 
 
+/* ─── Link Accounts Tab ──────────────────────────────────────────────────────── */
+
+function LinkAccountsTab({ user, onRefresh }) {
+  const [connecting, setConnecting]     = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError]               = useState("");
+  const ytConnected = user?.youtube_connected;
+
+  const [ytJustConnected] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("youtube_connected") === "1";
+  });
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    setError("");
+    try {
+      const url = await getYouTubeAuthUrl();
+      if (!url) throw new Error("No URL returned");
+      window.location.href = url;
+    } catch (err) {
+      setConnecting(false);
+      setError(err?.response?.data?.detail || "Failed to start YouTube auth. Please try again.");
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      await disconnectYouTube();
+      await onRefresh?.();
+    } catch { /* ignore */ }
+    finally { setDisconnecting(false); }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>Link Accounts</h2>
+        <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0, lineHeight: 1.6 }}>
+          Connect your social channels so AutoVid can publish videos automatically.
+          YouTube is <strong style={{ color: "#ef4444" }}>required</strong> before you can create videos — uploads go in as private drafts for you to review.
+        </p>
+      </div>
+
+      {ytJustConnected && (
+        <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", padding: "12px 16px", borderRadius: 10, fontSize: 13, marginBottom: 20 }}>
+          ✓ YouTube account connected successfully! You can now create videos.
+        </div>
+      )}
+
+      {/* YouTube */}
+      <div style={{ background: "#080e1a", border: `1px solid ${ytConnected ? "rgba(34,197,94,0.25)" : "#1a2a4a"}`, borderRadius: 12, padding: "24px", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: "rgba(255,0,0,0.1)", border: "1px solid rgba(255,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>▶</div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#e0eaf5" }}>YouTube</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>Required</span>
+              {ytConnected && <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 700 }}>✓ Connected</span>}
+            </div>
+            <p style={{ fontSize: 13, color: "#5a7a9a", margin: "0 0 16px", lineHeight: 1.6 }}>
+              Every generated video uploads to your channel as a <strong style={{ color: "#818cf8" }}>private draft</strong>. You review, edit the title/description, then decide when to publish.
+              You must connect YouTube before creating any video.
+            </p>
+            {ytConnected ? (
+              <button
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+                style={{
+                  background: "transparent", border: "1px solid #3a1a1a", color: "#b06060",
+                  borderRadius: 7, padding: "8px 18px", fontSize: 12, fontWeight: 600,
+                  cursor: disconnecting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                  opacity: disconnecting ? 0.6 : 1,
+                }}
+              >
+                {disconnecting ? "Disconnecting…" : "Disconnect YouTube"}
+              </button>
+            ) : (
+              <button
+                onClick={handleConnect}
+                disabled={connecting}
+                style={{
+                  background: connecting ? "#1a2a3a" : "#4f46e5", color: connecting ? "#4a6a8a" : "#fff",
+                  border: "none", borderRadius: 7, padding: "10px 24px",
+                  fontSize: 13, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8,
+                }}
+              >
+                {connecting ? "Redirecting to Google…" : "▶ Connect YouTube Account"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* TikTok — coming soon */}
+      <div style={{ background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 12, padding: "24px", marginBottom: 14, opacity: 0.55 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: "rgba(105,201,208,0.08)", border: "1px solid rgba(105,201,208,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "#69c9d0" }}>♬</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#c8d8e8" }}>TikTok</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "rgba(74,106,138,0.1)", color: "#4a6a8a", border: "1px solid rgba(74,106,138,0.2)" }}>Coming Soon</span>
+            </div>
+            <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0, lineHeight: 1.6 }}>
+              Cross-post Shorts automatically to TikTok. We're rolling this out to Creator plan subscribers soon.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ fontSize: 13, color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 9, padding: "12px 16px", marginTop: 8 }}>
+          ⚠ {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 /* ─── Connect Accounts Modal ─────────────────────────────────────────────────── */
 
 function ConnectAccountsModal({ user, onClose }) {
@@ -1370,13 +1492,45 @@ export default function Dashboard() {
       minHeight: "100vh", background: "#08080f", color: "#e0eaf5",
       fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
     }}>
+      <style>{`
+        .am-nav { padding: 0 28px; }
+        .am-nav-right { display: flex; align-items: center; gap: 10px; }
+        .am-nav-email { font-size: 12px; color: #4a6a8a; }
+        .am-nav-docs { font-size: 12px; color: #4a6a8a; padding: 5px 10px; }
+        .am-page { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+        .am-tabs { display: flex; gap: 4px; margin-bottom: 28px; border-bottom: 1px solid #0d1b2a; padding-bottom: 0; flex-wrap: wrap; }
+        .am-grid-videos { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
+        .am-grid-caps { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+        .am-grid-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+        .am-grid-website { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; }
+        .am-trial-banner-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        @media (max-width: 700px) {
+          .am-nav { padding: 0 14px; }
+          .am-nav-email { display: none; }
+          .am-nav-docs { display: none; }
+          .am-nav-right { gap: 6px; }
+          .am-page { padding: 20px 14px; }
+          .am-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; gap: 0; }
+          .am-tabs::-webkit-scrollbar { display: none; }
+          .am-grid-videos { grid-template-columns: 1fr 1fr; }
+          .am-grid-caps { grid-template-columns: 1fr 1fr; }
+          .am-grid-plans { grid-template-columns: 1fr; }
+          .am-grid-website { grid-template-columns: 1fr; }
+          .am-trial-banner-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
+        }
+        @media (max-width: 460px) {
+          .am-grid-videos { grid-template-columns: 1fr; }
+          .am-grid-caps { grid-template-columns: 1fr; }
+          .am-upgrade-btn-nav { display: none; }
+        }
+      `}</style>
       <ToastContainer toasts={toasts} dismiss={dismiss} />
       {playingVideo && <VideoPlayerModal video={playingVideo} onClose={() => setPlayingVideo(null)} />}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
       {showConnectAccounts && <ConnectAccountsModal user={user} onClose={() => setShowConnectAccounts(false)} />}
       {/* Nav */}
-      <nav style={{
-        borderBottom: "1px solid #0d1b2a", padding: "0 28px",
+      <nav className="am-nav" style={{
+        borderBottom: "1px solid #0d1b2a",
         display: "flex", alignItems: "center", height: 56, background: "#050a14",
         position: "sticky", top: 0, zIndex: 100,
       }}>
@@ -1394,10 +1548,11 @@ export default function Dashboard() {
             color: "#3a4a6a", border: "1px solid #1a2a4a", padding: "2px 7px", borderRadius: 4,
           }}>workspace</span>
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Link to="/docs" style={{ fontSize: 12, color: "#4a6a8a", padding: "5px 10px" }}>Docs</Link>
-          <span style={{ fontSize: 12, color: "#4a6a8a" }}>{user?.email}</span>
+        <div className="am-nav-right">
+          <Link className="am-nav-docs" to="/docs" style={{ textDecoration: "none" }}>Docs</Link>
+          <span className="am-nav-email">{user?.email}</span>
           <button
+            className="am-upgrade-btn-nav"
             onClick={() => setShowUpgrade(true)}
             style={{
               background: "#4f46e5", border: "none",
@@ -1420,7 +1575,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 24px" }}>
+      <div className="am-page">
         {/* Trial banner */}
         {user?.plan === "trial" && (
           <TrialBanner user={user} onExpired={handleTrialExpired} onConnect={() => setShowConnectAccounts(true)} onUpgrade={() => setShowUpgrade(true)} />
@@ -1430,14 +1585,15 @@ export default function Dashboard() {
         {(() => {
           const isTrial = user?.plan === "trial";
           const TABS = [
-            { id: "create",    label: "Create",              locked: false },
-            { id: "my-videos", label: `My Videos${pendingCount ? ` (${pendingCount})` : ""}`, locked: false },
-            { id: "samples",   label: "Sample Library",      locked: false },
-            { id: "website",   label: "Create Your Website", locked: isTrial },
-            { id: "account",   label: "Account",             locked: isTrial },
+            { id: "create",        label: "Create",              locked: false },
+            { id: "my-videos",     label: `My Videos${pendingCount ? ` (${pendingCount})` : ""}`, locked: false },
+            { id: "samples",       label: "Sample Library",      locked: false },
+            { id: "link-accounts", label: "Link Accounts",       locked: false, badge: !user?.youtube_connected },
+            { id: "website",       label: "Create Your Website", locked: isTrial },
+            { id: "account",       label: "Account",             locked: isTrial },
           ];
           return (
-            <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "1px solid #0d1b2a", paddingBottom: 0, flexWrap: "wrap" }}>
+            <div className="am-tabs">
               {TABS.map((t) => (
                 <button
                   key={t.id}
@@ -1462,6 +1618,9 @@ export default function Dashboard() {
                 >
                   {t.locked && <span style={{ marginRight: 4, fontSize: 10, opacity: 0.5 }}>🔒</span>}
                   {t.label}
+                  {t.badge && !t.locked && (
+                    <span style={{ marginLeft: 5, width: 6, height: 6, borderRadius: "50%", background: "#ef4444", display: "inline-block", verticalAlign: "middle", flexShrink: 0 }} />
+                  )}
                 </button>
               ))}
             </div>
@@ -1529,7 +1688,7 @@ export default function Dashboard() {
                 </button>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
+              <div className="am-grid-videos">
                 {myVideos.map((v) => <VideoCard key={v.id} video={v} isOwned onRetry={handleVideoCreated} onPlay={setPlayingVideo} />)}
               </div>
             )}
@@ -1560,7 +1719,7 @@ export default function Dashboard() {
               const isTrial = user?.plan === "trial";
               const displayed = isTrial ? sampleVideos.slice(0, 5) : sampleVideos;
               return (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
+                <div className="am-grid-videos">
                   {displayed.map((v) => (
                     <div key={v.id} style={{ position: "relative" }}>
                       <div style={{ pointerEvents: isTrial ? "none" : undefined, opacity: isTrial ? 0.45 : 1, filter: isTrial ? "grayscale(0.5)" : "none" }}>
@@ -1596,6 +1755,11 @@ export default function Dashboard() {
               );
             })()}
           </div>
+        )}
+
+        {/* Link Accounts tab */}
+        {activeTab === "link-accounts" && (
+          <LinkAccountsTab user={user} onRefresh={refreshUser} />
         )}
 
         {/* Create Your Website tab */}
