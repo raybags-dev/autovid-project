@@ -142,8 +142,9 @@ jobs:
             set -e
             cd /opt/autovid
 
-            # Free disk space — old build cache accumulates fast
-            docker system prune -f 2>/dev/null || true
+            # Free disk space — build cache accumulates fast on a small VPS
+            docker system prune -af 2>/dev/null || true
+            docker builder prune -af 2>/dev/null || true
 
             # Discard any local-only file changes (from previous rsync deploys)
             # Untracked files (.env, client_secrets*.json) are untouched

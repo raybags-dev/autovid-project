@@ -140,8 +140,8 @@ df -h / | tail -1 | awk '{print "   " $4 " free (" $5 " used)"}'
 # Frontend: always rebuild without cache (it's tiny, ~180 MB).
 # Backend/celery: use layer cache — Python packages are 4+ GB and
 #   rarely change; only app code layers are invalidated.
-echo "→ Building frontend (no-cache)..."
-docker compose build --no-cache frontend
+echo "→ Building frontends (no-cache)..."
+docker compose build --no-cache frontend frontend-async
 
 echo "→ Building backend services (cached layers)..."
 docker compose build backend-1 backend-2 celery-worker
