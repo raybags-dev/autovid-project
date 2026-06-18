@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # Read from env or a local .deploy config (never commit real values)
-SERVER="${DEPLOY_SERVER:-root@your-server-ip}"
+SERVER="${DEPLOY_SERVER:-root@157.180.67.199}"
 SERVER_DIR="/opt/autovid"
 
 # SSH options that keep the connection alive through a long Docker build.
