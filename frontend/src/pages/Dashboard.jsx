@@ -76,6 +76,8 @@ import api, {
   addCaptionsToVideo,
   getBmcSettings,
   saveBmcSettings,
+  getYoutubeChannelUrl,
+  saveYoutubeChannelUrl,
   adminListBlogPosts,
   adminCreateBlogPost,
   adminUpdateBlogPost,
@@ -2172,6 +2174,10 @@ export default function Dashboard() {
       setSpotifyShowUrl(r.data.url || "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
       setSpotifyShowUrlDraft(r.data.url || "https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
     }).catch(() => {});
+    getYoutubeChannelUrl().then(r => {
+      setYoutubeChannelUrl(r.url || "");
+      setYoutubeChannelUrlDraft(r.url || "");
+    }).catch(() => {});
     api.get("/settings/tiktok-url").then(r => {
       setTiktokProfileUrl(r.data.url || "https://www.tiktok.com/@your-handle");
       setTiktokProfileUrlDraft(r.data.url || "https://www.tiktok.com/@your-handle");
@@ -2398,6 +2404,11 @@ export default function Dashboard() {
   const [spotifyShowUrl, setSpotifyShowUrl] = useState("https://open.spotify.com/show/3d8WOqQD448znnyCASa7lQ");
   const [spotifyShowUrlDraft, setSpotifyShowUrlDraft] = useState("");
   const [spotifyUrlSaving, setSpotifyUrlSaving] = useState(false);
+
+  // YouTube channel URL (editable in Settings)
+  const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
+  const [youtubeChannelUrlDraft, setYoutubeChannelUrlDraft] = useState("");
+  const [youtubeChannelUrlSaving, setYoutubeChannelUrlSaving] = useState(false);
 
   // TikTok profile URL (editable in Settings)
   const [tiktokProfileUrl, setTiktokProfileUrl] = useState("https://www.tiktok.com/@your-handle");
@@ -10579,6 +10590,51 @@ export default function Dashboard() {
                         CONNECT
                       </a>
                     )}
+                  </div>
+                </div>
+
+                {/* ── YouTube Channel URL ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>YOUTUBE — CHANNEL URL</div>
+                  <div style={{ background: T.bgCard, border: "1px solid rgba(255,85,51,0.25)", borderRadius: 10, padding: "16px 18px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <span style={{ fontSize: 20 }}>▶</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>YouTube Channel URL</div>
+                        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
+                          Shown on the public website. e.g. https://www.youtube.com/@yourchannel
+                        </div>
+                      </div>
+                      {youtubeChannelUrl && (
+                        <a href={youtubeChannelUrl} target="_blank" rel="noreferrer"
+                          style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: 20, background: "rgba(255,85,51,0.08)", border: "1px solid rgba(255,85,51,0.25)", color: "#ff5533", fontSize: 10, textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "0.06em" }}>
+                          OPEN ↗
+                        </a>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={youtubeChannelUrlDraft}
+                        onChange={e => setYoutubeChannelUrlDraft(e.target.value)}
+                        placeholder="https://www.youtube.com/@yourchannel"
+                        style={{ flex: 1, background: T.bgBase, border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontSize: 11, padding: "8px 10px", fontFamily: "monospace", outline: "none" }}
+                      />
+                      <button
+                        disabled={youtubeChannelUrlSaving || youtubeChannelUrlDraft === youtubeChannelUrl}
+                        onClick={async () => {
+                          setYoutubeChannelUrlSaving(true);
+                          try {
+                            await saveYoutubeChannelUrl(youtubeChannelUrlDraft);
+                            setYoutubeChannelUrl(youtubeChannelUrlDraft);
+                            showToast("YouTube URL saved");
+                          } catch { showToast("Failed to save", "error"); }
+                          finally { setYoutubeChannelUrlSaving(false); }
+                        }}
+                        style={{ padding: "8px 14px", borderRadius: 7, border: "1px solid rgba(255,85,51,0.3)", background: "rgba(255,85,51,0.08)", color: "#ff5533", fontSize: 11, cursor: youtubeChannelUrlSaving || youtubeChannelUrlDraft === youtubeChannelUrl ? "default" : "pointer", opacity: youtubeChannelUrlSaving || youtubeChannelUrlDraft === youtubeChannelUrl ? 0.5 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}
+                      >
+                        {youtubeChannelUrlSaving ? "SAVING..." : "SAVE"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

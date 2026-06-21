@@ -1984,6 +1984,8 @@ export default function LandingPage() {
   const [bmcUrl, setBmcUrl] = useState("");
   const [bmcMsg, setBmcMsg] = useState(false);
   const [tiktokUrl, setTiktokUrl] = useState(SOCIAL.tiktok);
+  const [youtubeUrl, setYoutubeUrl] = useState(SOCIAL.youtube);
+  const [spotifyUrl, setSpotifyUrl] = useState(SOCIAL.spotify);
   const wrapperRef = useRef(null);
   const autoRef = useRef(null);
   const heroVidRef = useRef(null);
@@ -2164,6 +2166,18 @@ export default function LandingPage() {
       .catch(() => {});
   }, []);
 
+  // Fetch YouTube channel URL and Spotify show URL (editable in Dashboard Settings)
+  useEffect(() => {
+    fetch("/api/app-settings/youtube_channel_url")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.value) setYoutubeUrl(d.value); })
+      .catch(() => {});
+    fetch("/api/app-settings/spotify_show_url")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.value) setSpotifyUrl(d.value); })
+      .catch(() => {});
+  }, []);
+
   // Counter animation — runs when heroStats arrives
   useEffect(() => {
     if (!heroStats) return;
@@ -2244,7 +2258,7 @@ export default function LandingPage() {
     setYtIdx((i) => (i + 1) % t);
   };
 
-  const item = { ...CAROUSEL[carouselIdx], link: CAROUSEL[carouselIdx].platform === "TIKTOK" ? tiktokUrl : CAROUSEL[carouselIdx].link };
+  const item = { ...CAROUSEL[carouselIdx], link: CAROUSEL[carouselIdx].platform === "TIKTOK" ? tiktokUrl : CAROUSEL[carouselIdx].platform === "YOUTUBE" ? youtubeUrl : CAROUSEL[carouselIdx].platform === "PODCAST" ? spotifyUrl : CAROUSEL[carouselIdx].link };
 
   return (
     <div
@@ -2773,7 +2787,7 @@ export default function LandingPage() {
           </Link>
           <div style={{ display: "flex", gap: 14, marginTop: 16 }}>
             <a
-              href={SOCIAL.youtube}
+              href={youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="soc-icon"
@@ -2789,7 +2803,7 @@ export default function LandingPage() {
               ♪
             </a>
             <a
-              href={SOCIAL.spotify}
+              href={spotifyUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="soc-icon"
@@ -2898,7 +2912,7 @@ export default function LandingPage() {
             }}
           >
             <a
-              href={SOCIAL.youtube}
+              href={youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="soc-icon hide-mobile"
@@ -2918,7 +2932,7 @@ export default function LandingPage() {
               ♪
             </a>
             <a
-              href={SOCIAL.spotify}
+              href={spotifyUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="soc-icon hide-mobile"
@@ -3123,7 +3137,7 @@ export default function LandingPage() {
               EXPLORE CONTENT
             </button>
             <a
-              href={SOCIAL.youtube}
+              href={youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="lp-btn lp-btn-ghost"
@@ -3460,7 +3474,7 @@ export default function LandingPage() {
 
               <div className="btn-group">
                 <a
-                  href={SOCIAL.youtube}
+                  href={youtubeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="lp-btn lp-btn-fire"
@@ -3845,7 +3859,7 @@ export default function LandingPage() {
               Watch on YouTube · New content weekly
             </p>
             <a
-              href={SOCIAL.youtube}
+              href={youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="lp-btn lp-btn-ghost"
@@ -3945,7 +3959,7 @@ export default function LandingPage() {
                       }}
                     >
                       <a
-                        href={SOCIAL.youtube}
+                        href={youtubeUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -4131,7 +4145,7 @@ export default function LandingPage() {
                           WATCH ON YOUTUBE
                         </a>
                         <a
-                          href={SOCIAL.youtube}
+                          href={youtubeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
@@ -4376,7 +4390,7 @@ export default function LandingPage() {
                 <a
                   href={
                     podcastTab === "spotify"
-                      ? SOCIAL.spotify
+                      ? spotifyUrl
                       : podcastTab === "buzzsprout"
                         ? `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}`
                         : "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P"
@@ -4400,7 +4414,7 @@ export default function LandingPage() {
                 <a
                   href={
                     podcastTab === "spotify"
-                      ? SOCIAL.spotify
+                      ? spotifyUrl
                       : podcastTab === "buzzsprout"
                         ? `https://www.buzzsprout.com/${BUZZSPROUT_PODCAST_ID}`
                         : "https://www.podbean.com/site/podcatcher/index/blog/UrMKq7tJWM6P"
@@ -4534,7 +4548,7 @@ export default function LandingPage() {
             {TOPICS.map((t2) => (
               <a
                 key={t2.name}
-                href={SOCIAL.youtube}
+                href={youtubeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="topic-pill"
@@ -4789,7 +4803,7 @@ export default function LandingPage() {
             </div>
             <div className="btn-group" style={{ marginTop: 4 }}>
               <a
-                href={SOCIAL.youtube}
+                href={youtubeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="lp-btn lp-btn-fire"
@@ -4812,7 +4826,7 @@ export default function LandingPage() {
                 ♪ TIKTOK
               </a>
               <a
-                href={SOCIAL.spotify}
+                href={spotifyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="lp-btn lp-btn-ghost"
@@ -4898,7 +4912,7 @@ export default function LandingPage() {
               </div>
             </div>
             <a
-              href={SOCIAL.youtube}
+              href={youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 50, background: "rgba(255,85,51,0.12)", border: "1px solid rgba(255,85,51,0.3)", color: "#ff5533", fontSize: 12, fontWeight: 700, letterSpacing: "0.07em", textDecoration: "none", transition: "all 0.2s" }}
@@ -4958,14 +4972,14 @@ export default function LandingPage() {
               >
                 {[
                   {
-                    href: SOCIAL.youtube,
+                    href: youtubeUrl,
                     icon: "▶",
                     label: "YouTube",
                     color: "#ff5533",
                     bg: "rgba(255,85,51,0.12)",
                   },
                   {
-                    href: SOCIAL.spotify,
+                    href: spotifyUrl,
                     icon: "◎",
                     label: "Spotify",
                     color: "#1db954",
@@ -5085,13 +5099,13 @@ export default function LandingPage() {
               </div>
               {[
                 {
-                  href: SOCIAL.youtube,
+                  href: youtubeUrl,
                   icon: "▶",
                   label: "YouTube",
                   color: "#ff5533",
                 },
                 {
-                  href: SOCIAL.spotify,
+                  href: spotifyUrl,
                   icon: "◎",
                   label: "Spotify Podcast",
                   color: "#1db954",
@@ -5724,7 +5738,7 @@ export default function LandingPage() {
               We genuinely appreciate you being here. Feel free to subscribe to
               our{" "}
               <a
-                href={SOCIAL.youtube}
+                href={youtubeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -5736,7 +5750,7 @@ export default function LandingPage() {
               </a>{" "}
               and{" "}
               <a
-                href={SOCIAL.spotify}
+                href={spotifyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
