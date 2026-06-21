@@ -124,27 +124,25 @@ df -h / | tail -1 | awk '{print "   " $4 " free (" $5 " used)"}'
 # Graceful shutdown
 docker compose down --remove-orphans 2>/dev/null || true
 
-# ── Smart cleanup ───────────────────────────────────────────────
-# Only remove *dangling* (untagged) images — this preserves the Python
-# layer cache so the backend doesn't need to reinstall 4 GB of packages
-# on every deploy.  We still prune dangling images and build cache to
-# reclaim space from failed/superseded builds.
-echo "→ Pruning dangling images and build cache..."
-docker image prune -f 2>/dev/null || true
+# ── Cleanup ─────────────────────────────────────────────────────
+# Remove ALL unused images (not just dangling) so old oversized builds
+# (e.g. images that included torch/CUDA before the Dockerfile was fixed)
+# don't occupy disk during the new build.  Build cache is cleared too.
+echo "→ Pruning all unused images and build cache..."
+docker image prune -af 2>/dev/null || true
 docker builder prune -f 2>/dev/null || true
 
 echo "→ Disk after cleanup:"
 df -h / | tail -1 | awk '{print "   " $4 " free (" $5 " used)"}'
 
 # ── Build ───────────────────────────────────────────────────────
-# Frontend: always rebuild without cache (it's tiny, ~180 MB).
-# Backend/celery: use layer cache — Python packages are 4+ GB and
-#   rarely change; only app code layers are invalidated.
 echo "→ Building frontends (no-cache)..."
 docker compose build --no-cache frontend frontend-async
 
-echo "→ Building backend services (cached layers)..."
-docker compose build backend-1 backend-2 celery-worker
+echo "→ Building backend services (no-cache, sequential)..."
+docker compose build --no-cache backend-1
+docker compose build --no-cache backend-2
+docker compose build --no-cache celery-worker
 
 # ── Start ───────────────────────────────────────────────────────
 echo "→ Starting containers..."
