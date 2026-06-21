@@ -12,7 +12,22 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install deps then strip CUDA/CuDNN packages — not needed on a CPU-only VPS
+# and each nvidia-* package is ~100-600 MB, causing "no space left" during builds.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y \
+       nvidia-cublas-cu12 \
+       nvidia-cufft-cu12 \
+       nvidia-cudnn-cu12 \
+       nvidia-curand-cu12 \
+       nvidia-cusolver-cu12 \
+       nvidia-cusparse-cu12 \
+       nvidia-nccl-cu12 \
+       nvidia-nvtx-cu12 \
+       nvidia-cuda-nvrtc-cu12 \
+       nvidia-cuda-runtime-cu12 \
+       nvidia-cuda-cupti-cu12 \
+    2>/dev/null; true
 
 COPY . .
 
