@@ -410,6 +410,10 @@ export const getSpotifyTopArtists = async (limit = 10, range = "long_term") => {
 export const getBmcSettings  = async ()       => { const { data } = await api.get("/settings/bmc");        return data; };
 export const saveBmcSettings = async (payload) => { const { data } = await api.post("/settings/bmc", payload); return data; };
 
+// ── Social profile URLs ───────────────────────────────────────────────────────
+export const getYoutubeChannelUrl  = async ()    => { const { data } = await api.get("/settings/youtube-channel-url");       return data; };
+export const saveYoutubeChannelUrl = async (url) => { const { data } = await api.post("/settings/youtube-channel-url", { url }); return data; };
+
 export const updateVideoMeta = async (id, fields) => {
   const { data } = await api.patch(`/videos/${id}`, fields);
   return data;
