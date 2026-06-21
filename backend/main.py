@@ -2425,7 +2425,7 @@ def set_video_exclusive(video_id: str, req: SetExclusiveRequest, _u: str = Depen
     return {"ok": True, "video": result}
 
 
-_ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url", "bmc_url", "tiktok_profile_url"}
+_ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url", "bmc_url", "tiktok_profile_url", "youtube_channel_url", "spotify_show_url"}
 
 
 @app.get("/app-settings/{key}")
@@ -2462,6 +2462,17 @@ def get_spotify_show_url(_u: str = Depends(verify_token)):
 def save_spotify_show_url(body: dict, _u: str = Depends(verify_token)):
     url = str(body.get("url", "")).strip()
     db.set_setting("spotify_show_url", url)
+    return {"ok": True, "url": url}
+
+
+@app.get("/settings/youtube-channel-url")
+def get_youtube_channel_url(_u: str = Depends(verify_token)):
+    return {"url": db.get_setting("youtube_channel_url", default="")}
+
+@app.post("/settings/youtube-channel-url")
+def save_youtube_channel_url(body: dict, _u: str = Depends(verify_token)):
+    url = str(body.get("url", "")).strip()
+    db.set_setting("youtube_channel_url", url)
     return {"ok": True, "url": url}
 
 
