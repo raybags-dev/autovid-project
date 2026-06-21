@@ -114,6 +114,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           envs: VITE_APP_NAME,VITE_APP_URL,VITE_SUPPORT_EMAIL,VITE_CONTACT_EMAIL,VITE_YOUTUBE_URL,VITE_TIKTOK_URL,VITE_SPOTIFY_URL,VITE_SPOTIFY_SHOW_ID,VITE_ASYNC_APP_NAME,VITE_ASYNC_SUPPORT_EMAIL,RESEND_API_KEY
+          command_timeout: 45m
           script_stop: true
           script: |
             set -euo pipefail
@@ -140,11 +141,12 @@ f.write_text("\n".join(lines)+"\n")
 '
 
             echo "── Freeing disk space before build ──"
+            docker system prune -f 2>/dev/null || true
             docker builder prune -f 2>/dev/null || true
-            docker image prune -f 2>/dev/null || true
+            docker image prune -af 2>/dev/null || true
 
-            echo "── Rebuilding containers ──"
-            docker compose build \
+            echo "── Building frontends (no-cache, VITE env vars baked in) ──"
+            docker compose build --no-cache \
               --build-arg VITE_APP_NAME="${VITE_APP_NAME:-}" \
               --build-arg VITE_APP_URL="${VITE_APP_URL:-}" \
               --build-arg VITE_SUPPORT_EMAIL="${VITE_SUPPORT_EMAIL:-}" \
@@ -154,10 +156,16 @@ f.write_text("\n".join(lines)+"\n")
               --build-arg VITE_SPOTIFY_URL="${VITE_SPOTIFY_URL:-}" \
               --build-arg VITE_SPOTIFY_SHOW_ID="${VITE_SPOTIFY_SHOW_ID:-}" \
               frontend
-            docker compose build \
+            docker compose build --no-cache \
               --build-arg VITE_ASYNC_APP_NAME="${VITE_ASYNC_APP_NAME:-}" \
               --build-arg VITE_ASYNC_SUPPORT_EMAIL="${VITE_ASYNC_SUPPORT_EMAIL:-}" \
               frontend-async
+
+            echo "── Building backends (no-cache, sequential to limit peak disk use) ──"
+            docker compose build --no-cache backend-1
+            docker compose build --no-cache backend-2
+            docker compose build --no-cache celery-worker
+
             docker compose up -d --remove-orphans
 
             echo "── Reloading nginx-router config ──"
@@ -178,7 +186,7 @@ f.write_text("\n".join(lines)+"\n")
               sleep 5
             done
 
-            echo "── Pruning old images ──"
-            docker image prune -f --filter "until=48h" || true
+            echo "── Pruning leftover images ──"
+            docker image prune -af 2>/dev/null || true
 
             echo "✓ Deploy complete"
