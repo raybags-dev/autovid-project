@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+output/
+custom_artifacts/
+custom_bg_music/
+stickFigureAssets/
+youtube_token.json
+client_secrets.json
+client_secrets_subscriber.json
+.env
+*.log
