@@ -38,9 +38,14 @@ TEMP_DIR          = Path(os.getenv("TEMP_DIR",          str(BASE_DIR / "output" 
 for d in [VIDEOS_OUTPUT_DIR, AUDIO_OUTPUT_DIR, TEMP_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
-# ── LLM (Groq) ───────────────────────────────────────────────────────────────
+# ── LLM (selectable at runtime via /settings/llm - Groq is the default) ──────
 GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL     = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+# Fallback keys for the other selectable providers (DeepSeek, OpenAI, Claude, Gemini)
+DEEPSEEK_API_KEY   = os.getenv("DEEPSEEK_API_KEY", "")
+OPENAI_API_KEY     = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY", "")
 # Secondary Groq key used exclusively for stickfigure image generation
 GROQ_API_KEY_2     = os.getenv("GROQ_API_KEY_2", "")
 GROQ_IMAGE_MODEL   = os.getenv("GROQ_IMAGE_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")

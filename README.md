@@ -1,6 +1,6 @@
 # AutoVid
 
-**AutoVid** is a full-stack AI-powered video automation platform. From a single text prompt it writes a script, synthesizes a narration voice, sources and assembles stock footage, burns synchronized captions, and publishes the finished video to YouTube - entirely without manual editing.
+**AutoVid** is a full-stack AI-powered Video(mp4) content automation, Podcast (mp3), Blog(auto blogger) Generator platform. From a single text prompt it writes a script, synthesizes a narration voice, sources and assembles stock footage, burns synchronized captions, and publishes the finished video to YouTube - entirely without manual editing.
 
 A web dashboard lets you queue videos, monitor pipeline progress in real time, manage your library, and configure all settings. A Celery background worker handles long-running generation jobs while the FastAPI backend serves the UI and exposes a full REST API.
 

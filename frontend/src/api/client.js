@@ -692,6 +692,11 @@ export const setAutoBlogPost = async (enabled) => { const { data } = await api.p
 export const getVoiceSettings = async () => { const { data } = await api.get("/settings/voices"); return data; };
 export const saveVoiceSettings = async (payload) => { const { data } = await api.post("/settings/voices", payload); return data; };
 
+// ── LLM provider (runtime AI selector) ───────────────────────────────────────
+export const getLLMSettings = async () => { const { data } = await api.get("/settings/llm"); return data; };
+export const saveLLMSettings = async (payload) => { const { data } = await api.post("/settings/llm", payload); return data; };
+export const testLLMSettings = async (payload) => { const { data } = await api.post("/settings/llm/test", payload); return data; };
+
 // ── Quotes Studio ─────────────────────────────────────────────────────────────
 export const listQuotes = async (params = {}) => {
   const { data } = await api.get("/quotes", { params });

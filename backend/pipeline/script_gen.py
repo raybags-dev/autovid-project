@@ -16,18 +16,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import json
 
-from groq import Groq
-
 import config
+from pipeline.llm import get_llm_client, get_llm_model
 
-_client = None
 
-
-def get_groq() -> Groq:
-    global _client
-    if _client is None:
-        _client = Groq(api_key=config.GROQ_API_KEY)
-    return _client
+def get_groq():
+    """Backwards-compatible alias - returns the active LLM provider client."""
+    return get_llm_client()
 
 
 # ── Channel Profiles ─────────────────────────────────────────────────────────
@@ -211,7 +206,7 @@ def generate_script(prompt: str, profile: str = DEFAULT_PROFILE) -> dict:
 
     client = get_groq()
     response = client.chat.completions.create(
-        model=config.GROQ_MODEL,
+        model=get_llm_model(),
         messages=[
             {"role": "system", "content": get_system_prompt(profile) + SCRIPT_SCHEMA},
             {"role": "user", "content": f"Write a deeply thoughtful, emotionally resonant 3-minute video essay about: {prompt}\n\nRemember: target ~450 words across 8-12 segments. This is a proper essay, not a list. Make it beautiful."},
@@ -319,7 +314,7 @@ def generate_short_script(prompt: str, angle: str = None) -> dict:
         "- Always respond in valid JSON only\n"
     )
     response = client.chat.completions.create(
-        model=config.GROQ_MODEL,
+        model=get_llm_model(),
         messages=[
             {"role": "system", "content": system + SHORT_SCRIPT_SCHEMA},
             {"role": "user", "content": f"Write a powerful 2-minute YouTube Short about: {prompt}{angle_directive}\n\nTarget 400-480 words total. Use 8-10 segments of 35-50 words each. Make every word count."},
@@ -398,7 +393,7 @@ def generate_labels(title: str, description: str, script: str) -> dict:
     def _call(t, d, s):
         client = get_groq()
         return client.chat.completions.create(
-            model=config.GROQ_MODEL,
+            model=get_llm_model(),
             messages=[
                 {
                     "role": "system",
@@ -432,7 +427,7 @@ def generate_labels(title: str, description: str, script: str) -> dict:
     try:
         client = get_groq()
         resp2 = client.chat.completions.create(
-            model=config.GROQ_MODEL,
+            model=get_llm_model(),
             messages=[
                 {"role": "system", "content": "Return ONLY valid JSON. No markdown."},
                 {"role": "user", "content": (
@@ -468,7 +463,7 @@ def generate_description(title: str, script: str) -> str:
     try:
         client = get_groq()
         response = client.chat.completions.create(
-            model=config.GROQ_MODEL,
+            model=get_llm_model(),
             messages=[
                 {
                     "role": "system",

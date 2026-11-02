@@ -94,6 +94,7 @@ import api, {
 } from "../api/client";
 import CompilationStudio from "../components/CompilationStudio";
 import CustomContent from "../components/CustomContent";
+import LLMProviderSettings from "../components/LLMProviderSettings";
 import ScriptStudio from "../components/ScriptStudio";
 import QuotesStudio from "../components/QuotesStudio";
 import DangerZone from "../components/DangerZone";
@@ -11245,6 +11246,9 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
+
+                  {/* ── AI Provider Settings ── */}
+                  <LLMProviderSettings T={T} showToast={showToast} />
 
                   {/* ── ElevenLabs Voice Settings ── */}
                   <div style={{ marginBottom: 20 }}>

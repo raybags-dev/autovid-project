@@ -184,8 +184,8 @@ def _auto_generate_prompts(pipeline: str = "long", count: int = 20) -> list:
     Themes: dark, philosophical, existential - meaning, death, love, absurdism, isolation, purpose.
     """
     try:
-        from groq import Groq
-        client = Groq(api_key=config.GROQ_API_KEY)
+        from pipeline.llm import get_llm_client, get_llm_model
+        client = get_llm_client()
         recent = db.list_recent_prompts(pipeline, limit=50)
         recent_sample = "\n".join(f"- {p}" for p in recent[:20]) if recent else "(none yet)"
         system = (
@@ -201,7 +201,7 @@ def _auto_generate_prompts(pipeline: str = "long", count: int = 20) -> list:
             "Return ONLY a JSON array."
         )
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=get_llm_model(),
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             temperature=0.9,
             max_tokens=800,

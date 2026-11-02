@@ -18,7 +18,6 @@ from pathlib import Path
 import config
 import database as db
 
-GROQ_MODEL            = "llama-3.3-70b-versatile"
 RUN_HOUR_UTC          = 10          # run once daily at 10:00 AM UTC
 QUOTA_BACKOFF_SECONDS = 86400       # 24h backoff on quota error
 REPLIED_IDS_FILE      = Path("./auto_reply_state.json")
@@ -90,8 +89,8 @@ def _is_quota_error(e: Exception) -> bool:
 # ── Reply generation ──────────────────────────────────────────────────────────
 
 def _generate_reply(video_title: str, comment_text: str, author_name: str) -> str:
-    import groq as groq_sdk
-    client = groq_sdk.Groq(api_key=config.GROQ_API_KEY)
+    from pipeline.llm import get_llm_client, get_llm_model
+    client = get_llm_client()
 
     system_prompt = """You are the creator of a YouTube channel about grief, loss, love and the meaning of life.
 Your tone is warm, genuine, deeply human - never corporate or robotic.
@@ -106,7 +105,7 @@ Rules:
 
     prompt = f'Video: "{video_title}"\nCommenter: "{author_name}"\nComment: "{comment_text}"\n\nWrite the reply:'
     resp = client.chat.completions.create(
-        model=GROQ_MODEL,
+        model=get_llm_model(),
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": prompt},

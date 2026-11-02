@@ -5855,6 +5855,88 @@ def save_voice_settings(body: dict = Body(default={}), user: str = Depends(verif
     return {"ok": True, "voices": voices, "active_voice_id": active_voice_id}
 
 
+# ── LLM Provider settings (runtime AI selector) ───────────────────────────────
+
+_LLM_PROVIDERS = ("groq", "deepseek", "gpt", "claude", "gemini")
+
+
+@app.get("/settings/llm")
+def get_llm_settings(user: str = Depends(verify_token)):
+    from pipeline.llm import get_llm_config
+    from pipeline.llm_providers import DEFAULT_MODELS, env_key_for
+
+    cfg = get_llm_config()
+    provider = cfg.get("provider", "groq")
+    stored_key = cfg.get("api_key") or ""
+    env_key = env_key_for(provider)
+    return {
+        "provider": provider,
+        "model": cfg.get("model"),
+        "default_model": DEFAULT_MODELS.get(provider, ""),
+        "has_api_key": bool(stored_key or env_key),
+        "api_key_preview": (
+            (stored_key[:6] + "…" + stored_key[-4:])
+            if len(stored_key) > 12
+            else ("<set>" if stored_key else None)
+        ),
+        "key_source": "stored" if stored_key else ("env" if env_key else None),
+        "providers": list(_LLM_PROVIDERS),
+        "default_models": dict(DEFAULT_MODELS),
+    }
+
+
+class LLMSettingsUpdate(BaseModel):
+    provider: str
+    model: Optional[str] = None
+    api_key: Optional[str] = None
+
+
+@app.post("/settings/llm")
+def save_llm_settings(body: LLMSettingsUpdate, user: str = Depends(verify_token)):
+    from pipeline.llm import save_llm_config
+
+    provider = (body.provider or "").strip().lower()
+    if provider not in _LLM_PROVIDERS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"provider must be one of: {', '.join(_LLM_PROVIDERS)}",
+        )
+    saved = save_llm_config(
+        {
+            "provider": provider,
+            "model": (body.model or "").strip() or None,
+            "api_key": (body.api_key or "").strip() or None,
+        }
+    )
+    return {"ok": True, "provider": saved["provider"], "model": saved["model"]}
+
+
+@app.post("/settings/llm/test")
+def test_llm_settings(body: LLMSettingsUpdate, user: str = Depends(verify_token)):
+    """Live-check a provider/key without saving (verify before apply)."""
+    from pipeline.llm_providers import DEFAULT_MODELS, build_provider
+
+    provider = (body.provider or "").strip().lower()
+    try:
+        client = build_provider(provider, (body.model or "").strip() or None, (body.api_key or "").strip() or None)
+    except RuntimeError as exc:
+        return {"ok": False, "detail": str(exc)}
+    try:
+        resp = client.chat.completions.create(
+            model=(body.model or "").strip() or DEFAULT_MODELS.get(provider),
+            messages=[{"role": "user", "content": "Reply with exactly: ok"}],
+            max_tokens=8,
+        )
+        return {
+            "ok": True,
+            "provider": provider,
+            "model": (body.model or "").strip() or DEFAULT_MODELS.get(provider),
+            "reply": (resp.choices[0].message.content or "")[:120],
+        }
+    except Exception as exc:
+        return {"ok": False, "detail": f"{type(exc).__name__}: {str(exc)[:200]}"}
+
+
 # ── Quotes Studio ─────────────────────────────────────────────────────────────
 
 class QuoteCreateRequest(BaseModel):

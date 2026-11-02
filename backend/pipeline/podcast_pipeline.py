@@ -175,8 +175,8 @@ def _generate_essay(topic: str) -> dict:
     Use Groq to generate a ~10-minute podcast essay (~1700 words).
     Returns dict with 'title', 'description', 'essay'.
     """
-    from groq import Groq
-    client = Groq(api_key=config.GROQ_API_KEY)
+    from pipeline.llm import get_llm_client, get_llm_model
+    client = get_llm_client()
 
     system = (
         "You are a master storyteller and essayist for a mystery and unknown-phenomena podcast. "
@@ -198,7 +198,7 @@ def _generate_essay(topic: str) -> dict:
     )
 
     resp = client.chat.completions.create(
-        model=config.GROQ_MODEL,
+        model=get_llm_model(),
         messages=[
             {"role": "system", "content": system},
             {"role": "user",   "content": f"Write a full podcast essay about: {topic}"},

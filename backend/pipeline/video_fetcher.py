@@ -412,10 +412,9 @@ def generate_visual_plan(script_text: str) -> list:
     """
     import json
     try:
-        from groq import Groq
+        from pipeline.llm import get_llm_client, get_llm_model
 
-        import config as _cfg
-        client = Groq(api_key=_cfg.GROQ_API_KEY)
+        client = get_llm_client()
         system = (
             "You are a video production assistant. Given a narration script, break it "
             "into 4-8 sequential sections and generate 3-5 Pexels stock-image search "
@@ -430,7 +429,7 @@ def generate_visual_plan(script_text: str) -> list:
             '[{"section":1,"text_snippet":"first 60 chars…","queries":["…","…","…"]},…]'
         )
         resp = client.chat.completions.create(
-            model=_cfg.GROQ_MODEL,
+            model=get_llm_model(),
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user",   "content": f"Script:\n\n{script_text[:5000]}"},
