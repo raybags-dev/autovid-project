@@ -74,11 +74,12 @@ class TestLicenseGuard:
                 payload = self.lg.verify_license()
         assert isinstance(payload, dict)
 
-    def test_missing_token_raises(self):
+    def test_missing_token_runs_in_owner_mode(self):
+        """Owner mode: no key set -> warn-and-continue, never raise."""
         with patch.object(self.lg, "_PUBLIC_KEY_PEM", self.pub_pem):
             with patch.dict(os.environ, {"AUTOVID_LICENSE_KEY": ""}):
-                with pytest.raises(RuntimeError, match="No license key found"):
-                    self.lg.verify_license()
+                payload = self.lg.verify_license()
+        assert payload == {}
 
     def test_tampered_signature_raises(self):
         token = _sign_token(

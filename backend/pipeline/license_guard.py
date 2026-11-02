@@ -26,8 +26,11 @@ _verified: bool = False
 def verify_license() -> dict:
     """
     Verify the AUTOVID_LICENSE_KEY environment variable.
-    Raises RuntimeError on failure; returns the payload dict on success.
-    Caches the result so repeated calls are free.
+
+    Owner mode: with NO key set, the pipeline runs with a warning (the author
+    owns this software and must never be gated). Third-party mode: when a key
+    IS set, it is verified strictly. Caches the result so repeated calls are
+    free.
     """
     global _verified
     if _verified:
@@ -35,12 +38,13 @@ def verify_license() -> dict:
 
     token = os.getenv("AUTOVID_LICENSE_KEY", "").strip()
     if not token:
-        raise RuntimeError(
-            "\n\n  ╔══════════════════════════════════════════════════╗\n"
-            "  ║  AutoVid: No license key found.                  ║\n"
-            "  ║  Set AUTOVID_LICENSE_KEY in your .env file.      ║\n"
-            "  ╚══════════════════════════════════════════════════╝\n"
+        # Owner mode: no key configured - run freely, just warn once.
+        print(
+            "  AutoVid: no AUTOVID_LICENSE_KEY set - running in owner mode "
+            "(license check skipped for the author)."
         )
+        _verified = True
+        return {}
 
     try:
         parts = token.split(".")
