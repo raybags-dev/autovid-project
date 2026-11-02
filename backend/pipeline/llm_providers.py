@@ -206,10 +206,17 @@ def env_key_for(provider: str) -> str:
     }.get(provider, "")
 
 
-def first_available_env_provider(preferred: str) -> str | None:
-    if env_key_for(preferred):
+def first_available_env_provider(preferred: str, *, skip: str | None = None) -> str | None:
+    """First provider (in PROVIDERS order) with an env key, preferring `preferred`.
+
+    `skip` excludes a provider - used when looking for a fallback other than the
+    primary one, so a broken-but-keyed primary isn't chosen as its own fallback.
+    """
+    if skip is None and env_key_for(preferred):
         return preferred
     for candidate in PROVIDERS:
+        if candidate == skip:
+            continue
         if env_key_for(candidate):
             return candidate
     return None

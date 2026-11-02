@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { getLLMSettings, saveLLMSettings, testLLMSettings } from "../api/client";
 
 const PROVIDER_LABELS = {
-  groq: "Groq (default)",
-  deepseek: "DeepSeek",
+  deepseek: "DeepSeek (default)",
+  groq: "Groq",
   gpt: "OpenAI (GPT)",
   claude: "Claude (Anthropic)",
   gemini: "Gemini (Google)",
@@ -183,7 +183,7 @@ export default function LLMProviderSettings({ T, showToast }) {
       </div>
 
       <div style={{ fontSize: 9, color: T.textFaint, marginTop: 8, lineHeight: 1.5 }}>
-        Groq is the default. If the selected provider has no key, the pipeline falls back to any
+        DeepSeek is the default. If the selected provider has no key, the pipeline falls back to any
         provider with a server-side key so generation never goes dark. Applies to script writing,
         SEO labels, comment replies, visual plans and podcast essays.
       </div>

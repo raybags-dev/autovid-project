@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from types import SimpleNamespace
 from typing import Any
 
 import config as _config
@@ -36,7 +37,7 @@ _cache: tuple[dict[str, Any], float] | None = None
 
 # Default row written on first read when nothing is configured yet.
 _DEFAULT_CONFIG: dict[str, Any] = {
-    "provider": "groq",
+    "provider": "deepseek",
     "model": None,
     "api_key": None,
 }
@@ -93,15 +94,59 @@ def get_llm_model() -> str:
 _client_cache: tuple[LLMProvider, dict[str, Any]] | None = None
 
 
+class _FallbackLLMClient:
+    """OpenAI-shaped wrapper: try the selected provider, fall back on failure.
+
+    Retryable failures (no key, 401/402/429 auth-quota issues, 5xx, network)
+    cascade to the next provider that has an env key, so generation keeps
+    working even when the selected provider is out of credit or down.
+    Exposes the exact ``client.chat.completions.create(...)`` interface.
+    """
+
+    def __init__(self, primary: LLMProvider, fallback: LLMProvider | None) -> None:
+        self._primary = primary
+        self._fallback = fallback
+        self.model = primary.model
+        self.base_url = primary.base_url
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    @staticmethod
+    def _is_retryable(exc: Exception) -> bool:
+        if isinstance(exc, RuntimeError):
+            return True
+        status = getattr(exc, "response", None)
+        if status is not None:
+            code = getattr(status, "status_code", 0)
+            return code in (401, 402, 408, 409, 425, 429, 500, 502, 503, 504)
+        return True
+
+    def _create(self, **kwargs: Any) -> Any:
+        try:
+            return self._primary.chat.completions.create(**kwargs)
+        except Exception as exc:
+            if not self._fallback or not self._is_retryable(exc):
+                raise
+            log.warning(
+                "LLM primary %s failed (%s) - falling back to %s",
+                self._primary.model,
+                type(exc).__name__,
+                self._fallback.model,
+            )
+            kwargs.pop("model", None)
+            return self._fallback.chat.completions.create(
+                model=self._fallback.model, **kwargs
+            )
+
+
 def get_llm_client() -> LLMProvider:
     """Return an OpenAI-shaped client for the active provider (drop-in for Groq).
 
     Falls back to the first provider with an env key when the selected one has
-    none, so generation never goes dark.
+    none, and retries transient failures against it - generation never goes dark.
     """
     global _client_cache
     cfg = get_llm_config()
-    provider_name = cfg.get("provider", "groq")
+    provider_name = cfg.get("provider", "deepseek")
     cache_key = {**cfg, "_effective": provider_name}
 
     if _client_cache and _client_cache[1] == cache_key:
@@ -109,14 +154,28 @@ def get_llm_client() -> LLMProvider:
 
     api_key = cfg.get("api_key")
     try:
-        client = build_provider(provider_name, cfg.get("model"), api_key)
-        _client_cache = (client, cache_key)
-        return client
+        primary = build_provider(provider_name, cfg.get("model"), api_key)
     except RuntimeError:
-        fallback = first_available_env_provider(provider_name)
-        if not fallback:
+        fallback_name = first_available_env_provider(provider_name)
+        if not fallback_name:
             raise
-        log.warning("LLM provider %r has no key; falling back to %r", provider_name, fallback)
-        client = build_provider(fallback, None, None)
-        _client_cache = (client, {**cache_key, "_effective": fallback})
+        log.warning("LLM provider %r has no key; using %r", provider_name, fallback_name)
+        client = build_provider(fallback_name, None, None)
+        _client_cache = (client, {**cache_key, "_effective": fallback_name})
         return _client_cache[0]
+
+    fallback: LLMProvider | None = None
+    fallback_name = first_available_env_provider(provider_name, skip=provider_name)
+    if fallback_name:
+        try:
+            fallback = build_provider(fallback_name, None, None)
+        except RuntimeError:
+            fallback = None
+
+    if fallback:
+        client = _FallbackLLMClient(primary, fallback)
+        _client_cache = (client, cache_key)
+        return _client_cache[0]
+
+    _client_cache = (primary, cache_key)
+    return primary
