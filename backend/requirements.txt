@@ -16,7 +16,7 @@ email-validator==2.3.0
 fastapi==0.111.0
 faster-whisper==1.2.1
 ffmpeg-python==0.2.0
-filelock==3.24.3
+filelock==4.2.1
 google-api-core==2.30.0
 google-api-python-client==2.128.0
 google-auth==2.38.0
