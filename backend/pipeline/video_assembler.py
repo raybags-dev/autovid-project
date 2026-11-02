@@ -1,5 +1,5 @@
 """
-AutoVid Pipeline — Step 4: Video Assembler
+AutoVid Pipeline - Step 4: Video Assembler
 
 Combines stock video clips + synthesized audio into a final 1080p video.
 Uses MoviePy + FFmpeg under the hood.
@@ -25,7 +25,7 @@ from typing import Optional
 # ── Pillow compatibility (ANTIALIAS removed in Pillow 10+) ───────────────────
 import PIL.Image
 
-# Use moviepy — install: pip install moviepy
+# Use moviepy - install: pip install moviepy
 from moviepy.editor import (
     AudioFileClip,
     ColorClip,
@@ -76,12 +76,12 @@ def _prepare_clip(clip_path: Optional[str], duration: float) -> VideoFileClip:
         target_ratio = W / H
 
         if clip_ratio > target_ratio:
-            # Wider than target — scale by height then crop width
+            # Wider than target - scale by height then crop width
             clip = clip.resize(height=H)
             excess = clip.w - W
             clip = clip.crop(x1=excess // 2, x2=clip.w - excess // 2)
         else:
-            # Taller than target — scale by width then crop height
+            # Taller than target - scale by width then crop height
             clip = clip.resize(width=W)
             excess = clip.h - H
             clip = clip.crop(y1=excess // 2, y2=clip.h - excess // 2)
@@ -89,7 +89,7 @@ def _prepare_clip(clip_path: Optional[str], duration: float) -> VideoFileClip:
         return clip
 
     except Exception as e:
-        print(f"⚠️  Clip prep failed ({clip_path}): {e} — using fallback")
+        print(f"⚠️  Clip prep failed ({clip_path}): {e} - using fallback")
         return ColorClip(size=(W, H), color=(10, 15, 25), duration=duration)
 
 
@@ -105,7 +105,7 @@ def _apply_transition(clip: VideoFileClip, fade_duration: float = 0.3) -> VideoF
 def assemble_video(segments: list[dict], audio_path: str, video_id: str) -> str:
     """
     Assemble the final video from clips + audio using FFmpeg directly.
-    Much faster than MoviePy — normalises each clip then concat + mux in one pass.
+    Much faster than MoviePy - normalises each clip then concat + mux in one pass.
 
     Returns: Path to assembled video (no captions yet)
     """
@@ -159,7 +159,7 @@ def assemble_video(segments: list[dict], audio_path: str, video_id: str) -> str:
     concat_list = tmp_dir / "concat.txt"
     concat_list.write_text("\n".join(f"file '{p}'" for p in normalised))
 
-    # ── Step 3: Concat all clips (stream copy — instant) ────────────────────
+    # ── Step 3: Concat all clips (stream copy - instant) ────────────────────
     print("  🔗 Concatenating clips...")
     silent_path = str(tmp_dir / "silent.mp4")
     subprocess.run([
@@ -226,13 +226,13 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
             size   = Path(cp).stat().st_size if exists else 0
             print(f"   clip: {Path(cp).name} exists={exists} size={size}")
     if not valid:
-        print("⚠️  No valid stock clips to composite — using background only")
+        print("⚠️  No valid stock clips to composite - using background only")
         _shutil.copy2(background_path, output_path)
         return output_path
 
     print(f"🎬 Compositing {len(valid)} stock clip(s) on animated background...")
 
-    # ── Step 1: Normalise each clip — crop-fill to {W}x{H} ──────────────────
+    # ── Step 1: Normalise each clip - crop-fill to {W}x{H} ──────────────────
     tmp_dir = Path(output_path).parent / f"comp_tmp_{Path(output_path).stem}"
     tmp_dir.mkdir(exist_ok=True)
 
@@ -254,7 +254,7 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
         ], capture_output=True)
         if r.returncode == 0 and Path(norm).exists() and Path(norm).stat().st_size > 0:
             normalised.append((start, end, norm))
-            print(f"  ✅ Clip {i} normalised ({start:.1f}–{end:.1f}s)")
+            print(f"  ✅ Clip {i} normalised ({start:.1f}-{end:.1f}s)")
         else:
             err = r.stderr.decode()[-300:] if r.returncode != 0 else "empty output"
             print(f"  ⚠️  Clip {i} normalise failed ({start:.1f}s): {err}")
@@ -262,7 +262,7 @@ def composite_stock_on_background(background_path: str, segments: list, output_p
     if not normalised:
         import shutil as _sh
         _sh.rmtree(tmp_dir, ignore_errors=True)
-        print("⚠️  All clip normalisations failed — using background only")
+        print("⚠️  All clip normalisations failed - using background only")
         _shutil.copy2(background_path, output_path)
         return output_path
 

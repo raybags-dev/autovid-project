@@ -1,9 +1,9 @@
 
 """
-AutoVid — YouTube Shorts Generator
+AutoVid - YouTube Shorts Generator
 Two modes:
-  1. create_short_from_video()  — clips the best 60s from an existing video, crops to 9:16
-  2. generate_short_visual()    — generates a looping portrait visual for a fresh Short
+  1. create_short_from_video()  - clips the best 60s from an existing video, crops to 9:16
+  2. generate_short_visual()    - generates a looping portrait visual for a fresh Short
 """
 import os
 import subprocess
@@ -22,12 +22,12 @@ LOOP_SECONDS = 4  # Generate this many seconds of unique frames, then FFmpeg-loo
 
 # ── Ambience styles for from-scratch Shorts ──────────────────────────────────
 AMBIENCE_STYLES = {
-    "stars":   "Zoom through a cluster of stars — slow drift, subtle twinkle, deep space blue/purple",
-    "aurora":  "Aurora borealis rippling — green and purple waves across a dark sky",
-    "ocean":   "Slow-motion deep ocean — shafts of light filtering through blue water",
-    "fire":    "Warm glowing embers — slow floating sparks on black background",
-    "rain":    "Rainy window at night — city lights blurred through raindrops",
-    "galaxy":  "Slow rotation through a spiral galaxy — deep blues and purples",
+    "stars":   "Zoom through a cluster of stars - slow drift, subtle twinkle, deep space blue/purple",
+    "aurora":  "Aurora borealis rippling - green and purple waves across a dark sky",
+    "ocean":   "Slow-motion deep ocean - shafts of light filtering through blue water",
+    "fire":    "Warm glowing embers - slow floating sparks on black background",
+    "rain":    "Rainy window at night - city lights blurred through raindrops",
+    "galaxy":  "Slow rotation through a spiral galaxy - deep blues and purples",
 }
 
 
@@ -47,7 +47,7 @@ def create_short_from_video(
     SHORT_MAX_DURATION seconds).
 
     Scale-to-height approach: scales so height fills 1920px, then center-crops
-    to 1080px width — guarantees full frame fill with no black bars.
+    to 1080px width - guarantees full frame fill with no black bars.
     """
     import tempfile
     import urllib.request
@@ -67,7 +67,7 @@ def create_short_from_video(
     # Determine clip range
     duration = _get_duration(video_path)
     if start_time is not None and end_time is not None:
-        # User-specified range — cap at SHORT_MAX_DURATION
+        # User-specified range - cap at SHORT_MAX_DURATION
         start_time   = max(0.0, float(start_time))
         end_time     = min(float(end_time), duration)
         clip_duration = min(end_time - start_time, SHORT_MAX_DURATION)
@@ -87,7 +87,7 @@ def create_short_from_video(
 
     # Scale-to-height then center-crop to 9:16 (1080×1920)
     # Scales so the full height fills 1920px regardless of source aspect ratio,
-    # then crops the center 1080px horizontally — no black bars, no distortion.
+    # then crops the center 1080px horizontally - no black bars, no distortion.
     crop_filter = (
         f"scale=-1:{SHORT_HEIGHT}:flags=lanczos,"
         f"crop={SHORT_WIDTH}:{SHORT_HEIGHT}:(iw-{SHORT_WIDTH})/2:0,"
@@ -142,7 +142,7 @@ def generate_short_visual(duration: int = 45, ambience: str = "stars") -> str:
 
     style = ambience.lower()
 
-    # Custom mp4 backgrounds — loop the file, crop/scale to portrait 9:16
+    # Custom mp4 backgrounds - loop the file, crop/scale to portrait 9:16
     if style in _CUSTOM_MP4_MAP and _CUSTOM_MP4_MAP[style].exists():
         print(f"🎬 Using custom background: {style} ({duration}s, portrait)")
         subprocess.run([
@@ -204,7 +204,7 @@ def generate_short_visual(duration: int = 45, ambience: str = "stars") -> str:
 # ── Visual generators (portrait 1080x1920) ────────────────────────────────────
 
 def _gen_star_zoom(n_frames: int) -> list:
-    """Zoom through a star cluster — deep space, slow drift. Fully vectorized."""
+    """Zoom through a star cluster - deep space, slow drift. Fully vectorized."""
     rng = np.random.default_rng(42)
     n_stars = 800
     star_x = rng.uniform(0, SHORT_WIDTH,  n_stars)
@@ -244,7 +244,7 @@ def _gen_star_zoom(n_frames: int) -> list:
 
         frame = bg.copy()
 
-        # Stars — vectorized positions and brightness
+        # Stars - vectorized positions and brightness
         sx = ((star_x - cx) * zoom + cx + drift_x).astype(int)
         sy = ((star_y - cy) * zoom + cy + drift_y).astype(int)
         twinkle = 0.7 + 0.3 * np.sin(t * 6 * np.pi + j_idx * 0.5)
@@ -255,7 +255,7 @@ def _gen_star_zoom(n_frames: int) -> list:
         frame[vsy, vsx, 1] = np.minimum(255, vb * 0.85)
         frame[vsy, vsx, 2] = np.minimum(255, vb * 0.6)
 
-        # Nebula glow — vectorized over the small grid
+        # Nebula glow - vectorized over the small grid
         glow_r = 60 + 30 * np.sin(t * np.pi)
         for di, gy in enumerate(nebula_gy):
             if not valid_y[di]:
@@ -273,7 +273,7 @@ def _gen_star_zoom(n_frames: int) -> list:
 
 
 def _gen_aurora(n_frames: int) -> list:
-    """Aurora borealis — green/purple rippling waves. Fully vectorized."""
+    """Aurora borealis - green/purple rippling waves. Fully vectorized."""
     ys = np.arange(SHORT_HEIGHT, dtype=np.float32)
     xs = np.arange(SHORT_WIDTH,  dtype=np.float32)
 
@@ -293,7 +293,7 @@ def _gen_aurora(n_frames: int) -> list:
         t = i / FPS
         frame = sky_base.copy()
 
-        # Aurora bands — vectorized over all (H, W) at once
+        # Aurora bands - vectorized over all (H, W) at once
         for band in range(4):
             band_center = SHORT_HEIGHT * (0.2 + band * 0.15)
             wave  = np.sin(xs * 0.008 + t * 0.8 + band * 1.2) * 60  # (W,)
@@ -321,7 +321,7 @@ def _gen_aurora(n_frames: int) -> list:
 
 
 def _gen_ocean(n_frames: int) -> list:
-    """Deep ocean — light shafts through blue water. Fully vectorized."""
+    """Deep ocean - light shafts through blue water. Fully vectorized."""
     ys = np.arange(SHORT_HEIGHT, dtype=np.float32)
     xs = np.arange(SHORT_WIDTH,  dtype=np.float32)
 
@@ -339,7 +339,7 @@ def _gen_ocean(n_frames: int) -> list:
         t = i / FPS
         frame = bg.copy()
 
-        # Light shafts — vectorized over (H, W) per shaft
+        # Light shafts - vectorized over (H, W) per shaft
         for shaft in range(5):
             shaft_x = SHORT_WIDTH * (0.1 + shaft * 0.2) + np.sin(t * 0.4 + shaft) * 30
             spread = 20 + ys * 0.15 + np.sin(t * 0.7 + shaft) * 10  # (H,)
@@ -364,7 +364,7 @@ def _gen_ocean(n_frames: int) -> list:
 
 
 def _gen_fire(n_frames: int) -> list:
-    """Warm glowing embers — floating sparks on black."""
+    """Warm glowing embers - floating sparks on black."""
     rng = np.random.default_rng(99)
     n_embers = 120
     ember_x = rng.uniform(0, SHORT_WIDTH,  n_embers).tolist()
@@ -407,7 +407,7 @@ def _gen_fire(n_frames: int) -> list:
 
 
 def _gen_rain(n_frames: int) -> list:
-    """Rainy window — city lights blurred through raindrops. Fully vectorized."""
+    """Rainy window - city lights blurred through raindrops. Fully vectorized."""
     rng = np.random.default_rng(55)
     n_drops = 200
     drop_x = rng.uniform(0, SHORT_WIDTH,  n_drops).tolist()
@@ -512,7 +512,7 @@ def _gen_galaxy(n_frames: int) -> list:
 
 
 def _gen_candlelight(n_frames: int) -> list:
-    """Single candle — soft warm glow, subtle flicker."""
+    """Single candle - soft warm glow, subtle flicker."""
     frames = []
     cx = SHORT_WIDTH // 2
     cy = SHORT_HEIGHT // 2 + 200   # candle positioned lower

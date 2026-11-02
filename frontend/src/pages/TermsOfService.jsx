@@ -44,7 +44,7 @@ If you do not agree to these Terms, please discontinue use of our services immed
 
 All content is produced using artificial intelligence tools including AI-generated scripts, voice synthesis, and image generation. Content is reviewed before publication but may contain inaccuracies. We do not represent our AI-generated content as definitive fact.`,
 
-  intellectual: `All content published by ${APP_NAME} — including but not limited to videos, audio, scripts, images, graphics, and written articles — is the intellectual property of ${APP_NAME} and is protected by applicable copyright and intellectual property laws.
+  intellectual: `All content published by ${APP_NAME} - including but not limited to videos, audio, scripts, images, graphics, and written articles - is the intellectual property of ${APP_NAME} and is protected by applicable copyright and intellectual property laws.
 
 You may not:
 • Reproduce, redistribute, or republish our content without written permission
@@ -82,10 +82,10 @@ We reserve the right to refuse or remove any comment without prior notice. We ar
 We are not responsible for the content, privacy practices, or terms of service of these third parties. Links to third-party sites do not constitute endorsement.
 
 Third-party platforms' terms of service govern your use of those platforms:
-• Google / YouTube — https://www.youtube.com/t/terms
-• TikTok — https://www.tiktok.com/legal/page/row/terms-of-service/en
-• Spotify — https://www.spotify.com/legal/end-user-agreement/
-• ElevenLabs — https://elevenlabs.io/terms`,
+• Google / YouTube - https://www.youtube.com/t/terms
+• TikTok - https://www.tiktok.com/legal/page/row/terms-of-service/en
+• Spotify - https://www.spotify.com/legal/end-user-agreement/
+• ElevenLabs - https://elevenlabs.io/terms`,
 
   disclaimers: `Our services are provided on an "as is" and "as available" basis without warranties of any kind, either express or implied.
 

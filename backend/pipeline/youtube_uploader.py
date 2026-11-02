@@ -1,5 +1,5 @@
 """
-AutoVid Pipeline — Step 7: YouTube Uploader
+AutoVid Pipeline - Step 7: YouTube Uploader
 
 Uploads videos to YouTube using the YouTube Data API v3.
 Handles OAuth2 authentication with token refresh.
@@ -43,7 +43,7 @@ except ImportError:
 
 import os as _os
 
-# Must be set before ANY oauth call — prevents crash when Google returns
+# Must be set before ANY oauth call - prevents crash when Google returns
 # a subset of requested scopes (e.g. after adding new scopes to consent screen)
 _os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 
@@ -76,7 +76,7 @@ CATEGORY_MAP = {
 
 def get_authenticated_service():
     """
-    Authenticate with YouTube — pure manual code flow.
+    Authenticate with YouTube - pure manual code flow.
     No local server, no redirect URI, works everywhere.
     """
     if not YOUTUBE_AVAILABLE:
@@ -99,7 +99,7 @@ def get_authenticated_service():
             creds.refresh(Request())
         else:
             # Use InstalledAppFlow with local redirect server.
-            # OOB (urn:ietf:wg:oauth:2.0:oob) is deprecated — Google strips scopes with it.
+            # OOB (urn:ietf:wg:oauth:2.0:oob) is deprecated - Google strips scopes with it.
             # InstalledAppFlow spins up a temporary local server on port 8085 to catch the redirect.
             from google_auth_oauthlib.flow import InstalledAppFlow
 
@@ -126,7 +126,7 @@ def get_authenticated_service():
         with open(token_path, "w") as f:
             f.write(creds.to_json())
         print(f"\n✅ Token saved → {token_path}")
-        print("   Authentication complete — won't need this again!\n")
+        print("   Authentication complete - won't need this again!\n")
 
     return build("youtube", "v3", credentials=creds)
 
@@ -373,7 +373,7 @@ def record_upload():
 if __name__ == "__main__":
     print("🔐 YouTube OAuth Setup")
     print("This will open a browser window for you to authorize AutoVid.")
-    print("You only need to do this ONCE — token is saved automatically.\n")
+    print("You only need to do this ONCE - token is saved automatically.\n")
     service = get_authenticated_service()
     print("\n✅ YouTube authentication successful!")
     quota = check_quota_status()
@@ -427,7 +427,7 @@ def get_video_comments(youtube_id: str, max_results: int = 50) -> list:
     """
     Fetch top-level comments for a YouTube video.
     Also fetches existing replies per thread so we can check if
-    we already replied — preventing duplicate responses.
+    we already replied - preventing duplicate responses.
     """
     service = get_authenticated_service()
     comments = []

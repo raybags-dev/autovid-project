@@ -344,7 +344,7 @@ function BlogSection({ c, theme }) {
         </span>
       </div>
 
-      {/* Comments list — scrollable */}
+      {/* Comments list - scrollable */}
       <div style={{ maxHeight: "80vh", overflowY: "auto", paddingRight: 4 }}>
         {loading ? (
           <div
@@ -472,7 +472,7 @@ function BlogSection({ c, theme }) {
 
             {comments.map((comment) => (
               <div key={comment.id}>
-                {/* Main comment — compact */}
+                {/* Main comment - compact */}
                 <div
                   style={{
                     background: c.cardBg,
@@ -644,7 +644,7 @@ function BlogSection({ c, theme }) {
                   </div>
                 </div>
 
-                {/* Inline reply form — indented */}
+                {/* Inline reply form - indented */}
                 {replyForm === comment.id && (
                   <div
                     style={{
@@ -783,7 +783,7 @@ function BlogSection({ c, theme }) {
                   </div>
                 )}
 
-                {/* Replies — visible only when toggled open */}
+                {/* Replies - visible only when toggled open */}
                 {comment.replies?.length > 0 && openReplies.has(comment.id) && (
                   <div
                     style={{
@@ -1051,7 +1051,7 @@ const SPOTIFY_EPISODES = [
 function SpotifyCarousel() {
   const total = SPOTIFY_EPISODES.length;
   const [idx, setIdx] = useState(0);
-  // Track which slides have had their iframe initialised — once added, never removed (no remount)
+  // Track which slides have had their iframe initialised - once added, never removed (no remount)
   const [loaded, setLoaded] = useState(() => new Set([0, 1, total - 1]));
   const timerRef = useRef(null);
 
@@ -1765,12 +1765,12 @@ function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
       } else {
         const detail = data.detail || "";
         setMsg({ type: "error", text:
-          detail === "Email already registered" ? "Already registered — try logging in" :
-          detail.includes("not yet configured") ? "Subscription system coming soon — check back shortly" :
+          detail === "Email already registered" ? "Already registered - try logging in" :
+          detail.includes("not yet configured") ? "Subscription system coming soon - check back shortly" :
           detail || "Something went wrong"
         });
       }
-    } catch { setMsg({ type: "error", text: "Network error — please try again" }); }
+    } catch { setMsg({ type: "error", text: "Network error - please try again" }); }
     finally { setLoading(false); }
   };
 
@@ -1792,13 +1792,13 @@ function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
       } else {
         const detail = data.detail || "";
         setMsg({ type: "error", text:
-          detail === "Account pending approval" ? "Your request is pending — we'll notify you when approved" :
+          detail === "Account pending approval" ? "Your request is pending - we'll notify you when approved" :
           detail === "Account access denied" ? "Your access request was not approved. Contact support." :
           detail === "Invalid credentials" ? "Invalid email or password" :
           detail || "Login failed"
         });
       }
-    } catch { setMsg({ type: "error", text: "Network error — please try again" }); }
+    } catch { setMsg({ type: "error", text: "Network error - please try again" }); }
     finally { setLoading(false); }
   };
 
@@ -1882,7 +1882,7 @@ function ExclusiveSection({ c, subUser, onLogin, onLogout }) {
                 </h3>
                 <p style={{ fontSize: 13, color: c.textM, lineHeight: 1.7, marginBottom: 20 }}>
                   Members-only videos, early access content, and deep-dives that go beyond what's public.
-                  {mode === null && " Submit a request — approved members get instant access."}
+                  {mode === null && " Submit a request - approved members get instant access."}
                 </p>
 
                 {msg && (
@@ -2060,7 +2060,7 @@ export default function LandingPage() {
       setScrollProgress(
         maxScroll > 0 ? Math.min(1, el.scrollTop / maxScroll) : 0,
       );
-      // Parallax backgrounds — direct DOM, no re-render
+      // Parallax backgrounds - direct DOM, no re-render
       if (topicsBgRef.current) {
         const rect = document.getElementById("topics")?.getBoundingClientRect();
         if (rect)
@@ -2110,7 +2110,7 @@ export default function LandingPage() {
     return () => window.removeEventListener("keydown", fn);
   }, []);
 
-  // Scroll-reveal — runs once per element when it enters viewport
+  // Scroll-reveal - runs once per element when it enters viewport
   useEffect(() => {
     const els = document.querySelectorAll(".scroll-reveal");
     if (!els.length) return;
@@ -2134,7 +2134,7 @@ export default function LandingPage() {
     if (heroVidRef.current) heroVidRef.current.playbackRate = 0.55;
   }, []);
 
-  // Cookie consent — read from localStorage on mount
+  // Cookie consent - read from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("cookie_consent");
     if (saved === "accepted" || saved === "declined") {
@@ -2178,7 +2178,7 @@ export default function LandingPage() {
       .catch(() => {});
   }, []);
 
-  // Counter animation — runs when heroStats arrives
+  // Counter animation - runs when heroStats arrives
   useEffect(() => {
     if (!heroStats) return;
     const targets = {
@@ -2511,7 +2511,7 @@ export default function LandingPage() {
         }
         .theme-toggle:hover { transform:scale(1.06); }
 
-        /* ── HERO VIDEO OVERLAP — nav overlays video ── */
+        /* ── HERO VIDEO OVERLAP - nav overlays video ── */
         #hero { margin-top: -62px; }
 
         /* ── FACE FEATURE IMAGE ───────────────────────── */
@@ -2562,7 +2562,7 @@ export default function LandingPage() {
         .yt-meta-row { display:flex; gap:16px; align-items:center; padding:14px 18px 16px; font-size:11px; letter-spacing:0.06em; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); }
         .yt-skeleton { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%);
           background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:10px; }
-        /* Arrows — full height, transparent, outside track */
+        /* Arrows - full height, transparent, outside track */
         .yt-arr { position:absolute; top:0; height:100%; width:54px;
           border-radius:0; border:none; background:transparent;
           color:rgba(255,255,255,0.45); font-size:4rem; line-height:1;
@@ -2629,10 +2629,10 @@ export default function LandingPage() {
         .yt-hero-dot { border:none; cursor:pointer; padding:0; transition:all 0.32s; height:7px; border-radius:4px; }
         @media (max-width:600px) { .yt-hero { height:clamp(220px,56vw,360px); } .yt-hero-side-arr { width:36px; height:36px; font-size:1.3rem; } }
 
-        /* ── FEATURED CONTENT BUTTON — full width on mobile ── */
+        /* ── FEATURED CONTENT BUTTON - full width on mobile ── */
         @media (max-width:640px) { .feat-cta-btn { align-self:stretch!important; justify-content:center!important; width:100%!important; } }
 
-        /* ── EXCLUSIVE SECTION — stack on small screens ── */
+        /* ── EXCLUSIVE SECTION - stack on small screens ── */
         .exclusive-grid { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; }
         @media (max-width:700px) { .exclusive-grid { grid-template-columns:1fr; gap:24px; } }
 
@@ -2646,7 +2646,7 @@ export default function LandingPage() {
         }
 
 
-        /* ── SCROLLBAR — always dark so it doesn't clash with hero ── */
+        /* ── SCROLLBAR - always dark so it doesn't clash with hero ── */
         [data-theme] { scrollbar-width: thin; scrollbar-color: rgba(255,80,30,0.35) rgba(3,6,15,0.4); }
         [data-theme]::-webkit-scrollbar { width: 6px; }
         [data-theme]::-webkit-scrollbar-track { background: rgba(3,6,15,0.4); }
@@ -2954,7 +2954,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ══ HERO — full-screen nebula video banner ════════════════════════════ */}
+      {/* ══ HERO - full-screen nebula video banner ════════════════════════════ */}
       <section
         id="hero"
         style={{
@@ -2964,7 +2964,7 @@ export default function LandingPage() {
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          background: "#03060f", // always dark — video loads above this
+          background: "#03060f", // always dark - video loads above this
         }}
       >
         {/* Video background */}
@@ -2989,7 +2989,7 @@ export default function LandingPage() {
           <source src={nebularVideo} type="video/mp4" />
         </video>
 
-        {/* Gradient overlay — dark vignette */}
+        {/* Gradient overlay - dark vignette */}
         <div
           style={{
             position: "absolute",
@@ -3000,7 +3000,7 @@ export default function LandingPage() {
           }}
         />
 
-        {/* Main content — centred over video */}
+        {/* Main content - centred over video */}
         <div
           className="hero-content-pad"
           style={{
@@ -3046,7 +3046,7 @@ export default function LandingPage() {
               textShadow: "0 1px 12px rgba(0,0,0,0.5)",
             }}
           >
-            4Life Mystery is a space for real conversations about life — its
+            4Life Mystery is a space for real conversations about life - its
             meaning, its mysteries, and everything between. No algorithm. No
             noise. Just honest human thought.
           </p>
@@ -3153,7 +3153,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Bottom bar — privacy links + scroll nudge */}
+        {/* Bottom bar - privacy links + scroll nudge */}
         <div
           className="hero-bottom-bar"
           style={{
@@ -3284,7 +3284,7 @@ export default function LandingPage() {
               alignItems: "stretch",
             }}
           >
-            {/* Face image — default; click to play video */}
+            {/* Face image - default; click to play video */}
             <div
               style={{
                 position: "relative",
@@ -3386,7 +3386,7 @@ export default function LandingPage() {
               >
                 We live in a world that moves fast and talks loud, but rarely
                 stops to ask the questions that actually matter. 4Life Mystery
-                is the pause — the space where you sit with the uncomfortable,
+                is the pause - the space where you sit with the uncomfortable,
                 the unexplained, and the deeply human.
               </p>
               <p
@@ -3399,7 +3399,7 @@ export default function LandingPage() {
               >
                 Whether you're questioning your purpose, processing grief,
                 navigating relationships, or just curious about what it means to
-                be alive — you belong here.
+                be alive - you belong here.
               </p>
 
               <div
@@ -3420,7 +3420,7 @@ export default function LandingPage() {
                   {
                     icon: "◇",
                     title: "Honesty",
-                    desc: "Real experiences, real feelings — no performance.",
+                    desc: "Real experiences, real feelings - no performance.",
                   },
                   {
                     icon: "◉",
@@ -3430,7 +3430,7 @@ export default function LandingPage() {
                   {
                     icon: "◐",
                     title: "Mystery",
-                    desc: "Questions without easy answers — that's the point.",
+                    desc: "Questions without easy answers - that's the point.",
                   },
                 ].map((p) => (
                   <div
@@ -3505,7 +3505,7 @@ export default function LandingPage() {
           overflow: "hidden",
         }}
       >
-        {/* Parallax photo background — face */}
+        {/* Parallax photo background - face */}
         <div
           ref={contentBgRef}
           style={{
@@ -3798,7 +3798,7 @@ export default function LandingPage() {
           overflow: "hidden",
         }}
       >
-        {/* Parallax background — freedom.jpg */}
+        {/* Parallax background - freedom.jpg */}
         <div
           ref={videoBgRef}
           style={{
@@ -3832,7 +3832,7 @@ export default function LandingPage() {
             zIndex: 1,
           }}
         >
-          {/* Header — centered */}
+          {/* Header - centered */}
           <div style={{ textAlign: "center", marginBottom: 52 }}>
             <span className="section-tag" style={{ color: "#ff0000" }}>
               YOUTUBE
@@ -3937,7 +3937,7 @@ export default function LandingPage() {
                         marginBottom: 8,
                       }}
                     >
-                      4Life Mystery — Uncover the Unknown
+                      4Life Mystery - Uncover the Unknown
                     </h3>
                     <p
                       style={{
@@ -4308,7 +4308,7 @@ export default function LandingPage() {
                 }}
               >
                 The 4Life Mystery podcast goes even deeper. Long-form
-                conversations — no time limits, no edits, no filter.
+                conversations - no time limits, no edits, no filter.
               </p>
               <p
                 style={{
@@ -4429,7 +4429,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Player — switches between Spotify carousel and Buzzsprout embed */}
+            {/* Player - switches between Spotify carousel and Buzzsprout embed */}
             <div>
               {podcastTab === "spotify" ? (
                 <SpotifyCarousel />
@@ -4480,7 +4480,7 @@ export default function LandingPage() {
           borderBottom: `1px solid ${c.secBr}`,
         }}
       >
-        {/* Parallax photo background — jajja2 */}
+        {/* Parallax photo background - jajja2 */}
         <div
           ref={topicsBgRef}
           style={{
@@ -4679,7 +4679,7 @@ export default function LandingPage() {
                 color: "rgba(255,210,120,0.95)", fontSize: 12, fontFamily: "inherit",
                 animation: "fadeIn 0.2s",
               }}>
-                💛 Thank you so much! Support functionality is coming very soon — stay tuned!
+                💛 Thank you so much! Support functionality is coming very soon - stay tuned!
                 <button onClick={() => setBmcMsg(false)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0, fontSize: 14, opacity: 0.7 }}>✕</button>
               </div>
             )}
@@ -4703,7 +4703,7 @@ export default function LandingPage() {
             </blockquote>
             <div style={{ width: 60, height: 1, background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)", margin: "28px auto" }} />
             <p style={{ fontSize: "clamp(13px,1.6vw,16px)", color: "rgba(180,210,235,0.7)", lineHeight: 1.85, maxWidth: 600, margin: "0 auto 32px", fontWeight: 400 }}>
-              4Life Mystery is not a channel. It is a conversation — one that has been happening for centuries
+              4Life Mystery is not a channel. It is a conversation - one that has been happening for centuries
               in whispered rooms and sleepless nights, but was never given a stage.{" "}
               <span style={{ color: "rgba(200,225,245,0.9)" }}>Until now.</span>
             </p>
@@ -4730,7 +4730,7 @@ export default function LandingPage() {
           overflow: "hidden",
         }}
       >
-        {/* Parallax photo background — jajja2 */}
+        {/* Parallax photo background - jajja2 */}
         <div
           ref={communityBgRef}
           style={{
@@ -4962,7 +4962,7 @@ export default function LandingPage() {
                   marginBottom: 22,
                 }}
               >
-                Real conversations about life — its meaning, its mysteries, and
+                Real conversations about life - its meaning, its mysteries, and
                 everything in between. No filter. No algorithm. Just truth.
               </p>
               {/* Social pills */}
@@ -5490,7 +5490,7 @@ export default function LandingPage() {
                   <div className="cookie-type-info">
                     <h5>Strictly Necessary</h5>
                     <p>
-                      Essential for the site to function — session handling,
+                      Essential for the site to function - session handling,
                       security, and core navigation. Cannot be disabled.
                     </p>
                   </div>
@@ -5722,7 +5722,7 @@ export default function LandingPage() {
               }}
             >
               <strong style={{ color: "#e0eaf5" }}>4Life Mystery</strong> is a
-              new content media entity — here to explore the different
+              new content media entity - here to explore the different
               dimensions of life: its mysteries, its meaning, and the things we
               rarely say out loud. Every episode, video, and conversation is
               made with intention.
@@ -5760,7 +5760,7 @@ export default function LandingPage() {
               >
                 Podcast
               </a>{" "}
-              channels — more is on the way.
+              channels - more is on the way.
             </p>
 
             {/* Subscribe form */}
@@ -5844,7 +5844,7 @@ export default function LandingPage() {
                   margin: "8px 0 0",
                 }}
               >
-                Something went wrong — please try again.
+                Something went wrong - please try again.
               </p>
             )}
 

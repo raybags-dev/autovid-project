@@ -1,5 +1,5 @@
 """
-AutoVid — Supabase Storage
+AutoVid - Supabase Storage
 Uploads final videos to Supabase Storage bucket for permanent public playback.
 
 Setup (one-time in Supabase dashboard):
@@ -14,7 +14,7 @@ import config
 BUCKET = "videos"
 
 
-SUPABASE_MAX_MB = 4800  # Pro tier: 5 GB max file size — compress only if truly oversized
+SUPABASE_MAX_MB = 4800  # Pro tier: 5 GB max file size - compress only if truly oversized
 
 
 def _compress_video(input_path: Path, output_path: Path, target_mb: int = 40) -> Path:
@@ -60,7 +60,7 @@ def _compress_video(input_path: Path, output_path: Path, target_mb: int = 40) ->
 def _stream_upload(url: str, file_path: Path, content_type: str, headers: dict) -> None:
     """
     Upload a file to a URL using chunked streaming via requests.
-    Avoids loading the entire file into memory — critical for large videos.
+    Avoids loading the entire file into memory - critical for large videos.
     Raises on non-2xx status.
     """
     import requests
@@ -121,7 +121,7 @@ def upload_to_storage(local_path: str, video_id: str, cb=None) -> str:
     except Exception:
         pass
 
-    # Stream upload — no full read into memory
+    # Stream upload - no full read into memory
     _stream_upload(upload_url, upload_path, "video/mp4", auth_headers)
 
     # Clean up temp compressed file

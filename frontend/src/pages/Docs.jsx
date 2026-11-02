@@ -1,5 +1,5 @@
 /**
- * AutoVid Documentation — Protected, login-required docs page.
+ * AutoVid Documentation - Protected, login-required docs page.
  * Covers every feature, API endpoint, and the product subscription model.
  */
 import { useEffect, useRef, useState } from "react";
@@ -321,8 +321,8 @@ export default function Docs() {
 
           {/* ── OVERVIEW ──────────────────────────────────────────────────────────── */}
           <H1 id="overview">What is AutoVid?</H1>
-          <P>AutoVid is an AI-powered video automation engine that takes a text prompt and produces a fully narrated, captioned, music-backed YouTube video — end to end, no human editing required. It handles script generation, text-to-speech narration, visual sourcing, caption burning, YouTube upload, and post-publish analytics — all from a single API call.</P>
-          <P>Whether you're running a faceless YouTube channel, a podcast network, a Shorts feed, or building a content-as-a-service product on top of AutoVid's API — the system handles the entire pipeline autonomously.</P>
+          <P>AutoVid is an AI-powered video automation engine that takes a text prompt and produces a fully narrated, captioned, music-backed YouTube video - end to end, no human editing required. It handles script generation, text-to-speech narration, visual sourcing, caption burning, YouTube upload, and post-publish analytics - all from a single API call.</P>
+          <P>Whether you're running a faceless YouTube channel, a podcast network, a Shorts feed, or building a content-as-a-service product on top of AutoVid's API - the system handles the entire pipeline autonomously.</P>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, margin: "20px 0" }}>
             {[
@@ -419,7 +419,7 @@ Content-Type: application/json
 
           <div style={{ margin: "16px 0" }}>
             {[
-              { step: 1, name: "Script",    desc: "Groq LLM generates a 420–480 word essay: title, description, 8–12 segments with visual cues, hook, and outro." },
+              { step: 1, name: "Script",    desc: "Groq LLM generates a 420-480 word essay: title, description, 8-12 segments with visual cues, hook, and outro." },
               { step: 2, name: "Voice",     desc: "ElevenLabs TTS narrates the full script. Audio is speed-adjusted to hit the target duration." },
               { step: 3, name: "Clips",     desc: "Pexels stock footage is fetched based on each segment's visual_query. Clips are downloaded and trimmed." },
               { step: 4, name: "Assembly",  desc: "FFmpeg assembles all clips into a continuous 16:9 video matching the audio duration." },
@@ -430,7 +430,7 @@ Content-Type: application/json
               <div key={s.step} style={{ display: "flex", gap: 14, marginBottom: 10, alignItems: "flex-start" }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${T.accent}18`, border: `1px solid ${T.accent}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.accent, flexShrink: 0 }}>{s.step}</div>
                 <div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} — </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} - </span>
                   <span style={{ fontSize: 13, color: T.textMid }}>{s.desc}</span>
                 </div>
               </div>
@@ -471,14 +471,14 @@ Content-Type: application/json
 "Pads_EPiano"             // Deep smooth pads + e-piano
 "Pads"                    // Chill heavy pads
 "none"                    // Voice only, no music`}</Code>
-          <Note type="info">Default music volume is <strong>4% (0.04)</strong>. Range: 0.0 – 0.5. Voices sit at 100%; music is ducked underneath.</Note>
+          <Note type="info">Default music volume is <strong>4% (0.04)</strong>. Range: 0.0 - 0.5. Voices sit at 100%; music is ducked underneath.</Note>
 
           {/* ── SHORTS STUDIO ─────────────────────────────────────────────────────── */}
           <H2 id="shorts-studio">Shorts Studio</H2>
-          <P>The Shorts pipeline generates portrait 9:16 videos (1080×1920) targeting a 90-second maximum — the YouTube Shorts limit. Three input modes are available:</P>
+          <P>The Shorts pipeline generates portrait 9:16 videos (1080×1920) targeting a 90-second maximum - the YouTube Shorts limit. Three input modes are available:</P>
 
           <H3>Mode 1: AI Prompt</H3>
-          <P>Provide a topic and the LLM writes a concise 180–210 word script (5–6 segments, ~90s at natural speaking pace). The pipeline applies a "creative angle" on repeat generations of the same topic to prevent duplicate content.</P>
+          <P>Provide a topic and the LLM writes a concise 180-210 word script (5-6 segments, ~90s at natural speaking pace). The pipeline applies a "creative angle" on repeat generations of the same topic to prevent duplicate content.</P>
           <Code>{`POST /api/shorts/generate
 {
   "prompt": "The quiet grief nobody talks about",
@@ -488,7 +488,7 @@ Content-Type: application/json
 }`}</Code>
 
           <H3>Mode 2: Custom Script</H3>
-          <P>Bypass AI script generation entirely. Provide your own narration text — the pipeline uses it verbatim with the TTS voice. Target ~180–210 words for a 90-second short.</P>
+          <P>Bypass AI script generation entirely. Provide your own narration text - the pipeline uses it verbatim with the TTS voice. Target ~180-210 words for a 90-second short.</P>
           <Code>{`POST /api/shorts/generate
 {
   "prompt": "My custom short title",
@@ -508,17 +508,17 @@ Content-Type: application/json
 
           {/* ── SCRIPT STUDIO ─────────────────────────────────────────────────────── */}
           <H2 id="script-studio">Script Studio</H2>
-          <P>Script Studio lets you write your own full-length script and render it into a complete video. You control the exact words the narrator speaks — the pipeline handles everything else (voice, visuals, captions, music, upload).</P>
-          <P><strong>Inputs:</strong> Title (max 70 chars), full script body (min 50 words, target 420–480 for a 3-minute video), channel profile (controls visual mood framing), ambience, and background music.</P>
-          <Note type="warning">Script Studio posts to <code>/api/script-studio/generate</code> with the raw script text. It does NOT call the LLM — the text you write is narrated exactly as provided.</Note>
+          <P>Script Studio lets you write your own full-length script and render it into a complete video. You control the exact words the narrator speaks - the pipeline handles everything else (voice, visuals, captions, music, upload).</P>
+          <P><strong>Inputs:</strong> Title (max 70 chars), full script body (min 50 words, target 420-480 for a 3-minute video), channel profile (controls visual mood framing), ambience, and background music.</P>
+          <Note type="warning">Script Studio posts to <code>/api/script-studio/generate</code> with the raw script text. It does NOT call the LLM - the text you write is narrated exactly as provided.</Note>
 
           <H3>Writing Great Scripts</H3>
           <ul style={{ paddingLeft: 18, margin: "8px 0" }}>
-            <Li>Target 420–480 words for a 3-minute video (150 wpm natural pace)</Li>
+            <Li>Target 420-480 words for a 3-minute video (150 wpm natural pace)</Li>
             <Li>Use commas, periods, and ellipsis (<code>...</code>) for breathing room</Li>
-            <Li>Never use <code>[PAUSE]</code>, asterisks, or markdown — speak directly</Li>
+            <Li>Never use <code>[PAUSE]</code>, asterisks, or markdown - speak directly</Li>
             <Li>End with <code>. . .</code> (three spaced dots) to prevent voice fade at end</Li>
-            <Li>Start with a question or striking image — the first 3 seconds determine retention</Li>
+            <Li>Start with a question or striking image - the first 3 seconds determine retention</Li>
           </ul>
 
           {/* ── PODCAST ───────────────────────────────────────────────────────────── */}
@@ -552,7 +552,7 @@ Content-Type: application/json
 
           {/* ── VIDEO EDITOR ──────────────────────────────────────────────────────── */}
           <H2 id="video-editor">Video Editor</H2>
-          <P>The Video Editor is an in-browser compositing tool that lets you layer animated stick-figure overlays onto any generated video in real time — before committing a final FFmpeg render. Open it from the <strong>Video Editor</strong> tab in the dashboard sidebar, then pick a video.</P>
+          <P>The Video Editor is an in-browser compositing tool that lets you layer animated stick-figure overlays onto any generated video in real time - before committing a final FFmpeg render. Open it from the <strong>Video Editor</strong> tab in the dashboard sidebar, then pick a video.</P>
 
           <H3>Workflow</H3>
           <div style={{ margin: "12px 0" }}>
@@ -560,14 +560,14 @@ Content-Type: application/json
               { step: 1, name: "Pick a video",    desc: "Select any video that has reached 'assembled' status or later. The editor shows the base video and a clip browser." },
               { step: 2, name: "Add overlays",    desc: "Click any stickfigure clip in the browser to add it as an overlay. Drag it to reposition, resize with the scale slider." },
               { step: 3, name: "Adjust timing",   desc: "Set the start time (when the overlay begins relative to the video) and duration (how long it shows). Use the loop mode to fill longer slots." },
-              { step: 4, name: "Live preview",    desc: "Click play on the base video — all overlays animate in sync. The preview uses the browser video element; colours may differ slightly from the FFmpeg render." },
+              { step: 4, name: "Live preview",    desc: "Click play on the base video - all overlays animate in sync. The preview uses the browser video element; colours may differ slightly from the FFmpeg render." },
               { step: 5, name: "Composite",       desc: "Click 'Composite' to start a single-pass FFmpeg job that burns all overlays into a new output file. Poll the status bar for progress." },
               { step: 6, name: "Auto-composite",  desc: "Click 'Auto-Composite' to let the matcher engine analyse the video's script and pick clips automatically based on keyword matching." },
             ].map(s => (
               <div key={s.step} style={{ display: "flex", gap: 14, marginBottom: 10, alignItems: "flex-start" }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${T.accentPurple}18`, border: `1px solid ${T.accentPurple}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.accentPurple, flexShrink: 0 }}>{s.step}</div>
                 <div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} — </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} - </span>
                   <span style={{ fontSize: 13, color: T.textMid }}>{s.desc}</span>
                 </div>
               </div>
@@ -581,22 +581,22 @@ full     // Loop the entire clip for the full window duration
 last_1s  // Play once, then hold-loop the final 1 second (freeze-frame loop)
 last_2s  // Play once, then loop the final 2 seconds
 last_3s  // Play once, then loop the final 3 seconds`}</Code>
-          <Note type="info"><strong>Tip:</strong> Use <code>last_2s</code> or <code>last_3s</code> for clips that end on a held pose — the tail-loop creates a natural frozen hold before switching to the next overlay.</Note>
+          <Note type="info"><strong>Tip:</strong> Use <code>last_2s</code> or <code>last_3s</code> for clips that end on a held pose - the tail-loop creates a natural frozen hold before switching to the next overlay.</Note>
 
           <H3>Chroma-Key vs Alpha</H3>
           <P>The FFmpeg compositor supports two transparency methods transparently:</P>
           <ul style={{ paddingLeft: 18, margin: "8px 0" }}>
-            <Li><strong>Native alpha</strong> — clips encoded in <code>yuva420p</code> / RGBA format have pixel-level transparency without any colour removal. Set <code>has_alpha: true</code> in the DB.</Li>
-            <Li><strong>Chroma-key (default)</strong> — clips filmed against a solid green background (<code>#00FF00</code>). The compositor removes the key colour with configurable similarity and blend thresholds.</Li>
+            <Li><strong>Native alpha</strong> - clips encoded in <code>yuva420p</code> / RGBA format have pixel-level transparency without any colour removal. Set <code>has_alpha: true</code> in the DB.</Li>
+            <Li><strong>Chroma-key (default)</strong> - clips filmed against a solid green background (<code>#00FF00</code>). The compositor removes the key colour with configurable similarity and blend thresholds.</Li>
           </ul>
           <Code>{`// Chroma-key defaults (adjustable per-composite job)
 chroma_color:       "0x00FF00"   // green screen colour
-chroma_similarity:  0.35          // tolerance (0–1)
+chroma_similarity:  0.35          // tolerance (0-1)
 chroma_blend:       0.05          // edge feathering`}</Code>
 
           {/* ── STICKFIGURE SYSTEM ────────────────────────────────────────────────── */}
           <H2 id="stickfigures">Stickfigure System</H2>
-          <P>The stickfigure system is the third visual source in AutoVid — alongside Pexels stock footage and procedural AutoVid animations. It manages a local database of animated stick-figure MP4 clips that can be overlaid on any video.</P>
+          <P>The stickfigure system is the third visual source in AutoVid - alongside Pexels stock footage and procedural AutoVid animations. It manages a local database of animated stick-figure MP4 clips that can be overlaid on any video.</P>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, margin: "16px 0" }}>
             {[
@@ -615,18 +615,18 @@ chroma_blend:       0.05          // edge feathering`}</Code>
           <H3>Stickfigure Manager (Dashboard Tab)</H3>
           <P>The <strong>Stickfigures</strong> tab in the dashboard sidebar gives you full control over every clip in your database:</P>
           <ul style={{ paddingLeft: 18, margin: "8px 0" }}>
-            <Li><strong>Infinite scroll</strong> — loads 20 clips at a time; scrolling to the bottom fetches the next page automatically.</Li>
-            <Li><strong>Play</strong> — click the video thumbnail to preview the clip inline in the card.</Li>
-            <Li><strong>Details</strong> — toggle to see duration, resolution, alpha flag, audio flag, and date added.</Li>
-            <Li><strong>Edit</strong> — inline editing of label, keywords, and enabled toggle. Saves to the database immediately on click.</Li>
-            <Li><strong>Delete</strong> — removes the DB record (with a confirmation prompt). The file on disk is preserved by default.</Li>
-            <Li><strong>Search</strong> — instant client-side filter by label, filename, or any keyword tag.</Li>
-            <Li><strong>Upload</strong> — add a new clip from your local machine with a label and keywords.</Li>
-            <Li><strong>Seed from disk</strong> — scans <code>backend/stickFigureAssets/</code> and populates the DB from the seed keyword map.</Li>
+            <Li><strong>Infinite scroll</strong> - loads 20 clips at a time; scrolling to the bottom fetches the next page automatically.</Li>
+            <Li><strong>Play</strong> - click the video thumbnail to preview the clip inline in the card.</Li>
+            <Li><strong>Details</strong> - toggle to see duration, resolution, alpha flag, audio flag, and date added.</Li>
+            <Li><strong>Edit</strong> - inline editing of label, keywords, and enabled toggle. Saves to the database immediately on click.</Li>
+            <Li><strong>Delete</strong> - removes the DB record (with a confirmation prompt). The file on disk is preserved by default.</Li>
+            <Li><strong>Search</strong> - instant client-side filter by label, filename, or any keyword tag.</Li>
+            <Li><strong>Upload</strong> - add a new clip from your local machine with a label and keywords.</Li>
+            <Li><strong>Seed from disk</strong> - scans <code>backend/stickFigureAssets/</code> and populates the DB from the seed keyword map.</Li>
           </ul>
 
           <H3>Keyword / Tag System</H3>
-          <P>Each clip stores a <code>keywords</code> array in the <code>stickfigure_clips</code> table. These keywords drive every matching operation — the auto-composite in the Video Editor, the background sticker integrator, and future pipeline integrations.</P>
+          <P>Each clip stores a <code>keywords</code> array in the <code>stickfigure_clips</code> table. These keywords drive every matching operation - the auto-composite in the Video Editor, the background sticker integrator, and future pipeline integrations.</P>
 
           <Note type="info">
             <strong>Adding extra tags beyond the filename:</strong> Tags are not restricted to what is inferred from the filename. You can add as many as you like using any of these methods:
@@ -659,10 +659,10 @@ chroma_blend:       0.05          // edge feathering`}</Code>
 Constraints:
   min_gap = 8 seconds   // minimum spacing between overlays
   max_overlays = 8      // cap per video`}</Code>
-          <P>The <strong>Concept Expansions</strong> dictionary (<code>video_fetcher.py → CONCEPT_EXPANSIONS</code>) acts as a keyword bridge: if a paragraph mentions "mortality", it expands to synonyms like "autumn leaves", "gravestone", "empty bed" — which in turn match clip keywords. Adding those expanded terms to a clip's keyword list makes it surface for abstract paragraphs automatically.</P>
+          <P>The <strong>Concept Expansions</strong> dictionary (<code>video_fetcher.py → CONCEPT_EXPANSIONS</code>) acts as a keyword bridge: if a paragraph mentions "mortality", it expands to synonyms like "autumn leaves", "gravestone", "empty bed" - which in turn match clip keywords. Adding those expanded terms to a clip's keyword list makes it surface for abstract paragraphs automatically.</P>
 
-          <H3>Sticker Integrator — Python API</H3>
-          <P>The <code>assemble_paragraph_visuals</code> function in <code>pipeline/sticker_integrator.py</code> is a programmatic building block for generating per-paragraph composite clips. It is <strong>not</strong> called automatically by the main video or shorts pipeline — it is a composable utility you invoke explicitly.</P>
+          <H3>Sticker Integrator - Python API</H3>
+          <P>The <code>assemble_paragraph_visuals</code> function in <code>pipeline/sticker_integrator.py</code> is a programmatic building block for generating per-paragraph composite clips. It is <strong>not</strong> called automatically by the main video or shorts pipeline - it is a composable utility you invoke explicitly.</P>
           <Code>{`from pipeline.sticker_integrator import assemble_paragraph_visuals
 
 output_path = assemble_paragraph_visuals(
@@ -689,7 +689,7 @@ output_path = assemble_paragraph_visuals(
               <div key={s.step} style={{ display: "flex", gap: 14, marginBottom: 10, alignItems: "flex-start" }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${T.accentGreen}18`, border: `1px solid ${T.accentGreen}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: T.accentGreen, flexShrink: 0 }}>{s.step}</div>
                 <div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} — </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{s.name} - </span>
                   <span style={{ fontSize: 13, color: T.textMid }}>{s.desc}</span>
                 </div>
               </div>
@@ -698,11 +698,11 @@ output_path = assemble_paragraph_visuals(
 
           <H3>Does it apply to Shorts and other pipelines?</H3>
           <Note type="warning">
-            <strong>Currently: No — it does not run automatically for any pipeline.</strong> The stickfigure system operates in two separate modes:
+            <strong>Currently: No - it does not run automatically for any pipeline.</strong> The stickfigure system operates in two separate modes:
           </Note>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "10px 0" }}>
             {[
-              { label: "Video Editor (manual)", color: T.accentGreen, desc: "You manually add overlays through the browser UI for any existing video. Works on main videos, Shorts, and Script Studio outputs equally — any video that has a file path." },
+              { label: "Video Editor (manual)", color: T.accentGreen, desc: "You manually add overlays through the browser UI for any existing video. Works on main videos, Shorts, and Script Studio outputs equally - any video that has a file path." },
               { label: "Auto-composite (POST /videos/{id}/auto-composite)", color: T.accent, desc: "Triggers automatic keyword-matched overlay generation for one specific video. Applies to any video type by ID." },
               { label: "assemble_paragraph_visuals (programmatic)", color: T.accentPurple, desc: "A Python building block you call explicitly in custom pipeline code. It is not wired into the main video, shorts, or podcast pipelines yet." },
             ].map((r, i) => (
@@ -716,7 +716,7 @@ output_path = assemble_paragraph_visuals(
 
           {/* ── AUTO-VIDEO ────────────────────────────────────────────────────────── */}
           <H2 id="auto-video">Auto-Generate Videos</H2>
-          <P>The auto-generator runs on a cron schedule, picks a topic from a configured list, and runs the full video pipeline autonomously — no human input required.</P>
+          <P>The auto-generator runs on a cron schedule, picks a topic from a configured list, and runs the full video pipeline autonomously - no human input required.</P>
           <H3>Configuration</H3>
           <Code>{`POST /api/auto-generate/settings
 {
@@ -800,12 +800,12 @@ PATCH /api/videos/{id}/youtube-settings
 
           {/* ── SPOTIFY ───────────────────────────────────────────────────────────── */}
           <H2 id="spotify">Spotify Integration</H2>
-          <P>Connect your Spotify account to display your top tracks and artists on the landing page's Spotify showcase card. Read-only — AutoVid does not post to Spotify.</P>
+          <P>Connect your Spotify account to display your top tracks and artists on the landing page's Spotify showcase card. Read-only - AutoVid does not post to Spotify.</P>
           <Code>{`GET /api/spotify/top-tracks?limit=10&time_range=long_term
 GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
 
           {/* ── API AUTH ──────────────────────────────────────────────────────────── */}
-          <H2 id="api-auth">API Reference — Authentication</H2>
+          <H2 id="api-auth">API Reference - Authentication</H2>
           <Note type="info">All API endpoints (except <code>/auth/login</code>) require a valid JWT in the <code>Authorization: Bearer</code> header. Tokens expire after 30 days.</Note>
 
           <Endpoint method="POST" path="/api/auth/login" desc="Get access token">
@@ -821,7 +821,7 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
           </Endpoint>
 
           {/* ── API VIDEOS ────────────────────────────────────────────────────────── */}
-          <H2 id="api-videos">API Reference — Videos</H2>
+          <H2 id="api-videos">API Reference - Videos</H2>
 
           <Endpoint method="POST" path="/api/videos/generate" desc="Start video pipeline">
             <H3>Request</H3>
@@ -830,7 +830,7 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
   "profile":      "educational | serious | inspirational | reflective | funny",
   "visual_mood":  "stars | aurora | ocean | fire | rain | galaxy",
   "music_style":  "Birds_Atmosphere_Piano | Birds_Atmosphere_Wing | Laidback_Fevorite | Pads_EPiano | Pads | none",
-  "music_volume": 0.04,           // float 0.0–0.5
+  "music_volume": 0.04,           // float 0.0-0.5
   "auto_upload":  false           // boolean
 }`}</Code>
             <H3>Response</H3>
@@ -850,7 +850,7 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
 
           <Endpoint method="GET" path="/api/videos/{id}/logs" desc="Stream pipeline logs">
             <H3>Query params</H3>
-            <Code>{`?since=0    // line offset — pass the count of lines already received`}</Code>
+            <Code>{`?since=0    // line offset - pass the count of lines already received`}</Code>
             <H3>Response</H3>
             <Code>{`{ "lines": ["[SCRIPT] ...", "[VOICE] ..."], "done": false, "total": 5 }`}</Code>
           </Endpoint>
@@ -872,12 +872,12 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
           </Endpoint>
 
           {/* ── API SHORTS ────────────────────────────────────────────────────────── */}
-          <H2 id="api-shorts">API Reference — Shorts</H2>
+          <H2 id="api-shorts">API Reference - Shorts</H2>
 
           <Endpoint method="POST" path="/api/shorts/generate" desc="Generate new Short from scratch">
             <Code>{`{
   "prompt":        "string (required if no custom_script)",
-  "custom_script": "string (optional — bypasses LLM generation)",
+  "custom_script": "string (optional - bypasses LLM generation)",
   "ambience":      "rain",
   "music_style":   "Laidback_Fevorite",
   "music_volume":  0.04
@@ -893,13 +893,13 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
           </Endpoint>
 
           {/* ── API PODCAST ───────────────────────────────────────────────────────── */}
-          <H2 id="api-podcast">API Reference — Podcast</H2>
+          <H2 id="api-podcast">API Reference - Podcast</H2>
 
           <Endpoint method="POST" path="/api/podcast-episode/generate" desc="Generate episode">
             <Code>{`{
-  "topic":        "string (optional — LLM generates essay)",
+  "topic":        "string (optional - LLM generates essay)",
   "title":        "string (optional)",
-  "essay":        "string (optional — use pre-written essay)",
+  "essay":        "string (optional - use pre-written essay)",
   "music_style":  "Laidback_Fevorite",
   "music_volume": 0.04
 }`}</Code>
@@ -912,7 +912,7 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
           <Endpoint method="POST" path="/api/podcast-episode/trigger" desc="Manually trigger one episode" />
 
           {/* ── API AUTOMATION ────────────────────────────────────────────────────── */}
-          <H2 id="api-automation">API Reference — Automation</H2>
+          <H2 id="api-automation">API Reference - Automation</H2>
 
           <Endpoint method="GET" path="/api/auto-generate/settings" desc="Get auto-video settings" />
           <Endpoint method="POST" path="/api/auto-generate/settings" desc="Save auto-video settings">
@@ -927,13 +927,13 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
           <Endpoint method="POST" path="/api/auto-short/trigger" desc="Manually trigger one auto-short" />
 
           {/* ── API STICKFIGURES ──────────────────────────────────────────────────── */}
-          <H2 id="api-stickfigures">API Reference — Stickfigures</H2>
+          <H2 id="api-stickfigures">API Reference - Stickfigures</H2>
 
           <Endpoint method="GET" path="/api/stickfigures" desc="List clips (paginated)">
             <H3>Query params</H3>
             <Code>{`?enabled_only=false   // true = only active clips, false = all (default false in Manager)
 ?skip=0              // offset for pagination
-?limit=20            // page size (0 = return all — used by Video Editor)`}</Code>
+?limit=20            // page size (0 = return all - used by Video Editor)`}</Code>
             <H3>Response</H3>
             <Code>{`{
   "clips": [
@@ -960,7 +960,7 @@ GET /api/spotify/top-artists?limit=10&time_range=long_term`}</Code>
           </Endpoint>
 
           <Endpoint method="POST" path="/api/stickfigures/seed" desc="Populate DB from disk + seed map">
-            <P>Scans <code>backend/stickFigureAssets/</code> and upserts every MP4 found using the built-in <code>_SEED_KEYWORDS</code> map for initial tags. Safe to call repeatedly — uses upsert on filename.</P>
+            <P>Scans <code>backend/stickFigureAssets/</code> and upserts every MP4 found using the built-in <code>_SEED_KEYWORDS</code> map for initial tags. Safe to call repeatedly - uses upsert on filename.</P>
             <H3>Response</H3>
             <Code>{`{ "upserted": 112, "skipped": 0, "errors": [] }`}</Code>
           </Endpoint>
@@ -981,7 +981,7 @@ keywords: "tag1, tag2, tag3"      (optional, comma-separated string)`}</Code>
   "keywords": ["existing", "plus", "new", "extra", "tags"],
   "enabled":  true
 }`}</Code>
-            <Note type="info">This is how you add extra keyword tags beyond what was inferred from the filename. Pass the complete desired array — it replaces the existing keywords entirely.</Note>
+            <Note type="info">This is how you add extra keyword tags beyond what was inferred from the filename. Pass the complete desired array - it replaces the existing keywords entirely.</Note>
           </Endpoint>
 
           <Endpoint method="DELETE" path="/api/stickfigures/{id}" desc="Remove clip from DB">
@@ -1046,7 +1046,7 @@ keywords: "tag1, tag2, tag3"      (optional, comma-separated string)`}</Code>
           </Endpoint>
 
           {/* ── API STATS ─────────────────────────────────────────────────────────── */}
-          <H2 id="api-stats">API Reference — Stats & Quota</H2>
+          <H2 id="api-stats">API Reference - Stats & Quota</H2>
 
           <Endpoint method="GET" path="/api/stats" desc="Channel stats">
             <Code>{`{
@@ -1168,11 +1168,11 @@ X-AutoVid-Key: av_live_sk_xxxx...`}</Code>
               { status: "done",    label: "Browser push notifications for pipeline completion" },
               { status: "done",    label: "Video library search & filter" },
               { status: "done",    label: "Next-run display for all automation schedulers" },
-              { status: "done",    label: "Stickfigure Manager — paginated browse, inline edit, delete, upload" },
-              { status: "done",    label: "Stickfigure keyword system — add/edit tags per clip via UI or API" },
-              { status: "done",    label: "Video Editor — live overlay preview, drag-and-drop positioning, loop modes" },
-              { status: "done",    label: "Auto-composite — keyword-matched sticker overlay from script text" },
-              { status: "done",    label: "assemble_paragraph_visuals — programmatic sticker + background compositor (MoviePy)" },
+              { status: "done",    label: "Stickfigure Manager - paginated browse, inline edit, delete, upload" },
+              { status: "done",    label: "Stickfigure keyword system - add/edit tags per clip via UI or API" },
+              { status: "done",    label: "Video Editor - live overlay preview, drag-and-drop positioning, loop modes" },
+              { status: "done",    label: "Auto-composite - keyword-matched sticker overlay from script text" },
+              { status: "done",    label: "assemble_paragraph_visuals - programmatic sticker + background compositor (MoviePy)" },
               { status: "active",  label: "Wire sticker compositing into main video + shorts pipelines automatically" },
               { status: "active",  label: "Custom footage upload (replace Pexels with user-provided b-roll)" },
               { status: "planned", label: "User registration & multi-tenant accounts" },
@@ -1203,7 +1203,7 @@ X-AutoVid-Key: av_live_sk_xxxx...`}</Code>
             })}
           </div>
 
-          <Note type="success">Custom footage upload is coming soon — the user is recording their own b-roll footage and will provide it for integration. This will replace Pexels stock footage for a fully personalised look.</Note>
+          <Note type="success">Custom footage upload is coming soon - the user is recording their own b-roll footage and will provide it for integration. This will replace Pexels stock footage for a fully personalised look.</Note>
 
           <div style={{ marginTop: 48, padding: "20px 24px", background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, textAlign: "center" }}>
             <div style={{ fontSize: 20, marginBottom: 8 }}>🚀</div>

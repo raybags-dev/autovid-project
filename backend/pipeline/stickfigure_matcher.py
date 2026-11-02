@@ -1,5 +1,5 @@
 """
-AutoVid — Stick Figure Auto-Matcher
+AutoVid - Stick Figure Auto-Matcher
 
 Analyses a video's script / title and automatically selects which stick-figure
 clip to insert at each point in the video.

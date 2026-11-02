@@ -1,15 +1,15 @@
 """
-AutoVid — Looping Visual Generator
+AutoVid - Looping Visual Generator
 Generates beautiful looping abstract animations for Script Studio videos.
-Uses numpy + moviepy only — no external APIs, completely free.
+Uses numpy + moviepy only - no external APIs, completely free.
 
 Styles:
-  gradient_wave   — flowing colour gradients
-  particle_field  — floating light particles
-  aurora          — northern lights shimmer
-  geometric_pulse — pulsing geometric shapes
-  colour_wash     — calm shifting hues
-  starfield       — deep space with moving stars
+  gradient_wave   - flowing colour gradients
+  particle_field  - floating light particles
+  aurora          - northern lights shimmer
+  geometric_pulse - pulsing geometric shapes
+  colour_wash     - calm shifting hues
+  starfield       - deep space with moving stars
 """
 import math
 import random
@@ -281,7 +281,7 @@ def _liquid_black_frame(t: float) -> np.ndarray:
 
 
 def _aurora_dark_frame(t: float) -> np.ndarray:
-    """Deep obsidian aurora — barely-there dark curtains of light."""
+    """Deep obsidian aurora - barely-there dark curtains of light."""
     frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
     x = np.linspace(0, math.pi * 4, WIDTH)
     for i in range(4):
@@ -369,7 +369,7 @@ def _cosmic_dust_frame(t: float) -> np.ndarray:
 
 
 def _ember_glow_frame(t: float) -> np.ndarray:
-    """Floating amber embers rising from the dark — warm and hypnotic."""
+    """Floating amber embers rising from the dark - warm and hypnotic."""
     rng   = np.random.default_rng(55)
     n     = 250
     px    = rng.uniform(0, 1, n)
@@ -402,7 +402,7 @@ def _ember_glow_frame(t: float) -> np.ndarray:
 
 
 def _rain_frame(t: float) -> np.ndarray:
-    """Rainy window at night — city lights blurred through raindrops (landscape 1920x1080)."""
+    """Rainy window at night - city lights blurred through raindrops (landscape 1920x1080)."""
     rng = np.random.default_rng(55)
     n_drops = 300
     # Fixed per-drop x position and velocity (deterministic)
@@ -454,7 +454,7 @@ def _rain_frame(t: float) -> np.ndarray:
 
 
 def _flythrough_stars_frame(t: float) -> np.ndarray:
-    """Camera flying forward through a star field — stars zoom toward the viewer."""
+    """Camera flying forward through a star field - stars zoom toward the viewer."""
     rng = np.random.default_rng(77)
     n   = 600
     cx, cy = WIDTH / 2, HEIGHT / 2
@@ -523,9 +523,9 @@ FRAME_FUNCS = {
     'neon_purple':     _neon_purple_frame,
     'cosmic_dust':     _cosmic_dust_frame,
     'ember_glow':      _ember_glow_frame,
-    # Rain — city lights blurred through rainy window
+    # Rain - city lights blurred through rainy window
     'rain':            _rain_frame,
-    # Flythrough star field — stars zoom toward viewer
+    # Flythrough star field - stars zoom toward viewer
     'flythrough_stars': _flythrough_stars_frame,
 }
 
@@ -568,7 +568,7 @@ def generate_visual(style: str, duration: float, video_id: str) -> str:
     Returns:
         Path to the generated MP4 file
     """
-    # Custom mp4 backgrounds — loop the file instead of generating frames
+    # Custom mp4 backgrounds - loop the file instead of generating frames
     if style in _CUSTOM_MP4_MAP and _CUSTOM_MP4_MAP[style].exists():
         return _generate_from_custom_mp4(_CUSTOM_MP4_MAP[style], duration, video_id)
 

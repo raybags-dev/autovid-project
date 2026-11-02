@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# System deps — ffmpeg essential for video processing
+# System deps - ffmpeg essential for video processing
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     espeak \
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY requirements.txt .
-# Install deps then strip CUDA/CuDNN packages — not needed on a CPU-only VPS
+# Install deps then strip CUDA/CuDNN packages - not needed on a CPU-only VPS
 # and each nvidia-* package is ~100-600 MB, causing "no space left" during builds.
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y \

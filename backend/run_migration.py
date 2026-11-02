@@ -59,7 +59,7 @@ def try_psycopg2(conn_str: str) -> bool:
         print("✅ Migration complete via psycopg2")
         return True
     except ImportError:
-        print("   psycopg2 not installed — skipping")
+        print("   psycopg2 not installed - skipping")
     except Exception as e:
         print(f"   psycopg2 failed: {e}")
     return False

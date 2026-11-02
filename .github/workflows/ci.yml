@@ -13,7 +13,7 @@ concurrency:
 jobs:
   # ── Backend: lint ─────────────────────────────────────────────────────────────
   backend-lint:
-    name: Backend — Lint
+    name: Backend - Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
 
   # ── Backend: tests ────────────────────────────────────────────────────────────
   backend-tests:
-    name: Backend — Tests
+    name: Backend - Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
 
   # ── Frontend: lint ────────────────────────────────────────────────────────────
   frontend-lint:
-    name: Frontend — Lint
+    name: Frontend - Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,7 +83,7 @@ jobs:
 
   # ── Frontend: build (validates no broken imports / config errors) ─────────────
   frontend-build:
-    name: Frontend — Build
+    name: Frontend - Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +107,7 @@ jobs:
 
   # ── Frontend: tests ───────────────────────────────────────────────────────────
   frontend-tests:
-    name: Frontend — Unit Tests
+    name: Frontend - Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

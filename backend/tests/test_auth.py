@@ -69,7 +69,7 @@ class TestLogin:
 
 class TestLogout:
     def test_logout_returns_expected_status(self, client):
-        """Logout may be client-side (clear token) — 200, 204, or 404 all acceptable."""
+        """Logout may be client-side (clear token) - 200, 204, or 404 all acceptable."""
         r = client.post("/auth/logout")
         assert r.status_code in (200, 204, 404)
 

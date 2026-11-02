@@ -11,7 +11,7 @@ concurrency:
 jobs:
   # ── Gate: re-run all tests before any deploy lands ───────────────────────────
   backend-tests:
-    name: Backend — Tests (pre-deploy gate)
+    name: Backend - Tests (pre-deploy gate)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
           python -m pytest tests/ -v --tb=short --no-header -q
 
   frontend-build:
-    name: Frontend — Build check (4lifemystery.com)
+    name: Frontend - Build check (4lifemystery.com)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
         run: cd frontend && npm run build
 
   frontend-async-build:
-    name: Frontend — Build check (async-mode.com)
+    name: Frontend - Build check (async-mode.com)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

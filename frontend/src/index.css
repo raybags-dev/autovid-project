@@ -1,14 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════
-   AutoVid — Global Stylesheet
+   AutoVid - Global Stylesheet
    Sections:
      1. Font Imports
      2. Base Reset
-     3. Dark Theme (default) — CSS Variables
-     4. Light Theme — CSS Variables (body.light)
+     3. Dark Theme (default) - CSS Variables
+     4. Light Theme - CSS Variables (body.light)
      5. Base Element Styles
      6. Scrollbar + Placeholder
      7. Skeleton Loader
-     8. @keyframes — fluid1/2/3, aurora1/2/3, ringPulse, shimmer
+     8. @keyframes - fluid1/2/3, aurora1/2/3, ringPulse, shimmer
      9. Fluid Blob Base Classes (.fluid-wrap, .fluid-blob)
     10. Fluid Mood Classes (.fluid-red, .fluid-blue, .fluid-black,
                            .fluid-purple, .fluid-gold, .fluid-teal)
@@ -45,7 +45,7 @@ body,
 
 
 /* ─────────────────────────────────────────────────────────────
-   3. Dark Theme (default) — CSS Variables
+   3. Dark Theme (default) - CSS Variables
    ───────────────────────────────────────────────────────────── */
 
 :root {
@@ -77,7 +77,7 @@ body,
 
 
 /* ─────────────────────────────────────────────────────────────
-   4. Light Theme — CSS Variables (body.light)
+   4. Light Theme - CSS Variables (body.light)
    ───────────────────────────────────────────────────────────── */
 
 body.light {
@@ -183,7 +183,7 @@ select {
   border-radius: 6px;
 }
 
-/* Light-mode variant — apply when body.light is active */
+/* Light-mode variant - apply when body.light is active */
 body.light .skeleton-loader,
 .skeleton-loader-light {
   background: linear-gradient(

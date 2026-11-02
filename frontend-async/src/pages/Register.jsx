@@ -24,7 +24,7 @@ export default function Register() {
       const detail = err.response?.data?.detail;
       if (detail === "Email already registered") setError("That email is already registered.");
       else if (detail === "invalid_email") setError("Please enter a valid email address.");
-      else setError(detail || "Registration failed — please try again.");
+      else setError(detail || "Registration failed - please try again.");
     } finally {
       setLoading(false);
     }

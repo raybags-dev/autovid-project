@@ -31,19 +31,19 @@ By continuing to use our website, you consent to the use of cookies in accordanc
   "what-are": `Cookies are small text files that are placed on your device (computer, smartphone, or tablet) when you visit a website. They are widely used to make websites work efficiently, improve user experience, and provide information to website owners.
 
 Cookies can be:
-• Session cookies — temporary, deleted when you close your browser
-• Persistent cookies — remain on your device for a set period or until manually deleted
-• First-party cookies — set by the website you are visiting
-• Third-party cookies — set by a different domain (e.g. analytics or ad platforms)
+• Session cookies - temporary, deleted when you close your browser
+• Persistent cookies - remain on your device for a set period or until manually deleted
+• First-party cookies - set by the website you are visiting
+• Third-party cookies - set by a different domain (e.g. analytics or ad platforms)
 
 Similar technologies such as web beacons, pixel tags, and local storage may also be used for related purposes.`,
 
   types: `We categorise the cookies used on our website as follows:
 
-• Essential Cookies — strictly necessary for the website to function; cannot be disabled
-• Analytics Cookies — help us understand how visitors use our site (optional)
-• Preference Cookies — remember your settings and choices (optional)
-• Third-Party Cookies — set by external platforms embedded on our site
+• Essential Cookies - strictly necessary for the website to function; cannot be disabled
+• Analytics Cookies - help us understand how visitors use our site (optional)
+• Preference Cookies - remember your settings and choices (optional)
+• Third-Party Cookies - set by external platforms embedded on our site
 
 You have control over optional cookies. Essential cookies cannot be turned off as the site cannot function without them.`,
 
@@ -51,15 +51,15 @@ You have control over optional cookies. Essential cookies cannot be turned off a
 
 Cookies in this category include:
 
-• Cookie consent preference — stores your cookie consent choice so we do not ask again (key: ${CONSENT_KEY})
-• Session management — maintains your authenticated session if you are a logged-in user
-• Security tokens — CSRF protection to prevent cross-site request forgery
+• Cookie consent preference - stores your cookie consent choice so we do not ask again (key: ${CONSENT_KEY})
+• Session management - maintains your authenticated session if you are a logged-in user
+• Security tokens - CSRF protection to prevent cross-site request forgery
 
 These cookies do not store any personally identifiable information beyond what is necessary for site function.
 
 Legal basis: Legitimate interests (necessary for service operation)`,
 
-  analytics: `Analytics cookies help us understand how visitors interact with our website. This information is collected in aggregate and anonymised form — it does not identify you personally.
+  analytics: `Analytics cookies help us understand how visitors interact with our website. This information is collected in aggregate and anonymised form - it does not identify you personally.
 
 Data collected may include:
 • Pages visited and time spent on each page
@@ -85,9 +85,9 @@ Default state: Disabled until you opt in`,
 
   "third-party": `Our website may embed content from third-party platforms, which may set their own cookies. These platforms include:
 
-• YouTube (Google LLC) — video embeds may set cookies for playback tracking and ad measurement. Google Privacy Policy: https://policies.google.com/privacy
-• Spotify — podcast embeds may set cookies for playback. Spotify Privacy Policy: https://www.spotify.com/legal/privacy-policy/
-• TikTok — social media embeds. TikTok Privacy Policy: https://www.tiktok.com/legal/page/row/privacy-policy/en
+• YouTube (Google LLC) - video embeds may set cookies for playback tracking and ad measurement. Google Privacy Policy: https://policies.google.com/privacy
+• Spotify - podcast embeds may set cookies for playback. Spotify Privacy Policy: https://www.spotify.com/legal/privacy-policy/
+• TikTok - social media embeds. TikTok Privacy Policy: https://www.tiktok.com/legal/page/row/privacy-policy/en
 
 We do not control these third-party cookies and are not responsible for them. Blocking these cookies may prevent embedded content from functioning correctly.
 
@@ -95,9 +95,9 @@ To opt out of third-party tracking, visit each provider's privacy controls or us
 
   "your-choices": `You are in control of your cookie preferences. You can:
 
-• Accept all cookies — enables all categories including analytics and preference cookies
-• Accept essential only — only strictly necessary cookies are set; analytics and preference cookies are disabled
-• Manage preferences — choose individually which optional categories to enable
+• Accept all cookies - enables all categories including analytics and preference cookies
+• Accept essential only - only strictly necessary cookies are set; analytics and preference cookies are disabled
+• Manage preferences - choose individually which optional categories to enable
 
 Your preferences are saved to your browser's local storage under the key "${CONSENT_KEY}" and will persist across visits until you clear your browser data or update your preferences.
 
@@ -163,11 +163,11 @@ function ConsentManager() {
       <div style={{ fontSize: 12, color: "#4a6a8a", marginBottom: 24 }}>Status: <span style={{ color: consent ? "#4ade80" : "#ff7844" }}>{status}</span></div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 28 }}>
-        {/* Essential — locked on */}
+        {/* Essential - locked on */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)" }}>
           <div>
             <div style={{ fontFamily: "sans-serif", fontWeight: 600, fontSize: 13, color: "#c8d4e0", marginBottom: 3 }}>Essential Cookies</div>
-            <div style={{ fontSize: 11, color: "#3d5a72" }}>Always active — required for site function</div>
+            <div style={{ fontSize: 11, color: "#3d5a72" }}>Always active - required for site function</div>
           </div>
           <div style={{ fontSize: 11, color: "#4ade80", fontFamily: "sans-serif", fontWeight: 600 }}>Always On</div>
         </div>

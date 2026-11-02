@@ -1,5 +1,5 @@
 """
-AutoVid Pipeline — Step 5: Caption Generator & Burner
+AutoVid Pipeline - Step 5: Caption Generator & Burner
 
 Uses OpenAI Whisper (local, free) to transcribe the audio and generate
 word-level timestamps, then burns styled captions directly into the video
@@ -42,7 +42,7 @@ def transcribe_audio(audio_path: str, model_size: str = "base") -> dict:
 
     print(f"🎤 Transcribing audio with faster-whisper ({model_size})...")
 
-    # CPU inference — int8 is fastest on CPU servers
+    # CPU inference - int8 is fastest on CPU servers
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
     segments_iter, info = model.transcribe(
         audio_path,
@@ -124,7 +124,7 @@ def generate_srt(whisper_result: dict, output_path: Path, max_chars_per_line: in
     for idx, chunk in enumerate(chunks, 1):
         start = chunk[0]["start"]
         end   = chunk[-1]["end"]
-        # idx is 1-based, chunks is 0-based — next chunk is chunks[idx]
+        # idx is 1-based, chunks is 0-based - next chunk is chunks[idx]
         if idx < len(chunks):
             next_start = chunks[idx][0]["start"]
             end = min(end, next_start - 0.05)
@@ -148,7 +148,7 @@ CAPTION_STYLE = {
     "FontSize": 16,                  # Small, unobtrusive
     "PrimaryColour": "&H00FFFFFF",   # Bright white text
     "OutlineColour": "&H00000000",   # Black outline for contrast
-    "BackColour": "&H00000000",      # No background box — outline only (cleaner)
+    "BackColour": "&H00000000",      # No background box - outline only (cleaner)
     "BorderStyle": 1,                # Outline + shadow only (not box)
     "Outline": 2,
     "Shadow": 1,
@@ -159,7 +159,7 @@ CAPTION_STYLE = {
 
 SHORT_CAPTION_STYLE = {
     "FontName": "Arial",
-    "FontSize": 10,               # Compact — small and unobtrusive for portrait
+    "FontSize": 10,               # Compact - small and unobtrusive for portrait
     "PrimaryColour": "&H00FFFFFF",
     "OutlineColour": "&H00000000",
     "BackColour": "&H00000000",
@@ -249,7 +249,7 @@ def add_captions(video_path: str, audio_path: str, video_id: str,
     with open(transcript_path, "w") as f:
         json.dump({"text": whisper_result["text"], "words": whisper_result["words"]}, f)
 
-    # Generate SRT — use shorter lines for portrait shorts
+    # Generate SRT - use shorter lines for portrait shorts
     max_chars = 25 if is_short else 40
     generate_srt(whisper_result, srt_path, max_chars_per_line=max_chars)
 

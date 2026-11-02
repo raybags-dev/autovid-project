@@ -245,7 +245,7 @@ export default function Blog() {
           <div style={{ textAlign: "center", padding: "100px 0", color: T.textDim }}>
             <div style={{ fontSize: 40, marginBottom: 14 }}>◎</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>NO POSTS YET</div>
-            <div style={{ fontSize: 12, marginTop: 6 }}>Content is coming — check back soon.</div>
+            <div style={{ fontSize: 12, marginTop: 6 }}>Content is coming - check back soon.</div>
           </div>
         ) : (
           <>

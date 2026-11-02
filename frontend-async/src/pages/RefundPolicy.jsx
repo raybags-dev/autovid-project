@@ -34,7 +34,7 @@ export default function RefundPolicy() {
         <p style={S.p}>We want you to be happy with async-mode.com. This policy outlines when and how refunds are issued.</p>
 
         <h2 style={S.h2}>1. 7-Day Money-Back Guarantee</h2>
-        <p style={S.p}>If you are not satisfied with your paid subscription, you may request a full refund within <strong style={{ color: "#c8d8e8" }}>7 calendar days</strong> of your first subscription charge. To request a refund, email <a href="mailto:help@async-mode.com" style={{ color: "#818cf8" }}>help@async-mode.com</a> with your account email and the reason. Refunds are processed within 5–10 business days to your original payment method.</p>
+        <p style={S.p}>If you are not satisfied with your paid subscription, you may request a full refund within <strong style={{ color: "#c8d8e8" }}>7 calendar days</strong> of your first subscription charge. To request a refund, email <a href="mailto:help@async-mode.com" style={{ color: "#818cf8" }}>help@async-mode.com</a> with your account email and the reason. Refunds are processed within 5-10 business days to your original payment method.</p>
 
         <h2 style={S.h2}>2. After 7 Days</h2>
         <p style={S.p}>Refund requests after 7 days are evaluated on a case-by-case basis. We may offer a partial refund or account credit at our discretion. Factors considered include: extent of service usage, technical issues caused by our platform, and billing errors.</p>
@@ -43,10 +43,10 @@ export default function RefundPolicy() {
         <p style={S.p}>If a video fails to generate due to a platform error (not user-side issues like invalid topics), no credit will be deducted from your limit. You can retry the video from your dashboard with one click at no additional cost.</p>
 
         <h2 style={S.h2}>4. Trial Accounts</h2>
-        <p style={S.p}>Trial accounts are free — no charge, no refund needed. Trial credits expire after 24 hours and are non-transferable. There is no refund for unused trial credits as they carry no monetary value.</p>
+        <p style={S.p}>Trial accounts are free - no charge, no refund needed. Trial credits expire after 24 hours and are non-transferable. There is no refund for unused trial credits as they carry no monetary value.</p>
 
         <h2 style={S.h2}>5. Renewals</h2>
-        <p style={S.p}>Monthly subscriptions renew automatically. You will receive an email reminder before each renewal. If you cancel before the renewal date, you won't be charged for the next period. Cancellations take effect at the end of the current billing cycle — you retain access until then.</p>
+        <p style={S.p}>Monthly subscriptions renew automatically. You will receive an email reminder before each renewal. If you cancel before the renewal date, you won't be charged for the next period. Cancellations take effect at the end of the current billing cycle - you retain access until then.</p>
 
         <h2 style={S.h2}>6. Exceptions</h2>
         <p style={S.p}>Refunds will not be issued for: accounts terminated for violating our Terms of Service, partial months following downgrade, or subscription fees already refunded in a previous billing period.</p>

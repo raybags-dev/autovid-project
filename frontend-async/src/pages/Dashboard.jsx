@@ -147,7 +147,7 @@ function VideoProgressPanel({ videoId, onComplete }) {
 
       {isFailed && (
         <div style={{ marginTop: 12, fontSize: 12, color: "#f87171" }}>
-          Pipeline failed — go to My Videos and click Retry.
+          Pipeline failed - go to My Videos and click Retry.
         </div>
       )}
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
@@ -248,7 +248,7 @@ function UpgradeModal({ onClose }) {
 
         <div style={{ background: "#050a14", border: "1px solid #1a2a4a", borderRadius: 10, padding: "20px 24px", marginBottom: 20 }}>
           <p style={{ fontSize: 13, color: "#6a8ab0", margin: "0 0 12px", lineHeight: 1.7 }}>
-            To upgrade, email us with your preferred plan. We'll confirm payment details and activate your account — usually within 24 hours.
+            To upgrade, email us with your preferred plan. We'll confirm payment details and activate your account - usually within 24 hours.
           </p>
           <a
             href="mailto:help@async-mode.com?subject=Upgrade%20Request&body=Hi%2C%20I'd%20like%20to%20upgrade%20my%20async-mode.com%20account.%20My%20preferred%20plan%20is%3A%20"
@@ -467,7 +467,7 @@ function VideoCard({ video, isOwned, onRetry, onPlay }) {
       await retryVideo(video.id);
       onRetry?.();
     } catch {
-      // silent — status will update on next poll
+      // silent - status will update on next poll
     } finally {
       setRetrying(false);
     }
@@ -617,7 +617,7 @@ function CreateVideoPanel({ user, onCreated, onUpgrade, onNeedConnect }) {
         <div style={{ fontSize: 28, marginBottom: 12 }}>🎬</div>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#22c55e", marginBottom: 8 }}>Video queued!</div>
         <div style={{ fontSize: 13, color: "#4a6a8a", lineHeight: 1.6, marginBottom: 20 }}>
-          Generation takes 5–20 minutes. You'll get an email when it's ready.<br />
+          Generation takes 5-20 minutes. You'll get an email when it's ready.<br />
           The video will appear in "My Videos" below.
         </div>
         <button
@@ -641,7 +641,7 @@ function CreateVideoPanel({ user, onCreated, onUpgrade, onNeedConnect }) {
           <textarea
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g. Why humans procrastinate — the psychology behind delay"
+            placeholder="e.g. Why humans procrastinate - the psychology behind delay"
             rows={3}
             style={{
               width: "100%", background: "#050a14", border: "1px solid #1a2a3a",
@@ -844,7 +844,7 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
       window.location.href = url;
     } catch (err) {
       setYtConnecting(false);
-      setError(err?.response?.data?.detail || "Failed to start YouTube auth — please try again.");
+      setError(err?.response?.data?.detail || "Failed to start YouTube auth - please try again.");
     }
   };
 
@@ -902,11 +902,11 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
             { label: "Plan",          value: user?.plan === "trial" ? "Free Trial" : "Full Access" },
             { label: "Status",        value: user?.status?.charAt(0).toUpperCase() + user?.status?.slice(1) },
             { label: "Videos used",   value: `${user?.videos_created ?? 0} / ${user?.video_limit ?? 2}` },
-            { label: "Trial expires", value: user?.trial_remaining_seconds != null ? fmtCountdown(user.trial_remaining_seconds) : "—" },
+            { label: "Trial expires", value: user?.trial_remaining_seconds != null ? fmtCountdown(user.trial_remaining_seconds) : "-" },
           ].map((row) => (
             <div key={row.label}>
               <div style={{ fontSize: 10, color: "#4a6a8a", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{row.label}</div>
-              <div style={{ fontSize: 13, color: "#c8d8e8" }}>{row.value || "—"}</div>
+              <div style={{ fontSize: 13, color: "#c8d8e8" }}>{row.value || "-"}</div>
             </div>
           ))}
         </div>
@@ -1049,7 +1049,7 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
           <div>
             <p style={{ fontSize: 13, color: "#6a8ab0", margin: "0 0 16px", lineHeight: 1.6 }}>
               Connect your YouTube account so AutoVid can upload videos directly to your channel.
-              Videos are uploaded as <strong style={{ color: "#818cf8" }}>private drafts</strong> — only you can see them until you publish.
+              Videos are uploaded as <strong style={{ color: "#818cf8" }}>private drafts</strong> - only you can see them until you publish.
             </p>
             <button
               onClick={handleConnectYouTube}
@@ -1068,7 +1068,7 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
         )}
       </div>
 
-      {/* Danger Zone — account deletion */}
+      {/* Danger Zone - account deletion */}
       <div style={{ background: "#0c0608", border: "1px solid #2a1018", borderRadius: 10, padding: "24px", marginTop: 20 }}>
         <div style={{ fontSize: 12, color: "#6a2a3a", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
           Danger Zone
@@ -1088,7 +1088,7 @@ function AccountTab({ user, onSaved, navigate, onUpgrade }) {
                 cursor: delLoading ? "not-allowed" : "pointer",
               }}
             >
-              {delLoading ? "Cancelling…" : "Cancel deletion — keep my account"}
+              {delLoading ? "Cancelling…" : "Cancel deletion - keep my account"}
             </button>
           </div>
         ) : delConfirm ? (
@@ -1185,7 +1185,7 @@ function LinkAccountsTab({ user, onRefresh }) {
         <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>Link Accounts</h2>
         <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0, lineHeight: 1.6 }}>
           Connect your social channels so AutoVid can publish videos automatically.
-          YouTube is <strong style={{ color: "#ef4444" }}>required</strong> before you can create videos — uploads go in as private drafts for you to review.
+          YouTube is <strong style={{ color: "#ef4444" }}>required</strong> before you can create videos - uploads go in as private drafts for you to review.
         </p>
       </div>
 
@@ -1240,7 +1240,7 @@ function LinkAccountsTab({ user, onRefresh }) {
         </div>
       </div>
 
-      {/* TikTok — coming soon */}
+      {/* TikTok - coming soon */}
       <div style={{ background: "#080e1a", border: "1px solid #0d1b2a", borderRadius: 12, padding: "24px", marginBottom: 14, opacity: 0.55 }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: "rgba(105,201,208,0.08)", border: "1px solid rgba(105,201,208,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "#69c9d0" }}>♬</div>
@@ -1311,7 +1311,7 @@ function ConnectAccountsModal({ user, onClose }) {
           </p>
         </div>
 
-        {/* YouTube — required */}
+        {/* YouTube - required */}
         <div style={{
           background: "#050a14", border: `1px solid ${ytConnected ? "#22c55e30" : "#1a2a4a"}`,
           borderRadius: 12, padding: "16px 18px", marginBottom: 10,
@@ -1351,7 +1351,7 @@ function ConnectAccountsModal({ user, onClose }) {
           </div>
         </div>
 
-        {/* TikTok — optional */}
+        {/* TikTok - optional */}
         <div style={{
           background: "#050a14", border: "1px solid #1a2a4a",
           borderRadius: 12, padding: "16px 18px", marginBottom: 24,
@@ -1393,7 +1393,7 @@ function ConnectAccountsModal({ user, onClose }) {
             transition: "all 0.2s",
           }}
         >
-          {ytConnected ? "Continue — create your video →" : "Connect YouTube to continue"}
+          {ytConnected ? "Continue - create your video →" : "Connect YouTube to continue"}
         </button>
         {!ytConnected && (
           <p style={{ fontSize: 11, color: "#2a3a4a", textAlign: "center", margin: "10px 0 0" }}>
@@ -1474,7 +1474,7 @@ export default function Dashboard() {
     if (videoId) setTrackingVideoId(videoId);
     loadMyVideos();
     refreshUser?.();
-    addToast("Video queued! Tracking progress below. Ready in 8–15 minutes.", "success");
+    addToast("Video queued! Tracking progress below. Ready in 8-15 minutes.", "success");
   };
 
   const handleTrialExpired = () => {
@@ -1635,10 +1635,10 @@ export default function Dashboard() {
                 Generate a video
               </h2>
               <p style={{ fontSize: 13, color: "#4a6a8a", margin: "0 0 12px" }}>
-                Give a topic and style — AutoVid writes the script, records the voice, and assembles the full video.
+                Give a topic and style - AutoVid writes the script, records the voice, and assembles the full video.
               </p>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#0d1a2a", border: "1px solid #1a3a5a", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "#6a8ab0" }}>
-                🔒 Videos are uploaded to YouTube as <strong style={{ color: "#818cf8" }}>private drafts</strong> — only you can see them until you publish
+                🔒 Videos are uploaded to YouTube as <strong style={{ color: "#818cf8" }}>private drafts</strong> - only you can see them until you publish
               </div>
             </div>
             <CapabilitiesPanel user={user || {}} />
@@ -1701,7 +1701,7 @@ export default function Dashboard() {
             <div style={{ marginBottom: 20 }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>Sample Library</h2>
               <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0 }}>
-                Example videos produced by AutoVid — showing what you can create.
+                Example videos produced by AutoVid - showing what you can create.
                 {user?.plan === "trial" && <span style={{ color: "#4f46e5", marginLeft: 8 }}>Trial: 5 previews shown</span>}
               </p>
             </div>
@@ -1768,7 +1768,7 @@ export default function Dashboard() {
             <div style={{ marginBottom: 20 }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e0eaf5", margin: "0 0 6px" }}>Create Your Own Website</h2>
               <p style={{ fontSize: 13, color: "#4a6a8a", margin: 0 }}>
-                Deploy a full AutoVid platform on your own domain — same tech stack, your brand.
+                Deploy a full AutoVid platform on your own domain - same tech stack, your brand.
               </p>
             </div>
             <CreateYourWebsitePanel />

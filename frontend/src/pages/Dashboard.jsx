@@ -189,7 +189,7 @@ const STATUS = {
     pulse: "#9060e0",
   },
 };
-// Jaccard word-overlap similarity (0–1). Used for duplicate prompt detection.
+// Jaccard word-overlap similarity (0-1). Used for duplicate prompt detection.
 const jaccardSim = (a, b) => {
   const words = s => new Set((s || "").toLowerCase().match(/\w+/g) || []);
   const A = words(a), B = words(b);
@@ -223,7 +223,7 @@ const fmtNum = (n) =>
       ? (n / 1000).toFixed(1) + "K"
       : String(n || 0);
 const timeAgo = (d) => {
-  if (!d) return "—";
+  if (!d) return "-";
   const s = (Date.now() - new Date(d)) / 1000;
   if (s < 60) return "just now";
   if (s < 3600) return Math.floor(s / 60) + "m ago";
@@ -231,12 +231,12 @@ const timeAgo = (d) => {
   return Math.floor(s / 86400) + "d ago";
 };
 const fmtDur = (s) =>
-  s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "—";
+  s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "-";
 
 // ── Theme definitions ─────────────────────────────────────────────────────────
 const THEMES = {
   dark: {
-    bg: "#111214", // dark charcoal — not pure black
+    bg: "#111214", // dark charcoal - not pure black
     bgSub: "#191a1e",
     bgDeep: "#0b0c0e",
     bgCard: "#1e2026", // neutral dark, not blue
@@ -267,7 +267,7 @@ const THEMES = {
     text: "#111827", // near-black, maximum contrast
     textMid: "#374151", // dark readable secondary
     textDim: "#4b5563", // readable tertiary
-    textFaint: "#6b7280", // readable metadata — NOT faint
+    textFaint: "#6b7280", // readable metadata - NOT faint
     inputBg: "#ffffff",
     topBar: "#ffffff",
     accent: "#2563eb", // vivid blue
@@ -589,8 +589,8 @@ function VideoEditorTab({ videos, initialVideo, onInitialConsumed, onNewVideo, T
                       {v.title || v.prompt?.slice(0, 50) || "Untitled"}
                     </div>
                     <div style={{ fontSize: 10, color: T.textFaint }}>
-                      {v.duration_seconds ? `${Math.floor(v.duration_seconds / 60)}:${String(v.duration_seconds % 60).padStart(2, "0")}` : "—"}
-                      {" · "}{v.resolution || "—"}
+                      {v.duration_seconds ? `${Math.floor(v.duration_seconds / 60)}:${String(v.duration_seconds % 60).padStart(2, "0")}` : "-"}
+                      {" · "}{v.resolution || "-"}
                     </div>
                   </div>
                 </div>
@@ -604,7 +604,7 @@ function VideoEditorTab({ videos, initialVideo, onInitialConsumed, onNewVideo, T
 }
 
 
-// ── Stick Figure Clip Card (Settings view — hover to preview) ─────────────────
+// ── Stick Figure Clip Card (Settings view - hover to preview) ─────────────────
 function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
   const videoRef = useRef(null);
   const [hovered, setHovered] = useState(false);
@@ -613,7 +613,7 @@ function SettingsClipCard({ clip, onUpdated, onDeleted, T }) {
   const [draftKw, setDraftKw] = useState((clip.keywords || []).join(", "));
   const [saving, setSaving] = useState(false);
 
-  // React doesn't reliably pass `muted` to the DOM — set via ref
+  // React doesn't reliably pass `muted` to the DOM - set via ref
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = true;
   }, []);
@@ -906,7 +906,7 @@ function StickFigureSettings({ T }) {
 
         {clips !== null && clips.length === 0 && (
           <div style={{ fontSize: 11, color: T.textFaint, textAlign: "center", padding: "16px 0" }}>
-            No clips in the DB yet — click "Seed from disk" to load the 84 built-in clips.
+            No clips in the DB yet - click "Seed from disk" to load the 84 built-in clips.
           </div>
         )}
       </div>
@@ -945,7 +945,7 @@ function ExclusiveVideoSetting({ T, showToast }) {
     <div style={{ marginTop: 20, padding: "14px 16px", background: T.bgCard, border: `1px solid rgba(168,85,247,0.25)`, borderRadius: 10 }}>
       <div style={{ fontSize: 10, color: "#a855f7", letterSpacing: "0.1em", marginBottom: 8, fontWeight: 700 }}>🔐 EXCLUSIVE PREVIEW VIDEO</div>
       <div style={{ fontSize: 10, color: T.textDim, marginBottom: 10 }}>
-        Video shown in the subscribe card on your landing page — paste a URL or upload a file
+        Video shown in the subscribe card on your landing page - paste a URL or upload a file
       </div>
       <input
         type="url"
@@ -1075,7 +1075,7 @@ function TaskQueuesTab({ T, showToast, api }) {
       {/* Tasks */}
       {tasks.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 24px", color: T.textFaint, fontSize: 12, letterSpacing: "0.1em" }}>
-          {loading ? "LOADING QUEUE DATA…" : "NO ACTIVE TASKS — QUEUE IS IDLE"}
+          {loading ? "LOADING QUEUE DATA…" : "NO ACTIVE TASKS - QUEUE IS IDLE"}
           {!loading && (
             <div style={{ marginTop: 8, fontSize: 11, color: T.textFaint, opacity: 0.6 }}>
               {queues?.ok === false ? `Worker offline or unreachable: ${queues?.error}` : "All workers are idle. Tasks run in background when videos are requested."}
@@ -1139,7 +1139,7 @@ function TaskQueuesTab({ T, showToast, api }) {
       <div style={{ marginTop: 24, padding: "14px 18px", background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 11, color: T.textFaint, lineHeight: 1.7 }}>
         <strong style={{ color: T.textDim }}>Queue notes:</strong> This platform uses Celery + Redis (not RabbitMQ/Kafka).
         Active = currently running. Reserved = picked up, waiting to start. Scheduled = queued by beat scheduler.
-        Revoking sends SIGTERM to the worker — ongoing pipeline tasks will attempt clean shutdown.
+        Revoking sends SIGTERM to the worker - ongoing pipeline tasks will attempt clean shutdown.
         For real-time monitoring, add <code style={{ color: T.accent }}>celery flower</code> to the compose stack.
       </div>
     </div>
@@ -1346,7 +1346,7 @@ function SubscribersTabContent({ T, showToast }) {
                 {u.status === "rejected" && (
                   <button onClick={() => handleApprove(u.id)} style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(61,214,140,0.35)", background: "rgba(61,214,140,0.08)", color: "#3dd68c", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>↺</button>
                 )}
-                {/* Delete — always available */}
+                {/* Delete - always available */}
                 <button onClick={() => handleDelete(u.id, u.email)} title="Delete record permanently" style={{ padding: "4px 9px", borderRadius: 5, border: "1px solid rgba(255,92,108,0.2)", background: "transparent", color: "rgba(255,92,108,0.5)", fontSize: 9, cursor: "pointer", fontFamily: "inherit" }}>🗑</button>
               </div>
             </div>
@@ -1398,7 +1398,7 @@ export default function Dashboard() {
   const [profile, setProfile] = useState("educational");
   const [visualMood, setVisualMood] = useState("rain");
   const [musicStyle, setMusicStyle] = useState("Laidback_Fevorite");
-  const [musicVolume, setMusicVolume] = useState(0.04); // 0.0–0.5; default 4%
+  const [musicVolume, setMusicVolume] = useState(0.04); // 0.0-0.5; default 4%
   const [musicDelay, setMusicDelay] = useState(0.0);
   const [pipeStep, setPipeStep] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -1421,7 +1421,7 @@ export default function Dashboard() {
   const [sfClipCount, setSfClipCount] = useState(null); // null = not loaded yet
   const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, hasYoutube, youtubeId}
-  const [exclusiveYtModal, setExclusiveYtModal] = useState(null); // unused — kept to avoid ref errors during refactor
+  const [exclusiveYtModal, setExclusiveYtModal] = useState(null); // unused - kept to avoid ref errors during refactor
   const [syncing, setSyncing] = useState(false);
   const [globalLoading, setGlobalLoading] = useState(null); // string message or null
   const [ytModal, setYtModal] = useState(null); // video being managed on YT
@@ -1554,7 +1554,7 @@ export default function Dashboard() {
     if (!toNotify.length) return;
     toNotify.forEach(v => {
       addNotification(
-        `Video error — ${v.title || v.id.slice(0, 8)}`,
+        `Video error - ${v.title || v.id.slice(0, 8)}`,
         v.error_message.split("\n")[0],
         "error",
       );
@@ -1691,7 +1691,7 @@ export default function Dashboard() {
       const detail = e?.response?.data?.detail || "";
       if (status === 429 || detail.toLowerCase().includes("quota")) {
         setChannelError(
-          "⏳ YouTube API quota exceeded — resets at midnight Pacific Time. Cached data shown if available.",
+          "⏳ YouTube API quota exceeded - resets at midnight Pacific Time. Cached data shown if available.",
         );
       } else {
         setChannelError("Failed to load channel videos. Check YouTube OAuth.");
@@ -2030,8 +2030,8 @@ export default function Dashboard() {
     setShortClipSuccess("");
     const startSec = parseTimestamp(shortClipStart);
     const endSec   = parseTimestamp(shortClipEnd);
-    if (shortClipStart && startSec === null) { setShortClipError("Invalid start timestamp — use MM:SS or HH:MM:SS"); return; }
-    if (shortClipEnd && endSec === null)     { setShortClipError("Invalid end timestamp — use MM:SS or HH:MM:SS"); return; }
+    if (shortClipStart && startSec === null) { setShortClipError("Invalid start timestamp - use MM:SS or HH:MM:SS"); return; }
+    if (shortClipEnd && endSec === null)     { setShortClipError("Invalid end timestamp - use MM:SS or HH:MM:SS"); return; }
     if (startSec !== null && endSec !== null && endSec <= startSec) { setShortClipError("End time must be after start time"); return; }
     setShortClipping(true);
     try {
@@ -2039,7 +2039,7 @@ export default function Dashboard() {
       if (startSec !== null) opts.start_time = startSec;
       if (endSec   !== null) opts.end_time   = endSec;
       await createShortFromVideo(shortClipVideoId, opts);
-      setShortClipSuccess("Short is being created — check Shorts logs for progress.");
+      setShortClipSuccess("Short is being created - check Shorts logs for progress.");
       setShortClipVideoId("");
       setShortClipStart("");
       setShortClipEnd("");
@@ -2148,7 +2148,7 @@ export default function Dashboard() {
       .catch(() => {});
   }, []); // eslint-disable-line
 
-  // Settings tab — staggered loading to avoid ERR_INSUFFICIENT_RESOURCES
+  // Settings tab - staggered loading to avoid ERR_INSUFFICIENT_RESOURCES
   // Fast DB-only calls fire immediately; slow external-API status calls are
   // delayed so they never all hit the backend simultaneously.
   useEffect(() => {
@@ -2201,7 +2201,7 @@ export default function Dashboard() {
     getAutoBlogPost().then(r => setAutoBlogPostEnabled(r.enabled)).catch(() => {});
     getVoiceSettings().then(r => { setSavedVoices(r.voices || []); setActiveVoiceId(r.active_voice_id || ""); }).catch(() => {});
 
-    // ── Batch 2: external-API status checks — staggered to avoid thread exhaustion ──
+    // ── Batch 2: external-API status checks - staggered to avoid thread exhaustion ──
     const t1 = setTimeout(() => getTikTokStatus().then(r => setTiktokConnected(r.connected)).catch(() => {}), 200);
     const t2 = setTimeout(() => getSpotifyStatus().then(r => { setSpotifyConnected(r.connected); if (r.connected) setSpotifyProfile(r); }).catch(() => {}), 600);
     const t3 = setTimeout(() => getBuzzsproutStatus().then(r => setBuzzsproutStatus(r)).catch(() => setBuzzsproutStatus({ connected: false })), 1000);
@@ -2210,7 +2210,7 @@ export default function Dashboard() {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, [tab]);
 
-  // Infinite scroll — load more channel videos when bottom sentinel is visible
+  // Infinite scroll - load more channel videos when bottom sentinel is visible
   useEffect(() => {
     if (!channelBottomRef.current) return;
     const obs = new IntersectionObserver(
@@ -2544,7 +2544,7 @@ export default function Dashboard() {
       refresh();
     } catch (e) {
       showToast(
-        e.response?.data?.detail || "Sync failed — check YouTube token",
+        e.response?.data?.detail || "Sync failed - check YouTube token",
         "error",
       );
     } finally {
@@ -2586,7 +2586,7 @@ export default function Dashboard() {
       setDeleteYtConfirm(null);
       setYtModal(null);
       refresh();
-      showToast("Deleted from YouTube — video is now ready to re-upload");
+      showToast("Deleted from YouTube - video is now ready to re-upload");
     } catch (e) {
       showToast(
         e.response?.data?.detail || "Delete from YouTube failed",
@@ -2775,7 +2775,7 @@ export default function Dashboard() {
     if (filter === "archived") loadArchived();
   }, [filter, videoSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // IntersectionObserver — load 20 more items when the sentinel scrolls into view
+  // IntersectionObserver - load 20 more items when the sentinel scrolls into view
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -2820,8 +2820,8 @@ export default function Dashboard() {
     file_path: item.file_path || null,
     thumbnail_url: item.thumbnail_url || null,
     duration_seconds: item.duration_seconds || null,
-    status: "ready",  // always treat as ready — file_path filter above ensures the file exists
-    resolution: "1920x1080",  // treat as landscape — won't be excluded as a Short
+    status: "ready",  // always treat as ready - file_path filter above ensures the file exists
+    resolution: "1920x1080",  // treat as landscape - won't be excluded as a Short
     labels: ["custom_content"],
     narration_url: null,
     is_cc: true,
@@ -2981,9 +2981,9 @@ export default function Dashboard() {
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── Fluid liquid animations ── */
-        /* ── Red fluid — dark crimson, subtle & pleasant ── */
-        /* ── Blue fluid — deep navy, subtle & pleasant ── */
-        /* ── Black fluid — near-black charcoal morphs ── */
+        /* ── Red fluid - dark crimson, subtle & pleasant ── */
+        /* ── Blue fluid - deep navy, subtle & pleasant ── */
+        /* ── Black fluid - near-black charcoal morphs ── */
         /* ── Aurora wave animations ── */
         /* Blue aurora */
         /* Dark/obsidian aurora */
@@ -3248,7 +3248,7 @@ export default function Dashboard() {
               <span>Docs &amp; API</span>
               <span style={{ marginLeft: "auto", fontSize: 9, opacity: 0.5 }}>↗</span>
             </div>
-            {/* Danger Zone — subtle, red-tinted */}
+            {/* Danger Zone - subtle, red-tinted */}
             <div
               style={{
                 marginTop: 4,
@@ -3266,7 +3266,7 @@ export default function Dashboard() {
               onClick={() => setShowDangerZone(true)}
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(200,0,30,0.06)"; e.currentTarget.style.color = "#ff4040"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(180,30,30,0.5)"; }}
-              title="Admin — destructive operations"
+              title="Admin - destructive operations"
             >
               <span style={{ fontSize: 13 }}>☠</span>
               <span style={{ fontSize: 11, letterSpacing: "0.06em" }}>Danger Zone</span>
@@ -3917,14 +3917,14 @@ export default function Dashboard() {
                             else setUseStockFootage(true);
                             if (on && sfClipCount === 0) {
                               addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
-                              showToast("No stickfigures in DB — add clips first", "error");
+                              showToast("No stickfigures in DB - add clips first", "error");
                             }
                           }}
                           style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
                         />
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: useStickfigures ? T.accentPurple : T.textMid, letterSpacing: "0.04em" }}>🕹 STICKFIGURES</div>
-                          <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>{useStickfigures ? `Rain bg + overlays — ${sfClipCount ?? "?"} clips` : "Rain bg + stickfigure overlays"}</div>
+                          <div style={{ fontSize: 10, color: T.textDim, marginTop: 1 }}>{useStickfigures ? `Rain bg + overlays - ${sfClipCount ?? "?"} clips` : "Rain bg + stickfigure overlays"}</div>
                         </div>
                       </label>
                     </div>
@@ -3942,7 +3942,7 @@ export default function Dashboard() {
                     </label>
                   </div>
 
-                  {/* Subscribe message toggles — Video Studio */}
+                  {/* Subscribe message toggles - Video Studio */}
                   <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                     <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: includeUnsubscribedMsg ? "rgba(255,80,80,0.08)" : T.bgCard, border: `1px solid ${includeUnsubscribedMsg ? "rgba(255,80,80,0.4)" : T.border}`, transition: "all 0.2s" }}>
                       <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
@@ -4302,7 +4302,7 @@ export default function Dashboard() {
                       )}
                     </button>
                   ))}
-                  {/* Failed filter — separated */}
+                  {/* Failed filter - separated */}
                   <span style={{ width: 1, height: 16, background: T.border, alignSelf: "center", flexShrink: 0 }} />
                   <button
                     className={`filter-btn ${filter === "failed" ? "active" : ""}`}
@@ -4421,13 +4421,13 @@ export default function Dashboard() {
                     }}
                   >
                     {filter === "all"
-                      ? "NO VIDEOS YET — GENERATE YOUR FIRST VIDEO ABOVE"
+                      ? "NO VIDEOS YET - GENERATE YOUR FIRST VIDEO ABOVE"
                       : filter === "mp4"
                       ? "NO MP4 FILES READY YET"
                       : filter === "mp3"
-                      ? "NO MP3 FILES YET — GENERATED VIA PODCAST PIPELINE"
+                      ? "NO MP3 FILES YET - GENERATED VIA PODCAST PIPELINE"
                       : filter === "shorts"
-                      ? "NO SHORTS YET — CREATE SHORTS FROM EXISTING VIDEOS"
+                      ? "NO SHORTS YET - CREATE SHORTS FROM EXISTING VIDEOS"
                       : filter === "archived"
                       ? "NO ARCHIVED ITEMS"
                       : `NO ${filter.toUpperCase()} VIDEOS`}
@@ -4472,7 +4472,7 @@ export default function Dashboard() {
                             }}
                           >
                             {vUrl ? (
-                              // Supabase URL — fully playable video
+                              // Supabase URL - fully playable video
                               <div
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -4509,7 +4509,7 @@ export default function Dashboard() {
                                 </span>
                               </div>
                             ) : isPodcast(v) && !IN_PROGRESS.includes(v.status) && v.status !== "failed" ? (
-                              // Audio-only — MP3 play button
+                              // Audio-only - MP3 play button
                               <div
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -4554,10 +4554,10 @@ export default function Dashboard() {
                                 ✕
                               </span>
                             ) : (
-                              // ready/posted but no storage URL — greyed play, non-clickable
+                              // ready/posted but no storage URL - greyed play, non-clickable
                               <span
                                 style={{ fontSize: 22, opacity: 0.2 }}
-                                title="No preview — this video was generated before storage was set up. New videos will have preview."
+                                title="No preview - this video was generated before storage was set up. New videos will have preview."
                               >
                                 ▶
                               </span>
@@ -4604,7 +4604,7 @@ export default function Dashboard() {
                                 />
                                 {s.label}
                               </div>
-                              {/* VIEW LOGS button — visible on all in-progress cards */}
+                              {/* VIEW LOGS button - visible on all in-progress cards */}
                               {IN_PROGRESS.includes(v.status) && (
                                 <button
                                   className="btn-sm"
@@ -5265,7 +5265,7 @@ export default function Dashboard() {
                             flexWrap: "wrap",
                           }}
                         >
-                          {/* Preview button — always visible if URL exists */}
+                          {/* Preview button - always visible if URL exists */}
                           {vUrl ? (
                             <button
                               className="btn-sm"
@@ -5282,7 +5282,7 @@ export default function Dashboard() {
                               ▶ PREVIEW
                             </button>
                           ) : null}
-                          {/* Download — always visible if URL exists */}
+                          {/* Download - always visible if URL exists */}
                           {vUrl ? (
                             <button
                               onClick={(e) => {
@@ -5305,7 +5305,7 @@ export default function Dashboard() {
                               ↓ DOWNLOAD
                             </button>
                           ) : null}
-                          {/* Upload to YouTube — primary action, always visible */}
+                          {/* Upload to YouTube - primary action, always visible */}
                           {(v.status === "ready" || v.status === "uploading") && !v.is_exclusive && !isPodcast(v) && (
                             (
                               <button
@@ -5410,7 +5410,7 @@ export default function Dashboard() {
                                       setOpenDropdown(null);
                                       try {
                                         await addCaptionsToVideo(v.id);
-                                        showToast("Captioning started — refresh in a moment");
+                                        showToast("Captioning started - refresh in a moment");
                                       } catch (err) {
                                         showToast(err?.response?.data?.detail || "Captioning failed", "error");
                                       }
@@ -5424,7 +5424,7 @@ export default function Dashboard() {
                                     }}
                                     onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
                                     onMouseLeave={e => e.currentTarget.style.background = "none"}
-                                    title="This video was generated without captions — click to add them"
+                                    title="This video was generated without captions - click to add them"
                                   >
                                     💬 ADD CAPTIONS
                                   </button>
@@ -5443,9 +5443,9 @@ export default function Dashboard() {
                                       if (goingExclusive && v.youtube_id) {
                                         try {
                                           await api.patch(`/videos/${v.id}/youtube-settings`, { privacy: "private" });
-                                          showToast("Added to Exclusive — YouTube video made private");
+                                          showToast("Added to Exclusive - YouTube video made private");
                                         } catch {
-                                          showToast("Added to Exclusive (YouTube privacy update failed — update manually)", "error");
+                                          showToast("Added to Exclusive (YouTube privacy update failed - update manually)", "error");
                                         }
                                       } else {
                                         showToast(goingExclusive ? "Added to Exclusive" : "Removed from Exclusive");
@@ -5465,11 +5465,11 @@ export default function Dashboard() {
                                   }}
                                   onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
                                   onMouseLeave={e => e.currentTarget.style.background = "none"}
-                                  title={v.is_exclusive ? "In Exclusive — click to remove" : "Add to Exclusive content"}
+                                  title={v.is_exclusive ? "In Exclusive - click to remove" : "Add to Exclusive content"}
                                 >
                                   {v.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
                                 </button>
-                                {/* CREATE BLOG / EDIT BLOG — MP4 only */}
+                                {/* CREATE BLOG / EDIT BLOG - MP4 only */}
                                 {!isPodcast(v) && <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
@@ -5528,7 +5528,7 @@ export default function Dashboard() {
                                       setOpenDropdown(null);
                                       try {
                                         await extractVideoMp3(v.id);
-                                        showToast("MP3 extraction started — refresh in a moment");
+                                        showToast("MP3 extraction started - refresh in a moment");
                                       } catch (err) {
                                         showToast(err?.response?.data?.detail || "MP3 extraction failed", "error");
                                       }
@@ -5556,7 +5556,7 @@ export default function Dashboard() {
                                       setTiktokUploading(prev => ({ ...prev, [v.id]: true }));
                                       try {
                                         await uploadToTikTok(v.id, "SELF_ONLY");
-                                        showToast("TikTok upload started — will be private until you publish");
+                                        showToast("TikTok upload started - will be private until you publish");
                                       } catch (err) {
                                         showToast(err?.response?.data?.detail || "TikTok upload failed");
                                       } finally {
@@ -5589,7 +5589,7 @@ export default function Dashboard() {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setOpenDropdown(null);
-                                      showToast("Instagram verification in progress — this will go live once approved", "info");
+                                      showToast("Instagram verification in progress - this will go live once approved", "info");
                                     }}
                                     style={{
                                       display: "block", width: "100%", textAlign: "left",
@@ -5601,7 +5601,7 @@ export default function Dashboard() {
                                     }}
                                     onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
                                     onMouseLeave={e => e.currentTarget.style.background = "none"}
-                                    title="Instagram — verification in progress"
+                                    title="Instagram - verification in progress"
                                   >
                                     📸 INSTAGRAM
                                   </button>
@@ -5691,7 +5691,7 @@ export default function Dashboard() {
                                     📱 Make Short
                                   </button>
                                 )}
-                                {/* RESET — for stuck in-progress videos */}
+                                {/* RESET - for stuck in-progress videos */}
                                 {IN_PROGRESS.includes(v.status) && !(generating && genJobId === v.id) && (
                                   <button
                                     onClick={(e) => {
@@ -5707,7 +5707,7 @@ export default function Dashboard() {
                                     }}
                                     onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
                                     onMouseLeave={e => e.currentTarget.style.background = "none"}
-                                    title="Video appears stuck — click to resolve its status based on available output"
+                                    title="Video appears stuck - click to resolve its status based on available output"
                                   >
                                     ↺ RESET
                                   </button>
@@ -5716,7 +5716,7 @@ export default function Dashboard() {
                             )}
                           </div>
 
-                          {/* DELETE — always at end */}
+                          {/* DELETE - always at end */}
                           <button
                             className="btn-sm"
                             onClick={(e) => {
@@ -5767,7 +5767,7 @@ export default function Dashboard() {
             {tab === "shorts" && (
   <div style={{ display: "flex", gap: 20, height: "100%", minHeight: 0 }}>
 
-    {/* LEFT — Existing Shorts */}
+    {/* LEFT - Existing Shorts */}
     <div style={{
       width: 340,
       flexShrink: 0,
@@ -5856,7 +5856,7 @@ export default function Dashboard() {
           });
           if (filteredShorts.length === 0) return (
             <div style={{ textAlign: "center", padding: 40, color: T.textFaint, fontSize: 11 }}>
-              {shortsSearch ? `No shorts matching "${shortsSearch}"` : shortsFilter === "all" ? "No shorts yet — generate your first one →" : `No ${shortsFilter} shorts found`}
+              {shortsSearch ? `No shorts matching "${shortsSearch}"` : shortsFilter === "all" ? "No shorts yet - generate your first one →" : `No ${shortsFilter} shorts found`}
             </div>
           );
           return filteredShorts.map(s => {
@@ -5932,7 +5932,7 @@ export default function Dashboard() {
                       )}
                     </div>
                     {/* Action buttons for unposted ready shorts */}
-                    {/* Exclusive toggle — always visible for ready shorts with a file */}
+                    {/* Exclusive toggle - always visible for ready shorts with a file */}
                     {isReady && s.file_path && (
                       <button
                         onClick={async (e) => {
@@ -5943,9 +5943,9 @@ export default function Dashboard() {
                             if (goingExclusive && s.youtube_video_id) {
                               try {
                                 await api.patch(`/videos/${s.id}/youtube-settings`, { privacy: "private" });
-                                showToast("Added to Exclusive — YouTube video made private");
+                                showToast("Added to Exclusive - YouTube video made private");
                               } catch {
-                                showToast("Added to Exclusive (YouTube privacy update failed — update manually)", "error");
+                                showToast("Added to Exclusive (YouTube privacy update failed - update manually)", "error");
                               }
                             } else {
                               showToast(goingExclusive ? "Added to Exclusive" : "Removed from Exclusive");
@@ -5962,19 +5962,19 @@ export default function Dashboard() {
                           color: s.is_exclusive ? "#a78bfa" : T.textFaint,
                           cursor: "pointer", fontFamily: "inherit",
                         }}
-                        title={s.is_exclusive ? "In Exclusive — click to remove" : "Add to Exclusive content"}
+                        title={s.is_exclusive ? "In Exclusive - click to remove" : "Add to Exclusive content"}
                       >
                         {s.is_exclusive ? "🔓 EXCLUSIVE" : "🔒 EXCLUSIVE"}
                       </button>
                     )}
-                    {/* ADD CAPTIONS — for shorts generated without captions */}
+                    {/* ADD CAPTIONS - for shorts generated without captions */}
                     {s.captions_disabled && isReady && s.file_path && (
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
                             await addCaptionsToVideo(s.id);
-                            showToast("Captioning started — refresh in a moment");
+                            showToast("Captioning started - refresh in a moment");
                           } catch (err) {
                             showToast(err?.response?.data?.detail || "Captioning failed", "error");
                           }
@@ -6018,14 +6018,14 @@ export default function Dashboard() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            showToast("Instagram verification in progress — this will go live once approved", "info");
+                            showToast("Instagram verification in progress - this will go live once approved", "info");
                           }}
                           style={{
                             padding: "4px 8px", borderRadius: 6, fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
                             border: "1px solid rgba(225,48,108,0.25)", background: "rgba(225,48,108,0.06)",
                             color: "#e1306c", cursor: "pointer", fontFamily: "inherit", opacity: 0.65,
                           }}
-                          title="Instagram — verification in progress"
+                          title="Instagram - verification in progress"
                         >
                           📸 IG
                         </button>
@@ -6072,7 +6072,7 @@ export default function Dashboard() {
       </div>
     </div>
 
-    {/* RIGHT — Generate forms */}
+    {/* RIGHT - Generate forms */}
     <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: T.text, marginBottom: 6 }}>
@@ -6226,7 +6226,7 @@ export default function Dashboard() {
                     else setShortUseStockFootage(true);
                     if (on && sfClipCount === 0) {
                       addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before generating with this mode.", "error");
-                      showToast("No stickfigures in DB — add clips first", "error");
+                      showToast("No stickfigures in DB - add clips first", "error");
                     }
                   }}
                   style={{ accentColor: T.accentPurple, width: 14, height: 14 }}
@@ -6239,7 +6239,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Caption toggle — Shorts */}
+          {/* Caption toggle - Shorts */}
           <div style={{ marginTop: 10 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
               <input type="checkbox" checked={shortUseCaptions} onChange={e => setShortUseCaptions(e.target.checked)}
@@ -6251,7 +6251,7 @@ export default function Dashboard() {
             </label>
           </div>
 
-          {/* Subscribe message toggles — Shorts */}
+          {/* Subscribe message toggles - Shorts */}
           <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
             <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: shortIncludeUnsubscribedMsg ? "rgba(255,80,80,0.08)" : T.bgCard, border: `1px solid ${shortIncludeUnsubscribedMsg ? "rgba(255,80,80,0.4)" : T.border}`, transition: "all 0.2s" }}>
               <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: shortGenerating ? "not-allowed" : "pointer" }}>
@@ -6337,7 +6337,7 @@ export default function Dashboard() {
                 {shortPipeStep === 3 && "🎬 Generating portrait visual..."}
                 {shortPipeStep === 4 && "⚙ Burning captions..."}
                 {shortPipeStep === 5 && "🎵 Merging audio + finalizing..."}
-                {shortPipeStep === 6 && "✅ Short ready — check the Shorts list!"}
+                {shortPipeStep === 6 && "✅ Short ready - check the Shorts list!"}
               </div>
               {/* View logs toggle + cancel */}
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
@@ -6388,7 +6388,7 @@ export default function Dashboard() {
             ✂️ Clip Existing Video
           </div>
           <div style={{ fontSize: 11, color: T.textDim, marginBottom: 16 }}>
-            Select a video from your library and clip a segment — outputs 9:16 portrait Short.
+            Select a video from your library and clip a segment - outputs 9:16 portrait Short.
           </div>
 
           {/* Video selector */}
@@ -6399,7 +6399,7 @@ export default function Dashboard() {
               onChange={e => { setShortClipVideoId(e.target.value); setShortClipStart(""); setShortClipEnd(""); setShortClipError(""); setShortClipSuccess(""); }}
               style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 12, padding: "10px 12px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}
             >
-              <option value="">— Pick a video —</option>
+              <option value="">- Pick a video -</option>
               {allLibraryVideos.filter(v => (v.status === "posted" || v.status === "ready") && v.file_path && v.resolution !== "1080x1920" && !(v.labels || []).includes("used_for_short")).map(v => (
                 <option key={v.id} value={v.id}>{(v.is_cc ? "📦 " : "") + (v.title || v.id.slice(0,16))}</option>
               ))}
@@ -6413,7 +6413,7 @@ export default function Dashboard() {
             </select>
           </div>
 
-          {/* Timestamp controls — shown when a video is selected */}
+          {/* Timestamp controls - shown when a video is selected */}
           {shortClipVideoId && (
             <div style={{ background: T.bgSub, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
               <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>CLIP RANGE (optional)</div>
@@ -6466,9 +6466,9 @@ export default function Dashboard() {
         <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SHORTS TIPS</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           {[
-            { icon: "⏱", title: "Up to 3 Minutes", desc: "YouTube Shorts can be up to 3 minutes. Generated shorts target 2–3 min; clips respect your timestamps." },
-            { icon: "📱", title: "9:16 Portrait", desc: "All Shorts are rendered at 1080×1920 — vertical mobile-first format." },
-            { icon: "👁", title: "Review Before Upload", desc: "Shorts are saved as Ready — you upload to YouTube when satisfied." },
+            { icon: "⏱", title: "Up to 3 Minutes", desc: "YouTube Shorts can be up to 3 minutes. Generated shorts target 2-3 min; clips respect your timestamps." },
+            { icon: "📱", title: "9:16 Portrait", desc: "All Shorts are rendered at 1080×1920 - vertical mobile-first format." },
+            { icon: "👁", title: "Review Before Upload", desc: "Shorts are saved as Ready - you upload to YouTube when satisfied." },
           ].map(tip => (
             <div key={tip.icon} style={{ background: T.bgSub, borderRadius: 10, padding: "12px 14px" }}>
               <div style={{ fontSize: 18, marginBottom: 6 }}>{tip.icon}</div>
@@ -6584,7 +6584,7 @@ export default function Dashboard() {
                     Loading channel videos...
                   </div>
                 ) : channelVideos.length === 0 && !channelLoading ? (
-                  // Quota hit & no cache — fall back to DB posted videos
+                  // Quota hit & no cache - fall back to DB posted videos
                   <div>
                     {channelError && (
                       <div
@@ -6613,7 +6613,7 @@ export default function Dashboard() {
                             lineHeight: 1.6,
                           }}
                         >
-                          YouTube API quota is exhausted — live channel stats
+                          YouTube API quota is exhausted - live channel stats
                           unavailable until midnight Pacific Time. Showing your
                           posted videos from the local database instead. Upload
                           counts, views and likes may be outdated.
@@ -6770,7 +6770,7 @@ export default function Dashboard() {
                         }}
                       >
                         Showing {channelVisible} of {channelVideos.length}{" "}
-                        videos — scroll down for more
+                        videos - scroll down for more
                       </div>
                     )}
                     <div
@@ -6845,7 +6845,7 @@ export default function Dashboard() {
                                 color: "#fff",
                               }}
                             >
-                              {v.privacy?.toUpperCase() || "—"}
+                              {v.privacy?.toUpperCase() || "-"}
                             </div>
                             {/* Duration */}
                             {v.duration && (
@@ -7253,14 +7253,14 @@ export default function Dashboard() {
                                   "Remaining",
                                   `${((billing.elevenlabs.chars_remaining || 0) / 1000).toFixed(0)}K chars`,
                                 ],
-                                ["Tier", billing.elevenlabs.tier || "—"],
+                                ["Tier", billing.elevenlabs.tier || "-"],
                                 [
                                   "Resets On",
-                                  billing.elevenlabs.reset_date || "—",
+                                  billing.elevenlabs.reset_date || "-",
                                 ],
                                 [
                                   "Voice ID",
-                                  billing.elevenlabs.voice_id || "—",
+                                  billing.elevenlabs.voice_id || "-",
                                 ],
                               ].map(([k, v]) => (
                                 <div
@@ -7781,7 +7781,7 @@ export default function Dashboard() {
                               billing.groq.model
                                 ?.split("-")
                                 .slice(0, 3)
-                                .join("-") || "—",
+                                .join("-") || "-",
                             ],
                             ["Pricing", billing.groq.pricing || "Free"],
                             [
@@ -8020,7 +8020,7 @@ export default function Dashboard() {
                               }}
                             >
                               {billing.hetzner.server_name || "Server"} ·{" "}
-                              {billing.hetzner.location || "—"}
+                              {billing.hetzner.location || "-"}
                             </div>
                           </div>
                           {billing.hetzner.status === "ok" ? (
@@ -8098,9 +8098,9 @@ export default function Dashboard() {
                                 ],
                                 [
                                   "Monthly",
-                                  billing.hetzner.monthly_cost || "—",
+                                  billing.hetzner.monthly_cost || "-",
                                 ],
-                                ["Since", billing.hetzner.created || "—"],
+                                ["Since", billing.hetzner.created || "-"],
                                 [
                                   "Traffic In",
                                   `${billing.hetzner.ingoing_traffic_gb || 0} GB`,
@@ -8136,7 +8136,7 @@ export default function Dashboard() {
                                       color: T.text,
                                     }}
                                   >
-                                    {v || "—"}
+                                    {v || "-"}
                                   </div>
                                 </div>
                               ))}
@@ -8144,7 +8144,7 @@ export default function Dashboard() {
 
                             {/* Traffic bar */}
                             {billing.hetzner.included_traffic_tb &&
-                              billing.hetzner.included_traffic_tb !== "—" && (
+                              billing.hetzner.included_traffic_tb !== "-" && (
                                 <div style={{ marginBottom: 14 }}>
                                   <div
                                     style={{
@@ -8269,9 +8269,9 @@ export default function Dashboard() {
                             {spotifyProfile && (
                               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 16 }}>
                                 {[
-                                  ["Display Name", spotifyProfile.display_name || "—"],
-                                  ["Email",         spotifyProfile.email || "—"],
-                                  ["Country",       spotifyProfile.country || "—"],
+                                  ["Display Name", spotifyProfile.display_name || "-"],
+                                  ["Email",         spotifyProfile.email || "-"],
+                                  ["Country",       spotifyProfile.country || "-"],
                                   ["Followers",     (spotifyProfile.followers ?? 0).toLocaleString?.() ?? "0"],
                                   ["Account",       "Spotify Premium"],
                                   ["Status",        "Active"],
@@ -8306,7 +8306,7 @@ export default function Dashboard() {
                                     <div style={{ fontSize: 9, color: T.textFaint, width: 14, textAlign: "right", flexShrink: 0 }}>{i + 1}</div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>{a.name}</div>
-                                      <div style={{ fontSize: 9, color: T.textFaint }}>{a.genres?.slice(0, 3).join(", ") || "—"}</div>
+                                      <div style={{ fontSize: 9, color: T.textFaint }}>{a.genres?.slice(0, 3).join(", ") || "-"}</div>
                                     </div>
                                     <div style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>👥 {(a.followers ?? 0).toLocaleString?.()}</div>
                                   </div>
@@ -8431,7 +8431,7 @@ export default function Dashboard() {
                       {item.title || item.id}
                     </div>
                     <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : "—"}
+                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : "-"}
                       {item.duration_seconds ? ` · ${Math.floor(item.duration_seconds / 60)}:${String(item.duration_seconds % 60).padStart(2, "0")}` : ""}
                     </div>
                   </div>
@@ -8482,7 +8482,7 @@ export default function Dashboard() {
                             <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${T.border}` }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 11, color: T.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.title || v.id}</div>
-                                <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>{v.created_at ? new Date(v.created_at).toLocaleDateString() : "—"}</div>
+                                <div style={{ fontSize: 9, color: T.textFaint, marginTop: 2 }}>{v.created_at ? new Date(v.created_at).toLocaleDateString() : "-"}</div>
                               </div>
                               <button onClick={() => handleDownload(v.narration_url, `${v.title || v.id}-narration.mp3`)} style={{ fontSize: 11, padding: "4px 9px", borderRadius: 6, border: `1px solid #a0d09030`, background: "#a0d09010", color: "#a0d090", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>↓ .mp3</button>
                             </div>
@@ -8555,19 +8555,19 @@ export default function Dashboard() {
                     },
                     {
                       label: "TOTAL VIEWS",
-                      value: stats.total_views != null ? fmtNum(stats.total_views) : "—",
+                      value: stats.total_views != null ? fmtNum(stats.total_views) : "-",
                       color: "#a0d090",
                     },
                     {
                       label: "TOTAL LIKES",
-                      value: stats.total_likes != null ? fmtNum(stats.total_likes) : "—",
+                      value: stats.total_likes != null ? fmtNum(stats.total_likes) : "-",
                       color: T.accentYellow,
                     },
                     {
                       label: "SUCCESS RATE",
                       value: stats.total
                         ? `${Math.round(((stats.total - (stats.failed || 0)) / stats.total) * 100)}%`
-                        : "—",
+                        : "-",
                       color: T.accentGreen,
                     },
                     {
@@ -8581,7 +8581,7 @@ export default function Dashboard() {
                                   p.length,
                               ),
                             )
-                          : "—";
+                          : "-";
                       })(),
                       color: T.accent,
                     },
@@ -8720,7 +8720,7 @@ export default function Dashboard() {
                   const JOB_COLORS = { video: "#0070cc", short: "#9b59b6", short_clip: "#8e44ad", script: "#00a896", podcast: "#f26522", compilation: "#e67e22", job: "#999" };
                   return (
                     <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: 20, marginBottom: 16 }}>
-                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.12em", marginBottom: 14 }}>PIPELINE ACTIVITY — TODAY</div>
+                      <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.12em", marginBottom: 14 }}>PIPELINE ACTIVITY - TODAY</div>
                       <div style={{ display: "flex", gap: 20, marginBottom: 14, flexWrap: "wrap" }}>
                         {[
                           { label: "DONE", value: summary.total_done || 0, color: T.accentGreen },
@@ -8764,7 +8764,7 @@ export default function Dashboard() {
                               <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: T.textMid }}>
                                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: j.status === "done" ? T.accentGreen : T.accentRed, flexShrink: 0, display: "inline-block" }} />
                                 <span style={{ width: 70, fontSize: 9, color: JOB_COLORS[j.type] || T.textFaint, letterSpacing: "0.05em", flexShrink: 0 }}>{(j.type || "job").toUpperCase()}</span>
-                                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j.prompt || "—"}</span>
+                                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j.prompt || "-"}</span>
                                 <span style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>{j.duration_s}s</span>
                               </div>
                             ))}
@@ -8813,7 +8813,7 @@ export default function Dashboard() {
                         },
                         {
                           label: "TIER",
-                          value: quota.tier?.toUpperCase() || "—",
+                          value: quota.tier?.toUpperCase() || "-",
                           color: T.accent,
                         },
                       ].map((q) => (
@@ -8926,7 +8926,7 @@ export default function Dashboard() {
                           <span
                             style={{ color: T.accentYellow, marginLeft: 6 }}
                           >
-                            ⏸ Quota hit — resumes in ~
+                            ⏸ Quota hit - resumes in ~
                             {autoReplyStatus.resume_in_hours}h
                           </span>
                         )}
@@ -9297,7 +9297,7 @@ export default function Dashboard() {
                               setShowAutoGenLogs(true);
                               showToast("🤖 Auto-generate started!");
 
-                              // Poll for step progress — use functional updater to avoid stale closure
+                              // Poll for step progress - use functional updater to avoid stale closure
                               const stepMap = {
                                 generating: 1,
                                 scripted: 2,
@@ -9413,7 +9413,7 @@ export default function Dashboard() {
                         <textarea
                           value={promptInput}
                           onChange={e => setPromptInput(e.target.value)}
-                          placeholder={`Add prompts for [${promptPipeline}] pipeline — one per line or comma-separated`}
+                          placeholder={`Add prompts for [${promptPipeline}] pipeline - one per line or comma-separated`}
                           rows={3}
                           style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 11, padding: "8px 10px", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
                         />
@@ -9432,7 +9432,7 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {/* Progress panel — appears when auto-generate is running */}
+                      {/* Progress panel - appears when auto-generate is running */}
                       {autoGenRunning && (
                         <div
                           style={{
@@ -10223,7 +10223,7 @@ export default function Dashboard() {
                             {showTopicsPanel && (
                               <div style={{ padding: "0 12px 12px" }}>
                                 <div style={{ fontSize: 10, color: T.textFaint, marginBottom: 6, lineHeight: 1.6 }}>
-                                  Paste your topics below — one per line. When saved, automation will cycle through these
+                                  Paste your topics below - one per line. When saved, automation will cycle through these
                                   instead of the built-in list. Purge to revert to defaults.
                                 </div>
                                 <textarea
@@ -10282,7 +10282,7 @@ export default function Dashboard() {
                                           await savePodcastSettings(updated);
                                           setPodcastSettings(updated);
                                           setTopicsInputText("");
-                                          showToast("Topics purged — reverted to defaults");
+                                          showToast("Topics purged - reverted to defaults");
                                           setShowTopicsPanel(false);
                                         } catch {
                                           showToast("Failed to purge topics", "error");
@@ -10595,7 +10595,7 @@ export default function Dashboard() {
 
                 {/* ── YouTube Channel URL ── */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>YOUTUBE — CHANNEL URL</div>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>YOUTUBE - CHANNEL URL</div>
                   <div style={{ background: T.bgCard, border: "1px solid rgba(255,85,51,0.25)", borderRadius: 10, padding: "16px 18px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                       <span style={{ fontSize: 20 }}>▶</span>
@@ -10640,7 +10640,7 @@ export default function Dashboard() {
 
                 {/* ── TikTok Profile URL ── */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>TIKTOK — PROFILE URL</div>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>TIKTOK - PROFILE URL</div>
                   <div style={{ background: T.bgCard, border: "1px solid rgba(0,242,234,0.25)", borderRadius: 10, padding: "16px 18px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                       <span style={{ fontSize: 20 }}>♪</span>
@@ -10687,7 +10687,7 @@ export default function Dashboard() {
                   <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>📷 Connect Instagram</div>
-                      <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>Auto-post Reels and Stories — coming soon</div>
+                      <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>Auto-post Reels and Stories - coming soon</div>
                     </div>
                     <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(225,48,108,0.1)", border: "1px solid rgba(225,48,108,0.2)", color: "#e1306c", fontSize: 10, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
                       SOON
@@ -10799,8 +10799,8 @@ export default function Dashboard() {
                     {spotifyConnected && spotifyProfile && (
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                         {[
-                          ["Country", spotifyProfile.country || "—"],
-                          ["Followers", (spotifyProfile.followers ?? "—").toLocaleString?.() ?? "—"],
+                          ["Country", spotifyProfile.country || "-"],
+                          ["Followers", (spotifyProfile.followers ?? "-").toLocaleString?.() ?? "-"],
                           ["Account", "Premium" ],
                         ].map(([k, v]) => (
                           <div key={k} style={{ background: T.bgBase, borderRadius: 8, padding: "8px 10px" }}>
@@ -10815,7 +10815,7 @@ export default function Dashboard() {
 
                 {/* ── Spotify Show URL ── */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SPOTIFY — PODCAST SHOW</div>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>SPOTIFY - PODCAST SHOW</div>
                   <div style={{ background: T.bgCard, border: "1px solid rgba(29,185,84,0.35)", borderRadius: 10, padding: "16px 18px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                       <span style={{ fontSize: 22 }}>🎧</span>
@@ -10856,9 +10856,9 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* ── Other Platforms (Podbean / Buzzsprout) — hidden from website, kept for future use ── */}
+                {/* ── Other Platforms (Podbean / Buzzsprout) - hidden from website, kept for future use ── */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>OTHER PLATFORMS — DISABLED</div>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>OTHER PLATFORMS - DISABLED</div>
                   <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 16px" }}>
                     <div style={{ fontSize: 11, color: T.textFaint, marginBottom: 10 }}>
                       Podbean and Buzzsprout integrations are hidden from the website. Credentials are preserved here so you can re-enable them later.
@@ -10866,7 +10866,7 @@ export default function Dashboard() {
 
                 {/* ── Podbean ── */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>PODBEAN — PODCAST HOSTING</div>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>PODBEAN - PODCAST HOSTING</div>
                   <div style={{ background: T.bgCard, border: `1px solid ${podbeanStatus?.connected ? "rgba(242,101,34,0.4)" : T.border}`, borderRadius: 10, padding: "16px 18px" }}>
 
                     {/* Header */}
@@ -10883,7 +10883,7 @@ export default function Dashboard() {
                         <div style={{ fontSize: 11, color: T.textFaint, marginTop: 3 }}>
                           {podbeanStatus?.connected
                             ? `${podbeanStatus.episode_count ?? 0} episodes · distributes to Spotify, Apple, Amazon, Google`
-                            : "Your podcast host — connect to auto-publish and preserve Spotify monetization"}
+                            : "Your podcast host - connect to auto-publish and preserve Spotify monetization"}
                         </div>
                       </div>
                     </div>
@@ -10898,7 +10898,7 @@ export default function Dashboard() {
                               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: T.bgBase, borderRadius: 6, textDecoration: "none", gap: 8 }}>
                               <span style={{ fontSize: 11, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.title}</span>
                               <span style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>
-                                {ep.duration ? `${Math.floor(ep.duration / 60)}m` : "—"}
+                                {ep.duration ? `${Math.floor(ep.duration / 60)}m` : "-"}
                               </span>
                             </a>
                           ))}
@@ -10973,7 +10973,7 @@ export default function Dashboard() {
                             try {
                               const s = await getPodbeanStatus();
                               setPodbeanStatus(s);
-                              showToast(s.connected ? `✅ Connected: ${s.title}` : "Connection failed — check credentials", s.connected ? "success" : "error");
+                              showToast(s.connected ? `✅ Connected: ${s.title}` : "Connection failed - check credentials", s.connected ? "success" : "error");
                             } catch {
                               showToast("Connection test failed", "error");
                             } finally {
@@ -10992,7 +10992,7 @@ export default function Dashboard() {
 
                 {/* ── Buzzsprout ── */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>BUZZSPROUT — PODCAST HOSTING</div>
+                  <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 10 }}>BUZZSPROUT - PODCAST HOSTING</div>
                   <div style={{ background: T.bgCard, border: `1px solid ${buzzsproutStatus?.connected ? "rgba(29,185,84,0.35)" : T.border}`, borderRadius: 10, padding: "16px 18px" }}>
 
                     {/* Header row */}
@@ -11024,7 +11024,7 @@ export default function Dashboard() {
                               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: T.bgBase, borderRadius: 6, textDecoration: "none", gap: 8 }}>
                               <span style={{ fontSize: 11, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.title}</span>
                               <span style={{ fontSize: 9, color: T.textFaint, flexShrink: 0 }}>
-                                {ep.duration ? `${Math.floor(ep.duration / 60)}m` : "—"}
+                                {ep.duration ? `${Math.floor(ep.duration / 60)}m` : "-"}
                               </span>
                             </a>
                           ))}
@@ -11111,7 +11111,7 @@ export default function Dashboard() {
                             try {
                               const s = await getBuzzsproutStatus();
                               setBuzzsproutStatus(s);
-                              showToast(s.connected ? `✅ Connected: ${s.title}` : "Connection failed — check token and ID", s.connected ? "success" : "error");
+                              showToast(s.connected ? `✅ Connected: ${s.title}` : "Connection failed - check token and ID", s.connected ? "success" : "error");
                             } catch {
                               showToast("Connection test failed", "error");
                             } finally {
@@ -11183,7 +11183,7 @@ export default function Dashboard() {
                           🛠 Dev TTS Mode
                         </div>
                         <div style={{ fontSize: 10, color: T.textFaint, marginTop: 2, lineHeight: 1.5 }}>
-                          {devTtsMode ? "⚠ Using free gTTS — no ElevenLabs credits consumed" : "Uses ElevenLabs (paid). Enable to save credits during testing."}
+                          {devTtsMode ? "⚠ Using free gTTS - no ElevenLabs credits consumed" : "Uses ElevenLabs (paid). Enable to save credits during testing."}
                         </div>
                       </div>
                       <div
@@ -11259,7 +11259,7 @@ export default function Dashboard() {
                       >
                         {savedVoices.length === 0 && <option value="">No voices saved</option>}
                         {savedVoices.map(v => (
-                          <option key={v.id} value={v.id}>{v.label} — {v.id}</option>
+                          <option key={v.id} value={v.id}>{v.label} - {v.id}</option>
                         ))}
                       </select>
                     </div>
@@ -11337,8 +11337,8 @@ export default function Dashboard() {
                   </div>
 
                   {[
-                    ["LLM MODEL", "Groq — llama-3.3-70b-versatile"],
-                    ["TTS ENGINE", devTtsMode ? "gTTS (Dev Mode — free)" : `ElevenLabs — ${savedVoices.find(v => v.id === activeVoiceId)?.label || "Custom"} voice`],
+                    ["LLM MODEL", "Groq - llama-3.3-70b-versatile"],
+                    ["TTS ENGINE", devTtsMode ? "gTTS (Dev Mode - free)" : `ElevenLabs - ${savedVoices.find(v => v.id === activeVoiceId)?.label || "Custom"} voice`],
                     ["TTS QUALITY", devTtsMode ? "Standard · dev mode" : "mp3_44100_192 · stability 0.80"],
                     ["VIDEO RESOLUTION", "1920×1080 @ 30fps"],
                     ["CAPTIONS", "Whisper base + FFmpeg burn"],
@@ -11660,7 +11660,7 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          {/* Parent context — shown when this is a reply */}
+                          {/* Parent context - shown when this is a reply */}
                           {c.parent_snippet && (
                             <div style={{ fontSize: 10, color: T.textDim, background: T.bg, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.accent}55`, borderRadius: "0 6px 6px 0", padding: "6px 10px", marginBottom: 8, display: "flex", gap: 6, alignItems: "flex-start" }}>
                               <span style={{ flexShrink: 0, opacity: 0.6 }}>↩</span>
@@ -12021,7 +12021,7 @@ export default function Dashboard() {
                     src={getVideoUrl(preview.file_path)}
                     onError={() => {
                       showToast(
-                        "Video failed to load — check Supabase Storage",
+                        "Video failed to load - check Supabase Storage",
                         "error",
                       );
                     }}
@@ -12293,11 +12293,11 @@ export default function Dashboard() {
                   ["ID", selected.id.slice(0, 8) + "..."],
                   ["Created", timeAgo(selected.created_at)],
                   ["Duration", fmtDur(selected.duration_seconds)],
-                  ["Resolution", selected.resolution || "—"],
+                  ["Resolution", selected.resolution || "-"],
                   ["Views", fmtNum(selected.views_count)],
                   ["Likes", fmtNum(selected.likes_count)],
-                  ["Category", selected.category || "—"],
-                  ["YouTube", selected.youtube_id || "—"],
+                  ["Category", selected.category || "-"],
+                  ["YouTube", selected.youtube_id || "-"],
                 ].map(([k, v]) => (
                   <div key={k} className="detail-row">
                     <span
@@ -12347,7 +12347,7 @@ export default function Dashboard() {
                 </div>
                 <InlineEdit
                   value={selected.description || ""}
-                  placeholder="No description — click to add one"
+                  placeholder="No description - click to add one"
                   multiline
                   onSave={async (val) => {
                     try {
@@ -12925,7 +12925,7 @@ export default function Dashboard() {
                         },
                         {
                           label: "PRIVACY",
-                          val: (ytDetails.privacy || "—").toUpperCase(),
+                          val: (ytDetails.privacy || "-").toUpperCase(),
                           color: T.accentGreen,
                         },
                       ].map((s) => (
@@ -13477,8 +13477,8 @@ function PodcastStudio({ T, showToast, api }) {
     finally { setDeletingId(null); }
   };
 
-  const fmtDur = (s) => s ? `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` : "—";
-  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) : "—";
+  const fmtDur = (s) => s ? `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` : "-";
+  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) : "-";
   const visibleCount = episodes.filter(e => !isHidden(e)).length;
   const hiddenCount  = episodes.filter(e => isHidden(e)).length;
 
@@ -13945,7 +13945,7 @@ function BlogManager({ T, showToast }) {
             <div style={{ textAlign: "center", marginBottom: 22 }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>☠</div>
               <div style={{ fontWeight: 800, fontSize: 16, color: "#ff2020", letterSpacing: "0.12em" }}>DELETE ALL BLOGS</div>
-              <div style={{ fontSize: 10, color: "rgba(255,80,80,0.5)", marginTop: 4, letterSpacing: "0.12em" }}>IRREVERSIBLE — REQUIRES DANGER ZONE KEY</div>
+              <div style={{ fontSize: 10, color: "rgba(255,80,80,0.5)", marginTop: 4, letterSpacing: "0.12em" }}>IRREVERSIBLE - REQUIRES DANGER ZONE KEY</div>
             </div>
             {deleteAllStep === "key" ? (
               <>
@@ -14014,7 +14014,7 @@ function BlogManager({ T, showToast }) {
                   <textarea
                     {...fld("details")}
                     rows={12}
-                    placeholder={"Write your post content here...\n\nNew paragraph after a blank line.\n\nNo HTML or formatting needed — just write naturally."}
+                    placeholder={"Write your post content here...\n\nNew paragraph after a blank line.\n\nNo HTML or formatting needed - just write naturally."}
                     style={{ ...inp, resize: "vertical", lineHeight: 1.7, minHeight: 200 }}
                   />
                 </div>

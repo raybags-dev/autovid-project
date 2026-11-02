@@ -1,5 +1,5 @@
 """
-AutoVid — Auto Reply Service
+AutoVid - Auto Reply Service
 
 Rules:
 - Runs ONCE per day (not every 2 hours)
@@ -70,7 +70,7 @@ def _set_quota_backoff():
     resume = datetime.fromtimestamp(
         _quota_exceeded_until, tz=timezone.utc
     ).strftime("%Y-%m-%d %H:%M UTC")
-    print(f"⏸️  Auto-reply paused 24h — quota exceeded. Resumes: {resume}")
+    print(f"⏸️  Auto-reply paused 24h - quota exceeded. Resumes: {resume}")
 
 
 def _quota_backed_off() -> bool:
@@ -94,7 +94,7 @@ def _generate_reply(video_title: str, comment_text: str, author_name: str) -> st
     client = groq_sdk.Groq(api_key=config.GROQ_API_KEY)
 
     system_prompt = """You are the creator of a YouTube channel about grief, loss, love and the meaning of life.
-Your tone is warm, genuine, deeply human — never corporate or robotic.
+Your tone is warm, genuine, deeply human - never corporate or robotic.
 
 Rules:
 - Address the commenter by their first name if it looks like a real name (skip if it's a handle like xXgamer99)
@@ -124,12 +124,12 @@ def run_reply_cycle(force: bool = False):
     Process unreplied comments across all posted videos.
     Runs at most once per day unless force=True.
     """
-    # Check toggle — read directly from DB so restart state is always respected
+    # Check toggle - read directly from DB so restart state is always respected
     try:
         import database as _db
         val = _db.get_setting("auto_reply_enabled", default="true")
         if str(val).lower() in ("false", "0", "no"):
-            print("💬 Auto-reply disabled (DB setting) — skipping cycle")
+            print("💬 Auto-reply disabled (DB setting) - skipping cycle")
             return
     except Exception:
         pass  # if DB unavailable, proceed
@@ -137,7 +137,7 @@ def run_reply_cycle(force: bool = False):
     # Check quota backoff
     if _quota_backed_off():
         remaining_h = int((_quota_exceeded_until - time.time()) / 3600)
-        print(f"⏸️  Auto-reply quota backoff active ({remaining_h}h remaining) — skipping")
+        print(f"⏸️  Auto-reply quota backoff active ({remaining_h}h remaining) - skipping")
         return
 
     # Load persistent state
@@ -145,11 +145,11 @@ def run_reply_cycle(force: bool = False):
 
     # Only run once per day (unless forced via manual trigger)
     if not force and _already_ran_today(state):
-        print("💬 Auto-reply already ran today — skipping")
+        print("💬 Auto-reply already ran today - skipping")
         return
 
     print(f"\n{'='*50}")
-    print(f"[AUTO-REPLY] Daily cycle starting — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"[AUTO-REPLY] Daily cycle starting - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print(f"{'='*50}")
 
     try:
@@ -163,7 +163,7 @@ def run_reply_cycle(force: bool = False):
 
     videos = db.list_videos(status="posted")
     if not videos:
-        print("💬 No posted videos — nothing to reply to")
+        print("💬 No posted videos - nothing to reply to")
         return
 
     replied_count = 0
@@ -232,7 +232,7 @@ def run_reply_cycle(force: bool = False):
     state["last_run_date"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     _save_state(state)
 
-    print(f"✅ Auto-reply cycle complete — {replied_count} replied, {skipped_already_replied} already answered")
+    print(f"✅ Auto-reply cycle complete - {replied_count} replied, {skipped_already_replied} already answered")
     print(f"{'='*50}\n")
 
 
@@ -242,12 +242,12 @@ def start_reply_scheduler():
     """Start the background scheduler. Runs the cycle once at RUN_HOUR_UTC each day."""
     global _scheduler_started
     if _scheduler_started:
-        print("⚠️  Auto-reply scheduler already running — not starting again")
+        print("⚠️  Auto-reply scheduler already running - not starting again")
         return
     _scheduler_started = True
 
     def _loop():
-        print(f"💬 Auto-reply scheduler started — runs daily at {RUN_HOUR_UTC}:00 UTC")
+        print(f"💬 Auto-reply scheduler started - runs daily at {RUN_HOUR_UTC}:00 UTC")
         time.sleep(60)   # wait 1 min after startup before first check
         while True:
             try:

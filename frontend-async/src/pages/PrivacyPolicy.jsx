@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
 
         <h2 style={S.h2}>1. Information We Collect</h2>
         <p style={S.p}><strong style={{ color: "#c8d8e8" }}>Account information:</strong> When you register, we collect your email address and password (hashed). We never store plaintext passwords.</p>
-        <p style={S.p}><strong style={{ color: "#c8d8e8" }}>Usage data:</strong> We collect information about how you use the platform — video topics, styles selected, generation timestamps, and error logs. This helps us improve the service.</p>
+        <p style={S.p}><strong style={{ color: "#c8d8e8" }}>Usage data:</strong> We collect information about how you use the platform - video topics, styles selected, generation timestamps, and error logs. This helps us improve the service.</p>
         <p style={S.p}><strong style={{ color: "#c8d8e8" }}>Channel URLs:</strong> If you enter YouTube or TikTok channel URLs in your account settings, we store these to route your content. We do not access your channels without explicit OAuth authorization.</p>
         <p style={S.p}><strong style={{ color: "#c8d8e8" }}>Payment information:</strong> Payments are processed by third-party providers (Stripe). We do not store credit card numbers or full payment details.</p>
         <p style={S.p}><strong style={{ color: "#c8d8e8" }}>Cookies:</strong> We use essential cookies for authentication and session management. See our <Link to="/cookies" style={{ color: "#818cf8" }}>Cookie Policy</Link> for details.</p>
@@ -47,7 +47,7 @@ export default function PrivacyPolicy() {
         <p style={S.p}>Depending on your location, you may have rights to access, correct, delete, or export your personal data. To exercise these rights, contact us at <a href="mailto:help@async-mode.com" style={{ color: "#818cf8" }}>help@async-mode.com</a>. We will respond within 30 days.</p>
 
         <h2 style={S.h2}>6. Security</h2>
-        <p style={S.p}>We use industry-standard security measures including TLS encryption for data in transit, hashed passwords, and access-controlled infrastructure. No system is 100% secure — please use a strong, unique password.</p>
+        <p style={S.p}>We use industry-standard security measures including TLS encryption for data in transit, hashed passwords, and access-controlled infrastructure. No system is 100% secure - please use a strong, unique password.</p>
 
         <h2 style={S.h2}>7. Children</h2>
         <p style={S.p}>async-mode.com is not directed to children under 16. We do not knowingly collect personal information from children. If you believe we have inadvertently collected such information, contact us immediately.</p>

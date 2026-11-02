@@ -1,5 +1,5 @@
 """
-AutoVid — FastAPI Backend
+AutoVid - FastAPI Backend
 Main application entry point with all API routes.
 """
 import hashlib
@@ -70,7 +70,7 @@ _STICK_FIGURE_DIR = _cfg.BASE_DIR / "stickFigureAssets"
 _STICK_FIGURE_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/stickfigures-assets", _SF(directory=str(_STICK_FIGURE_DIR), html=False), name="stickfigures-assets")
 
-# CORS — must be added before any routes
+# CORS - must be added before any routes
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -106,14 +106,14 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
         payload = jwt.decode(credentials.credentials, config.SECRET_KEY, algorithms=["HS256"])
         return payload["sub"]
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired — please log in again")
+        raise HTTPException(status_code=401, detail="Token expired - please log in again")
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
 @app.post("/auth/login")
 def login(req: LoginRequest):
-    """Superuser login — returns JWT token."""
+    """Superuser login - returns JWT token."""
     if req.email != config.SUPERUSER_EMAIL or req.password != config.SUPERUSER_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token(req.email)
@@ -129,7 +129,7 @@ def me(user: str = Depends(verify_token)):
 
 @app.get("/health")
 def health():
-    """Public health check — no auth needed."""
+    """Public health check - no auth needed."""
     return {"status": "ok", "service": "AutoVid API"}
 
 
@@ -145,7 +145,7 @@ def _escape_xml(text: str) -> str:
 def podcast_feed():
     """
     RSS 2.0 + iTunes/Spotify podcast feed.
-    Submit this URL once at podcasters.spotify.com — new episodes appear automatically.
+    Submit this URL once at podcasters.spotify.com - new episodes appear automatically.
     Public endpoint (no auth) so Spotify can fetch it.
 
     Fields populated automatically per episode:
@@ -215,7 +215,7 @@ def podcast_feed():
             rfc_date = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
 
         dur = v.get("duration_seconds") or 0
-        # Episode artwork — prefer YouTube thumbnail (public URL), fall back to channel image
+        # Episode artwork - prefer YouTube thumbnail (public URL), fall back to channel image
         yt_id = v.get("youtube_id") or ""
         ep_thumb = (
             f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg" if yt_id
@@ -331,7 +331,7 @@ def set_episode_feed_visibility(video_id: str, body: dict, user: str = Depends(v
 @app.delete("/podcast/episodes/{video_id}")
 def delete_podcast_episode(video_id: str, user: str = Depends(verify_token)):
     """
-    Delete a podcast episode — removes the narration MP3 from Supabase storage and the DB record.
+    Delete a podcast episode - removes the narration MP3 from Supabase storage and the DB record.
     """
     try:
         client = db.get_client()
@@ -392,15 +392,15 @@ class VideoResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: str
     posted_at: Optional[str] = None
-    scheduled_for: Optional[str] = None   # ISO date — episode hidden from feed until this date
+    scheduled_for: Optional[str] = None   # ISO date - episode hidden from feed until this date
     archived: Optional[bool] = False
     is_exclusive: Optional[bool] = False
 
 
-# ── Video routes — IMPORTANT: specific paths BEFORE /{video_id} ──────────────
+# ── Video routes - IMPORTANT: specific paths BEFORE /{video_id} ──────────────
 
 def _job_signature(prompt: str, profile: str, visual_mood: str, music_style: str) -> str:
-    """Stable hash of job parameters — used to deduplicate identical submissions."""
+    """Stable hash of job parameters - used to deduplicate identical submissions."""
     key = f"{prompt.strip().lower()}|{profile}|{visual_mood or ''}|{music_style}"
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
@@ -411,7 +411,7 @@ def generate_video(
     background_tasks: BackgroundTasks,
     user: str = Depends(verify_token),
 ):
-    """Start the full AutoVid pipeline. Returns immediately — pipeline runs in background.
+    """Start the full AutoVid pipeline. Returns immediately - pipeline runs in background.
     Duplicate jobs (same prompt + settings already generating/queued) are rejected with 409."""
     if not req.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
@@ -433,7 +433,7 @@ def generate_video(
     try:
         db.update_video(video_id, job_sig=sig)
     except Exception:
-        pass  # job_sig column may not exist yet — dedup still works via in-memory check
+        pass  # job_sig column may not exist yet - dedup still works via in-memory check
 
     _register_pipeline(video_id)
 
@@ -490,12 +490,12 @@ _IN_PROGRESS_STATUSES = {"generating", "scripted", "voiced", "assembled", "capti
 @app.get("/videos/{video_id}/logs")
 def get_logs(video_id: str, since: int = Query(default=0), user: str = Depends(verify_token)):
     """Return buffered pipeline logs since a given line index.
-    Frontend polls this every second — simple and reliable.
+    Frontend polls this every second - simple and reliable.
 
     With multiple backend instances the in-memory pipeline registry only exists
     on the instance that is *running* the job.  If this instance has no entry,
     we fall back to the DB status: if the video is still in-progress the
-    pipeline is running on the other instance — return done=False so the
+    pipeline is running on the other instance - return done=False so the
     frontend keeps polling until the DB status leaves the in-progress set.
     """
     with _pipeline_lock:
@@ -554,18 +554,18 @@ def fix_stuck_videos(user: str = Depends(verify_token)):
             # Skip videos that are actively running or queued in the executor
             if v['id'] in _active_pipelines:
                 continue
-            # Skip subscriber-owned videos — their Celery tasks run independently
+            # Skip subscriber-owned videos - their Celery tasks run independently
             if v.get('subscriber_user_id'):
                 continue
-            # If it has a youtube_id it was actually posted — mark posted
+            # If it has a youtube_id it was actually posted - mark posted
             if v.get('youtube_id'):
                 db.set_posted(v['id'], v['youtube_id'], v.get('youtube_url',''))
-            # If it has a file_path it completed assembly — mark ready
+            # If it has a file_path it completed assembly - mark ready
             elif v.get('file_path'):
                 db.set_ready(v['id'])
             # Otherwise it truly failed mid-pipeline
             else:
-                db.set_failed(v['id'], 'Pipeline interrupted — please retry')
+                db.set_failed(v['id'], 'Pipeline interrupted - please retry')
             fixed += 1
             print(f"  Fixed stuck: {v['id'][:8]} ({v['status']} → {'posted' if v.get('youtube_id') else 'ready' if v.get('file_path') else 'failed'})")
     return {"fixed": fixed, "message": f"Fixed {fixed} stuck videos"}
@@ -600,7 +600,7 @@ def verify_danger_token(credentials: HTTPAuthorizationCredentials = Depends(secu
     try:
         payload = jwt.decode(credentials.credentials, config.SECRET_KEY, algorithms=["HS256"])
         if payload.get("role") != "danger":
-            raise HTTPException(status_code=403, detail="Insufficient privileges — danger token required")
+            raise HTTPException(status_code=403, detail="Insufficient privileges - danger token required")
         return payload["sub"]
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Danger token expired")
@@ -614,7 +614,7 @@ def verify_danger_token(credentials: HTTPAuthorizationCredentials = Depends(secu
 def verify_danger_access(req: DangerAuthRequest, user: str = Depends(verify_token)):
     """Verify the danger zone key and return a short-lived (1h) danger token."""
     if not config.DANGER_ZONE_KEY:
-        raise HTTPException(status_code=503, detail="Danger zone is disabled — DANGER_ZONE_KEY not set in .env")
+        raise HTTPException(status_code=503, detail="Danger zone is disabled - DANGER_ZONE_KEY not set in .env")
     if req.key != config.DANGER_ZONE_KEY:
         raise HTTPException(status_code=401, detail="Invalid danger zone key")
     payload = {
@@ -731,7 +731,7 @@ def sync_youtube_stats(user: str = Depends(verify_token)):
     return {"synced": synced, "message": f"Synced {synced} videos"}
 
 
-# ── Per-video routes — AFTER specific paths ───────────────────────────────────
+# ── Per-video routes - AFTER specific paths ───────────────────────────────────
 
 @app.get("/videos", response_model=list[VideoResponse])
 def list_videos(status: Optional[str] = None, user: str = Depends(verify_token)):
@@ -866,7 +866,7 @@ def retry_upload(video_id: str, req: UploadRequest, background_tasks: Background
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if not video.get("file_path"):
-        raise HTTPException(status_code=400, detail="No video file — regenerate the video first")
+        raise HTTPException(status_code=400, detail="No video file - regenerate the video first")
     if video["status"] not in {"ready", "failed"}:
         raise HTTPException(status_code=400, detail=f"Cannot retry upload: status is '{video['status']}'")
 
@@ -1198,7 +1198,7 @@ def pipeline_metrics(user: str = Depends(verify_token)):
 
 @app.get("/queue/status")
 def queue_status(user: str = Depends(verify_token)):
-    """Return current job queue state — active + pending jobs."""
+    """Return current job queue state - active + pending jobs."""
     generating = db.list_videos(status="generating", limit=50)
     celery_info = {"available": False, "queued": 0}
     try:
@@ -1225,7 +1225,7 @@ def queue_status(user: str = Depends(verify_token)):
 
 @app.get("/quota")
 def get_quota(user: str = Depends(verify_token)):
-    # Quota file is local JSON — no API call, but still cache to reduce disk reads
+    # Quota file is local JSON - no API call, but still cache to reduce disk reads
     import time
     now = time.time()
     if not hasattr(get_quota, '_cache') or now - get_quota._cache[1] > 300:
@@ -1309,7 +1309,7 @@ def trigger_auto_generate(user: str = Depends(verify_token)):
                 video_id=video_id,
                 progress_callback=_cb,
             )
-            _push_log(video_id, "[DONE] Pipeline finished — video ready for review")
+            _push_log(video_id, "[DONE] Pipeline finished - video ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
         finally:
@@ -1386,7 +1386,7 @@ def trigger_auto_short(user: str = Depends(verify_token)):
         try:
             from pipeline.orchestrator import run_short_pipeline
             run_short_pipeline(prompt=topic, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, angle=angle)
-            _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
+            _push_log(video_id, "[DONE] Short pipeline finished - ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
         finally:
@@ -1531,7 +1531,7 @@ def get_billing(user: str = Depends(verify_token)):
             "percent_used":    round(getattr(sub, "character_count", 0) / max(getattr(sub, "character_limit", 1), 1) * 100, 1),
             "next_reset":      _next_reset_unix,
             "reset_date":      _reset_date,
-            "voice_id":        config.ELEVENLABS_VOICE_ID[:8] + "…" if config.ELEVENLABS_VOICE_ID else "—",
+            "voice_id":        config.ELEVENLABS_VOICE_ID[:8] + "…" if config.ELEVENLABS_VOICE_ID else "-",
             "status":          "ok",
         }
     except Exception as e:
@@ -1547,7 +1547,7 @@ def get_billing(user: str = Depends(verify_token)):
             "uploads_today": yt_quota.get("uploads_today", 0),
             "uploads_remaining_today": yt_quota.get("uploads_remaining", 6),
             "upload_cost_units": 1600,
-            "note": "YouTube Data API v3 — free tier 10,000 units/day",
+            "note": "YouTube Data API v3 - free tier 10,000 units/day",
             "status": "ok",
         }
     except Exception as e:
@@ -1602,7 +1602,7 @@ def get_billing(user: str = Depends(verify_token)):
             "videos_file_count":    bucket_stats.get("videos",     {}).get("file_count", 0),
             "narrations_bucket_mb": bucket_stats.get("narrations", {}).get("size_mb",    0),
             "narrations_file_count":bucket_stats.get("narrations", {}).get("file_count", 0),
-            "note":                 "Supabase Pro — 100 GB Storage, 8 GB Database, 5 GB max file size",
+            "note":                 "Supabase Pro - 100 GB Storage, 8 GB Database, 5 GB max file size",
             "status":               "ok",
         }
     except Exception as e:
@@ -1626,14 +1626,14 @@ def get_billing(user: str = Depends(verify_token)):
         "req_per_min":  _gl["req_min"],
         "tok_per_min":  _gl["tok_min"],
         "tok_per_day":  _gl["tok_day"],
-        "note":         f"Groq free tier — {_gl['tok_min']:,} tok/min, {_gl['tok_day']//1000}K tok/day",
+        "note":         f"Groq free tier - {_gl['tok_min']:,} tok/min, {_gl['tok_day']//1000}K tok/day",
         "status":       "ok",
     }
 
     # ── Pexels ────────────────────────────────────────────────────────────────
     pixabay_configured = bool(os.getenv("PIXABAY_API_KEY", ""))
     result["pexels"] = {
-        "note":               "Pexels API — free, 200 requests/hour, 20,000/month",
+        "note":               "Pexels API - free, 200 requests/hour, 20,000/month",
         "status":             "ok",
         "pricing":            "Free",
         "rate_limit_hour":    200,
@@ -1672,7 +1672,7 @@ def get_billing(user: str = Depends(verify_token)):
                 resources = server.get("resources", {})
                 net       = server.get("public_net", {})
 
-                # Billing — current month invoice estimate
+                # Billing - current month invoice estimate
                 billing_data = {}
                 try:
                     inv = _hetzner("/invoices?status=pending")
@@ -1682,20 +1682,20 @@ def get_billing(user: str = Depends(verify_token)):
 
                 result["hetzner"] = {
                     "status":          "ok",
-                    "server_name":     server.get("name", "—"),
-                    "server_status":   server.get("status", "—"),       # running | off | restarting
-                    "server_type":     st.get("name", "—"),             # cx22, cpx31 etc
-                    "cpu_cores":       st.get("cores", "—"),
-                    "ram_gb":          st.get("memory", "—"),
-                    "disk_gb":         st.get("disk", "—"),
-                    "disk_type":       st.get("storage_type", "—"),     # local / network
-                    "location":        f"{loc.get('city','—')}, {loc.get('country','—')}",
-                    "ipv4":            net.get("ipv4", {}).get("ip", "—"),
-                    "monthly_cost":    f"€{st.get('prices', [{}])[0].get('price_monthly', {}).get('gross', '—')}",
-                    "included_traffic_tb": st.get("included_traffic", 0) / 1e12 if st.get("included_traffic") else "—",
+                    "server_name":     server.get("name", "-"),
+                    "server_status":   server.get("status", "-"),       # running | off | restarting
+                    "server_type":     st.get("name", "-"),             # cx22, cpx31 etc
+                    "cpu_cores":       st.get("cores", "-"),
+                    "ram_gb":          st.get("memory", "-"),
+                    "disk_gb":         st.get("disk", "-"),
+                    "disk_type":       st.get("storage_type", "-"),     # local / network
+                    "location":        f"{loc.get('city','-')}, {loc.get('country','-')}",
+                    "ipv4":            net.get("ipv4", {}).get("ip", "-"),
+                    "monthly_cost":    f"€{st.get('prices', [{}])[0].get('price_monthly', {}).get('gross', '-')}",
+                    "included_traffic_tb": st.get("included_traffic", 0) / 1e12 if st.get("included_traffic") else "-",
                     "outgoing_traffic_gb": round(server.get("outgoing_traffic", 0) / 1e9, 2),
                     "ingoing_traffic_gb":  round(server.get("ingoing_traffic", 0) / 1e9, 2),
-                    "created":         server.get("created", "—")[:10],
+                    "created":         server.get("created", "-")[:10],
                     "estimated_invoice": billing_data.get("amount_due", None),
                 }
             else:
@@ -1710,7 +1710,7 @@ def get_billing(user: str = Depends(verify_token)):
 
 # ── Channel Management Routes ────────────────────────────────────────────────
 
-# Simple in-process cache for channel videos — avoids burning quota on every tab open
+# Simple in-process cache for channel videos - avoids burning quota on every tab open
 _channel_videos_cache: dict = {"data": None, "fetched_at": 0}
 CHANNEL_CACHE_TTL = 3600  # 1 hour
 
@@ -1841,7 +1841,7 @@ def verify_subscriber_token(credentials: HTTPAuthorizationCredentials = Depends(
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         if user.get("access_token") != credentials.credentials:
-            raise HTTPException(status_code=401, detail="Token revoked — please log in again")
+            raise HTTPException(status_code=401, detail="Token revoked - please log in again")
         status = user.get("status")
         if status == "expired":
             raise HTTPException(status_code=403, detail="trial_expired")
@@ -1873,7 +1873,7 @@ def verify_subscriber_token(credentials: HTTPAuthorizationCredentials = Depends(
 
 @app.post("/subscribe/signup")
 def subscribe_signup(req: SubSignupRequest):
-    """Public — register for exclusive access. Account starts as 'pending' until admin approves."""
+    """Public - register for exclusive access. Account starts as 'pending' until admin approves."""
     import re
     em = req.email.strip().lower()
     if not em or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", em):
@@ -1885,7 +1885,7 @@ def subscribe_signup(req: SubSignupRequest):
     except Exception as e:
         err = str(e)
         if "does not exist" in err or "relation" in err:
-            raise HTTPException(status_code=503, detail="Subscription system not yet configured — run the DB migration")
+            raise HTTPException(status_code=503, detail="Subscription system not yet configured - run the DB migration")
         raise HTTPException(status_code=500, detail="Database error")
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
@@ -1894,15 +1894,15 @@ def subscribe_signup(req: SubSignupRequest):
     except Exception as e:
         err = str(e)
         if "does not exist" in err or "relation" in err:
-            raise HTTPException(status_code=503, detail="Subscription system not yet configured — run the DB migration")
+            raise HTTPException(status_code=503, detail="Subscription system not yet configured - run the DB migration")
         raise HTTPException(status_code=500, detail="Database error")
     email_svc.send_registration_confirmation(em)
-    return {"ok": True, "status": "pending", "message": "Account created — awaiting admin approval"}
+    return {"ok": True, "status": "pending", "message": "Account created - awaiting admin approval"}
 
 
 @app.post("/subscribe/login")
 def subscribe_login(req: SubLoginRequest):
-    """Public — login as subscriber. Only approved accounts get a token."""
+    """Public - login as subscriber. Only approved accounts get a token."""
     em = req.email.strip().lower()
     user = db.get_subscription_user_by_email(em)
     if not user or user["password_hash"] != _hash_password(req.password):
@@ -1958,7 +1958,7 @@ class SubscriberSettingsRequest(BaseModel):
 
 @app.patch("/subscribe/settings")
 def update_subscriber_settings(req: SubscriberSettingsRequest, user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — update their channel URLs and TTS voice preference."""
+    """Subscriber - update their channel URLs and TTS voice preference."""
     fields = {}
     if req.youtube_channel_url is not None:
         fields["youtube_channel_url"] = req.youtube_channel_url.strip()[:500]
@@ -1971,7 +1971,7 @@ def update_subscriber_settings(req: SubscriberSettingsRequest, user_id: str = De
             db.update_subscription_user(user_id, **fields)
         except Exception as e:
             if "column" in str(e).lower():
-                pass  # Migration not yet run — ignore gracefully
+                pass  # Migration not yet run - ignore gracefully
             else:
                 raise HTTPException(status_code=500, detail="Failed to save settings")
     return {"ok": True}
@@ -1979,7 +1979,7 @@ def update_subscriber_settings(req: SubscriberSettingsRequest, user_id: str = De
 
 @app.delete("/subscribe/account")
 def subscriber_request_account_deletion(user_id: str = Depends(verify_subscriber_token)):
-    """Request account deletion — queued with 24-hour grace period to allow cancellation.
+    """Request account deletion - queued with 24-hour grace period to allow cancellation.
 
     Required Supabase migration (run once in SQL Editor):
       ALTER TABLE subscription_users
@@ -2038,7 +2038,7 @@ def subscriber_cancel_account_deletion(user_id: str = Depends(verify_subscriber_
 
 @app.post("/subscribe/retry-video/{video_id}")
 def subscriber_retry_video(video_id: str, user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — requeue a failed video for reprocessing."""
+    """Subscriber - requeue a failed video for reprocessing."""
     video = db.get_subscriber_video(video_id, subscriber_user_id=user_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -2050,7 +2050,7 @@ def subscriber_retry_video(video_id: str, user_id: str = Depends(verify_subscrib
     # Reset status and clear error
     db.update_video(video_id, status="generating", error_message=None)
     # Strip the trial suffix before re-queuing so we don't double-add it
-    raw_topic = (video.get("prompt") or "").replace(" [Keep this concise — target 3-4 minutes maximum]", "").strip()
+    raw_topic = (video.get("prompt") or "").replace(" [Keep this concise - target 3-4 minutes maximum]", "").strip()
     topic = raw_topic or "general topic"
     from workers.celery_worker import run_subscriber_video_pipeline
     task = run_subscriber_video_pipeline.delay(video_id, user_id, topic, "educational")
@@ -2091,7 +2091,7 @@ def generate_video_thumbnail(video_id: str, _u: str = Depends(verify_token)):
 
 @app.get("/subscribe/videos")
 def get_subscriber_videos(user_id: str = Depends(verify_subscriber_token)):
-    """Approved subscribers — returns is_exclusive=True sample/demo items from the library."""
+    """Approved subscribers - returns is_exclusive=True sample/demo items from the library."""
     all_videos = db.list_videos(limit=100)
     exclusive = [v for v in all_videos if v.get("is_exclusive") and not v.get("archived")]
 
@@ -2116,7 +2116,7 @@ class CreateVideoRequest(BaseModel):
 
 @app.post("/subscribe/create-video")
 def subscriber_create_video(req: CreateVideoRequest, user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — queue a new video generation. Enforces trial limits."""
+    """Subscriber - queue a new video generation. Enforces trial limits."""
     user = db.get_subscription_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -2125,7 +2125,7 @@ def subscriber_create_video(req: CreateVideoRequest, user_id: str = Depends(veri
     if videos_created >= TRIAL_VIDEO_LIMIT:
         raise HTTPException(
             status_code=429,
-            detail=f"Trial limit reached — maximum {TRIAL_VIDEO_LIMIT} videos per trial"
+            detail=f"Trial limit reached - maximum {TRIAL_VIDEO_LIMIT} videos per trial"
         )
 
     topic = req.topic.strip()[:300]
@@ -2133,7 +2133,7 @@ def subscriber_create_video(req: CreateVideoRequest, user_id: str = Depends(veri
         raise HTTPException(status_code=422, detail="Topic cannot be empty")
 
     # Add trial constraint note to prompt to keep videos short
-    trial_prompt = f"{topic} [Keep this concise — target 3-4 minutes maximum]"
+    trial_prompt = f"{topic} [Keep this concise - target 3-4 minutes maximum]"
 
     video_record = db.create_subscriber_video(trial_prompt, subscriber_user_id=user_id)
     video_id = video_record["id"]
@@ -2146,20 +2146,20 @@ def subscriber_create_video(req: CreateVideoRequest, user_id: str = Depends(veri
         "video_id": video_id,
         "status": "queued",
         "task_id": task.id,
-        "message": "Video queued — generation takes 5–20 minutes. You'll get an email when it's ready.",
+        "message": "Video queued - generation takes 5-20 minutes. You'll get an email when it's ready.",
     }
 
 
 @app.get("/subscribe/my-videos")
 def subscriber_my_videos(user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — list videos they have created."""
+    """Subscriber - list videos they have created."""
     videos = db.list_subscriber_videos(subscriber_user_id=user_id)
     return {"videos": videos}
 
 
 @app.get("/subscribe/video/{video_id}/status")
 def subscriber_video_status(video_id: str, user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — poll status of a specific video."""
+    """Subscriber - poll status of a specific video."""
     video = db.get_subscriber_video(video_id, subscriber_user_id=user_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -2177,7 +2177,7 @@ def subscriber_video_status(video_id: str, user_id: str = Depends(verify_subscri
 
 @app.get("/subscribe/video/{video_id}/stream")
 def subscriber_video_stream(video_id: str, user_id: str = Depends(verify_subscriber_token)):
-    """Subscriber — stream a completed video they own. Redirects to Supabase URL if stored remotely."""
+    """Subscriber - stream a completed video they own. Redirects to Supabase URL if stored remotely."""
     from fastapi.responses import FileResponse, RedirectResponse
     video = db.get_subscriber_video(video_id, subscriber_user_id=user_id)
     if not video:
@@ -2200,10 +2200,10 @@ def subscriber_video_stream(video_id: str, user_id: str = Depends(verify_subscri
 
 @app.get("/subscribe/create-your-website")
 def create_your_website(_u: str = Depends(verify_subscriber_token)):
-    """Subscriber — guide to deploying your own AutoVid-powered website."""
+    """Subscriber - guide to deploying your own AutoVid-powered website."""
     return {
         "product": "AutoVid Platform",
-        "tagline": "Run your own AI video automation website — exactly like async-mode.com",
+        "tagline": "Run your own AI video automation website - exactly like async-mode.com",
         "what_you_get": [
             "Full AutoVid source code (backend + 4lifemystery-style frontend)",
             "Docker Compose deployment stack (runs on any $6/mo VPS)",
@@ -2216,17 +2216,17 @@ def create_your_website(_u: str = Depends(verify_subscriber_token)):
             "A domain name (~$12/year)",
             "Supabase account (free tier works)",
             "ElevenLabs API key (for voice synthesis)",
-            "Groq API key (for script generation — free tier available)",
+            "Groq API key (for script generation - free tier available)",
         ],
         "steps": [
-            {"step": 1, "title": "Get the code", "detail": "Email help@async-mode.com with subject 'Platform License Request' — include your email and use case"},
-            {"step": 2, "title": "Deploy to VPS", "detail": "Follow the included DEPLOY.md — takes about 30 minutes with the provided scripts"},
+            {"step": 1, "title": "Get the code", "detail": "Email help@async-mode.com with subject 'Platform License Request' - include your email and use case"},
+            {"step": 2, "title": "Deploy to VPS", "detail": "Follow the included DEPLOY.md - takes about 30 minutes with the provided scripts"},
             {"step": 3, "title": "Configure APIs", "detail": "Add your ElevenLabs, Groq, and Supabase keys to the .env file"},
             {"step": 4, "title": "Point your domain", "detail": "Update Cloudflare DNS to point to your VPS IP and set SSL to Flexible"},
             {"step": 5, "title": "You're live", "detail": "Start generating videos from your own admin dashboard at yourdomain.com/admin"},
         ],
         "contact": "help@async-mode.com",
-        "pricing": "Contact us for platform licensing — one-time fee + self-hosted forever",
+        "pricing": "Contact us for platform licensing - one-time fee + self-hosted forever",
     }
 
 
@@ -2329,7 +2329,7 @@ def subscriber_youtube_disconnect(user_id: str = Depends(verify_subscriber_token
 
 @app.get("/admin/subscription-requests")
 def list_subscription_requests(_u: str = Depends(verify_token)):
-    """Admin — list all subscription requests."""
+    """Admin - list all subscription requests."""
     pending = db.list_subscription_users(status="pending")
     approved = db.list_subscription_users(status="approved")
     rejected = db.list_subscription_users(status="rejected")
@@ -2338,13 +2338,13 @@ def list_subscription_requests(_u: str = Depends(verify_token)):
 
 @app.post("/admin/subscription-requests/{user_id}/approve")
 def approve_subscription(user_id: str, _u: str = Depends(verify_token)):
-    """Admin — approve a subscription request and start the 24-hour trial clock."""
+    """Admin - approve a subscription request and start the 24-hour trial clock."""
     from datetime import datetime, timezone, timedelta
     trial_expires_at = (datetime.now(timezone.utc) + timedelta(hours=TRIAL_HOURS)).isoformat()
     try:
         user = db.update_subscription_user(user_id, status="approved", trial_expires_at=trial_expires_at, videos_created=0)
     except Exception:
-        # Migration not yet run — update without new columns
+        # Migration not yet run - update without new columns
         user = db.update_subscription_user(user_id, status="approved")
     if user.get("email"):
         email_svc.send_approval_notification(user["email"])
@@ -2353,7 +2353,7 @@ def approve_subscription(user_id: str, _u: str = Depends(verify_token)):
 
 @app.post("/admin/subscription-requests/{user_id}/reject")
 def reject_subscription(user_id: str, _u: str = Depends(verify_token)):
-    """Admin — reject a subscription request."""
+    """Admin - reject a subscription request."""
     user = db.update_subscription_user(user_id, status="rejected")
     if user.get("email"):
         email_svc.send_rejection_notification(user["email"])
@@ -2362,7 +2362,7 @@ def reject_subscription(user_id: str, _u: str = Depends(verify_token)):
 
 @app.delete("/admin/subscription-requests/{user_id}")
 def delete_subscription_user(user_id: str, _u: str = Depends(verify_token)):
-    """Admin — permanently delete a subscriber record from DB."""
+    """Admin - permanently delete a subscriber record from DB."""
     client = db.get_client()
     client.table("subscription_users").delete().eq("id", user_id).execute()
     return {"ok": True}
@@ -2370,7 +2370,7 @@ def delete_subscription_user(user_id: str, _u: str = Depends(verify_token)):
 
 @app.get("/admin/queues")
 def admin_get_task_queues(_u: str = Depends(verify_token)):
-    """Admin — inspect Celery task queue (active, reserved, scheduled jobs)."""
+    """Admin - inspect Celery task queue (active, reserved, scheduled jobs)."""
     from workers.celery_worker import celery_app
 
     def _flatten(task_dict: dict, state: str) -> list:
@@ -2408,7 +2408,7 @@ def admin_get_task_queues(_u: str = Depends(verify_token)):
 
 @app.delete("/admin/queues/{task_id}")
 def admin_revoke_task(task_id: str, _u: str = Depends(verify_token)):
-    """Admin — revoke (cancel) a Celery task by ID. If active, sends SIGTERM."""
+    """Admin - revoke (cancel) a Celery task by ID. If active, sends SIGTERM."""
     from workers.celery_worker import celery_app
     celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
     return {"ok": True, "revoked": task_id}
@@ -2420,7 +2420,7 @@ class SetExclusiveRequest(BaseModel):
 
 @app.post("/videos/{video_id}/set-exclusive")
 def set_video_exclusive(video_id: str, req: SetExclusiveRequest, _u: str = Depends(verify_token)):
-    """Admin — mark/unmark a video as exclusive."""
+    """Admin - mark/unmark a video as exclusive."""
     result = db.set_video_exclusive(video_id, req.is_exclusive)
     return {"ok": True, "video": result}
 
@@ -2430,7 +2430,7 @@ _ALLOWED_PUBLIC_SETTINGS = {"exclusive_preview_video_url", "bmc_url", "tiktok_pr
 
 @app.get("/app-settings/{key}")
 def get_app_setting_public(key: str):
-    """Public endpoint — read whitelisted app settings (e.g. exclusive preview video URL)."""
+    """Public endpoint - read whitelisted app settings (e.g. exclusive preview video URL)."""
     if key not in _ALLOWED_PUBLIC_SETTINGS:
         raise HTTPException(status_code=404, detail="Not found")
     value = db.get_setting(key)
@@ -2489,14 +2489,14 @@ def save_tiktok_url(body: dict, _u: str = Depends(verify_token)):
 
 @app.get("/settings/auto-blog-post")
 def get_auto_blog_post_setting(_u: str = Depends(verify_token)):
-    """Admin — get the auto-create blog post after video generation setting."""
+    """Admin - get the auto-create blog post after video generation setting."""
     enabled = db.get_setting("auto_blog_post_enabled", default="false")
     return {"enabled": str(enabled).lower() == "true"}
 
 
 @app.post("/settings/auto-blog-post")
 def save_auto_blog_post_setting(body: dict, _u: str = Depends(verify_token)):
-    """Admin — toggle auto-create blog post after each video is generated."""
+    """Admin - toggle auto-create blog post after each video is generated."""
     enabled = bool(body.get("enabled", False))
     db.set_setting("auto_blog_post_enabled", "true" if enabled else "false")
     return {"ok": True, "enabled": enabled}
@@ -2508,14 +2508,14 @@ class ExclusiveVideoUrlRequest(BaseModel):
 
 @app.post("/admin/exclusive-preview-video")
 def set_exclusive_preview_video(req: ExclusiveVideoUrlRequest, _u: str = Depends(verify_token)):
-    """Admin — set the video URL shown in the exclusive subscription card on the landing page."""
+    """Admin - set the video URL shown in the exclusive subscription card on the landing page."""
     db.set_setting("exclusive_preview_video_url", req.url)
     return {"ok": True}
 
 
 @app.post("/admin/exclusive-preview-video/upload")
 async def upload_exclusive_preview_video(file: UploadFile = File(...), _u: str = Depends(verify_token)):
-    """Admin — upload a video file to use as the exclusive preview on the landing page."""
+    """Admin - upload a video file to use as the exclusive preview on the landing page."""
     import shutil as _shutil
     from pathlib import Path as _P
     suffix = _P(file.filename).suffix.lower() if file.filename else ".mp4"
@@ -2533,7 +2533,7 @@ async def upload_exclusive_preview_video(file: UploadFile = File(...), _u: str =
 
 @app.get("/public/channel-videos")
 def get_public_channel_videos():
-    """Public endpoint — returns cached public channel videos for the landing page.
+    """Public endpoint - returns cached public channel videos for the landing page.
     No auth required. Serves from the shared cache populated by the authed endpoint.
     Falls back to a fresh fetch if cache is empty.
     """
@@ -2544,7 +2544,7 @@ def get_public_channel_videos():
         data = _channel_videos_cache["data"]
         public_videos = [v for v in data.get("videos", []) if v.get("privacy") == "public"]
         return {"videos": public_videos[:12], "total": len(public_videos)}
-    # Cache empty — do a fresh fetch (best-effort, no error thrown to public)
+    # Cache empty - do a fresh fetch (best-effort, no error thrown to public)
     try:
         from pipeline.youtube_uploader import get_authenticated_service
         service = get_authenticated_service()
@@ -2748,7 +2748,7 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, body: dict = 
             from pipeline.shorts_generator import create_short_from_video
             short_path = create_short_from_video(video["file_path"], video_id + "_short",
                                                   start_time=start_time, end_time=end_time)
-            _push_log(video_id, "[2/4] Short clip created — uploading to storage...")
+            _push_log(video_id, "[2/4] Short clip created - uploading to storage...")
             from pipeline.storage import upload_to_storage
             short_id = video_id + "_short"
             storage_url = upload_to_storage(short_path, short_id)
@@ -2773,7 +2773,7 @@ def create_short(video_id: str, background_tasks: BackgroundTasks, body: dict = 
                 current_labels = video.get("labels") or []
                 if "used_for_short" not in current_labels:
                     db.update_video(video_id, labels=current_labels + ["used_for_short"])
-            _push_log(video_id, "[4/4] Done — short is ready.")
+            _push_log(video_id, "[4/4] Done - short is ready.")
             _push_log(video_id, "__DONE__")
             print(f"✅ Short saved to Supabase: {storage_url}")
         except Exception as e:
@@ -2808,7 +2808,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
     if not prompt and not custom_script:
         raise HTTPException(status_code=400, detail="Prompt or custom_script required")
 
-    # Duplicate check — only for prompt-based generation (not custom scripts)
+    # Duplicate check - only for prompt-based generation (not custom scripts)
     if prompt and not custom_script:
         existing = db.get_client().table("videos").select("id, status") \
             .ilike("title", f"[Short] {prompt}").limit(1).execute().data
@@ -2832,7 +2832,7 @@ def generate_short(background_tasks: BackgroundTasks, body: dict, user: str = De
         try:
             from pipeline.orchestrator import run_short_pipeline as _short_pipeline
             _short_pipeline(prompt=label, ambience=ambience, video_id=video_id, cb=_cb, music_style=music_style, music_volume=music_volume, music_delay=music_delay, custom_script=custom_script or None, use_stickfigures=use_stickfigures, use_stock_footage=use_stock_footage, use_captions=use_captions, include_unsubscribed_message=include_unsubscribed_message, include_subscribed_message=include_subscribed_message)
-            _push_log(video_id, "[DONE] Short pipeline finished — ready for review")
+            _push_log(video_id, "[DONE] Short pipeline finished - ready for review")
         except Exception as e:
             _push_log(video_id, f"[ERROR] {e}")
             print(f"❌ Short pipeline failed: {e}")
@@ -2870,11 +2870,11 @@ def list_shorts(
 @app.post("/cache/clear")
 def clear_cache(user: str = Depends(verify_token)):
     """Signal that clients should clear their local cache."""
-    return {"cleared": True, "message": "Cache cleared — refresh to load fresh data"}
+    return {"cleared": True, "message": "Cache cleared - refresh to load fresh data"}
 
 
-# Auto-reply toggle — loaded from DB on startup so it survives restarts
-# ── Pipeline registry — active pipelines for cancel + log streaming ──────────
+# Auto-reply toggle - loaded from DB on startup so it survives restarts
+# ── Pipeline registry - active pipelines for cancel + log streaming ──────────
 _active_pipelines: dict = {}
 _pipeline_lock = _threading.Lock()
 
@@ -2961,7 +2961,7 @@ def _register_pipeline(video_id: str, log_q=None):
         _active_pipelines[video_id] = {"log_buffer": [], "cancelled": False, "done": False}
 
 def _unregister_pipeline(video_id: str):
-    """Mark pipeline as done — keep buffer for 5 min so frontend can still read logs."""
+    """Mark pipeline as done - keep buffer for 5 min so frontend can still read logs."""
     with _pipeline_lock:
         entry = _active_pipelines.get(video_id)
         if entry:
@@ -3019,13 +3019,13 @@ def get_auto_reply_status(user: str = Depends(verify_token)):
 
 @app.post("/auto-reply/toggle")
 def toggle_auto_reply(body: dict, user: str = Depends(verify_token)):
-    """Enable or disable auto-reply. Persisted to DB — survives restarts."""
+    """Enable or disable auto-reply. Persisted to DB - survives restarts."""
     global _auto_reply_enabled
     enabled = bool(body.get("enabled", True))
     _auto_reply_enabled = enabled
     _set_auto_reply_enabled(enabled)   # persist to Supabase
     state = "enabled" if enabled else "disabled"
-    print(f"💬 Auto-reply {state} by user — saved to DB")
+    print(f"💬 Auto-reply {state} by user - saved to DB")
     return {"enabled": enabled, "message": f"Auto-reply {state}"}
 
 
@@ -3038,7 +3038,7 @@ def trigger_auto_reply(user: str = Depends(verify_token)):
 
 
 def _start_pipeline_watchdog():
-    """Kills any pipeline stuck for >90 min — runs as daemon thread."""
+    """Kills any pipeline stuck for >90 min - runs as daemon thread."""
     import threading
     def _watch():
         while True:
@@ -3062,12 +3062,12 @@ def _start_pipeline_watchdog():
                             ts = datetime.datetime.fromisoformat(ts_str.replace("Z","+00:00"))
                             age_mins = (datetime.datetime.now(datetime.timezone.utc) - ts).total_seconds() / 60
                             if age_mins > 90:
-                                print(f"⏰ Watchdog: {vid[:8]} stuck {age_mins:.0f}min — cancelling")
+                                print(f"⏰ Watchdog: {vid[:8]} stuck {age_mins:.0f}min - cancelling")
                                 with _pipeline_lock:
                                     entry = _active_pipelines.get(vid)
                                     if entry: entry["cancelled"] = True
                                 _push_log(vid, "[ERROR] Watchdog: pipeline timed out (90 min limit)")
-                                db.set_failed(vid, "Timed out — cancelled by watchdog after 90 minutes")
+                                db.set_failed(vid, "Timed out - cancelled by watchdog after 90 minutes")
                                 _unregister_pipeline(vid)
                         except Exception:
                             pass
@@ -3097,13 +3097,13 @@ def startup():
                     created = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
                     age     = now - created
                     if age < STUCK_THRESHOLD:
-                        continue  # still young — give it time
+                        continue  # still young - give it time
                 except Exception:
-                    pass  # can't parse timestamp — fail it to be safe
-                db.set_failed(v["id"], f"Pipeline interrupted — server restarted mid-run (was: {status}). Please retry.")
+                    pass  # can't parse timestamp - fail it to be safe
+                db.set_failed(v["id"], f"Pipeline interrupted - server restarted mid-run (was: {status}). Please retry.")
                 recovered += 1
         if recovered:
-            print(f"⚠️  Recovered {recovered} stuck video(s) older than 30min — marked failed so they can be retried")
+            print(f"⚠️  Recovered {recovered} stuck video(s) older than 30min - marked failed so they can be retried")
         else:
             print("✅ No stuck videos found at startup")
     except Exception as e:
@@ -3141,7 +3141,7 @@ def startup():
     except Exception as e:
         print(f"⚠️  Auto-podcast scheduler failed to start: {e}")
 
-    # Output sweeper — deletes stale files older than 1 hour
+    # Output sweeper - deletes stale files older than 1 hour
     try:
         from pipeline.orchestrator import start_output_sweeper
         start_output_sweeper()
@@ -3422,7 +3422,7 @@ def upload_episode_to_buzzsprout(video_id: str, background_tasks: BackgroundTask
     """Manually push a podcast episode to Buzzsprout."""
     from pipeline.buzzsprout_client import is_configured, upload_podcast_episode
     if not is_configured():
-        raise HTTPException(status_code=400, detail="Buzzsprout not configured — add credentials in Settings")
+        raise HTTPException(status_code=400, detail="Buzzsprout not configured - add credentials in Settings")
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -3435,7 +3435,7 @@ def upload_episode_to_buzzsprout(video_id: str, background_tasks: BackgroundTask
         try:
             _push_log(video_id, "[BUZZSPROUT] Starting upload to Buzzsprout...")
             upload_podcast_episode(video_id, log_fn=lambda m: _push_log(video_id, m))
-            _push_log(video_id, "[BUZZSPROUT] ✅ Upload complete — processing on Buzzsprout")
+            _push_log(video_id, "[BUZZSPROUT] ✅ Upload complete - processing on Buzzsprout")
         except Exception as e:
             _push_log(video_id, f"[BUZZSPROUT] ❌ Upload failed: {e}")
 
@@ -3509,7 +3509,7 @@ def upload_episode_to_podbean(video_id: str, background_tasks: BackgroundTasks, 
     """Manually push a podcast episode to Podbean."""
     from pipeline.podbean_client import is_configured, upload_podcast_episode
     if not is_configured():
-        raise HTTPException(status_code=400, detail="Podbean not configured — add credentials in Settings")
+        raise HTTPException(status_code=400, detail="Podbean not configured - add credentials in Settings")
     video = db.get_video(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -3522,7 +3522,7 @@ def upload_episode_to_podbean(video_id: str, background_tasks: BackgroundTasks, 
         try:
             _push_log(video_id, "[PODBEAN] Starting upload to Podbean...")
             upload_podcast_episode(video_id, log_fn=lambda m: _push_log(video_id, m))
-            _push_log(video_id, "[PODBEAN] ✅ Episode published — distributing to Spotify, Apple Podcasts & more")
+            _push_log(video_id, "[PODBEAN] ✅ Episode published - distributing to Spotify, Apple Podcasts & more")
         except Exception as e:
             _push_log(video_id, f"[PODBEAN] ❌ Upload failed: {e}")
 
@@ -3580,7 +3580,7 @@ def get_subscriptions(user: str = Depends(verify_token)):
             return json.loads(raw)
         except Exception:
             pass
-    # First call — seed from file and persist
+    # First call - seed from file and persist
     seeded = _parse_expenditures_file()
     if seeded:
         db.set_setting("subscriptions", json.dumps(seeded))
@@ -3599,7 +3599,7 @@ def save_subscriptions(body: list = _Body(...), user: str = Depends(verify_token
 
 @app.get("/podbean/callback")
 def podbean_oauth_callback(code: str = None, error: str = None):
-    """OAuth2 callback — not needed for Client Credentials flow but registered for completeness."""
+    """OAuth2 callback - not needed for Client Credentials flow but registered for completeness."""
     from fastapi.responses import HTMLResponse
     if error:
         return HTMLResponse(f"<html><body style='background:#08080f;color:#f87171;font-family:sans-serif;padding:40px'><h2>Podbean Auth Error</h2><p>{error}</p><a href='/dashboard' style='color:#00a0dc'>Back to dashboard</a></body></html>")
@@ -3789,7 +3789,7 @@ async def submit_blog_comment(body: BlogCommentIn, request: Request):
     if len(name) < 2:
         raise HTTPException(400, "Name must be at least 2 characters")
     if len(content) < 5 or len(content) > 2000:
-        raise HTTPException(400, "Comment must be 5–2000 characters")
+        raise HTTPException(400, "Comment must be 5-2000 characters")
     if _profanity_check(name) or _profanity_check(content):
         raise HTTPException(400, "Your comment contains inappropriate language. Please keep it respectful.")
 
@@ -3823,7 +3823,7 @@ async def reply_blog_comment(comment_id: str, body: BlogCommentIn, request: Requ
     if len(name) < 2:
         raise HTTPException(400, "Name must be at least 2 characters")
     if len(content) < 5 or len(content) > 2000:
-        raise HTTPException(400, "Reply must be 5–2000 characters")
+        raise HTTPException(400, "Reply must be 5-2000 characters")
     if _profanity_check(name) or _profanity_check(content):
         raise HTTPException(400, "Your reply contains inappropriate language. Please keep it respectful.")
 
@@ -3949,7 +3949,7 @@ async def admin_delete_comment(comment_id: str, _u=Depends(verify_token)):
 
 @app.post("/admin/blog/comments/{comment_id}/retract")
 async def admin_retract_comment(comment_id: str, _u=Depends(verify_token)):
-    """Retract an approved comment — pulls it from public view (sets back to pending)."""
+    """Retract an approved comment - pulls it from public view (sets back to pending)."""
     db_client = db.get_client()
     db_client.table("blog_comments").update({"status": "pending"}).eq("id", comment_id).execute()
     return {"ok": True}
@@ -3959,7 +3959,7 @@ async def admin_retract_comment(comment_id: str, _u=Depends(verify_token)):
 async def admin_reply_comment(comment_id: str, body: BlogReplyIn, _u=Depends(verify_token)):
     content = body.content.strip()
     if len(content) < 2 or len(content) > 2000:
-        raise HTTPException(400, "Reply must be 2–2000 characters")
+        raise HTTPException(400, "Reply must be 2-2000 characters")
     db_client = db.get_client()
     # Verify parent exists
     parent = db_client.table("blog_comments").select("id").eq("id", comment_id).execute()
@@ -4052,7 +4052,7 @@ def migrate_stickfigure_clips(_u: str = Depends(verify_token)):
 
     raise HTTPException(
         501,
-        "Automatic migration unavailable — please run this SQL once in your Supabase SQL Editor:\n\n"
+        "Automatic migration unavailable - please run this SQL once in your Supabase SQL Editor:\n\n"
         + _STICKFIGURE_DDL
     )
 
@@ -4164,7 +4164,7 @@ def list_stickfigures(
 def seed_stickfigures(_u: str = Depends(verify_token)):
     """
     Populate the stickfigure_clips table from the files on disk + the built-in
-    keyword map.  Safe to call multiple times — uses upsert on filename.
+    keyword map.  Safe to call multiple times - uses upsert on filename.
     Returns counts of inserted/updated records.
     """
     from pipeline.stickfigure_compositor import get_video_info
@@ -4238,7 +4238,7 @@ def seed_stickfigures(_u: str = Depends(verify_token)):
 def sync_stickfigures_storage(_u: str = Depends(verify_token)):
     """
     Upload all stick-figure clips to the Supabase 'stickfigures' storage bucket.
-    Safe to call multiple times — uses x-upsert so re-uploading is idempotent.
+    Safe to call multiple times - uses x-upsert so re-uploading is idempotent.
     After this runs, list_stickfigures will serve Supabase public URLs automatically.
     """
     from pipeline.storage import upload_clip_to_storage
@@ -4265,7 +4265,7 @@ def backfill_stickfigure_urls(_u: str = Depends(verify_token)):
     One-time repair: for every clip that has no public_url saved in DB, construct
     the expected Supabase Storage URL and save it.  Safe to call multiple times.
     Needed for clips that were uploaded before the public_url column was added.
-    Requires the public_url column to exist — run the SQL migration first if it errors.
+    Requires the public_url column to exist - run the SQL migration first if it errors.
     """
     supabase_base = (config.SUPABASE_URL or "").rstrip("/")
     if not supabase_base:
@@ -4352,7 +4352,7 @@ async def upload_stickfigure(
     safe_name = _Path(file.filename).name
     dest = _STICK_FIGURE_DIR / safe_name
     if dest.exists():
-        raise HTTPException(409, f"A clip named {safe_name!r} already exists — rename or delete it first")
+        raise HTTPException(409, f"A clip named {safe_name!r} already exists - rename or delete it first")
 
     # Save the raw upload
     content = await file.read()
@@ -4381,7 +4381,7 @@ async def upload_stickfigure(
         info = get_video_info(str(dest))
     except Exception:
         dest.unlink(missing_ok=True)
-        raise HTTPException(422, "Could not read video info — is the file a valid MP4?")
+        raise HTTPException(422, "Could not read video info - is the file a valid MP4?")
 
     kw_list = [k.strip().lower() for k in keywords.split(",") if k.strip()]
     # Auto-extract keywords from filename when user provides none
@@ -4485,7 +4485,7 @@ def _run_sf_generation(job_id: str, pairs: list[dict]):
             )
 
             video_url = video_resp.url
-            _push_sf_log(job_id, f"[{i+1}/{total}] Video ready — downloading...")
+            _push_sf_log(job_id, f"[{i+1}/{total}] Video ready - downloading...")
 
             slug     = f"sf_gen_{job_id[:8]}_{i+1:03d}"
             mp4_name = f"{slug}.mp4"
@@ -4578,7 +4578,7 @@ def start_composite(
 
     base_path = _resolve_video_file(video.get("file_path", ""), video_id)
 
-    # Validate overlay clip paths — deduplicate, skip missing files
+    # Validate overlay clip paths - deduplicate, skip missing files
     valid_overlays = []
     skipped = []
     seen_paths: set[str] = set()
@@ -4586,14 +4586,14 @@ def start_composite(
         clip_str = ov.clip_path
         is_url = clip_str.startswith("http://") or clip_str.startswith("https://")
         if is_url:
-            # Supabase-hosted clip — URL is always valid, use it as dedup key
+            # Supabase-hosted clip - URL is always valid, use it as dedup key
             if clip_str in seen_paths:
                 print(f"⚠️  Duplicate clip skipped: {clip_str}")
                 continue
             seen_paths.add(clip_str)
             valid_overlays.append(ov)
         else:
-            # Local path — must be inside stickFigureAssets
+            # Local path - must be inside stickFigureAssets
             ov_path = _Path(clip_str)
             try:
                 ov_path.relative_to(_STICK_FIGURE_DIR)
@@ -4648,7 +4648,7 @@ def start_composite(
             if skipped:
                 _log(f"⚠ {len(skipped)} clip(s) skipped (file not on server): {', '.join(skipped)}")
             _log(f"Overlays: {len(overlays_data)} clip(s) queued")
-            _log(f"FFmpeg compositing started — single pass for all {len(overlays_data)} overlay(s)…")
+            _log(f"FFmpeg compositing started - single pass for all {len(overlays_data)} overlay(s)…")
             _composite_jobs[video_id]["message"] = f"Compositing {len(overlays_data)} overlay(s)…"
 
             # Heartbeat thread so the UI knows we're still alive
@@ -4671,7 +4671,7 @@ def start_composite(
             )
             _stop_hb.set()
             elapsed = round(time.time() - _started, 1)
-            _log(f"FFmpeg done in {elapsed}s — output: {_Path(out_path).name}")
+            _log(f"FFmpeg done in {elapsed}s - output: {_Path(out_path).name}")
 
             final_path = out_path
             if replace_orig:
@@ -4709,7 +4709,7 @@ def start_composite(
             with _composite_lock:
                 _composite_jobs[video_id] = {
                     "status": "done",
-                    "message": "Composite complete — saved as new video",
+                    "message": "Composite complete - saved as new video",
                     "output_path": final_path,
                     "file_path": _Path(final_path).name,
                     "new_video_id": new_video_id,
@@ -4753,7 +4753,7 @@ def composite_finalize(video_id: str, _u: str = Depends(verify_token)):
     with _composite_lock:
         job = dict(_composite_jobs.get(video_id, {}))
     if not job or job.get("status") != "done":
-        raise HTTPException(400, "No completed composite job found — run Apply Overlays first")
+        raise HTTPException(400, "No completed composite job found - run Apply Overlays first")
     out_path = job.get("output_path")
     if not out_path or not _Path(out_path).exists():
         raise HTTPException(400, "Composite output file missing from disk")
@@ -4780,7 +4780,7 @@ def auto_composite(
 
     script = video.get("script") or video.get("prompt") or ""
     if not script:
-        raise HTTPException(400, "Video has no script — cannot auto-match stick figures")
+        raise HTTPException(400, "Video has no script - cannot auto-match stick figures")
 
     base_path = _resolve_video_file(video.get("file_path", ""), video_id)
 
@@ -4817,11 +4817,11 @@ def auto_composite(
             _log("Matching clip keywords to script…")
             overlays = match_clips_to_script(script, duration, min_gap=min_gap, max_overlays=max_ov)
             if not overlays:
-                _log("No keyword matches found — no overlays inserted")
+                _log("No keyword matches found - no overlays inserted")
                 with _composite_lock:
                     _composite_jobs[video_id].update({
                         "status": "done",
-                        "message": "No keyword matches found — no overlays inserted",
+                        "message": "No keyword matches found - no overlays inserted",
                         "output_path": base_path,
                         "file_path": _Path(base_path).name,
                         "matched": [],
@@ -4832,7 +4832,7 @@ def auto_composite(
             stem     = _Path(base_path).stem
             out_path = str(_cfg.VIDEOS_OUTPUT_DIR / f"{stem}_composited.mp4")
 
-            _log(f"FFmpeg compositing {len(overlays)} overlay(s) — single pass…")
+            _log(f"FFmpeg compositing {len(overlays)} overlay(s) - single pass…")
             _composite_jobs[video_id]["message"] = f"Compositing {len(overlays)} auto-matched overlay(s)…"
 
             _started = time.time()
@@ -4885,7 +4885,7 @@ def auto_composite(
             with _composite_lock:
                 _composite_jobs[video_id].update({
                     "status": "done",
-                    "message": f"Auto-composite complete — {len(overlays)} clip(s) inserted",
+                    "message": f"Auto-composite complete - {len(overlays)} clip(s) inserted",
                     "output_path": final_path,
                     "file_path": _Path(final_path).name,
                     "new_video_id": new_video_id,
@@ -5004,7 +5004,7 @@ def list_cc(include_archived: bool = False, user: str = Depends(verify_token)):
 def request_cc_upload(req: CustomContentUploadMeta, user: str = Depends(verify_token)):
     """Step 1 of direct-to-Supabase upload.
     Creates the DB record and returns a signed upload URL so the browser can PUT
-    the file directly to Supabase Storage — completely bypassing nginx/Cloudflare."""
+    the file directly to Supabase Storage - completely bypassing nginx/Cloudflare."""
     if not req.title.strip():
         raise HTTPException(400, "Title is required")
 
@@ -5012,7 +5012,7 @@ def request_cc_upload(req: CustomContentUploadMeta, user: str = Depends(verify_t
 
     tag_list = [t.strip() for t in (req.tags or "").split(",") if t.strip()]
 
-    # 1. Create the DB row first so we get Postgres's UUID — this UUID IS the filename.
+    # 1. Create the DB row first so we get Postgres's UUID - this UUID IS the filename.
     row = db.create_custom_content(
         title=req.title.strip(),
         description=req.description or "",
@@ -5145,7 +5145,7 @@ def upload_cc_youtube(
     if item["status"] == "uploading":
         raise HTTPException(400, "Already uploading")
     if not item.get("file_path"):
-        raise HTTPException(400, "No video file — upload content first")
+        raise HTTPException(400, "No video file - upload content first")
 
     title       = (req.title       or item.get("title")       or "Custom Content")[:100]
     description = (req.description or item.get("description") or "")[:5000]
@@ -5188,7 +5188,7 @@ def upload_cc_youtube(
                 youtube_url=result["youtube_url"],
             )
             record_upload()
-            _push_log(item_id, f"[UPLOAD] Done — {result['youtube_url']}")
+            _push_log(item_id, f"[UPLOAD] Done - {result['youtube_url']}")
             _push_log(item_id, "__DONE__")
         except Exception as e:
             db.update_custom_content(item_id, status="ready", error_message=str(e)[:500])
@@ -5242,7 +5242,7 @@ def generate_cc_mp3(item_id: str, background_tasks: BackgroundTasks, user: str =
             _push_log(item_id, "[MP3] Uploading to storage...")
             mp3_url = _upload_to_cc_bucket(tmp_mp3, f"{item_id}.mp3", "audio/mpeg")
             db.update_custom_content(item_id, mp3_url=mp3_url)
-            _push_log(item_id, f"[MP3] Done — {mp3_url}")
+            _push_log(item_id, f"[MP3] Done - {mp3_url}")
             _push_log(item_id, "__DONE__")
         except Exception as e:
             _push_log(item_id, f"[ERROR] {e}")
@@ -5294,7 +5294,7 @@ class CCUpdateRequest(BaseModel):
 
 @app.patch("/custom-content/{item_id}")
 def update_cc_item(item_id: str, req: CCUpdateRequest, _u: str = Depends(verify_token)):
-    """Admin — update metadata for a custom content item."""
+    """Admin - update metadata for a custom content item."""
     item = db.get_custom_content(item_id)
     if not item:
         raise HTTPException(404, "Not found")
@@ -5341,7 +5341,7 @@ def generate_cc_thumbnail(item_id: str, _u: str = Depends(verify_token)):
 
 @app.post("/custom-content/{item_id}/upload-thumbnail")
 async def upload_cc_thumbnail(item_id: str, file: UploadFile = File(...), _u: str = Depends(verify_token)):
-    """Admin — upload a custom thumbnail image for a CC item."""
+    """Admin - upload a custom thumbnail image for a CC item."""
     item = db.get_custom_content(item_id)
     if not item:
         raise HTTPException(404, "Not found")
@@ -5409,7 +5409,7 @@ def prompts_generate_mode_a(pipeline: str, user: str = Depends(verify_token)):
     from pipeline.auto_generator import _auto_generate_prompts
     new_prompts = _auto_generate_prompts(pipeline=pipeline, count=20)
     if not new_prompts:
-        raise HTTPException(status_code=500, detail="LLM generation failed — check GROQ_API_KEY")
+        raise HTTPException(status_code=500, detail="LLM generation failed - check GROQ_API_KEY")
     inserted = db.add_prompts_to_pool(new_prompts, pipeline=pipeline, source="generated")
     return {"generated": len(new_prompts), "inserted": inserted, "pipeline": pipeline, "prompts": new_prompts}
 
@@ -5524,7 +5524,7 @@ def admin_create_blog_post(body: dict, _u: str = Depends(verify_token)):
         db.get_blog_post_by_slug(slug)
         slug = f"{slug}-{int(datetime.now().timestamp())}"
     except Exception:
-        pass  # slug doesn't exist — good
+        pass  # slug doesn't exist - good
     youtube_url = body.get("youtube_url", "")
     details = body.get("details", "")
     raw_body = body.get("body", "")
@@ -5561,7 +5561,7 @@ def admin_create_blog_post(body: dict, _u: str = Depends(verify_token)):
 @app.put("/admin/blog/posts/{post_id}")
 @app.patch("/admin/blog/posts/{post_id}")
 def admin_update_blog_post(post_id: str, body: dict, _u: str = Depends(verify_token)):
-    """Admin: update a blog post. Accepts plain-text 'details' — regenerates HTML body."""
+    """Admin: update a blog post. Accepts plain-text 'details' - regenerates HTML body."""
     from datetime import datetime, timezone
     fields = {}
     for f in ["title", "slug", "excerpt", "cover_image_url", "tags", "status", "youtube_url", "video_id"]:
@@ -5611,7 +5611,7 @@ def post_video_to_blog(video_id: str, body: dict = {}, _u: str = Depends(verify_
             if existing:
                 return existing
         except Exception:
-            pass  # post was deleted — proceed to recreate
+            pass  # post was deleted - proceed to recreate
 
     title    = video.get("title") or video.get("prompt", "Untitled")
     desc     = video.get("description", "") or ""
@@ -5730,13 +5730,13 @@ def add_captions_to_video(video_id: str, user: str = Depends(verify_token)):
 
             _push_log(video_id, "[caption] Transcribing audio with Whisper (base model)...")
             captioned = captioner.add_captions(src, audio_src, f"{video_id}_recap")
-            _push_log(video_id, "[caption] Captions burned — uploading to storage...")
+            _push_log(video_id, "[caption] Captions burned - uploading to storage...")
             new_url = upload_to_storage(captioned, video_id)
             if is_custom:
                 db.update_custom_content(video_id, file_path=new_url)
             else:
                 db.update_video(video_id, file_path=new_url, captions_disabled=False)
-            _push_log(video_id, "[caption] ✅ Done — captioned video uploaded")
+            _push_log(video_id, "[caption] ✅ Done - captioned video uploaded")
             print(f"✅ Captions added and re-uploaded: {video_id[:8]}")
         except Exception as e:
             _push_log(video_id, f"[caption] ❌ Failed: {e}")
@@ -5889,7 +5889,7 @@ def list_quotes_endpoint(
             raise HTTPException(
                 status_code=503,
                 detail=(
-                    "quotes table missing — run this SQL in Supabase dashboard:\n"
+                    "quotes table missing - run this SQL in Supabase dashboard:\n"
                     "CREATE TABLE public.quotes ("
                     "  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,"
                     "  text TEXT NOT NULL,"
@@ -5949,7 +5949,7 @@ def generate_quote_video_endpoint(
     db.get_client().table("videos").insert({
         "id":         video_id,
         "prompt":     req.text[:200],
-        "title":      f'"{req.text[:60]}"' + (f" — {req.author}" if req.author else ""),
+        "title":      f'"{req.text[:60]}"' + (f" - {req.author}" if req.author else ""),
         "status":     "generating",
         "labels":     ["quote_video"],
         "resolution": resolution,
@@ -5993,7 +5993,7 @@ def generate_quote_video_endpoint(
                 video_id,
                 status="ready",
                 file_path=storage_url,
-                description=f'Quote: "{req.text}" — {req.author}' if req.author else f'Quote: "{req.text}"',
+                description=f'Quote: "{req.text}" - {req.author}' if req.author else f'Quote: "{req.text}"',
             )
             import os
             if os.path.exists(mp4_path):

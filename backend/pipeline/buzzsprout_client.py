@@ -1,5 +1,5 @@
 """
-AutoVid — Buzzsprout API Client
+AutoVid - Buzzsprout API Client
 Handles episode uploads to Buzzsprout for Spotify-monetization-safe distribution.
 
 Buzzsprout API docs: https://www.buzzsprout.com/api
@@ -7,9 +7,9 @@ Auth:  Authorization: Token token=<api_token>
 Base:  https://www.buzzsprout.com/api/{podcast_id}
 
 Settings are stored in the app_settings table:
-  buzzsprout_api_token   — API token from Buzzsprout Account → API
-  buzzsprout_podcast_id  — numeric podcast ID from the dashboard URL
-  buzzsprout_auto_upload — "true"/"false" — auto-push on podcast completion
+  buzzsprout_api_token   - API token from Buzzsprout Account → API
+  buzzsprout_podcast_id  - numeric podcast ID from the dashboard URL
+  buzzsprout_auto_upload - "true"/"false" - auto-push on podcast completion
 """
 
 import os
@@ -128,7 +128,7 @@ def upload_podcast_episode(video_id: str, log_fn=None) -> dict:
     settings = get_buzzsprout_settings()
     if not settings.get("api_token") or not settings.get("podcast_id"):
         raise RuntimeError(
-            "Buzzsprout not configured — add API Token and Podcast ID in Settings"
+            "Buzzsprout not configured - add API Token and Podcast ID in Settings"
         )
 
     video = db.get_video(video_id)
@@ -162,9 +162,9 @@ def upload_podcast_episode(video_id: str, log_fn=None) -> dict:
     ep_id  = episode.get("id")
     ep_url = f"https://www.buzzsprout.com/{settings['podcast_id']}/episodes/{ep_id}"
 
-    _log(f"[BUZZSPROUT 2/2] Episode created — ID: {ep_id}  URL: {ep_url}")
+    _log(f"[BUZZSPROUT 2/2] Episode created - ID: {ep_id}  URL: {ep_url}")
 
-    # Persist to DB (requires buzzsprout_episode_id + buzzsprout_url columns — see migration)
+    # Persist to DB (requires buzzsprout_episode_id + buzzsprout_url columns - see migration)
     try:
         db.update_video(
             video_id,
@@ -173,6 +173,6 @@ def upload_podcast_episode(video_id: str, log_fn=None) -> dict:
         )
     except Exception as e:
         _log(f"[BUZZSPROUT] ⚠ Could not save episode ID to DB: {e}")
-        _log("[BUZZSPROUT] ℹ Run the SQL migration in Supabase — see docs.")
+        _log("[BUZZSPROUT] ℹ Run the SQL migration in Supabase - see docs.")
 
     return episode

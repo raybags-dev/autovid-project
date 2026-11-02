@@ -17,7 +17,7 @@ describe("SITE config", () => {
 
   it("name falls back to AutoVid when env var not set", async () => {
     const { SITE } = await import("./site.js");
-    // VITE_APP_NAME is not set in test env — should use fallback
+    // VITE_APP_NAME is not set in test env - should use fallback
     expect(typeof SITE.name).toBe("string");
     expect(SITE.name.length).toBeGreaterThan(0);
   });

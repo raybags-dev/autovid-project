@@ -1,5 +1,5 @@
 """
-AutoVid — Database Layer (Supabase/PostgreSQL)
+AutoVid - Database Layer (Supabase/PostgreSQL)
 All video CRUD operations live here.
 
 Supabase SQL to run in your project's SQL Editor:
@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_sfclips_source  ON stickfigure_clips(source);
 ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS public_url TEXT DEFAULT '';
 ALTER TABLE stickfigure_clips ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'library';
 ─────────────────────────────────────────────────
--- Subscription users (exclusive content access) — run once in Supabase SQL Editor:
+-- Subscription users (exclusive content access) - run once in Supabase SQL Editor:
 ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS subscription_users (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -83,30 +83,30 @@ ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'trial
 ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS trial_expires_at TIMESTAMPTZ;
 ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS videos_created INT DEFAULT 0;
 
--- Subscriber-owned videos — tagged on the shared videos table (run once in Supabase SQL Editor):
+-- Subscriber-owned videos - tagged on the shared videos table (run once in Supabase SQL Editor):
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS subscriber_user_id UUID;
 CREATE INDEX IF NOT EXISTS idx_videos_subscriber ON videos(subscriber_user_id) WHERE subscriber_user_id IS NOT NULL;
 
 -- Subscriber YouTube OAuth tokens (run once in Supabase SQL Editor):
 ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS youtube_oauth_token JSONB;
 
--- Subscriber channel URLs — for auto-publish routing (run once in Supabase SQL Editor):
+-- Subscriber channel URLs - for auto-publish routing (run once in Supabase SQL Editor):
 ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS youtube_channel_url TEXT DEFAULT '';
 ALTER TABLE subscription_users ADD COLUMN IF NOT EXISTS tiktok_profile_url TEXT DEFAULT '';
 
--- Exclusive videos flag — run once in Supabase SQL Editor:
+-- Exclusive videos flag - run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
 
--- Exclusive flag for custom content — run once in Supabase SQL Editor:
+-- Exclusive flag for custom content - run once in Supabase SQL Editor:
 ALTER TABLE custom_content ADD COLUMN IF NOT EXISTS is_exclusive BOOLEAN DEFAULT FALSE;
 
--- Captions-disabled flag — run once in Supabase SQL Editor:
+-- Captions-disabled flag - run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS captions_disabled BOOLEAN DEFAULT FALSE;
 
--- Blog post link — run once in Supabase SQL Editor:
+-- Blog post link - run once in Supabase SQL Editor:
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS blog_post_id UUID;
 ─────────────────────────────────────────────────
--- Blog comment scoping — run once in Supabase SQL Editor:
+-- Blog comment scoping - run once in Supabase SQL Editor:
 ALTER TABLE blog_comments ADD COLUMN IF NOT EXISTS is_blog_comment BOOLEAN DEFAULT FALSE;
 ALTER TABLE blog_comments ADD COLUMN IF NOT EXISTS is_site_comment BOOLEAN DEFAULT FALSE;
 ALTER TABLE blog_comments ADD COLUMN IF NOT EXISTS blog_post_id UUID;
@@ -124,7 +124,7 @@ import config
 
 
 def get_client() -> Client:
-    """Always return a fresh client — avoids HTTP/2 'Server disconnected' errors
+    """Always return a fresh client - avoids HTTP/2 'Server disconnected' errors
     that happen when a cached client's connection goes idle and drops."""
     return create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
 
@@ -295,7 +295,7 @@ def create_subscriber_video(prompt: str, subscriber_user_id: str) -> dict:
         result = db.table("videos").insert(data).execute()
     except Exception as e:
         if "subscriber_user_id" in str(e) or "column" in str(e).lower():
-            # Migration not yet run — insert without subscriber_user_id, add label to track
+            # Migration not yet run - insert without subscriber_user_id, add label to track
             data.pop("subscriber_user_id", None)
             data["labels"] = ["subscriber_video", f"owner:{subscriber_user_id}"]
             result = db.table("videos").insert(data).execute()
@@ -319,7 +319,7 @@ def list_subscriber_videos(subscriber_user_id: str, limit: int = 50) -> list[dic
         return result.data or []
     except Exception as e:
         if "subscriber_user_id" in str(e) or "42703" in str(e):
-            # Column not yet migrated — fall back to label-based lookup
+            # Column not yet migrated - fall back to label-based lookup
             owner_label = f"owner:{subscriber_user_id}"
             result = (db.table("videos")
                         .select("id,title,status,thumbnail_url,file_path,duration_seconds,created_at,error_message,prompt,labels")
@@ -418,7 +418,7 @@ def list_compilations(limit: int = 50) -> list[dict]:
 #   ALTER TABLE videos ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;
 #   CREATE INDEX IF NOT EXISTS idx_videos_archived ON videos(archived);
 
-# Blog posts table — run once in Supabase SQL Editor:
+# Blog posts table - run once in Supabase SQL Editor:
 # CREATE TABLE IF NOT EXISTS blog_posts (
 #     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 #     title         TEXT NOT NULL,
@@ -642,7 +642,7 @@ def danger_clear_storage() -> dict:
                 results[bucket_name] = len(names)
         except Exception as e:
             results["errors"].append(f"{bucket_name}: {str(e)}")
-    print(f"🚨 DANGER: Cleared storage — videos: {results['videos']}, narrations: {results['narrations']}")
+    print(f"🚨 DANGER: Cleared storage - videos: {results['videos']}, narrations: {results['narrations']}")
     return results
 
 
@@ -656,7 +656,7 @@ def create_subscription_user(email: str, password_hash: str) -> dict:
         return result.data[0]
     except Exception as e:
         if "plan" in str(e) or "videos_created" in str(e) or "column" in str(e).lower():
-            # Migration hasn't run yet — insert without new columns
+            # Migration hasn't run yet - insert without new columns
             row = {"email": email, "password_hash": password_hash, "status": "pending"}
             result = db.table("subscription_users").insert(row).execute()
             return result.data[0]
@@ -902,7 +902,7 @@ def create_blog_post(data: dict) -> dict:
     result = client.table("blog_posts").insert(data).execute()
     if not result.data:
         err = getattr(result, "error", None)
-        raise RuntimeError(str(err) if err else "Insert returned no data — check table schema and constraints")
+        raise RuntimeError(str(err) if err else "Insert returned no data - check table schema and constraints")
     return result.data[0]
 
 def update_blog_post(post_id: str, **fields) -> dict:

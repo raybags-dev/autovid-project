@@ -100,7 +100,7 @@ def _refresh() -> str:
     client_id, client_secret = _creds()
     token = load_token()
     if not token or not token.get("refresh_token"):
-        raise RuntimeError("No Spotify refresh token stored — re-connect via /spotify/connect")
+        raise RuntimeError("No Spotify refresh token stored - re-connect via /spotify/connect")
     resp = requests.post(
         "https://accounts.spotify.com/api/token",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -114,7 +114,7 @@ def _refresh() -> str:
     )
     resp.raise_for_status()
     new = resp.json()
-    # Spotify may or may not return a new refresh_token — keep old if absent
+    # Spotify may or may not return a new refresh_token - keep old if absent
     if "refresh_token" not in new:
         new["refresh_token"] = token["refresh_token"]
     save_token(new)

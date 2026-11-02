@@ -1,5 +1,5 @@
 """
-API integration tests — run via: cd backend && python -m pytest tests/ -v
+API integration tests - run via: cd backend && python -m pytest tests/ -v
 All tests use a mocked database; no real Supabase/Redis/FFmpeg needed.
 """
 import time
@@ -185,7 +185,7 @@ class TestCustomContent:
         assert sync_call is not None, "finalize must set status='ready' synchronously"
 
 
-# ── Shorts — create-short supports CC items ───────────────────────────────────
+# ── Shorts - create-short supports CC items ───────────────────────────────────
 
 class TestCreateShort:
     def test_create_short_from_cc_video(self, client, db):

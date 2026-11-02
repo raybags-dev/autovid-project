@@ -28,14 +28,14 @@ const PAGE_SIZE = 20;
 
 // ── Tiny helpers ──────────────────────────────────────────────────────────────
 function fmtDuration(secs) {
-  if (!secs) return "—";
+  if (!secs) return "-";
   const s = Math.round(secs);
   const m = Math.floor(s / 60);
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
 }
 
 function fmtRes(w, h) {
-  if (!w || !h) return "—";
+  if (!w || !h) return "-";
   return `${w}×${h}`;
 }
 
@@ -358,7 +358,7 @@ function ClipCard({ clip, T, onDelete, onSave, showToast }) {
             </span>
             <span>Added</span>
             <span style={{ color: T.text }}>
-              {clip.created_at ? new Date(clip.created_at).toLocaleDateString() : "—"}
+              {clip.created_at ? new Date(clip.created_at).toLocaleDateString() : "-"}
             </span>
           </div>
         )}
@@ -943,7 +943,7 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
           }}
         >
           {clips.length === 0
-            ? "NO CLIPS FOUND — UPLOAD CLIPS OR USE THE API TO SEED FROM THE SERVER"
+            ? "NO CLIPS FOUND - UPLOAD CLIPS OR USE THE API TO SEED FROM THE SERVER"
             : "NO CLIPS MATCH YOUR SEARCH"}
         </div>
       ) : (
@@ -976,7 +976,7 @@ export default function StickfigureManager({ T, showToast, addNotification }) {
         )}
         {!loading && !hasMoreRef.current && clips.length > 0 && (
           <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em" }}>
-            — {total} CLIPS LOADED —
+            - {total} CLIPS LOADED -
           </div>
         )}
       </div>

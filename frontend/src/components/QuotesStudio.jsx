@@ -329,7 +329,7 @@ export default function QuotesStudio({ T, showToast }) {
           <div style={{ textAlign: "center", color: T.textFaint, fontSize: 12, padding: 20 }}>Loading…</div>
         ) : quotes.length === 0 ? (
           <div style={{ textAlign: "center", color: T.textFaint, fontSize: 12, padding: 20 }}>
-            {search ? "No quotes match your search." : "No quotes yet — add one above."}
+            {search ? "No quotes match your search." : "No quotes yet - add one above."}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -360,7 +360,7 @@ export default function QuotesStudio({ T, showToast }) {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
                       {q.author && (
-                        <div style={{ fontSize: 11, color: "#e63329", fontWeight: 600 }}>— {q.author}</div>
+                        <div style={{ fontSize: 11, color: "#e63329", fontWeight: 600 }}>- {q.author}</div>
                       )}
                       <div style={{ fontSize: 10, color: T.textFaint }}>{fmtDate(q.created_at)}</div>
                     </div>
@@ -430,7 +430,7 @@ export default function QuotesStudio({ T, showToast }) {
             {selectedQuote ? (
               <div style={{ background: "rgba(230,51,41,0.08)", border: "1px solid rgba(230,51,41,0.3)", borderRadius: 8, padding: "10px 12px" }}>
                 <div style={{ fontSize: 12, color: T.text, marginBottom: 4 }}>"{selectedQuote.text}"</div>
-                {selectedQuote.author && <div style={{ fontSize: 11, color: "#e63329" }}>— {selectedQuote.author}</div>}
+                {selectedQuote.author && <div style={{ fontSize: 11, color: "#e63329" }}>- {selectedQuote.author}</div>}
                 <button onClick={() => setSelectedQuote(null)} style={{ marginTop: 8, background: "none", border: "none", color: T.textFaint, fontSize: 11, cursor: "pointer", padding: 0 }}>
                   ✕ Clear selection (use custom text instead)
                 </button>
@@ -465,13 +465,13 @@ export default function QuotesStudio({ T, showToast }) {
                 onChange={e => setAspectRatio(e.target.value)}
                 style={{ ...inp }}
               >
-                <option value="16:9">16:9 — Landscape (YouTube)</option>
-                <option value="9:16">9:16 — Portrait (Shorts / Reels)</option>
-                <option value="1:1">1:1 — Square (Instagram)</option>
+                <option value="16:9">16:9 - Landscape (YouTube)</option>
+                <option value="9:16">9:16 - Portrait (Shorts / Reels)</option>
+                <option value="1:1">1:1 - Square (Instagram)</option>
               </select>
             </div>
             <div>
-              <Lbl T={T}>Font Size — {fontSize}px</Lbl>
+              <Lbl T={T}>Font Size - {fontSize}px</Lbl>
               <input type="range" min="28" max="96" value={fontSize}
                 onChange={e => setFontSize(Number(e.target.value))}
                 style={{ width: "100%", accentColor: "#e63329", marginTop: 6 }} />
@@ -480,13 +480,13 @@ export default function QuotesStudio({ T, showToast }) {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
             <div>
-              <Lbl T={T}>Typing Speed — {typingSpeed}ms/char</Lbl>
+              <Lbl T={T}>Typing Speed - {typingSpeed}ms/char</Lbl>
               <input type="range" min="10" max="150" value={typingSpeed}
                 onChange={e => setTypingSpeed(Number(e.target.value))}
                 style={{ width: "100%", accentColor: "#e63329", marginTop: 6 }} />
             </div>
             <div>
-              <Lbl T={T}>Hold Duration — {holdDuration}s</Lbl>
+              <Lbl T={T}>Hold Duration - {holdDuration}s</Lbl>
               <input type="range" min="2" max="15" value={holdDuration}
                 onChange={e => setHoldDuration(Number(e.target.value))}
                 style={{ width: "100%", accentColor: "#e63329", marginTop: 6 }} />
@@ -582,7 +582,7 @@ export default function QuotesStudio({ T, showToast }) {
             <div style={{ textAlign: "center", color: T.textFaint, fontSize: 12, padding: 16 }}>Loading…</div>
           ) : qVideos.length === 0 ? (
             <div style={{ textAlign: "center", color: T.textFaint, fontSize: 12, padding: 16 }}>
-              No quote videos yet — generate one above.
+              No quote videos yet - generate one above.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

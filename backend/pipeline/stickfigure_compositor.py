@@ -1,5 +1,5 @@
 """
-AutoVid — Stick Figure Compositor
+AutoVid - Stick Figure Compositor
 
 FFmpeg-based pipeline that overlays animated stick-figure clips onto a base video.
 
@@ -8,11 +8,11 @@ Strategies (applied in priority order per clip):
   2. No alpha (MP4)        → chromakey the configured colour (default: green)
 
 Looping modes:
-  none      — play the clip once; natural duration
-  full      — loop the entire clip for `duration` seconds
-  last_1s   — play clip once, then loop the final 1 s until `duration`
-  last_2s   — same but 2 s tail
-  last_3s   — same but 3 s tail
+  none      - play the clip once; natural duration
+  full      - loop the entire clip for `duration` seconds
+  last_1s   - play clip once, then loop the final 1 s until `duration`
+  last_2s   - same but 2 s tail
+  last_3s   - same but 3 s tail
 
 Audio: base audio is always preserved; overlay SFX is optionally mixed in.
 """
@@ -258,7 +258,7 @@ def _apply_overlay(
         ov_label = "[1:v]"
 
     # Overlay with time enable
-    # Always use format=auto — handles both native-alpha and chromakey alpha sources.
+    # Always use format=auto - handles both native-alpha and chromakey alpha sources.
     # Note: FFmpeg's overlay filter uses "yuv420" not "yuv420p" for its format option,
     # so we rely on auto-selection to avoid codec negotiation errors.
     parts.append(
@@ -316,7 +316,7 @@ def composite_video(
 ) -> str:
     """
     Overlay zero or more stick-figure clips onto a base video.
-    All overlays are composited in a SINGLE FFmpeg pass — O(1) regardless of
+    All overlays are composited in a SINGLE FFmpeg pass - O(1) regardless of
     overlay count.  Previously was O(N) passes which caused 40+ min runtimes.
 
     Each overlay dict accepts:
@@ -408,16 +408,16 @@ def composite_video(
             input_label    = f"[{idx + 1}:v]"
             filtered_label = f"[fov{idx}]"
 
-            # trim  — bound the stream so FFmpeg never stalls waiting for more frames
-            # setpts — shift PTS to start_t: clip 2's frames get PTS 30–35s (not 0–5s).
+            # trim  - bound the stream so FFmpeg never stalls waiting for more frames
+            # setpts - shift PTS to start_t: clip 2's frames get PTS 30-35s (not 0-5s).
             #          FFmpeg finds each clip's first frame exactly when the base timeline
-            #          reaches start_t — no early consumption, no frozen stills.
-            # enable — visibility gate: hides the overlay outside the clip window.
+            #          reaches start_t - no early consumption, no frozen stills.
+            # enable - visibility gate: hides the overlay outside the clip window.
             #          Without it, the overlay filter shows clip 2's first frame from t=0
             #          (because there's no earlier frame to replace it), producing a
             #          frozen still until start_t.  PTS shift handles consumption timing;
             #          enable handles when the composite is actually visible.
-            # NO shortest=1 — that terminates the entire output stream when overlay ends.
+            # NO shortest=1 - that terminates the entire output stream when overlay ends.
             looped_dur = float(p["looped_info"]["duration"])
             end_t = base_duration if loop_mode != "none" else start_t + clip_natural_dur
             ov_filters = [
@@ -445,7 +445,7 @@ def composite_video(
             )
             prev_v = out_v
 
-            # Per-clip audio — trim to natural clip duration only
+            # Per-clip audio - trim to natural clip duration only
             if mix_sfx and has_sfx:
                 delay_ms = int(start_t * 1000)
                 a_label  = f"[a{idx}]"
@@ -458,14 +458,14 @@ def composite_video(
         # Mix all audio streams in one amix
         base_has_audio = base_info.get("has_audio", False)
         if audio_labels and base_has_audio:
-            # Base has audio — mix it with all overlay SFX
+            # Base has audio - mix it with all overlay SFX
             all_audio = "[0:a]" + "".join(audio_labels)
             audio_parts.append(
                 f"{all_audio}amix=inputs={1 + len(audio_labels)}:normalize=0[outa]"
             )
             audio_map = ["-map", "[outa]"]
         elif audio_labels:
-            # Base has no audio (e.g. procedural visual) — mix overlay SFX only
+            # Base has no audio (e.g. procedural visual) - mix overlay SFX only
             if len(audio_labels) == 1:
                 audio_parts.append(f"{audio_labels[0]}acopy[outa]")
             else:

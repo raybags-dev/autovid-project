@@ -1,5 +1,5 @@
 /**
- * Compilation Studio — Redesigned
+ * Compilation Studio - Redesigned
  * Drag-and-drop video stitching. Simple, intuitive, no friction.
  */
 import { useEffect, useRef, useState } from "react";
@@ -155,11 +155,11 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
       return showToast("Add at least 2 videos to the queue", "error");
 
     // Guardrail: MP3 mode requires narration_url or video file (always fine)
-    // No mixing needed — compilationType applies to the whole queue
+    // No mixing needed - compilationType applies to the whole queue
     const isMP3 = compilationType === "mp3";
     const finalTitle = title.trim() || (isMP3
-      ? `Podcast — ${new Date().toLocaleDateString()}`
-      : `Compilation — ${new Date().toLocaleDateString()}`);
+      ? `Podcast - ${new Date().toLocaleDateString()}`
+      : `Compilation - ${new Date().toLocaleDateString()}`);
 
     setBuilding(true);
     // reset logs
@@ -220,7 +220,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
 
   const totalSec = queue.reduce((acc, q) => acc + clipDuration(q), 0);
 
-  // Detect if a saved compilation is MP3 — check labels (most reliable), then URL, then fallback
+  // Detect if a saved compilation is MP3 - check labels (most reliable), then URL, then fallback
   const isMP3Comp = (comp) =>
     (comp.labels || []).includes("mp3") ||
     comp.file_path?.toLowerCase().includes(".mp3") ||
@@ -247,7 +247,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
       {/* ── LEFT: Video picker + past compilations ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
         <div style={card}>
-          <span style={label}>AVAILABLE VIDEOS — pipeline videos + custom uploads (📦)</span>
+          <span style={label}>AVAILABLE VIDEOS - pipeline videos + custom uploads (📦)</span>
           {readyVideos.length === 0 && (
             <div style={{ color: T.textFaint, fontSize: 12, padding: 12, textAlign: "center" }}>
               No ready videos yet
@@ -332,12 +332,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                           {isAudio ? "🎙 " : "🎬 "}{comp.title}
                         </div>
                         <div style={{ fontSize: 10, color: T.textFaint }}>
-                          {comp.duration_seconds ? fmtDur(comp.duration_seconds) : "—"} · {comp.status}
+                          {comp.duration_seconds ? fmtDur(comp.duration_seconds) : "-"} · {comp.status}
                           {isAudio && <span style={{ marginLeft: 6, color: "#1db954" }}>MP3</span>}
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                        {/* Play — video only (audio uses audio element in preview) */}
+                        {/* Play - video only (audio uses audio element in preview) */}
                         {comp.file_path && comp.status === "ready" && (
                           <button onClick={() => setPreview(comp.file_path)} style={btn(T.accent, false)}>▶</button>
                         )}
@@ -372,7 +372,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                         {isAudio && comp.file_path && comp.status === "ready" && (
                           <button
                             onClick={() => handleDownload(comp.file_path, `${comp.title || comp.id}.mp3`)}
-                            title="Download MP3 — upload to Spotify, Anchor, etc."
+                            title="Download MP3 - upload to Spotify, Anchor, etc."
                             style={{ ...btn("#1db954", false), fontSize: 10 }}
                           >🎧 Spotify</button>
                         )}
@@ -435,12 +435,12 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
           {compilationType === "mp3" && (
             <div style={{ marginTop: 10, padding: "8px 12px", background: `${T.accentGreen}10`, borderRadius: 8, border: `1px solid ${T.accentGreen}30`, fontSize: 10, color: T.textDim, lineHeight: 1.6 }}>
               🎙 Uses saved narration MP3 per clip. If none, audio is extracted from the video.<br />
-              Output: <strong style={{ color: T.accentGreen }}>MP3 file</strong> — supported by Spotify, Apple Podcasts, Anchor, and all podcast platforms.
+              Output: <strong style={{ color: T.accentGreen }}>MP3 file</strong> - supported by Spotify, Apple Podcasts, Anchor, and all podcast platforms.
             </div>
           )}
           {compilationType === "video" && (
             <div style={{ marginTop: 10, padding: "8px 12px", background: `${T.accent}08`, borderRadius: 8, border: `1px solid ${T.accent}20`, fontSize: 10, color: T.textDim, lineHeight: 1.6 }}>
-              🎬 Full video with audio concatenated. Output: <strong style={{ color: T.accent }}>MP4 file</strong> — ready for YouTube and TikTok upload.
+              🎬 Full video with audio concatenated. Output: <strong style={{ color: T.accent }}>MP4 file</strong> - ready for YouTube and TikTok upload.
             </div>
           )}
         </div>
@@ -449,7 +449,7 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
         <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <span style={{ ...label, marginBottom: 0 }}>
-              QUEUE — {queue.length} clip{queue.length !== 1 ? "s" : ""}
+              QUEUE - {queue.length} clip{queue.length !== 1 ? "s" : ""}
               {queue.length >= 2 && <span style={{ color: T.accentGreen, marginLeft: 8 }}>· {fmtDur(totalSec)} total</span>}
             </span>
             {queue.length >= 2 && <span style={{ fontSize: 10, color: T.textFaint }}>drag to reorder</span>}
@@ -502,14 +502,14 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   <div>
                     <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 3 }}>
-                      START — e.g. <span style={{ color: T.accent }}>0:10</span>
+                      START - e.g. <span style={{ color: T.accent }}>0:10</span>
                     </div>
                     <input type="text" value={q.start} onChange={(e) => updateTrim(i, "start", e.target.value)}
                       placeholder="0:00  (beginning)" style={input} />
                   </div>
                   <div>
                     <div style={{ fontSize: 9, color: T.textFaint, marginBottom: 3 }}>
-                      END — e.g. <span style={{ color: T.accent }}>4:40</span>
+                      END - e.g. <span style={{ color: T.accent }}>4:40</span>
                     </div>
                     <input type="text" value={q.end} onChange={(e) => updateTrim(i, "end", e.target.value)}
                       placeholder={q.video.duration_seconds ? toMMSS(q.video.duration_seconds) + "  (full)" : "end"}
@@ -537,8 +537,8 @@ export default function CompilationStudio({ T, showToast, videos = [] }) {
           <input
             style={{ ...input, marginBottom: 12 }}
             placeholder={compilationType === "mp3"
-              ? `Podcast — ${new Date().toLocaleDateString()}`
-              : `Compilation — ${new Date().toLocaleDateString()}`}
+              ? `Podcast - ${new Date().toLocaleDateString()}`
+              : `Compilation - ${new Date().toLocaleDateString()}`}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />

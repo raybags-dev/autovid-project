@@ -35,7 +35,7 @@ function UserRow({ user, onApprove, onReject, onDelete }) {
       <td style={{ padding: "12px 16px", color: "#c8d8e8", fontSize: 14 }}>{user.email}</td>
       <td style={{ padding: "12px 16px" }}><Badge status={user.status} /></td>
       <td style={{ padding: "12px 16px", color: "#556", fontSize: 12 }}>
-        {user.created_at ? new Date(user.created_at).toLocaleDateString() : "—"}
+        {user.created_at ? new Date(user.created_at).toLocaleDateString() : "-"}
       </td>
       <td style={{ padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 8 }}>

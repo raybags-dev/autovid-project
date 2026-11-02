@@ -67,12 +67,12 @@ for candidate in \
 done
 
 if [ -z "$PYTEST_BIN" ]; then
-    print_warn "pytest not found — skipping tests (install with: pip install pytest httpx)"
+    print_warn "pytest not found - skipping tests (install with: pip install pytest httpx)"
 else
     TESTS_DIR="$(dirname "$0")/backend"
     echo "Running: $PYTEST_BIN tests/ -x -q (in $TESTS_DIR)"
     if ! (cd "$TESTS_DIR" && $PYTEST_BIN tests/ -x -q); then
-        print_err "Tests FAILED — aborting deploy. Fix failing tests before shipping."
+        print_err "Tests FAILED - aborting deploy. Fix failing tests before shipping."
     fi
     print_ok "All tests passed"
 fi
@@ -83,7 +83,7 @@ print_step "Pushing to GitHub"
 git add .
 
 if git diff --cached --quiet; then
-    print_warn "No changes staged — skipping commit"
+    print_warn "No changes staged - skipping commit"
 else
     git commit -m "$COMMIT_MSG"
     print_ok "Committed: $COMMIT_MSG"
@@ -112,7 +112,7 @@ print_ok "Files synced"
 
 # ── Step 5: Build & restart on server ─────────────────────────
 print_step "Rebuilding and restarting on server"
-echo "  (This takes 2–5 min. SSH keepalive active — will not time out.)"
+echo "  (This takes 2-5 min. SSH keepalive active - will not time out.)"
 
 $SSH $SERVER << 'REMOTE'
 set -e
@@ -157,7 +157,7 @@ echo "→ Backend health check (waiting 5 s)..."
 sleep 5
 curl -s http://localhost:8000/docs > /dev/null \
   && echo "✔ Backend API responding" \
-  || echo "⚠ Backend not responding yet — may still be starting"
+  || echo "⚠ Backend not responding yet - may still be starting"
 REMOTE
 
 # ── Step 6: Verify from local ──────────────────────────────────
@@ -168,9 +168,9 @@ SERVER_HOST="${DEPLOY_SERVER_IP:-$(echo "$SERVER" | cut -d@ -f2)}"
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${SERVER_HOST}" 2>/dev/null || echo "000")
 
 if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "302" ]; then
-    print_ok "Site is live — http://${SERVER_HOST}  (HTTP $HTTP_STATUS)"
+    print_ok "Site is live - http://${SERVER_HOST}  (HTTP $HTTP_STATUS)"
 else
-    print_warn "Site returned HTTP $HTTP_STATUS — may still be warming up"
+    print_warn "Site returned HTTP $HTTP_STATUS - may still be warming up"
 fi
 
 echo -e "\n${GREEN}${BOLD}═══════════════════════════════════════${NC}"

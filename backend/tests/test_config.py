@@ -1,5 +1,5 @@
 """
-Configuration module tests — validates that config loads correctly
+Configuration module tests - validates that config loads correctly
 and that validate() raises on missing required keys.
 """
 import os

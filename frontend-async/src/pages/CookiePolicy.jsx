@@ -44,7 +44,7 @@ export default function CookiePolicy() {
           </thead>
           <tbody>
             {[
-              ["async_token", "Essential", "JWT authentication token — keeps you logged in", "Session / 30 days"],
+              ["async_token", "Essential", "JWT authentication token - keeps you logged in", "Session / 30 days"],
               ["am_cookies_accepted", "Functional", "Records your cookie consent decision", "1 year"],
             ].map(([name, type, purpose, duration]) => (
               <tr key={name}>
@@ -66,9 +66,9 @@ export default function CookiePolicy() {
         <h2 style={S.h2}>Third-party services</h2>
         <p style={S.p}>We use the following third-party services which may set their own cookies:</p>
         <p style={S.p}>
-          • <strong style={{ color: "#c8d8e8" }}>Supabase</strong> — Database and authentication infrastructure<br />
-          • <strong style={{ color: "#c8d8e8" }}>Stripe</strong> — Payment processing (only on checkout pages)<br />
-          • <strong style={{ color: "#c8d8e8" }}>YouTube</strong> — Video embedding and uploads via OAuth
+          • <strong style={{ color: "#c8d8e8" }}>Supabase</strong> - Database and authentication infrastructure<br />
+          • <strong style={{ color: "#c8d8e8" }}>Stripe</strong> - Payment processing (only on checkout pages)<br />
+          • <strong style={{ color: "#c8d8e8" }}>YouTube</strong> - Video embedding and uploads via OAuth
         </p>
         <p style={S.p}>We do not use Google Analytics, Facebook Pixel, or any advertising tracking cookies.</p>
 

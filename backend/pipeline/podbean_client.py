@@ -1,21 +1,21 @@
 """
-AutoVid — Podbean API Client
+AutoVid - Podbean API Client
 Uploads podcast episodes to Podbean for Spotify-monetization-safe distribution.
 
 Podbean API docs: https://developers.podbean.com/podbean-api-docs/
-Auth:  OAuth2 — Client Credentials flow (server-to-server, no user interaction)
+Auth:  OAuth2 - Client Credentials flow (server-to-server, no user interaction)
 Base:  https://api.podbean.com/v1
 
 Episode upload flow:
-  1. GET  /oauth/token                 — exchange client_id+secret for access_token
-  2. POST /files/uploadAuthorize       — get pre-signed S3 URL for the MP3
-  3. PUT  <presigned_url>              — upload the raw MP3 bytes directly
-  4. POST /episodes                    — publish the episode with the uploaded file_key
+  1. GET  /oauth/token                 - exchange client_id+secret for access_token
+  2. POST /files/uploadAuthorize       - get pre-signed S3 URL for the MP3
+  3. PUT  <presigned_url>              - upload the raw MP3 bytes directly
+  4. POST /episodes                    - publish the episode with the uploaded file_key
 
 Settings stored in app_settings table:
-  podbean_client_id      — from Podbean developer app
-  podbean_client_secret  — from Podbean developer app
-  podbean_auto_upload    — "true"/"false"
+  podbean_client_id      - from Podbean developer app
+  podbean_client_secret  - from Podbean developer app
+  podbean_auto_upload    - "true"/"false"
 """
 
 import json
@@ -117,7 +117,7 @@ def list_episodes(client_id: str, client_secret: str, limit: int = 10) -> list:
 
 
 def _authorize_file_upload(token: str, filename: str, filesize: int, content_type: str = "audio/mpeg") -> dict:
-    """Step 1 — get a pre-signed S3 upload URL from Podbean."""
+    """Step 1 - get a pre-signed S3 upload URL from Podbean."""
     resp = requests.post(
         f"{PODBEAN_API}/files/uploadAuthorize",
         headers=_auth_headers(token),
@@ -133,7 +133,7 @@ def _authorize_file_upload(token: str, filename: str, filesize: int, content_typ
 
 
 def _upload_file_to_s3(presigned_url: str, file_path: str, content_type: str = "audio/mpeg") -> None:
-    """Step 2 — PUT the raw MP3 bytes to the pre-signed S3 URL."""
+    """Step 2 - PUT the raw MP3 bytes to the pre-signed S3 URL."""
     filesize = os.path.getsize(file_path)
     with open(file_path, "rb") as f:
         resp = requests.put(
@@ -156,7 +156,7 @@ def _create_episode(
     status: str = "publish",
     episode_type: str = "public",
 ) -> dict:
-    """Step 3 — create the episode record on Podbean with the uploaded file_key."""
+    """Step 3 - create the episode record on Podbean with the uploaded file_key."""
     resp = requests.post(
         f"{PODBEAN_API}/episodes",
         headers=_auth_headers(token),
@@ -193,7 +193,7 @@ def upload_podcast_episode(video_id: str, log_fn=None) -> dict:
 
     settings = get_podbean_settings()
     if not settings.get("client_id") or not settings.get("client_secret"):
-        raise RuntimeError("Podbean not configured — add Client ID and Secret in Settings")
+        raise RuntimeError("Podbean not configured - add Client ID and Secret in Settings")
 
     video = db.get_video(video_id)
     if not video:
@@ -253,13 +253,13 @@ def upload_podcast_episode(video_id: str, log_fn=None) -> dict:
     ep_id  = episode.get("id", "")
     ep_url = episode.get("episode_show_notes_url") or episode.get("player_url") or f"https://www.podbean.com/site/EpisodePlayer/{ep_id}"
 
-    _log(f"[PODBEAN 4/4] ✅ Published — ID: {ep_id}  URL: {ep_url}")
+    _log(f"[PODBEAN 4/4] ✅ Published - ID: {ep_id}  URL: {ep_url}")
 
     # ── Persist to DB ──────────────────────────────────────────────────────────
     try:
         db.update_video(video_id, podbean_episode_id=str(ep_id), podbean_url=ep_url)
     except Exception as e:
         _log(f"[PODBEAN] ⚠ Could not save episode ID to DB: {e}")
-        _log("[PODBEAN] Run the SQL migration in Supabase — see Setup docs.")
+        _log("[PODBEAN] Run the SQL migration in Supabase - see Setup docs.")
 
     return episode

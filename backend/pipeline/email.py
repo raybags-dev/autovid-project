@@ -12,7 +12,7 @@ _SITE = "https://async-mode.com"
 
 def _send(to: str, subject: str, html: str) -> bool:
     if not resend.api_key:
-        print(f"[email] RESEND_API_KEY not set — skipping send to {to}")
+        print(f"[email] RESEND_API_KEY not set - skipping send to {to}")
         return False
     try:
         r = resend.Emails.send({
@@ -23,7 +23,7 @@ def _send(to: str, subject: str, html: str) -> bool:
         })
         sent_id = r.get("id") if isinstance(r, dict) else getattr(r, "id", None)
         if sent_id:
-            print(f"[email] Sent to {to} — id: {sent_id}")
+            print(f"[email] Sent to {to} - id: {sent_id}")
             return True
         print(f"[email] Resend returned no id for {to}: {r}")
         return False
@@ -52,10 +52,10 @@ def send_registration_confirmation(email: str) -> bool:
         We received your request to access <strong>{_BRAND}</strong> on async-mode.com.
       </p>
       <p style="color:#444;line-height:1.7;margin:0">
-        Your account is under review. You'll get another email as soon as it's been approved —
+        Your account is under review. You'll get another email as soon as it's been approved -
         usually within 24 hours.
       </p>""")
-    return _send(email, f"{_BRAND} — registration received", html)
+    return _send(email, f"{_BRAND} - registration received", html)
 
 
 def send_approval_notification(email: str) -> bool:
@@ -72,7 +72,7 @@ def send_approval_notification(email: str) -> bool:
           Log in to your workspace →
         </a>
       </p>""")
-    return _send(email, f"{_BRAND} — your account is approved", html)
+    return _send(email, f"{_BRAND} - your account is approved", html)
 
 
 def send_rejection_notification(email: str) -> bool:
@@ -84,7 +84,7 @@ def send_rejection_notification(email: str) -> bool:
       <p style="color:#444;line-height:1.7;margin:0">
         If you think this is a mistake, reply to this email and we'll take another look.
       </p>""")
-    return _send(email, f"{_BRAND} — access request update", html)
+    return _send(email, f"{_BRAND} - access request update", html)
 
 
 def send_trial_expiry_warning(email: str, expires_at: str) -> bool:
@@ -104,7 +104,7 @@ def send_trial_expiry_warning(email: str, expires_at: str) -> bool:
       <p style="color:#666;line-height:1.7;margin:16px 0 0;font-size:13px">
         Want to keep access after your trial? Reply to this email to discuss upgrade options.
       </p>""")
-    return _send(email, f"{_BRAND} — your trial expires in 24 hours", html)
+    return _send(email, f"{_BRAND} - your trial expires in 24 hours", html)
 
 
 def send_trial_expired_notification(email: str) -> bool:
@@ -112,12 +112,12 @@ def send_trial_expired_notification(email: str) -> bool:
       <h2 style="margin:0 0 12px;font-size:22px;color:#111">Your trial has ended</h2>
       <p style="color:#444;line-height:1.7;margin:0 0 12px">
         Your 24-hour trial for <strong>{_BRAND}</strong> has ended.
-        Your videos and data remain safe — reply to this email to discuss upgrading to full access.
+        Your videos and data remain safe - reply to this email to discuss upgrading to full access.
       </p>
       <p style="color:#444;line-height:1.7;margin:0">
         Thank you for trying {_BRAND}. We hope to have you back as a full member.
       </p>""")
-    return _send(email, f"{_BRAND} — your trial has ended", html)
+    return _send(email, f"{_BRAND} - your trial has ended", html)
 
 
 def send_video_ready_notification(email: str, title: str) -> bool:
@@ -134,7 +134,7 @@ def send_video_ready_notification(email: str, title: str) -> bool:
           View your video →
         </a>
       </p>""")
-    return _send(email, f"{_BRAND} — your video is ready", html)
+    return _send(email, f"{_BRAND} - your video is ready", html)
 
 
 def send_account_deletion_requested(email: str, deletion_time: str) -> bool:
@@ -157,4 +157,4 @@ def send_account_deletion_requested(email: str, deletion_time: str) -> bool:
       <p style="color:#999;font-size:12px;margin:0">
         If you did not request this, contact us immediately at help@async-mode.com.
       </p>""")
-    return _send(email, f"{_BRAND} — account deletion scheduled", html)
+    return _send(email, f"{_BRAND} - account deletion scheduled", html)

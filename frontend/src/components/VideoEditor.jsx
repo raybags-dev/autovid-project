@@ -1,5 +1,5 @@
 /**
- * VideoEditor — Stick-Figure Compositor UI
+ * VideoEditor - Stick-Figure Compositor UI
  * Full-screen overlay (position:fixed) covering the dashboard sidebar.
  *
  * Clip preview: clicking ▶ on a clip card plays it in the main video area.
@@ -35,7 +35,7 @@ const OVERLAY_COLORS = [
 ];
 
 function formatTime(s) {
-  if (!s && s !== 0) return "—";
+  if (!s && s !== 0) return "-";
   const m = Math.floor(s / 60);
   const sec = (s % 60).toFixed(1).padStart(4, "0");
   return `${m}:${sec}`;
@@ -49,7 +49,7 @@ function clipSrc(clip) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Clip preview modal — plays a clip in a floating modal; main video is paused
+// Clip preview modal - plays a clip in a floating modal; main video is paused
 // ─────────────────────────────────────────────────────────────────────────────
 function ClipPreviewModal({ clip, onClose }) {
   return (
@@ -95,7 +95,7 @@ function ClipPreviewModal({ clip, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Overlay video — shown centred on the main video during playback preview
+// Overlay video - shown centred on the main video during playback preview
 // Centred at 80 % width / full height of the parent container.
 // ─────────────────────────────────────────────────────────────────────────────
 function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
@@ -147,7 +147,7 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
       return;
     }
 
-    // First frame of being active — start clip from the beginning
+    // First frame of being active - start clip from the beginning
     if (!prevActiveRef.current) {
       v.currentTime = 0;
     }
@@ -167,7 +167,7 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
 
   if (!isActive) return null;
 
-  // "full" loops natively; "last_Ns" is handled by timeupdate — no loop attr needed
+  // "full" loops natively; "last_Ns" is handled by timeupdate - no loop attr needed
   const useNativeLoop = overlay.loopMode === "full";
 
   return (
@@ -190,7 +190,7 @@ function OverlayVideo({ overlay, mainCurrentTime, isMainPlaying }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ClipCard — shows clip info + loop mode; ▶ opens a preview modal
+// ClipCard - shows clip info + loop mode; ▶ opens a preview modal
 // ─────────────────────────────────────────────────────────────────────────────
 function ClipCard({ clip, onAdd, onPreview, onUpdated, onDeleted, T }) {
   const [loopMode,   setLoopMode]   = useState("none");
@@ -345,7 +345,7 @@ function Timeline({ overlays, videoDuration, selectedId, onSelect, T }) {
   return (
     <div style={{ userSelect:"none" }}>
       <div style={{ fontSize:9, color:T.textFaint, letterSpacing:"0.08em", marginBottom:4, textTransform:"uppercase" }}>
-        Timeline — {formatTime(videoDuration)} · {overlays.length} overlay{overlays.length !== 1 ? "s" : ""}
+        Timeline - {formatTime(videoDuration)} · {overlays.length} overlay{overlays.length !== 1 ? "s" : ""}
       </div>
       <div style={{ position:"relative", height:18, background:T.bgDeep, borderRadius:4, border:`1px solid ${T.border}`, marginBottom:4 }}>
         {videoDuration > 0 && Array.from({ length:Math.floor(videoDuration / 10) }).map((_, i) => (
@@ -378,7 +378,7 @@ function Timeline({ overlays, videoDuration, selectedId, onSelect, T }) {
       })}
       {overlays.length === 0 && (
         <div style={{ fontSize:10, color:T.textFaint, padding:"4px 0" }}>
-          No overlays — pick a clip from the library and click "+ Add to Timeline".
+          No overlays - pick a clip from the library and click "+ Add to Timeline".
         </div>
       )}
     </div>
@@ -619,7 +619,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
            (c.keywords || []).some(k => k.includes(q));
   });
 
-  // Add clip — replaces any existing overlay (one clip on screen at a time)
+  // Add clip - replaces any existing overlay (one clip on screen at a time)
   const addClip = useCallback((clip, loopMode = "none") => {
     const v = mainVideoRef.current;
     const startT = v ? Math.min(v.currentTime, Math.max(0, videoDuration - 1)) : 0;
@@ -903,7 +903,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
         {/* ── CENTRE: Video + bottom panel ── */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:T.bg, minWidth:0 }}>
 
-          {/* Main video player — with overlay videos on top */}
+          {/* Main video player - with overlay videos on top */}
           <div style={{
             flex:1, background:"#000",
             display:"flex", alignItems:"center", justifyContent:"center",
@@ -955,7 +955,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
             borderTop:`1px solid ${T.border}`,
           }}>
 
-            {/* Live logs panel — shown when running or after, collapsible */}
+            {/* Live logs panel - shown when running or after, collapsible */}
             {(jobStatus === "running" || (jobLogs.length > 0 && jobStatus !== null)) && (
               <div style={{ flexShrink:0, borderBottom:`1px solid ${T.border}`, background:T.bgDeep }}>
                 <button
@@ -977,7 +977,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
               </div>
             )}
 
-            {/* Save bar — shown when composite is ready */}
+            {/* Save bar - shown when composite is ready */}
             {compositeReady && (
               <div style={{
                 display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
@@ -1029,7 +1029,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
             {zeroMatchConfirm && (
               <div style={{ padding:"8px 14px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
                 <ConfirmBanner
-                  message="⚠ No keyword matches found — no clips would be inserted. Proceed anyway?"
+                  message="⚠ No keyword matches found - no clips would be inserted. Proceed anyway?"
                   confirmLabel="Proceed anyway" cancelLabel="Cancel"
                   onConfirm={async () => {
                     setZeroMatchConfirm(false);
@@ -1044,7 +1044,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
               </div>
             )}
 
-            {/* Timeline — fixed height, scrollable */}
+            {/* Timeline - fixed height, scrollable */}
             <div style={{ padding:"10px 14px", background:T.bgSub, flexShrink:0, overflowY:"auto", height:150 }}>
               <Timeline overlays={overlays} videoDuration={videoDuration}
                 selectedId={selectedId} onSelect={setSelectedId} T={T} />
@@ -1108,7 +1108,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
               <div style={{ padding:"8px 14px", borderTop:`1px solid ${T.border}`, background:T.bgCard, flexShrink:0 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                   <span style={{ fontSize:9, color:T.textFaint, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                    Auto-match — {autoPreview.length} clip{autoPreview.length !== 1 ? "s" : ""} found
+                    Auto-match - {autoPreview.length} clip{autoPreview.length !== 1 ? "s" : ""} found
                   </span>
                   <div style={{ display:"flex", gap:5 }}>
                     {autoPreview.length > 0 && (
@@ -1168,7 +1168,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
                       cursor:"pointer", opacity: isHidden ? 0.45 : 1,
                       transition:"background 0.3s, border-color 0.3s",
                     }}>
-                    {/* Colour dot — dimmed when hidden */}
+                    {/* Colour dot - dimmed when hidden */}
                     <div style={{ width:7, height:7, borderRadius:"50%", background: isHidden ? T.textFaint : color, flexShrink:0 }} />
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:9, color: isHidden ? T.textFaint : T.textMid, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
@@ -1180,14 +1180,14 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
                         {isHidden && <span style={{ color:T.textFaint }}> · hidden</span>}
                       </div>
                     </div>
-                    {/* ⏸/▶ — toggle preview visibility (keeps clip in timeline for render) */}
+                    {/* ⏸/▶ - toggle preview visibility (keeps clip in timeline for render) */}
                     <button
                       onClick={e => { e.stopPropagation(); updateOverlay({...ov, preview_hidden: !isHidden}); }}
                       title={isHidden ? "Show in preview" : "Hide from preview (keeps in render)"}
                       style={{ padding:"1px 5px", borderRadius:3, border:`1px solid ${T.border}50`, background:"transparent", color: isHidden ? T.accentGreen : T.textFaint, fontSize:10, cursor:"pointer", flexShrink:0 }}>
                       {isHidden ? "▶" : "⏸"}
                     </button>
-                    {/* ✕ — remove from timeline entirely */}
+                    {/* ✕ - remove from timeline entirely */}
                     <button onClick={e => { e.stopPropagation(); removeOverlay(ov.id); }}
                       title="Remove from timeline"
                       style={{ padding:"1px 5px", borderRadius:3, border:"none", background:"transparent", color:T.accentRed, fontSize:11, cursor:"pointer", flexShrink:0 }}>✕</button>
@@ -1216,7 +1216,7 @@ export default function VideoEditor({ video, onClose, onNewVideo, T }) {
         }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 14px", borderBottom:`1px solid ${T.border}`, background:T.bgCard }}>
             <span style={{ fontSize:11, fontWeight:700, color: jobStatus === "running" ? T.accentYellow : T.accentGreen }}>
-              {jobStatus === "running" ? "⏳ Processing…" : "✓ Complete"} — {jobMsg}
+              {jobStatus === "running" ? "⏳ Processing…" : "✓ Complete"} - {jobMsg}
             </span>
             <button onClick={() => setShowLogsModal(false)} style={{ background:"none", border:"none", color:T.textFaint, cursor:"pointer", fontSize:14, lineHeight:1 }}>✕</button>
           </div>

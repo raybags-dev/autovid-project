@@ -1,5 +1,5 @@
 /**
- * Centralised site configuration — every user-facing string, URL, and brand
+ * Centralised site configuration - every user-facing string, URL, and brand
  * value flows through here. Override via environment variables in your
  * frontend/.env.local (dev) or frontend/.env.production (prod) file.
  *
@@ -19,7 +19,7 @@ export const SITE = {
     import.meta.env.VITE_APP_DESCRIPTION ||
     "Generate, assemble, caption, and publish AI-powered videos automatically.",
 
-  /** Canonical origin (no trailing slash) — MUST be set via VITE_APP_URL */
+  /** Canonical origin (no trailing slash) - MUST be set via VITE_APP_URL */
   url: import.meta.env.VITE_APP_URL || "",
 
   // ── Contact ────────────────────────────────────────────────────────────────

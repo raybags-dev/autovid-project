@@ -58,7 +58,7 @@ export function UploadModal({ video, onClose, onSuccess, theme }) {
         .map((t) => t.trim())
         .filter(Boolean);
       await uploadVideoWithMeta(video.id, { ...form, tags });
-      onSuccess?.("Upload started — video will appear on YouTube shortly.");
+      onSuccess?.("Upload started - video will appear on YouTube shortly.");
       onClose();
     } catch (e) {
       setError(e?.response?.data?.detail || "Upload failed");
@@ -365,7 +365,7 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
           clearInterval(pollRef.current);
           setDone(true);
           setLoading(false);
-          onSuccess?.("Short is ready — check the Shorts panel.");
+          onSuccess?.("Short is ready - check the Shorts panel.");
         }
       } catch { clearInterval(pollRef.current); setLoading(false); }
     }, 1000);
@@ -386,7 +386,7 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
       if (mode === "clip" && video) {
         await createShortFromVideo(video.id);
         startLogPoll(video.id);
-        // don't close — show live logs
+        // don't close - show live logs
       } else {
         if (!prompt.trim()) {
           setError("Prompt required");
@@ -394,7 +394,7 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
           return;
         }
         await generateShortFromScratch(prompt, ambience, musicStyle, musicVolume);
-        onSuccess?.("Short generation started — check back in a few minutes.");
+        onSuccess?.("Short generation started - check back in a few minutes.");
         onClose();
       }
     } catch (e) {
@@ -405,7 +405,7 @@ export function ShortsModal({ video, onClose, onSuccess, theme }) {
 
   return (
     <ModalShell title="Create YouTube Short" onClose={onClose} h={h}>
-      {/* Mode selector — hide while clip job is running */}
+      {/* Mode selector - hide while clip job is running */}
       {!loading && !done && (
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {[

@@ -1,5 +1,5 @@
 """
-AutoVid — Celery Background Workers
+AutoVid - Celery Background Workers
 
 Handles async pipeline execution and scheduled tasks.
 
@@ -36,7 +36,7 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,      # One task at a time per worker (videos are heavy)
     task_soft_time_limit=5400,         # 90 minute soft limit per video
     task_time_limit=7200,              # 120 minute hard limit
-    task_default_queue="autovid",      # Named queue — worker only picks from this queue
+    task_default_queue="autovid",      # Named queue - worker only picks from this queue
     task_routes={
         "workers.celery_worker.*": {"queue": "autovid"},
     },
@@ -308,7 +308,7 @@ def run_subscriber_video_pipeline(self, video_id: str, user_id: str, topic: str,
                         video_path=result.get("file_path") or "",
                         title=result.get("title") or topic,
                         description=(
-                            "Auto-generated with AutoVid — your AI video automation platform.\n\n"
+                            "Auto-generated with AutoVid - your AI video automation platform.\n\n"
                             "This is a private draft. Review it and publish when you're ready."
                         ),
                         privacy="private",
@@ -402,6 +402,6 @@ def process_account_deletions():
                 print(f"[deletion] Failed to process user {user.get('id')}: {e}")
         return {"deleted": deleted}
     except Exception as e:
-        # Likely means migration hasn't been run yet — not an error
+        # Likely means migration hasn't been run yet - not an error
         print(f"[deletion] Task skipped (migration may not be run): {e}")
         return {"deleted": 0, "note": str(e)}

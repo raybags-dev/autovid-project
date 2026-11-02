@@ -1,14 +1,14 @@
 """
-AutoVid Pipeline — Step 3: Stock Image Fetcher (Ken Burns)
+AutoVid Pipeline - Step 3: Stock Image Fetcher (Ken Burns)
 
 Fetches relevant still images from Pexels and animates them with a slow,
 gentle Ken Burns zoom-in effect using FFmpeg's zoompan filter.  Each image
 is converted to an MP4 clip so the rest of the pipeline receives the same
-MP4 file paths as before — no other changes required downstream.
+MP4 file paths as before - no other changes required downstream.
 
 Orientation:
-  - landscape (16:9) — Video Studio and Script Studio pipelines
-  - portrait  (9:16) — Shorts / TikTok pipeline
+  - landscape (16:9) - Video Studio and Script Studio pipelines
+  - portrait  (9:16) - Shorts / TikTok pipeline
 """
 import sys
 from pathlib import Path
@@ -156,7 +156,7 @@ def _image_to_ken_burns_clip(
 
     Filter chain:
       1. Scale+crop the image to WxH (cover-fill, correct aspect ratio)
-      2. Per-frame scale: starts at 1.02×, grows +0.3%/s — very subtle
+      2. Per-frame scale: starts at 1.02×, grows +0.3%/s - very subtle
       3. Center-crop back to WxH so edges are never visible
       4. setsar + fps=30
 
@@ -324,7 +324,7 @@ def get_mood_for_topic(topic: str) -> str | None:
     return None
 
 
-# These moods are CSS-only visual effects — use topic-based footage, not mood footage
+# These moods are CSS-only visual effects - use topic-based footage, not mood footage
 CSS_ONLY_MOODS = {"fluid_red", "fluid_blue", "fluid_black", "aurora_blue", "aurora_dark"}
 
 
@@ -405,8 +405,8 @@ def _sentence_to_queries(text: str) -> list:
 
 def generate_visual_plan(script_text: str) -> list:
     """
-    Ask Groq to produce a visual plan: break the script into 4–8 sections and
-    generate 3–5 concrete, visually-specific Pexels search queries per section.
+    Ask Groq to produce a visual plan: break the script into 4-8 sections and
+    generate 3-5 concrete, visually-specific Pexels search queries per section.
     Returns list of dicts: [{section, text_snippet, queries}, ...]
     Empty list on failure (caller falls back to keyword extraction).
     """
@@ -418,13 +418,13 @@ def generate_visual_plan(script_text: str) -> list:
         client = Groq(api_key=_cfg.GROQ_API_KEY)
         system = (
             "You are a video production assistant. Given a narration script, break it "
-            "into 4–8 sequential sections and generate 3–5 Pexels stock-image search "
+            "into 4-8 sequential sections and generate 3-5 Pexels stock-image search "
             "queries per section.\n\n"
             "RULES:\n"
-            "- Queries must describe VISIBLE, concrete scenes — never abstract concepts\n"
+            "- Queries must describe VISIBLE, concrete scenes - never abstract concepts\n"
             "- Good: 'elderly man walking foggy street', 'stars night sky milky way', 'ocean waves crashing rocks'\n"
             "- Bad: 'existential dread', 'the meaning of time', 'consciousness'\n"
-            "- Each section must have UNIQUE queries — never repeat across sections\n"
+            "- Each section must have UNIQUE queries - never repeat across sections\n"
             "- Sections must cover the ENTIRE script in order\n\n"
             "Respond ONLY with a JSON array:\n"
             '[{"section":1,"text_snippet":"first 60 chars…","queries":["…","…","…"]},…]'
@@ -464,7 +464,7 @@ def fetch_clip(
     Fetch a Pexels stock image and animate it with a Ken Burns zoom-in effect.
     Returns path to the generated MP4 clip, or None on failure.
 
-    used_ids: mutable set of Pexels photo IDs already used — updated in-place.
+    used_ids: mutable set of Pexels photo IDs already used - updated in-place.
     """
     if used_ids is None:
         used_ids = set()
@@ -497,7 +497,7 @@ def fetch_clip(
                 break
 
     if not url:
-        print(f"❌ No image found for '{query}' — will use fallback color")
+        print(f"❌ No image found for '{query}' - will use fallback color")
         return None
 
     W = 1920 if orientation != "portrait" else 1080
@@ -602,7 +602,7 @@ def fetch_all_clips(segments: list[dict], video_id: str, orientation: str = "lan
     # Retry failed segments with broader queries
     failed = [i for i, s in enumerate(enriched) if s.get("visual_query") and not s["clip_path"]]
     if failed:
-        print(f"⚠️  {len(failed)} segment(s) have no clip — retrying with broader queries...")
+        print(f"⚠️  {len(failed)} segment(s) have no clip - retrying with broader queries...")
         for i in failed:
             seg   = enriched[i]
             query = seg.get("mood_hint") or seg.get("visual_query", "")
@@ -727,7 +727,7 @@ def fetch_clips_for_plan(
             })
             t = actual_end
 
-        print(f"  Section [{t_start:.1f}–{t_end:.1f}s]: {len(clips_fetched)} clip(s), "
+        print(f"  Section [{t_start:.1f}-{t_end:.1f}s]: {len(clips_fetched)} clip(s), "
               f"{sum(c[1] for c in clips_fetched):.1f}/{s_dur:.1f}s covered")
 
     found = sum(1 for s in result if s.get("clip_path"))

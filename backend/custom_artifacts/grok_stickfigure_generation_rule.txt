@@ -21,7 +21,7 @@ Audio:
 Rendering:
 - 16:9 aspect ratio
 - Tight cinematic framing
-- Subject must occupy 85–95% of frame width
+- Subject must occupy 85-95% of frame width
 - Medium-close camera distance (zoomed in, not distant)
 - Centered composition but not isolated or small
 - Minimal negative space around subject

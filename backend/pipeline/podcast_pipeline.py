@@ -1,5 +1,5 @@
 """
-AutoVid — Podcast Episode Pipeline
+AutoVid - Podcast Episode Pipeline
 Generates a dedicated audio-only podcast episode:
   1. LLM generates a ~10-minute essay (~1600-1900 words)
   2. TTS narrates it (ElevenLabs → gTTS fallback)
@@ -40,7 +40,7 @@ DEFAULT_PODCAST_TOPICS = [
     "Growing old in a universe that was never designed for us",
     "Why time becomes more precious the closer we move toward its end",
     "The slow realization that life does not promise fairness",
-    "Why the universe does not care — and why that might be liberating",
+    "Why the universe does not care - and why that might be liberating",
     "The courage to wake up each day in an indifferent world",
     "Why the absence of meaning can create unexpected freedom",
     "The strange comfort of knowing the universe has no expectations of you",
@@ -80,30 +80,30 @@ DEFAULT_PODCAST_TOPICS = [
     "Why aging forces us to confront the fragile nature of existence",
     "The quiet realization that life never promised meaning",
     "Why continuing to live may be the greatest act of defiance",
-    "The ancient fear of the unknown — why darkness still unsettles the human mind",
-    "Disappearances that science cannot explain — the cold cases that defy logic",
+    "The ancient fear of the unknown - why darkness still unsettles the human mind",
+    "Disappearances that science cannot explain - the cold cases that defy logic",
     "What the last moments of lost civilisations might tell us about our own",
     "Unexplained phenomena that serious researchers refuse to dismiss",
-    "The psychology of conspiracy — why humans find patterns in chaos",
-    "Deep ocean mysteries — the creatures and places we have yet to understand",
-    "Time anomalies and glitches in reality — documented cases of impossible memories",
-    "The silence of the cosmos — why the Fermi paradox haunts astronomers",
+    "The psychology of conspiracy - why humans find patterns in chaos",
+    "Deep ocean mysteries - the creatures and places we have yet to understand",
+    "Time anomalies and glitches in reality - documented cases of impossible memories",
+    "The silence of the cosmos - why the Fermi paradox haunts astronomers",
     "Sacred geometry and ancient structures that should not exist",
-    "Near-death experiences across cultures — what do they actually reveal",
-    "The vanishing of entire communities — historical cases that remain unsolved",
+    "Near-death experiences across cultures - what do they actually reveal",
+    "The vanishing of entire communities - historical cases that remain unsolved",
     "Dreams, premonitions, and the science that refuses to rule them out",
-    "Underground civilisations — folklore, mythology, and the caves that hide secrets",
-    "The nature of consciousness — the hardest problem in all of science",
+    "Underground civilisations - folklore, mythology, and the caves that hide secrets",
+    "The nature of consciousness - the hardest problem in all of science",
     "Cryptic manuscripts and undeciphered languages that still baffle scholars",
-    "The black budget — classified programmes that governments won't confirm or deny",
-    "Hauntings and location-based phenomena — what physics actually says",
-    "Mass hysteria or genuine experience — revisiting the strangest group events in history",
+    "The black budget - classified programmes that governments won't confirm or deny",
+    "Hauntings and location-based phenomena - what physics actually says",
+    "Mass hysteria or genuine experience - revisiting the strangest group events in history",
     "Portals, vortexes, and places on Earth where the rules seem different",
-    "The mystery of human origins — the gaps in our evolutionary story",
-    "Lost libraries and destroyed knowledge — what was burned and why",
-    "Animals with impossible intelligence — documented cases that challenge our assumptions",
-    "The Mandela Effect at scale — collective false memories and what they might mean",
-    "Synchronicities — Carl Jung, meaningful coincidences, and the limits of probability",
+    "The mystery of human origins - the gaps in our evolutionary story",
+    "Lost libraries and destroyed knowledge - what was burned and why",
+    "Animals with impossible intelligence - documented cases that challenge our assumptions",
+    "The Mandela Effect at scale - collective false memories and what they might mean",
+    "Synchronicities - Carl Jung, meaningful coincidences, and the limits of probability",
     "Ancient maps that show continents before they were discovered",
 ]
 
@@ -181,11 +181,11 @@ def _generate_essay(topic: str) -> dict:
     system = (
         "You are a master storyteller and essayist for a mystery and unknown-phenomena podcast. "
         "Your writing is atmospheric, intelligent, and deeply engaging. "
-        "You write like a narrated documentary — no bullet points, no lists, "
+        "You write like a narrated documentary - no bullet points, no lists, "
         "pure flowing prose that listeners can absorb with their eyes closed.\n\n"
         "STRICT RULES:\n"
         "- Write exactly 1650-1900 words of narration (approximately 10-12 minutes at 160 words/minute)\n"
-        "- Flowing prose paragraphs only — no headers, no lists, no markdown\n"
+        "- Flowing prose paragraphs only - no headers, no lists, no markdown\n"
         "- Build tension gradually, end with reflection or open question\n"
         "- Occasional short sentences for dramatic pause\n"
         "- Use commas and ellipsis for natural pacing\n"
@@ -272,15 +272,15 @@ def _synthesize_essay(essay: str, video_id: str, log_fn=None) -> str:
     for i, chunk in enumerate(chunks, start=1):
         chunk_path = config.AUDIO_OUTPUT_DIR / f"{video_id}_chunk{i:02d}.mp3"
         if log_fn:
-            log_fn(f"[2/5] Chunk {i}/{len(chunks)} — {len(chunk)} chars...")
+            log_fn(f"[2/5] Chunk {i}/{len(chunks)} - {len(chunk)} chars...")
 
         ok = _synthesize_elevenlabs(chunk, chunk_path, voice_id=voice_id)
         if not ok:
             ok = _synthesize_elevenlabs(chunk, chunk_path, voice_id=ELEVENLABS_FALLBACK_VOICE_ID)
         if not ok:
-            # gTTS fallback — free, no quota
+            # gTTS fallback - free, no quota
             if log_fn:
-                log_fn(f"[2/5] ElevenLabs unavailable — using gTTS for chunk {i}...")
+                log_fn(f"[2/5] ElevenLabs unavailable - using gTTS for chunk {i}...")
             try:
                 from pipeline.tts import _synthesize_gtts
                 ok = _synthesize_gtts(chunk, chunk_path)
@@ -288,7 +288,7 @@ def _synthesize_essay(essay: str, video_id: str, log_fn=None) -> str:
                 print(f"⚠️  gTTS fallback also failed: {_gtts_err}")
         if not ok:
             raise RuntimeError(
-                f"All TTS engines failed on chunk {i} — check ElevenLabs quota and gTTS availability"
+                f"All TTS engines failed on chunk {i} - check ElevenLabs quota and gTTS availability"
             )
         chunk_paths.append(str(chunk_path))
 
@@ -375,7 +375,7 @@ def run_podcast_episode(
                         prompt=topic or title or ep_title,
                         status="scripted")
 
-        # ── Step 2: TTS narration (chunked — avoids ElevenLabs 5000-char limit) ─
+        # ── Step 2: TTS narration (chunked - avoids ElevenLabs 5000-char limit) ─
         raw_mp3_path = _synthesize_essay(ep_essay, video_id, log_fn=_log)
         _log(f"[2/5] Narration done: {Path(raw_mp3_path).name}")
         db.update_video(video_id, status="voiced")
@@ -388,7 +388,7 @@ def run_podcast_episode(
         vol = music_volume if music_volume is not None else PODCAST_MUSIC_VOLUME
         mixed_mp3 = config.AUDIO_OUTPUT_DIR / f"{video_id}_podcast.mp3"
         mix_audio(raw_mp3_path, music_path, str(mixed_mp3), music_volume=vol, music_delay=music_delay)
-        _log(f"[3/5] Music mixed at {int(vol*100)}% — {mixed_mp3.name}")
+        _log(f"[3/5] Music mixed at {int(vol*100)}% - {mixed_mp3.name}")
         db.update_video(video_id, status="assembled")
 
         # ── Step 4: Upload to Supabase ─────────────────────────────────────────

@@ -1,5 +1,5 @@
 """
-AutoVid — Subscribe Message Clip Injector
+AutoVid - Subscribe Message Clip Injector
 
 Fetches the appropriate subscribe clip from Supabase Storage and injects it
 into a completed MP4 at the most natural audio boundary near the video midpoint.
@@ -204,7 +204,7 @@ def inject_subscribe_clip(
 
     total_dur = _get_duration(main_video)
     if total_dur < MIN_DURATION:
-        _log(f"⚠️ Video too short ({total_dur:.1f}s) — skipping subscribe injection")
+        _log(f"⚠️ Video too short ({total_dur:.1f}s) - skipping subscribe injection")
         return main_video
 
     midpoint = total_dur / 2.0
@@ -249,7 +249,7 @@ def inject_subscribe_clip(
         ], capture_output=True, check=True)
 
         # ── 4. Scale subscribe clip to match main video resolution ────────────
-        # No audio filters — codec conversion only for container compatibility
+        # No audio filters - codec conversion only for container compatibility
         w, h     = _get_video_dimensions(main_video)
         fps      = _get_fps(main_video)
         sub_prep = os.path.join(tmpdir, "sub_prep.mp4")
@@ -282,7 +282,7 @@ def inject_subscribe_clip(
         ], capture_output=True, check=True)
 
         final_dur = _get_duration(out_path)
-        _log(f"✅ Inject complete — final duration: {final_dur:.1f}s")
+        _log(f"✅ Inject complete - final duration: {final_dur:.1f}s")
         return out_path
 
     finally:

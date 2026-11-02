@@ -1,4 +1,4 @@
-# ── Secrets & credentials — NEVER commit ──────────────────────────────────────
+# ── Secrets & credentials - NEVER commit ──────────────────────────────────────
 backend/.env
 .env
 backend/client_secrets.json
@@ -10,7 +10,7 @@ backend/quota_tracker.json
 backend/youtube_quota.json
 directives.txt
 
-# ── Private keygen tool — keep offline ────────────────────────────────────────
+# ── Private keygen tool - keep offline ────────────────────────────────────────
 backend/tools/keygen.py
 
 # ── Python ────────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ frontend-async/.env.production
 *.webp
 backend/embeds/*
 
-# ── Frontend source assets are required for the build — track them ────────────
+# ── Frontend source assets are required for the build - track them ────────────
 !frontend/src/assets/**
 !frontend/public/favicon.png
 !frontend/public/og-image.png

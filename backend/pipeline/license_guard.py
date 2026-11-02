@@ -1,5 +1,5 @@
 """
-AutoVid License Guard — startup verification using Ed25519 signature.
+AutoVid License Guard - startup verification using Ed25519 signature.
 
 The license token is a signed JWT-like structure:
   <base64url(payload_json)>.<base64url(ed25519_signature)>
@@ -45,7 +45,7 @@ def verify_license() -> dict:
     try:
         parts = token.split(".")
         if len(parts) != 2:
-            raise ValueError("Malformed token — expected 2 segments")
+            raise ValueError("Malformed token - expected 2 segments")
 
         payload_b64, sig_b64 = parts
 

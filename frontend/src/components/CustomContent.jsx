@@ -152,7 +152,7 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
               showToast("Upload complete!", "success");
             } else {
               setPhase("error");
-              setError(fresh.error_message || "Upload failed — check logs");
+              setError(fresh.error_message || "Upload failed - check logs");
             }
           } catch { setPhase("error"); setError("Could not verify upload status"); }
         }
@@ -185,12 +185,12 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
     if (!file) { setError("Please select an MP4 file."); return; }
     if (!form.title.trim()) { setError("Title is required."); return; }
     setPhase("sending"); setError("");
-    setLogs(["Step 1/3 — Requesting upload slot from server..."]);
+    setLogs(["Step 1/3 - Requesting upload slot from server..."]);
     try {
       // Step 1: get signed URL from backend (tiny JSON request, no file bytes)
       const { item_id, signed_url } = await requestCCUpload(form);
       setLogs(prev => [...prev,
-        "Step 2/3 — Uploading directly to Supabase Storage (bypasses server)...",
+        "Step 2/3 - Uploading directly to Supabase Storage (bypasses server)...",
         `File: ${(file.size / 1024 / 1024).toFixed(1)} MB`,
       ]);
 
@@ -204,17 +204,17 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
           return next;
         });
       });
-      setLogs(prev => [...prev, "Upload complete.", "Step 3/3 — Finalizing on server..."]);
+      setLogs(prev => [...prev, "Upload complete.", "Step 3/3 - Finalizing on server..."]);
 
       // Step 3: tell backend to mark ready & run ffprobe
       await finalizeCCUpload(item_id);
-      // Start log polling only NOW — finalize has registered the pipeline,
+      // Start log polling only NOW - finalize has registered the pipeline,
       // so getCCLogs won't prematurely return done:true with status="uploading"
       setItemId(item_id);
       setPhase("processing");
     } catch (e) {
       setPhase("error");
-      setError(e?.response?.data?.detail || e?.message || "Upload failed — check console for details");
+      setError(e?.response?.data?.detail || e?.message || "Upload failed - check console for details");
     }
   };
 
@@ -329,7 +329,7 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
       </div>
       </>)}
 
-      {/* Log container — shown during sending/processing/done/error phases */}
+      {/* Log container - shown during sending/processing/done/error phases */}
       {phase !== "form" && (
         <div>
           <div style={{ fontSize: 10, color: T.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>
@@ -365,7 +365,7 @@ function UploadFormModal({ T, onClose, onSuccess, showToast }) {
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
             {isDone && (
               <BtnPrimary onClick={() => onSuccess(resultRef.current)} T={T}>
-                Done — View Content
+                Done - View Content
               </BtnPrimary>
             )}
             {phase === "error" && (
@@ -499,7 +499,7 @@ function LogModal({ itemId, title, T, onClose }) {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [lines]);
 
   return (
-    <ModalShell title={`Logs — ${title}`} onClose={onClose} T={T} maxWidth={680}>
+    <ModalShell title={`Logs - ${title}`} onClose={onClose} T={T} maxWidth={680}>
       <div
         style={{
           background: "#060912", border: `1px solid ${T.border}`, borderRadius: 8,
@@ -752,7 +752,7 @@ export default function CustomContent({ T, showToast, addNotification }) {
       <div style={{
         display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexShrink: 0, flexWrap: "wrap",
       }}>
-        {/* Upload button — top-left */}
+        {/* Upload button - top-left */}
         <button
           onClick={() => setShowUpload(true)}
           style={{
@@ -843,7 +843,7 @@ export default function CustomContent({ T, showToast, addNotification }) {
                   try {
                     await addCaptionsToVideo(item.id);
                     setLogModal(item);
-                    showToast("Captioning started — watching logs...");
+                    showToast("Captioning started - watching logs...");
                   } catch (err) {
                     showToast(err?.response?.data?.detail || "Captioning failed", "error");
                   }

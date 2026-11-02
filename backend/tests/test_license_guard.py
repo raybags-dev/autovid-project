@@ -1,5 +1,5 @@
 """
-License guard unit tests — uses an in-test Ed25519 key pair to sign tokens,
+License guard unit tests - uses an in-test Ed25519 key pair to sign tokens,
 then patches the public key embedded in license_guard.py.
 No real private key needed.
 

@@ -59,7 +59,7 @@ export default function DangerZone({ onClose }) {
   const [actionRunning, setActionRunning] = useState(false);
   const [actionResult, setActionResult] = useState(null);
 
-  // Auto-close countdown — pauses once user interacts
+  // Auto-close countdown - pauses once user interacts
   useEffect(() => {
     if (interacted || phase !== "auth") return;
     if (countdown <= 0) { onClose(); return; }
@@ -78,7 +78,7 @@ export default function DangerZone({ onClose }) {
       setDangerToken(res.danger_token);
       setPhase("ready");
     } catch (e) {
-      setAuthError(e?.response?.data?.detail || "Authentication failed — invalid key");
+      setAuthError(e?.response?.data?.detail || "Authentication failed - invalid key");
     } finally {
       setAuthLoading(false);
     }
@@ -241,7 +241,7 @@ export default function DangerZone({ onClose }) {
                 color: "rgba(255,60,60,0.4)",
                 letterSpacing: "0.12em",
               }}>
-                AUTO-CLOSING IN {countdown}s — INTERACT TO STAY
+                AUTO-CLOSING IN {countdown}s - INTERACT TO STAY
               </div>
             )}
 
@@ -316,7 +316,7 @@ export default function DangerZone({ onClose }) {
               marginBottom: 22,
               letterSpacing: "0.12em",
             }}>
-              ☢ AUTHENTICATED — SELECT OPERATION
+              ☢ AUTHENTICATED - SELECT OPERATION
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
               <DangerBtn
@@ -386,7 +386,7 @@ export default function DangerZone({ onClose }) {
 
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 9, color: "rgba(255,80,80,0.55)", letterSpacing: "0.14em", marginBottom: 7 }}>
-                TYPE "CONFIRM" TO PROCEED — THIS CANNOT BE UNDONE
+                TYPE "CONFIRM" TO PROCEED - THIS CANNOT BE UNDONE
               </div>
               <input
                 type="text"

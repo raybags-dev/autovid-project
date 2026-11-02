@@ -1,5 +1,5 @@
 """
-Settings endpoint tests — get / update application settings.
+Settings endpoint tests - get / update application settings.
 """
 import pytest
 

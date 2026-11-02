@@ -1,7 +1,7 @@
 """
-AutoVid Pipeline — Step 2: Text-to-Speech
+AutoVid Pipeline - Step 2: Text-to-Speech
 Primary: ElevenLabs (high quality)
-Fallback: gTTS (Google TTS — free, no quota, no API key needed)
+Fallback: gTTS (Google TTS - free, no quota, no API key needed)
 
 When ElevenLabs quota is exceeded, automatically falls back to gTTS
 so the pipeline never fully fails due to credit limits.
@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import config
 
-# Fallback ElevenLabs voice ID — used if primary voice is not found
+# Fallback ElevenLabs voice ID - used if primary voice is not found
 # Voice chain: DEFAULT (rUwfJCzlNVSupX1xyzzX) → FALLBACK (NFG5qt843uXKj4pFvR7C) → gTTS → pyttsx3
 ELEVENLABS_FALLBACK_VOICE_ID = "NFG5qt843uXKj4pFvR7C"
 
@@ -36,10 +36,10 @@ def _clean_script(text: str) -> str:
 def _synthesize_elevenlabs(text: str, mp3_path: Path, voice_id: str = None) -> bool:
     """
     Try ElevenLabs synthesis. Returns True on success, False on quota/auth/voice error.
-    voice_id: override the default voice — used for fallback voice attempt.
+    voice_id: override the default voice - used for fallback voice attempt.
     """
     if not config.ELEVENLABS_API_KEY:
-        print("⚠️  No ELEVENLABS_API_KEY — skipping ElevenLabs")
+        print("⚠️  No ELEVENLABS_API_KEY - skipping ElevenLabs")
         return False
 
     _voice_id = voice_id or config.ELEVENLABS_VOICE_ID
@@ -67,7 +67,7 @@ def _synthesize_elevenlabs(text: str, mp3_path: Path, voice_id: str = None) -> b
             ),
         )
 
-        # Consume generator inside try — ApiError raises here, not above
+        # Consume generator inside try - ApiError raises here, not above
         audio_bytes = b""
         for chunk in audio:
             if isinstance(chunk, bytes):
@@ -83,16 +83,16 @@ def _synthesize_elevenlabs(text: str, mp3_path: Path, voice_id: str = None) -> b
 
     except Exception as e:
         err_str = str(e).lower()
-        # Catch quota, auth, and billing errors — fall back gracefully
+        # Catch quota, auth, and billing errors - fall back gracefully
         if any(k in err_str for k in ["quota_exceeded", "quota", "401", "402", "insufficient"]):
-            print(f"⚠️  ElevenLabs unavailable ({len(text)} chars needed) — switching to free TTS")
+            print(f"⚠️  ElevenLabs unavailable ({len(text)} chars needed) - switching to free TTS")
             print(f"   Reason: {str(e)[:120]}")
             # Clean up empty file if created
             if mp3_path.exists() and mp3_path.stat().st_size == 0:
                 mp3_path.unlink(missing_ok=True)
             return False
-        # Unexpected error — still fall back rather than crash pipeline
-        print(f"⚠️  ElevenLabs unexpected error: {e} — switching to free TTS")
+        # Unexpected error - still fall back rather than crash pipeline
+        print(f"⚠️  ElevenLabs unexpected error: {e} - switching to free TTS")
         return False
 
 
@@ -111,7 +111,7 @@ def _synthesize_gtts(text: str, mp3_path: Path) -> bool:
         tts.save(str(mp3_path))
         if mp3_path.exists() and mp3_path.stat().st_size > 0:
             print("✅ gTTS synthesis successful")
-            # Normalize gTTS speed — gTTS runs ~12% faster than natural narration
+            # Normalize gTTS speed - gTTS runs ~12% faster than natural narration
             _tmp = mp3_path.with_suffix(".speed_tmp.mp3")
             subprocess.run([
                 "ffmpeg", "-y", "-i", str(mp3_path),
@@ -123,7 +123,7 @@ def _synthesize_gtts(text: str, mp3_path: Path) -> bool:
             return True
         return False
     except ImportError:
-        print("❌ gTTS not installed — run: pip install gtts")
+        print("❌ gTTS not installed - run: pip install gtts")
         return False
     except Exception as e:
         print(f"❌ gTTS failed: {e}")
@@ -166,18 +166,18 @@ def _normalize_audio(mp3_path: Path) -> None:
     ElevenLabs applies its own gain envelope: voice starts quiet, builds to a
     louder steady state, then fades at the end.  dynaudnorm corrects this by
     measuring the peak of each short frame and amplifying/attenuating so every
-    frame reaches the same target peak — essentially locking the whole track at
+    frame reaches the same target peak - essentially locking the whole track at
     whatever level the loudest (mid-sentence) section was sitting at.
 
     Parameters chosen for speech:
-      f=200   — 200 ms analysis frame  (short enough to catch buildup, long
+      f=200   - 200 ms analysis frame  (short enough to catch buildup, long
                   enough not to react to individual plosives)
-      g=11    — Gaussian smoothing window of 11 frames (~2 s) so transitions
+      g=11    - Gaussian smoothing window of 11 frames (~2 s) so transitions
                   between gain adjustments are gradual rather than jumpy
-      p=0.95  — target peak 95 % of full scale (leaves 0.5 dB headroom)
-      m=5.0   — maximum allowed amplification factor (5× = +14 dB) — prevents
+      p=0.95  - target peak 95 % of full scale (leaves 0.5 dB headroom)
+      m=5.0   - maximum allowed amplification factor (5× = +14 dB) - prevents
                   near-silence sections from being boosted into noise
-      r=0.0   — peak-based (not RMS) so the measurement tracks instantaneous
+      r=0.0   - peak-based (not RMS) so the measurement tracks instantaneous
                   loudness rather than average power
     """
     tmp = mp3_path.with_suffix(".norm_tmp.mp3")
@@ -191,11 +191,11 @@ def _normalize_audio(mp3_path: Path) -> None:
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        print(f"⚠️  Audio normalisation failed — keeping original audio\n   {result.stderr[-200:]}")
+        print(f"⚠️  Audio normalisation failed - keeping original audio\n   {result.stderr[-200:]}")
         tmp.unlink(missing_ok=True)
         return
     tmp.replace(mp3_path)
-    print("🎚️  Audio normalised (dynaudnorm — uniform volume throughout)")
+    print("🎚️  Audio normalised (dynaudnorm - uniform volume throughout)")
 
 
 # ── Chunked Synthesis Helpers ─────────────────────────────────────────────────
@@ -255,7 +255,7 @@ def _synthesize_chunk(text: str, mp3_path: Path) -> bool:
     Returns True on success.
     """
     if _is_dev_tts_mode():
-        print("🛠️  [DEV MODE] Skipping ElevenLabs — using gTTS (dev_tts_mode=true)")
+        print("🛠️  [DEV MODE] Skipping ElevenLabs - using gTTS (dev_tts_mode=true)")
         if _synthesize_gtts(text, mp3_path):
             return True
         return _synthesize_pyttsx3(text, mp3_path)
@@ -318,7 +318,7 @@ def synthesize(text: str, video_id: str) -> dict:
     print(f"🔤 Text split into {len(chunks)} chunk(s) ({len(clean_text.split())} words total)")
 
     if len(chunks) == 1:
-        # Fast path — no chunking needed
+        # Fast path - no chunking needed
         success = _synthesize_chunk(clean_text, mp3_path)
         if not success or not mp3_path.exists() or mp3_path.stat().st_size == 0:
             raise RuntimeError(
@@ -327,7 +327,7 @@ def synthesize(text: str, video_id: str) -> dict:
                 "gTTS: run 'pip install gtts' in your venv\n"
             )
     else:
-        # Multi-chunk path — synthesize each chunk, skip failures
+        # Multi-chunk path - synthesize each chunk, skip failures
         chunk_paths = []
         for i, chunk in enumerate(chunks):
             chunk_path = config.AUDIO_OUTPUT_DIR / f"{video_id}_chunk{i:02d}.mp3"
@@ -336,19 +336,19 @@ def synthesize(text: str, video_id: str) -> dict:
                 if _synthesize_chunk(chunk, chunk_path):
                     chunk_paths.append(chunk_path)
                 else:
-                    print(f"⚠️  Chunk {i + 1} synthesis failed — skipping")
+                    print(f"⚠️  Chunk {i + 1} synthesis failed - skipping")
             except Exception as e:
                 print(f"⚠️  Chunk {i + 1} error, skipping: {e}")
 
         if not chunk_paths:
-            raise RuntimeError("All TTS chunks failed — no audio produced.")
+            raise RuntimeError("All TTS chunks failed - no audio produced.")
 
         print(f"🔗 Concatenating {len(chunk_paths)}/{len(chunks)} chunks...")
         _concat_audio_chunks(chunk_paths, mp3_path)
         for p in chunk_paths:
             Path(p).unlink(missing_ok=True)
 
-    # Flatten ElevenLabs gain envelope — locks every part of the track to the
+    # Flatten ElevenLabs gain envelope - locks every part of the track to the
     # same loudness so there is no quiet intro / loud middle / quiet outro.
     _normalize_audio(mp3_path)
 
@@ -363,7 +363,7 @@ def synthesize(text: str, video_id: str) -> dict:
 def fit_audio_to_duration(audio_path: str, target_duration: float) -> float:
     """
     Speed up audio to fit within target_duration seconds using FFmpeg atempo filter.
-    atempo range is 0.5–2.0; for speed > 2.0 we chain two filters.
+    atempo range is 0.5-2.0; for speed > 2.0 we chain two filters.
     Returns the new actual duration.
     """
     p = Path(audio_path)
@@ -372,9 +372,9 @@ def fit_audio_to_duration(audio_path: str, target_duration: float) -> float:
         return actual
 
     speed = actual / target_duration
-    print(f"⚡ Audio is {actual:.1f}s — speeding up {speed:.2f}x to fit {target_duration:.0f}s")
+    print(f"⚡ Audio is {actual:.1f}s - speeding up {speed:.2f}x to fit {target_duration:.0f}s")
 
-    # Build atempo filter chain (each atempo must be 0.5–2.0)
+    # Build atempo filter chain (each atempo must be 0.5-2.0)
     filters = []
     remaining = speed
     while remaining > 2.0:
@@ -390,7 +390,7 @@ def fit_audio_to_duration(audio_path: str, target_duration: float) -> float:
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        print(f"⚠️  atempo failed: {result.stderr[-200:]} — using original")
+        print(f"⚠️  atempo failed: {result.stderr[-200:]} - using original")
         return actual
 
     tmp.replace(p)

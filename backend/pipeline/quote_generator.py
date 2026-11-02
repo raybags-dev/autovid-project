@@ -1,16 +1,16 @@
 """
-AutoVid Pipeline — Quote Video Generator
+AutoVid Pipeline - Quote Video Generator
 
 Renders an animated quote card as MP4, replicating the HTML animation:
-  Phase 1  0.5s   — blank canvas, border/corners fade in
-  Phase 2  0.4s   — open-quote mark appears
-  Phase 3  0.6s   — idle cursor blinks
-  Phase 4  varies — typing (character by character, punctuation pauses)
-  Phase 5  0.35s  — close-quote mark appears
-  Phase 6  2.8s   — shake simulation (text vibrates)
-  Phase 7  0.5s   — author line fades in
-  Phase 8  hold   — all elements held on screen (hold_duration_s)
-  Phase 9  1.5s   — fade-to-black outro
+  Phase 1  0.5s   - blank canvas, border/corners fade in
+  Phase 2  0.4s   - open-quote mark appears
+  Phase 3  0.6s   - idle cursor blinks
+  Phase 4  varies - typing (character by character, punctuation pauses)
+  Phase 5  0.35s  - close-quote mark appears
+  Phase 6  2.8s   - shake simulation (text vibrates)
+  Phase 7  0.5s   - author line fades in
+  Phase 8  hold   - all elements held on screen (hold_duration_s)
+  Phase 9  1.5s   - fade-to-black outro
 
 Layout mirrors the HTML #stage flex-column centered layout:
   open-quote (left-aligned)
@@ -167,7 +167,7 @@ def _calc_layout(width, height, full_text, font_size, fonts):
     author_y   = text_top + text_h + qm_h * 0 + author_margin  # 24px below text bottom
 
     # Author right-aligns within pad_x margin
-    # Measure full "— AUTHOR NAME" width
+    # Measure full "- AUTHOR NAME" width
     dash_w = 28
     gap    = 14
     _, _ah = _measure(f_author, "A")
@@ -462,12 +462,12 @@ def generate_quote_video(
     manifest.unlink(missing_ok=True)
 
     mb = os.path.getsize(output_path) / 1024 / 1024
-    log(f"Done — {output_path.name} ({mb:.1f} MB)")
+    log(f"Done - {output_path.name} ({mb:.1f} MB)")
     return str(output_path)
 
 
 def _char_dur(ch: str, speed_ms: int) -> float:
-    """Duration a single character frame is shown — mirrors HTML logic."""
+    """Duration a single character frame is shown - mirrors HTML logic."""
     if ch in ".!?":
         return speed_ms * 7 / 1000.0
     if ch in ",;:":

@@ -1,5 +1,5 @@
 """
-Test configuration — mocks heavy pipeline/celery deps so the FastAPI app
+Test configuration - mocks heavy pipeline/celery deps so the FastAPI app
 can be imported and tested without Supabase, Redis, or GPU hardware.
 """
 import os
@@ -35,7 +35,7 @@ _HEAVY = [
     "pipeline.shorts_generator", "pipeline.script_writer",
     "pipeline.tts", "pipeline.video_assembler", "pipeline.labeler",
     "pipeline.email",
-    # license_guard is NOT stubbed here — test_license_guard.py imports and patches it directly
+    # license_guard is NOT stubbed here - test_license_guard.py imports and patches it directly
     "workers", "workers.celery_app", "workers.celery_worker",
     "celery", "celery.app", "celery.result",
     "redis", "redis.exceptions", "redis.client",
@@ -59,7 +59,7 @@ sys.modules["workers.celery_worker"].run_subscriber_video_pipeline = _celery_tas
 _db_sentinel = MagicMock()
 sys.modules["database"] = _db_sentinel
 
-# Import main exactly once — subsequent `import main` calls hit sys.modules
+# Import main exactly once - subsequent `import main` calls hit sys.modules
 import pytest
 from fastapi.testclient import TestClient
 

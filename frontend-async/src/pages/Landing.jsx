@@ -4,15 +4,15 @@ import { Link } from "react-router-dom";
 /* ─── Data ──────────────────────────────────────────────────────────────────── */
 
 const FEATURES = [
-  { icon: "🎬", title: "Script to finished video", desc: "Type a topic. AutoVid writes the script, selects visuals, generates narration, adds captions, and assembles a broadcast-quality video — hands-free.", detail: "Powered by Groq LLaMA 70B + ElevenLabs voice synthesis." },
+  { icon: "🎬", title: "Script to finished video", desc: "Type a topic. AutoVid writes the script, selects visuals, generates narration, adds captions, and assembles a broadcast-quality video - hands-free.", detail: "Powered by Groq LLaMA 70B + ElevenLabs voice synthesis." },
   { icon: "🗣️", title: "AI narration, zero recording", desc: "Professional-grade voice synthesis on every video. No microphone, no recording sessions, no editing. Just crisp, natural narration.", detail: "15+ voice profiles. Adjustable speed, emotion, and emphasis." },
-  { icon: "📡", title: "Auto-publish to YouTube", desc: "Videos land on your channel on schedule. Titles, descriptions, tags, thumbnails — all generated and uploaded automatically as private drafts.", detail: "Full YouTube Data API v3. Custom upload profiles." },
+  { icon: "📡", title: "Auto-publish to YouTube", desc: "Videos land on your channel on schedule. Titles, descriptions, tags, thumbnails - all generated and uploaded automatically as private drafts.", detail: "Full YouTube Data API v3. Custom upload profiles." },
   { icon: "✂️", title: "Shorts automation", desc: "Every long-form video becomes a vertical Short automatically. Reach more viewers on YouTube Shorts and TikTok with zero extra effort.", detail: "Auto-crop, re-caption, and push to Shorts queue." },
   { icon: "🎧", title: "Podcast pipeline", desc: "Every video is also a podcast episode. AutoVid publishes to Spotify, Buzzsprout, and Podbean without any extra steps.", detail: "RSS feed generation, episode art, chapter markers." },
   { icon: "📊", title: "Full production dashboard", desc: "Monitor your queue, track video status, manage captions, review analytics, and control every setting from one interface.", detail: "Real-time job queue. Celery-backed task processing." },
   { icon: "🖼️", title: "Stick figure & visual generation", desc: "Unique animated stick-figure overlays and AI-generated visuals give your content a distinctive look no other creator has.", detail: "Stable Diffusion + custom compositor pipeline." },
   { icon: "📝", title: "Auto-captions", desc: "Accurate burned-in captions on every video using Whisper. Increases watch time and reaches viewers watching without sound.", detail: "Word-level timestamps. Custom font, color, and position." },
-  { icon: "🔁", title: "Scheduled & recurring content", desc: "Set a publishing cadence and AutoVid keeps your channel active — generating and publishing on your schedule without manual input.", detail: "Cron-style scheduling. Holiday and blackout dates." },
+  { icon: "🔁", title: "Scheduled & recurring content", desc: "Set a publishing cadence and AutoVid keeps your channel active - generating and publishing on your schedule without manual input.", detail: "Cron-style scheduling. Holiday and blackout dates." },
 ];
 
 const STEPS = [
@@ -21,7 +21,7 @@ const STEPS = [
   { n: "03", icon: "🎙️", title: "Voice is generated", desc: "ElevenLabs synthesises professional narration matched to your selected voice profile." },
   { n: "04", icon: "🎞️", title: "Visuals are sourced", desc: "Stock footage, AI images, and stick-figure animations are selected and assembled." },
   { n: "05", icon: "💬", title: "Captions are added", desc: "Whisper transcribes and burns accurate captions directly into the video." },
-  { n: "06", icon: "🚀", title: "Published privately", desc: "Video is uploaded to YouTube as a private draft — you review it, then make it public." },
+  { n: "06", icon: "🚀", title: "Published privately", desc: "Video is uploaded to YouTube as a private draft - you review it, then make it public." },
 ];
 
 const INTEGRATIONS = [
@@ -57,12 +57,12 @@ const PLANS = [
 ];
 
 const FAQS = [
-  { q: "How long does it take to generate a video?", a: "Most videos are ready in 8–15 minutes depending on length. Short-form content (under 3 minutes) typically finishes in under 5 minutes. You can monitor progress live in your dashboard." },
+  { q: "How long does it take to generate a video?", a: "Most videos are ready in 8-15 minutes depending on length. Short-form content (under 3 minutes) typically finishes in under 5 minutes. You can monitor progress live in your dashboard." },
   { q: "Why are videos uploaded as private?", a: "All auto-generated videos are uploaded to YouTube as private drafts. This gives you a chance to review the content, add your personal touch, and decide when to publish. This avoids accidental publishing of raw AI content without your approval." },
-  { q: "Do I need any technical knowledge?", a: "No. If you can type a topic, AutoVid handles everything else — script, voice, visuals, captions, and publishing. The dashboard is designed for creators, not engineers." },
+  { q: "Do I need any technical knowledge?", a: "No. If you can type a topic, AutoVid handles everything else - script, voice, visuals, captions, and publishing. The dashboard is designed for creators, not engineers." },
   { q: "Can I use my own voice or custom branding?", a: "Yes. You can clone your voice (ElevenLabs Professional tier), upload a custom intro/outro, add your logo as an overlay, and configure default video styles per channel." },
   { q: "What happens if a video generation fails?", a: "AutoVid automatically retries failed jobs. If a video still fails, you'll be notified and can retry with one click from your dashboard. No credits are deducted for failed jobs." },
-  { q: "Is my account approved instantly?", a: "Accounts are reviewed manually — usually within 24 hours. This helps us maintain quality and ensure every user gets proper onboarding." },
+  { q: "Is my account approved instantly?", a: "Accounts are reviewed manually - usually within 24 hours. This helps us maintain quality and ensure every user gets proper onboarding." },
   { q: "Can I cancel at any time?", a: "Yes. Cancel any time from your account settings. Your access continues until the end of the billing period. No lock-ins, no questions asked." },
   { q: "What is your refund policy?", a: "We offer a full refund within 7 days of your first charge if you're not satisfied. After 7 days, refunds are evaluated case-by-case. See our Refund Policy for full details." },
 ];
@@ -541,7 +541,7 @@ export default function Landing() {
 
         <p className="am-hero-sub" style={{ fontSize: "clamp(15px, 2.5vw, 18px)", color: "#8a9ab8", lineHeight: 1.75, maxWidth: 580, margin: "0 auto 16px" }}>
           AutoVid turns a single text prompt into a fully produced, captioned, and
-          published video. Script, voice, visuals, captions, Shorts, podcast — all automated.
+          published video. Script, voice, visuals, captions, Shorts, podcast - all automated.
         </p>
 
         <p className="am-hero-sub" style={{ fontSize: 13, color: "#4a6a8a", marginBottom: 36 }}>
@@ -575,7 +575,7 @@ export default function Landing() {
         {/* Stats */}
         <div className="am-hero-stats" style={{ display: "flex", justifyContent: "center", marginTop: 60 }}>
           {[
-            ["8–15 min", "avg. video generation time"],
+            ["8-15 min", "avg. video generation time"],
             ["9 platforms", "publish targets supported"],
             ["100%", "hands-free after setup"],
           ].map(([stat, label], i) => (
@@ -633,7 +633,7 @@ export default function Landing() {
           <p style={{ fontSize: 13, color: "#6a8ab0", lineHeight: 1.7, margin: 0 }}>
             Every video AutoVid generates is uploaded to YouTube as a <strong style={{ color: "#818cf8" }}>private draft</strong>.
             This means only you can see it. Review the content, add your finishing touches, then choose when
-            to make it public — all on your timeline. No AI content goes live without your approval.
+            to make it public - all on your timeline. No AI content goes live without your approval.
           </p>
         </div>
       </section>
@@ -779,7 +779,7 @@ export default function Landing() {
               async<span style={{ color: "#4f46e5" }}>-mode</span>
             </div>
             <p style={{ fontSize: 13, color: "#4a6a8a", lineHeight: 1.8, maxWidth: 300, margin: "0 0 20px" }}>
-              Our mission is to make professional video content creation accessible to every creator —
+              Our mission is to make professional video content creation accessible to every creator -
               regardless of technical skill, budget, or team size. Automation shouldn't be a luxury.
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

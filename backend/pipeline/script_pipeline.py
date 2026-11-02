@@ -1,14 +1,14 @@
 """
-AutoVid — Script Studio Pipeline
+AutoVid - Script Studio Pipeline
 Generates a video from a user-provided script (no AI script generation).
 
 Pipeline:
-  1. TTS — synthesize the user's script into voice audio
-  2. Visual — generate a looping abstract animation for the full duration
-  3. Music — generate background music track
-  4. Mix — combine voice + music into final audio
-  5. Assemble — lay the looping visual over the full audio duration
-  6. Captions — burn captions from the narration
+  1. TTS - synthesize the user's script into voice audio
+  2. Visual - generate a looping abstract animation for the full duration
+  3. Music - generate background music track
+  4. Mix - combine voice + music into final audio
+  5. Assemble - lay the looping visual over the full audio duration
+  6. Captions - burn captions from the narration
   7. Upload to Supabase Storage
 """
 import shutil
@@ -120,7 +120,7 @@ def run_script_pipeline(
         cb:           Optional callback(stage, message) for progress
     """
     if include_unsubscribed_message and include_subscribed_message:
-        raise ValueError("include_unsubscribed_message and include_subscribed_message are mutually exclusive — enable only one.")
+        raise ValueError("include_unsubscribed_message and include_subscribed_message are mutually exclusive - enable only one.")
 
     print(f"\n{'='*60}")
     print(f"[SCRIPT PIPELINE] Starting | ID: {video_id[:8]}...")
@@ -144,7 +144,7 @@ def run_script_pipeline(
         duration     = voice_result["duration"]
         print(f"   Duration: {duration:.1f}s ({duration/60:.1f} min)")
 
-        # ── Step 1b: Narration delay — prepend silence to voice audio ────────
+        # ── Step 1b: Narration delay - prepend silence to voice audio ────────
         if music_delay > 0:
             from pipeline.music_mixer import apply_narration_delay
             _log("DELAY", f"Delaying narration by {music_delay:.1f}s...", cb)
@@ -198,7 +198,7 @@ def run_script_pipeline(
                 _log("VISUAL", f"Fetching clips for {len(plan)} sections...", cb)
                 fetched_segments = _vf.fetch_clips_for_plan(plan, synth_segments, video_id, orientation="landscape")
             else:
-                _log("VISUAL", "LLM plan unavailable — using keyword extraction...", cb)
+                _log("VISUAL", "LLM plan unavailable - using keyword extraction...", cb)
                 fetched_segments = _vf.fetch_all_clips_multi(synth_segments, video_id, orientation="landscape")
 
             composited_path = str(config.VIDEOS_OUTPUT_DIR / f"{video_id}_comp.mp4")
@@ -216,7 +216,7 @@ def run_script_pipeline(
                     visual_path = composite_video(visual_path, overlays, sf_out)
                     _log("STICKFIGURES", f"✅ {len(overlays)} stickfigure(s) composited", cb)
                 else:
-                    _log("STICKFIGURES", "⚠️ No matching stickfigures — using background only", cb)
+                    _log("STICKFIGURES", "⚠️ No matching stickfigures - using background only", cb)
             except Exception as e:
                 _log("STICKFIGURES", f"⚠️ Stickfigure composite skipped: {e}", cb)
 
@@ -225,10 +225,10 @@ def run_script_pipeline(
         try:
             music_path = generate_music(music_style, total_duration, video_id, music_delay=music_delay)
         except Exception as e:
-            print(f"⚠️  Music generation error (non-fatal): {e} — continuing voice-only")
+            print(f"⚠️  Music generation error (non-fatal): {e} - continuing voice-only")
             music_path = None
 
-        # ── Step 4: Mix audio — voice (with delay baked in) + music at t=0 ───
+        # ── Step 4: Mix audio - voice (with delay baked in) + music at t=0 ───
         _log("MIXING", "Mixing voice + music...", cb)
         mixed_path_str = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_mixed.mp3")
         mixed_path = mix_audio(voice_path, music_path, mixed_path_str, music_volume=music_volume)
@@ -265,7 +265,7 @@ def run_script_pipeline(
             thumb_path,
         ], capture_output=True)
 
-        # Save pre-caption path — used later in portrait generation so we don't
+        # Save pre-caption path - used later in portrait generation so we don't
         # bake 16:9-sized captions into the 9:16 crop.
         pre_caption_path = final_path
 
@@ -277,9 +277,9 @@ def run_script_pipeline(
                 final_path     = captioned_path
             except Exception as e:
                 print(f"⚠️  Captions failed (non-fatal): {e}")
-                pre_caption_path = final_path  # fallback — captions didn't burn
+                pre_caption_path = final_path  # fallback - captions didn't burn
         else:
-            _log("CAPTIONS", "Captions disabled — skipping", cb)
+            _log("CAPTIONS", "Captions disabled - skipping", cb)
             db.update_video(video_id, captions_disabled=True)
 
         # ── Step 7b: Inject subscribe message clip (if requested) ────────────
@@ -354,7 +354,7 @@ def run_script_pipeline(
                 _portrait_url = upload_to_storage(_portrait_final, f"{video_id}_portrait")
                 import database as _db2
                 _db2.create_custom_content(
-                    title=f"{title} — Portrait (9:16)",
+                    title=f"{title} - Portrait (9:16)",
                     description=f"Auto-generated vertical version of: {title}",
                     file_path=_portrait_url,
                     duration_seconds=int(duration),
@@ -367,8 +367,8 @@ def run_script_pipeline(
             _log("PORTRAIT", f"⚠️ Portrait skipped: {_pe}", cb)
 
         # ── Cleanup ALL intermediates ─────────────────────────────────────────
-        # Always clean up — if storage succeeded, the public URL is in DB
-        # If storage failed, the local path is in DB — still clean intermediates
+        # Always clean up - if storage succeeded, the public URL is in DB
+        # If storage failed, the local path is in DB - still clean intermediates
         _cleanup_intermediates(video_id, voice_path, mixed_path, visual_path, public_url)
 
         return final_path
@@ -381,7 +381,7 @@ def run_script_pipeline(
         raise
 
     finally:
-        # Safety net for error paths — _cleanup_intermediates handles success path
+        # Safety net for error paths - _cleanup_intermediates handles success path
         try:
             raw = config.AUDIO_OUTPUT_DIR / f"{video_id}_music.raw"
             raw.unlink(missing_ok=True)

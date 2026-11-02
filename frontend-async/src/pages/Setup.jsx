@@ -64,7 +64,7 @@ export default function Setup() {
       await refreshUser();
       navigate("/dashboard");
     } catch {
-      setError("Failed to save — please try again.");
+      setError("Failed to save - please try again.");
     } finally {
       setSaving(false);
     }
@@ -122,7 +122,7 @@ export default function Setup() {
             icon="♪"
             label="TikTok Profile URL"
             placeholder="https://tiktok.com/@yourhandle"
-            hint="Your TikTok profile link — e.g. tiktok.com/@username"
+            hint="Your TikTok profile link - e.g. tiktok.com/@username"
             value={tiktok}
             onChange={setTiktok}
             verifyUrl

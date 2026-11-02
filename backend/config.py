@@ -1,5 +1,5 @@
 """
-AutoVid — Centralized Configuration
+AutoVid - Centralized Configuration
 Loads all environment variables with validation
 """
 import os
@@ -23,7 +23,7 @@ if _env_file:
     print(f"🔧 Loaded .env from: {_env_file}")
 else:
     load_dotenv()
-    print("⚠️  No .env file found — checked backend/.env and project root")
+    print("⚠️  No .env file found - checked backend/.env and project root")
 
 # ── Directories ──────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
@@ -53,11 +53,11 @@ PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
 TTS_ENGINE          = os.getenv("TTS_ENGINE", "elevenlabs")
 ELEVENLABS_API_KEY  = os.getenv("ELEVENLABS_API_KEY", "")
 # Best deep calm male narrator voices (free tier):
-# Adam    pNInz6obpgDQGcFmaJgB  — deep, calm, perfect for narration ← recommended
-# Josh    TxGEqnHWrfWFTfGW9XjX  — warm deep male
-# Arnold  VR6AewLTigWG4xSOukaG  — authoritative, crisp
-# Antoni  ErXwobaYiN019PkySvjV  — well-rounded, natural
-# Sam     yoZ06aMxZJJ28mfd3POQ  — energetic, engaging
+# Adam    pNInz6obpgDQGcFmaJgB  - deep, calm, perfect for narration ← recommended
+# Josh    TxGEqnHWrfWFTfGW9XjX  - warm deep male
+# Arnold  VR6AewLTigWG4xSOukaG  - authoritative, crisp
+# Antoni  ErXwobaYiN019PkySvjV  - well-rounded, natural
+# Sam     yoZ06aMxZJJ28mfd3POQ  - energetic, engaging
 ELEVENLABS_VOICE_ID         = os.getenv("ELEVENLABS_VOICE_ID",         "NFG5qt843uXKj4pFvR7C")
 DEFAULT_ELEVENLABS_VOICE_ID = os.getenv("DEFAULT_ELEVENLABS_VOICE_ID", "rUwfJCzlNVSupX1xyzzX")
 
@@ -70,7 +70,7 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 YOUTUBE_CLIENT_SECRETS_PATH   = os.getenv("YOUTUBE_CLIENT_SECRETS_PATH", "./client_secrets.json")
 YOUTUBE_TOKEN_PATH             = os.getenv("YOUTUBE_TOKEN_PATH", "./youtube_token.json")
 YOUTUBE_CHANNEL_ID             = os.getenv("YOUTUBE_CHANNEL_ID", "")
-# Subscriber YouTube OAuth — redirect URI must be whitelisted in Google Cloud Console
+# Subscriber YouTube OAuth - redirect URI must be whitelisted in Google Cloud Console
 YOUTUBE_SUBSCRIBER_SECRETS_PATH = os.getenv("YOUTUBE_SUBSCRIBER_SECRETS_PATH", "./client_secrets_subscriber.json")
 YOUTUBE_OAUTH_REDIRECT_URI      = os.getenv("YOUTUBE_OAUTH_REDIRECT_URI", "https://async-mode.com/api/subscribe/youtube/callback")
 FRONTEND_ASYNC_URL              = os.getenv("FRONTEND_ASYNC_URL", "https://async-mode.com")
@@ -98,7 +98,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 BASE_URL             = os.getenv("BASE_URL", "")
 PODCAST_TITLE        = os.getenv("PODCAST_TITLE", "My AutoVid Podcast")
 PODCAST_DESCRIPTION  = os.getenv("PODCAST_DESCRIPTION", "AI-generated stories narrated for your ears")
-PODCAST_IMAGE_URL    = os.getenv("PODCAST_IMAGE_URL", "")          # 1400x1400 – 3000x3000 jpg/png, required by Spotify
+PODCAST_IMAGE_URL    = os.getenv("PODCAST_IMAGE_URL", "")          # 1400x1400 - 3000x3000 jpg/png, required by Spotify
 PODCAST_AUTHOR       = os.getenv("PODCAST_AUTHOR", "AutoVid")
 PODCAST_EMAIL        = os.getenv("PODCAST_EMAIL", "")              # shown as contact in Spotify for Podcasters
 PODCAST_CATEGORY     = os.getenv("PODCAST_CATEGORY", "Society &amp; Culture")   # iTunes category
@@ -119,7 +119,7 @@ def validate():
     missing = [k for k, v in required.items() if not v]
     if missing:
         raise EnvironmentError(f"Missing required env vars: {', '.join(missing)}")
-    print("✅ Config validated — all required keys present")
+    print("✅ Config validated - all required keys present")
 
 
 def debug():

@@ -12,10 +12,10 @@ import database as db
 
 # Days of week: 0=Monday ... 6=Sunday
 DEFAULT_DAYS = [1, 3, 5, 6]   # Tue, Thu, Sat, Sun = 4x per week
-DEFAULT_HOUR = 3               # 3 AM UTC — off-peak, avoids quota collision with replies
+DEFAULT_HOUR = 3               # 3 AM UTC - off-peak, avoids quota collision with replies
 DEFAULT_PROFILE = "educational"
 
-# Curated default prompts — philosophical, emotional, educational topics
+# Curated default prompts - philosophical, emotional, educational topics
 DEFAULT_PROMPTS = [
     "Why the universe remains silent when we ask it for meaning",
     "The strange freedom that comes from realizing nothing ultimately matters",
@@ -27,7 +27,7 @@ DEFAULT_PROMPTS = [
     "Growing old in a universe that was never designed for us",
     "Why time becomes more precious the closer we move toward its end",
     "The slow realization that life does not promise fairness",
-    "Why the universe does not care — and why that might be liberating",
+    "Why the universe does not care - and why that might be liberating",
     "The courage to wake up each day in an indifferent world",
     "Why the absence of meaning can create unexpected freedom",
     "The strange comfort of knowing the universe has no expectations of you",
@@ -72,41 +72,41 @@ DEFAULT_PROMPTS = [
     "What happens to your brain when you fall in love",
     "The hidden cost of always being reachable",
     "Why the most important things in life cannot be measured",
-    "The philosophy of letting go — why we hold on to what hurts us",
+    "The philosophy of letting go - why we hold on to what hurts us",
     "What science says about the nature of consciousness",
-    "The loneliness epidemic — why we are more connected and more alone than ever",
+    "The loneliness epidemic - why we are more connected and more alone than ever",
     "What ancient Stoics knew about anxiety that we forgot",
-    "The psychology of regret — and how to make peace with your past",
-    "Why beauty exists — and what it tells us about being human",
-    "The art of doing nothing — and why rest is not laziness",
+    "The psychology of regret - and how to make peace with your past",
+    "Why beauty exists - and what it tells us about being human",
+    "The art of doing nothing - and why rest is not laziness",
     "What near-death experiences reveal about the nature of reality",
     "The strange truth about why we dream",
     "Why kindness is actually a form of strength",
-    "The paradox of choice — why more options make us less happy",
+    "The paradox of choice - why more options make us less happy",
     "What grief teaches us about love",
     "The hidden intelligence of the human body",
-    "Why great art makes us cry — the neuroscience of beauty",
-    "The meaning of home — why we long to belong somewhere",
-    "Why everything ends — and why that gives life meaning",
-    "The quiet truth about impermanence — why nothing we love can stay forever",
+    "Why great art makes us cry - the neuroscience of beauty",
+    "The meaning of home - why we long to belong somewhere",
+    "Why everything ends - and why that gives life meaning",
+    "The quiet truth about impermanence - why nothing we love can stay forever",
     "What it means to live knowing that one day you will die",
     "Why humans build meaning in a universe that promises none",
-    "The philosophy of mortality — how death shapes the way we live",
+    "The philosophy of mortality - how death shapes the way we live",
     "Why love feels infinite even though it exists in time",
-    "The psychology of attachment — why letting go hurts so much",
+    "The psychology of attachment - why letting go hurts so much",
     "Why we struggle to imagine a world without us",
     "The emotional paradox of loving someone you will eventually lose",
     "Why the awareness of death can make life more vivid",
     "The strange comfort of knowing suffering does not last forever",
     "What philosophy teaches us about accepting the end of things",
-    "Why every relationship is temporary — and why we love anyway",
+    "Why every relationship is temporary - and why we love anyway",
     "The existential courage of caring in a fragile world",
-    "Why humans create legacy — the need to outlive ourselves",
-    "The silence after loss — what grief reveals about the human heart",
+    "Why humans create legacy - the need to outlive ourselves",
+    "The silence after loss - what grief reveals about the human heart",
     "Why time feels faster as we grow older",
     "What it means to exist for a brief moment in cosmic time",
     "Why memories become more valuable after something is gone",
-    "The philosophy of final moments — what people value at the end of life",
+    "The philosophy of final moments - what people value at the end of life",
     "Why we search for permanence in a temporary world",
     "The fragile miracle of being alive at all",
     "What ancient philosophers believed about facing death",
@@ -116,7 +116,7 @@ DEFAULT_PROMPTS = [
     "The human instinct to deny mortality",
     "What we learn about life when someone close to us dies",
     "Why the awareness of death can lead to deeper compassion",
-    "The existential weight of time — why every moment is disappearing",
+    "The existential weight of time - why every moment is disappearing",
 ]
 
 _scheduler_started = False
@@ -181,7 +181,7 @@ def _is_semantically_duplicate(candidate: str, existing: list, threshold: float 
 def _auto_generate_prompts(pipeline: str = "long", count: int = 20) -> list:
     """
     Mode A: Use Groq LLM to generate a fresh batch of prompts.
-    Themes: dark, philosophical, existential — meaning, death, love, absurdism, isolation, purpose.
+    Themes: dark, philosophical, existential - meaning, death, love, absurdism, isolation, purpose.
     """
     try:
         from groq import Groq
@@ -190,7 +190,7 @@ def _auto_generate_prompts(pipeline: str = "long", count: int = 20) -> list:
         recent_sample = "\n".join(f"- {p}" for p in recent[:20]) if recent else "(none yet)"
         system = (
             "You generate video titles for a philosophical YouTube channel. "
-            "Themes: dark, existential, absurdist — death, meaning, love, isolation, "
+            "Themes: dark, existential, absurdist - death, meaning, love, isolation, "
             "purpose, human condition, aging, impermanence, absurdism. "
             "Never repeat themes already covered. Keep each title under 12 words. "
             "Output ONLY a JSON array of strings, no other text."
@@ -240,21 +240,21 @@ def _pick_next_prompt(prompts: list) -> str:
         _ensure_pool_seeded(pipeline, prompts)
         row = db.get_next_unused_prompt(pipeline)
         if row is None:
-            # Pool exhausted — check exhaustion mode
+            # Pool exhausted - check exhaustion mode
             mode = db.get_setting("auto_generate_exhaustion_mode", default="A")
             if mode in ("A", "hybrid"):
-                print("🔄 Prompt pool exhausted — running Mode A auto-generation")
+                print("🔄 Prompt pool exhausted - running Mode A auto-generation")
                 new_prompts = _auto_generate_prompts(pipeline=pipeline, count=20)
                 if new_prompts:
                     db.add_prompts_to_pool(new_prompts, pipeline=pipeline, source="generated")
                     row = db.get_next_unused_prompt(pipeline)
                 else:
-                    print("⚠️  Mode A generation failed — resetting pool")
+                    print("⚠️  Mode A generation failed - resetting pool")
                     db.reset_prompt_pool(pipeline)
                     row = db.get_next_unused_prompt(pipeline)
             else:
                 # Mode B: reset and cycle from existing
-                print("🔄 Prompt pool exhausted — resetting (Mode B)")
+                print("🔄 Prompt pool exhausted - resetting (Mode B)")
                 db.reset_prompt_pool(pipeline)
                 row = db.get_next_unused_prompt(pipeline)
 
@@ -323,11 +323,11 @@ def run_auto_generate(push_log_fn=None, unregister_fn=None):
         run_pipeline(
             prompt=prompt,
             profile=profile,
-            auto_upload=False,   # Never auto-upload — user reviews first
+            auto_upload=False,   # Never auto-upload - user reviews first
             video_id=video_id,
             progress_callback=_cb,
         )
-        print("✅ Auto-generator: pipeline complete — video ready for review")
+        print("✅ Auto-generator: pipeline complete - video ready for review")
         return video_id
     except Exception as e:
         print(f"❌ Auto-generator pipeline failed: {e}")
@@ -381,7 +381,7 @@ DEFAULT_SHORT_TOPICS = [
     "Growing old in a universe that was never designed for us",
     "Why time becomes more precious the closer we move toward its end",
     "The slow realization that life does not promise fairness",
-    "Why the universe does not care — and why that might be liberating",
+    "Why the universe does not care - and why that might be liberating",
     "The courage to wake up each day in an indifferent world",
     "Why the absence of meaning can create unexpected freedom",
     "The strange comfort of knowing the universe has no expectations of you",
@@ -427,7 +427,7 @@ DEFAULT_SHORT_TOPICS = [
     "The hidden reason you feel drained after social events",
     "What happens to your body after just one bad night of sleep",
     "The simple mindset shift that makes hard things easier",
-    "Why comparison is the thief of joy — and how to stop",
+    "Why comparison is the thief of joy - and how to stop",
     "The 5-second rule that breaks procrastination",
     "What ancient wisdom says about modern stress",
     "The surprising science behind why music gives you chills",
@@ -435,34 +435,34 @@ DEFAULT_SHORT_TOPICS = [
     "The real reason habits are so hard to break",
     "One question to ask yourself before making any big decision",
     "Why your worst days are often your most important",
-    "The power of saying nothing — why silence is a superpower",
+    "The power of saying nothing - why silence is a superpower",
     "What neuroscience says about gratitude and happiness",
     "The small daily ritual that rewires your nervous system",
     "Why boredom might be the most important feeling you ignore",
     "The psychology behind why we self-sabotage",
     "What your posture says about your confidence",
     "The loneliness trap: why being alone and being lonely are different",
-    "Why forgiveness is actually selfish — and why that's okay",
+    "Why forgiveness is actually selfish - and why that's okay",
     "The science of flow state and how to trigger it",
     "What happens to your mind when you journal every day",
     "Why the most productive people protect their mornings",
     "The counterintuitive truth about willpower",
     "Why your environment shapes your choices more than your intentions",
-    "The human need for meaning — why purpose changes everything",
+    "The human need for meaning - why purpose changes everything",
     "What cold showers actually do to your mental resilience",
     "The real cost of never saying no",
     "Why self-compassion outperforms self-discipline",
     "The 90-second rule for processing difficult emotions",
     "What your inner critic is actually trying to protect",
-    "Why deep work is disappearing — and how to reclaim it",
+    "Why deep work is disappearing - and how to reclaim it",
     "The unexpected power of admitting you don't know",
-    "Why rest is not a reward — it is a requirement",
+    "Why rest is not a reward - it is a requirement",
     "The mental shift that turns setbacks into momentum",
     "What makes some people emotionally unbreakable",
-    "The truth about motivation — it follows action, not the other way around",
+    "The truth about motivation - it follows action, not the other way around",
     "Why your future self needs you to make different choices today",
     "One reframe that makes criticism easier to hear",
-    "The science of awe — and why you need more of it",
+    "The science of awe - and why you need more of it",
     "Why doing less can sometimes accomplish more",
     "The quiet practice that high performers never skip",
     "What it means to live with intention in a distracted world",
@@ -470,7 +470,7 @@ DEFAULT_SHORT_TOPICS = [
     "The surprising link between creativity and constraint",
     "What learning a hard thing teaches you about yourself",
     "Why discomfort is the gateway to growth",
-    "The story you tell yourself — and how to change it",
+    "The story you tell yourself - and how to change it",
 ]
 
 DEFAULT_SHORT_AMBIENCE = "aurora"
@@ -534,7 +534,7 @@ def _pick_next_short_topic(topics: list) -> tuple:
         if row is None:
             mode = db.get_setting("auto_short_exhaustion_mode", default="A")
             if mode in ("A", "hybrid"):
-                print("🔄 Short topic pool exhausted — running Mode A auto-generation")
+                print("🔄 Short topic pool exhausted - running Mode A auto-generation")
                 new_topics = _auto_generate_prompts(pipeline=pipeline, count=20)
                 if new_topics:
                     db.add_prompts_to_pool(new_topics, pipeline=pipeline, source="generated")

@@ -51,7 +51,7 @@ class TestPipelineStatus:
     def test_status_returns_video_state(self, client, db):
         db.get_video.return_value = {**_VIDEO_STUB, "status": "voiced"}
         r = client.get("/videos/vid-001/status")
-        assert r.status_code in (200, 404)   # endpoint may not exist — skip gracefully
+        assert r.status_code in (200, 404)   # endpoint may not exist - skip gracefully
 
     def test_status_404_for_unknown_video(self, client, db):
         db.get_video.return_value = None

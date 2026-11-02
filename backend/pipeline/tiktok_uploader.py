@@ -1,8 +1,8 @@
 """
-AutoVid Pipeline — TikTok Uploader
+AutoVid Pipeline - TikTok Uploader
 
 Uses TikTok Content Posting API v2 (Direct Post).
-OAuth2 PKCE flow — tokens stored in Supabase app_settings.
+OAuth2 PKCE flow - tokens stored in Supabase app_settings.
 
 Auth flow:
   1. GET /tiktok/auth  → redirect to TikTok consent page
@@ -142,9 +142,9 @@ def upload_to_tiktok(
     Returns the TikTok publish_id on success.
 
     privacy options:
-      SELF_ONLY          — only you can see (safe default for testing)
-      PUBLIC_TO_EVERYONE — fully public
-      MUTUAL_FOLLOW_FRIENDS — friends only
+      SELF_ONLY          - only you can see (safe default for testing)
+      PUBLIC_TO_EVERYONE - fully public
+      MUTUAL_FOLLOW_FRIENDS - friends only
     """
     token     = get_valid_token()
     access_tk = token["access_token"]

@@ -63,19 +63,19 @@ We do not sell, rent, or trade your personal information to any third party for 
 
 TikTok (via 4Life Mystery TikTok Integration)
 The ${APP_NAME} application uses the TikTok API to upload AI-generated video content directly to the connected TikTok creator account. We do not collect, store, or share any TikTok user data from visitors to our website. The TikTok integration is used solely for automated content publishing from our own account.
-• TikTok Privacy Policy — https://www.tiktok.com/legal/page/row/privacy-policy/en
+• TikTok Privacy Policy - https://www.tiktok.com/legal/page/row/privacy-policy/en
 
 Google / YouTube (via 4Life Mystery YouTube Integration)
 The ${APP_NAME} application uses the YouTube Data API v3 (Google API Services) to upload, manage, and retrieve analytics for AI-generated video content on our own YouTube channel. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
-• Google Privacy Policy — https://policies.google.com/privacy
+• Google Privacy Policy - https://policies.google.com/privacy
 
 Spotify
 Spotify podcast episodes are embedded on our website for public listening. We do not access Spotify user account data.
-• Spotify Privacy Policy — https://www.spotify.com/legal/privacy-policy/
+• Spotify Privacy Policy - https://www.spotify.com/legal/privacy-policy/
 
 ElevenLabs (AI voice synthesis)
 Used internally to generate narration audio. No visitor data is shared with ElevenLabs.
-• ElevenLabs Privacy Policy — https://elevenlabs.io/privacy
+• ElevenLabs Privacy Policy - https://elevenlabs.io/privacy
 
 We are not responsible for the privacy practices of these third parties. We encourage you to review their policies before interacting with their services.`,
 
@@ -117,12 +117,12 @@ If we learn that we have inadvertently collected personal information from a chi
 
   "your-rights": `Depending on your jurisdiction, you may have the following rights regarding your personal data:
 
-• Right of Access — request a copy of the personal data we hold about you
-• Right to Rectification — request correction of inaccurate or incomplete data
-• Right to Erasure — request deletion of your personal data ("right to be forgotten")
-• Right to Object — object to our processing of your personal data
-• Right to Data Portability — receive your data in a structured, machine-readable format
-• Right to Withdraw Consent — withdraw consent at any time where processing is based on consent
+• Right of Access - request a copy of the personal data we hold about you
+• Right to Rectification - request correction of inaccurate or incomplete data
+• Right to Erasure - request deletion of your personal data ("right to be forgotten")
+• Right to Object - object to our processing of your personal data
+• Right to Data Portability - receive your data in a structured, machine-readable format
+• Right to Withdraw Consent - withdraw consent at any time where processing is based on consent
 
 To exercise any of these rights, please contact us at ${CONTACT_EMAIL}. We will respond within 30 days. We may need to verify your identity before processing your request.`,
 

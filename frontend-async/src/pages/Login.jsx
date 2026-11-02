@@ -32,7 +32,7 @@ export default function Login() {
       else if (err.response?.status === 401)
         setError("Invalid email or password.");
       else
-        setError(detail || "Login failed — please try again.");
+        setError(detail || "Login failed - please try again.");
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,5 @@
 /**
- * Script Studio — v2
+ * Script Studio - v2
  * Write your own script → choose a looping visual + background music → generate a long-form video.
  */
 import { useEffect, useRef, useState } from "react";
@@ -344,7 +344,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
         alignItems: "start",
       }}>
 
-        {/* ═══ LEFT PANEL — Script editor ═════════════════════════════════════ */}
+        {/* ═══ LEFT PANEL - Script editor ═════════════════════════════════════ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* Video title */}
@@ -721,7 +721,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
           )}
         </div>
 
-        {/* ═══ RIGHT PANEL — Options ═══════════════════════════════════════════ */}
+        {/* ═══ RIGHT PANEL - Options ═══════════════════════════════════════════ */}
         <div style={{
           display: "flex", flexDirection: "column", gap: 14,
           overflowY: "auto", maxHeight: "calc(100vh - 160px)",
@@ -829,7 +829,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
                     if (on) setUseStockFootage(false);
                     else setUseStockFootage(true);
                     if (on && sfClipCount === 0) {
-                      showToast("No stickfigures in DB — add clips first", "error");
+                      showToast("No stickfigures in DB - add clips first", "error");
                       if (addNotification) addNotification("No Stickfigures in DB", "Upload clips in the Stickfigures tab before enabling this option.", "error");
                     }
                   }}
@@ -968,7 +968,7 @@ export default function ScriptStudio({ T, showToast, addNotification, onVideoRea
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
-                  { icon: "✍", title: "You write the script", body: "Paste or type your narration. Any length — 1 min or 10 mins." },
+                  { icon: "✍", title: "You write the script", body: "Paste or type your narration. Any length - 1 min or 10 mins." },
                   { icon: "🎨", title: "Looping visual generated", body: "A beautiful animated background loops for the full duration." },
                   { icon: "🎵", title: "Music + voice mixed", body: "Narration plays over the visual with background music under it." },
                 ].map((item) => (

@@ -66,7 +66,7 @@ function CommentCard({ c, T, fp, onLike, depth = 0 }) {
     setReplySubmitting(true); setReplyMsg("");
     try {
       await replyBlogComment(c.id, { name: replyName, content: replyContent, fingerprint: fp });
-      setReplyMsg("Reply submitted — pending moderation.");
+      setReplyMsg("Reply submitted - pending moderation.");
       setReplyName(""); setReplyContent(""); setReplyOpen(false);
     } catch (e) {
       setReplyMsg(e?.response?.data?.detail || "Failed to submit reply.");
@@ -159,7 +159,7 @@ function CommentsSection({ T, postId }) {
     setSubmitting(true); setSubmitErr("");
     try {
       await submitBlogComment({ ...form, fingerprint: fp, blog_post_id: postId });
-      setSubmitMsg("Comment submitted! It will appear after review — usually within 24h.");
+      setSubmitMsg("Comment submitted! It will appear after review - usually within 24h.");
       setForm({ name: "", email: "", content: "" });
     } catch (e) {
       setSubmitErr(e?.response?.data?.detail || "Failed to submit. Please try again.");
@@ -219,7 +219,7 @@ function CommentsSection({ T, postId }) {
         <div style={{ color: T.textDim, fontSize: 12, padding: "24px 0" }}>Loading comments...</div>
       ) : comments.length === 0 ? (
         <div style={{ color: T.textDim, fontSize: 13, padding: "32px 0", textAlign: "center", border: `1px dashed ${T.border}`, borderRadius: 10 }}>
-          No comments yet — be the first to start the conversation!
+          No comments yet - be the first to start the conversation!
         </div>
       ) : (
         <div>

@@ -1,5 +1,5 @@
 """
-AutoVid — Background Music Mixer
+AutoVid - Background Music Mixer
 Uses custom MP3 tracks from backend/custom_bg_music/ instead of synthesis.
 Loops/trims tracks to the required duration via FFmpeg.
 
@@ -59,7 +59,7 @@ def generate_music(style: str, duration: float, video_id: str,
 
     src = _MUSIC_DIR / filename
     if not src.exists():
-        print(f"⚠️  Music file not found: {src} — skipping background music")
+        print(f"⚠️  Music file not found: {src} - skipping background music")
         return None
 
     out_path = config.AUDIO_OUTPUT_DIR / f"{video_id}_music.mp3"
@@ -83,7 +83,7 @@ def generate_music(style: str, duration: float, video_id: str,
             return None
 
     except subprocess.TimeoutExpired:
-        print("⚠️  Music FFmpeg timed out — skipping music")
+        print("⚠️  Music FFmpeg timed out - skipping music")
         return None
     except Exception as e:
         print(f"⚠️  Music FFmpeg exception: {e}")
@@ -93,7 +93,7 @@ def generate_music(style: str, duration: float, video_id: str,
         print(f"✅  Music ready: {out_path.name}")
         return str(out_path)
 
-    print("⚠️  Music preparation failed — continuing without background music")
+    print("⚠️  Music preparation failed - continuing without background music")
     return None
 
 
@@ -117,8 +117,8 @@ def mix_audio(voice_path: str, music_path: str | None, output_path: str,
               music_volume: float = 0.10, music_delay: float = 0.0) -> str:
     """
     Mix narration voice with background music.
-    music_volume: 0.0–1.0 relative to voice (0.10 = music at 10% of voice level)
-    music_delay:  unused — narration delay is applied upstream via apply_narration_delay().
+    music_volume: 0.0-1.0 relative to voice (0.10 = music at 10% of voice level)
+    music_delay:  unused - narration delay is applied upstream via apply_narration_delay().
     Returns output_path.
     """
     if not music_path:
@@ -149,7 +149,7 @@ def mix_background_music(video_path: str, style: str, video_id: str,
                           music_delay: float = 0.0) -> str:
     """
     High-level helper: prepare background music and mix it into a video file.
-    music_delay: unused — narration delay is applied upstream via apply_narration_delay().
+    music_delay: unused - narration delay is applied upstream via apply_narration_delay().
     Returns path to the output video. Falls back to original on any error.
     """
     out_path = Path(video_path)

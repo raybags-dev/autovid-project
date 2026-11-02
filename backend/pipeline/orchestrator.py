@@ -1,5 +1,5 @@
 """
-AutoVid Pipeline — Master Orchestrator
+AutoVid Pipeline - Master Orchestrator
 
 Pipeline order:
   1.  Create DB record
@@ -7,7 +7,7 @@ Pipeline order:
   3.  Synthesize voice (ElevenLabs) → saves audio/[id].mp3
   4.  Align segments to audio timing
   5.  Fetch stock video clips (Pexels/Pixabay)
-  6.  Assemble raw video (MoviePy) — clips + audio merged → videos/[id]_raw.mp4
+  6.  Assemble raw video (MoviePy) - clips + audio merged → videos/[id]_raw.mp4
   7.  Generate thumbnail from raw video
   8.  Burn captions (Whisper + FFmpeg) → videos/[id]_captioned.mp4
   9.  Merge audio into captioned video (guarantees sound) → videos/[id]_final.mp4
@@ -103,7 +103,7 @@ def step_fetch_clips(segments: list, video_id: str, script_text: str = None,
         if plan:
             _log("CLIPS", f"Using LLM visual plan ({len(plan)} sections)...", cb)
             return video_fetcher.fetch_clips_for_plan(plan, segments, video_id, orientation=orientation)
-        _log("CLIPS", "Visual plan failed — falling back to keyword extraction", cb)
+        _log("CLIPS", "Visual plan failed - falling back to keyword extraction", cb)
     if mood:
         segments = video_fetcher.enrich_segments_with_mood(segments, mood)
         _log("CLIPS", f"Visual mood: {mood}", cb)
@@ -209,7 +209,7 @@ def step_save_mixed_mp3(final_path: str, video_id: str, cb=None) -> Optional[str
     Extract the fully-mixed audio (narration + background music) from the final
     video file and upload it to Supabase as a permanent MP3.
     Overwrites narration_url with this richer version.
-    Non-fatal — failure is logged but does not abort the pipeline.
+    Non-fatal - failure is logged but does not abort the pipeline.
     """
     mixed_mp3 = config.AUDIO_OUTPUT_DIR / f"{video_id}_mixed.mp3"
     _log("MP3", "Extracting mixed audio from final video...", cb)
@@ -250,7 +250,7 @@ def step_save_mixed_mp3(final_path: str, video_id: str, cb=None) -> Optional[str
 def cleanup(video_id: str, audio_path=None, captioned_path=None, delete_final: bool = True):
     """
     Delete ALL local files for a video. Supabase Storage is the source of truth.
-    Safe to call with None args and after failures — skips gracefully.
+    Safe to call with None args and after failures - skips gracefully.
     """
     deleted = []
 
@@ -291,7 +291,7 @@ def cleanup(video_id: str, audio_path=None, captioned_path=None, delete_final: b
     if captioned_path:
         _rm(captioned_path)
 
-    # Final + thumbnail — always delete (Supabase is the permanent store)
+    # Final + thumbnail - always delete (Supabase is the permanent store)
     if delete_final:
         _rm(config.VIDEOS_OUTPUT_DIR / f"{video_id}_final.mp4")
         _rm(config.VIDEOS_OUTPUT_DIR / f"{video_id}_thumb.jpg")
@@ -356,7 +356,7 @@ def cleanup_output_folder():
                         d.rmdir()
                     except OSError:
                         pass
-    print(f"🗑️  Cleaned /output — deleted {count} files")
+    print(f"🗑️  Cleaned /output - deleted {count} files")
 
 
 # ── Main Pipeline ─────────────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ def _step_stickfigure_composite(video_path: str, script_text: str, duration: flo
         _log("STICKFIGURES", "🕹 Matching stickfigure clips to script...", cb)
         overlays = match_clips_to_script(script_text, duration)
         if not overlays:
-            _log("STICKFIGURES", "⚠️ No stickfigure clips matched — using background only", cb)
+            _log("STICKFIGURES", "⚠️ No stickfigure clips matched - using background only", cb)
             return video_path
         _log("STICKFIGURES", f"🕹 Compositing {len(overlays)} stickfigure clip(s)...", cb)
         out_path = str(Path(config.VIDEOS_OUTPUT_DIR) / f"{video_id}_sf.mp4")
@@ -414,7 +414,7 @@ def run_pipeline(
     verify_license()
     cb         = progress_callback
     start_time = time.time()
-    # NOTE: do NOT reset video_id here — caller may pass a pre-created one
+    # NOTE: do NOT reset video_id here - caller may pass a pre-created one
     audio_path     = None
     captioned_path = None
 
@@ -443,7 +443,7 @@ def run_pipeline(
         # ── 4. Align ──────────────────────────────────────────────────────────
         segments = step_align_segments(script_data, audio_result, cb)
 
-        # ── 4a. Narration delay — prepend silence to audio, shift segment timestamps
+        # ── 4a. Narration delay - prepend silence to audio, shift segment timestamps
         if music_delay > 0:
             from pipeline.music_mixer import apply_narration_delay
             _log("DELAY", f"Delaying narration by {music_delay:.1f}s...", cb)
@@ -500,12 +500,12 @@ def run_pipeline(
         if use_captions:
             captioned_path = step_burn_captions(raw_video_path, audio_path, video_id, cb)
         else:
-            _log("CAPTIONS", "Captions disabled — skipping", cb)
+            _log("CAPTIONS", "Captions disabled - skipping", cb)
             captioned_path = raw_video_path
             db.update_video(video_id, captions_disabled=True)
 
         # ── 9. Merge audio into final video ───────────────────────────────────
-        # This is the definitive final file — captions + guaranteed audio
+        # This is the definitive final file - captions + guaranteed audio
         final_path = step_merge_audio(captioned_path, audio_path, video_id, cb)
 
         # ── 9a. Mix background music ──────────────────────────────────────────
@@ -563,7 +563,7 @@ def run_pipeline(
                 _portrait_url = _upload_portrait(_portrait_out, f"{video_id}_portrait")
                 _title = script_data.get("title", prompt)
                 db.create_custom_content(
-                    title=f"{_title} — Portrait (9:16)",
+                    title=f"{_title} - Portrait (9:16)",
                     description="Auto-generated vertical version",
                     file_path=_portrait_url,
                     duration_seconds=int(audio_result["duration"]),
@@ -583,12 +583,12 @@ def run_pipeline(
             step_upload_youtube(final_path, script_data, label_data, thumb_path, video_id, cb)
         else:
             db.set_ready(video_id)
-            _log("READY", "Video ready — skipping YouTube upload (auto_upload=False)", cb)
+            _log("READY", "Video ready - skipping YouTube upload (auto_upload=False)", cb)
 
         # ── 12. Auto-generate companion short in production ───────────────────
         if os.getenv("APP_ENV") == "production":
             try:
-                _log("SHORT", "🎬 Production mode — spawning companion short...", cb)
+                _log("SHORT", "🎬 Production mode - spawning companion short...", cb)
                 import threading
                 def _spawn_short():
                     try:
@@ -617,7 +617,7 @@ def run_pipeline(
         raise
 
     finally:
-        # Always clean up local files — runs on success AND failure
+        # Always clean up local files - runs on success AND failure
         if video_id:
             try:
                 cleanup(video_id, audio_path, captioned_path, delete_final=True)
@@ -638,15 +638,15 @@ def retry_failed(video_id: str, cb=None) -> dict:
     return run_pipeline(video["prompt"], auto_upload=True, progress_callback=cb)
 
 
-SHORT_MAX_DURATION = 180  # seconds — hard ceiling (3 min)
-SHORT_MIN_DURATION = 120  # seconds — minimum 2 minutes per short
+SHORT_MAX_DURATION = 180  # seconds - hard ceiling (3 min)
+SHORT_MIN_DURATION = 120  # seconds - minimum 2 minutes per short
 
 
 def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None, cb=None, auto_upload_youtube: bool = False, music_style: str = "Laidback_Fevorite", music_volume: float = 0.04, music_delay: float = 0.0, angle: str = None, custom_script: str = None, use_stickfigures: bool = False, use_stock_footage: bool = True, use_captions: bool = True, include_unsubscribed_message: bool = False, include_subscribed_message: bool = False) -> dict:
     """
-    YouTube Shorts pipeline — portrait 9:16, TTS narration, enforced 90s max.
+    YouTube Shorts pipeline - portrait 9:16, TTS narration, enforced 90s max.
     auto_upload_youtube=True posts directly to YouTube (used in prod companion short).
-    custom_script: optional pre-written narration text — skips LLM script generation.
+    custom_script: optional pre-written narration text - skips LLM script generation.
     """
     if include_unsubscribed_message and include_subscribed_message:
         raise ValueError("include_unsubscribed_message and include_subscribed_message are mutually exclusive.")
@@ -666,7 +666,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         db.update_video(video_id, labels=["short", "Shorts", "AI"], status="generating")
         _log("START", f"Short pipeline | ID: {video_id[:8]}...", cb)
 
-        # 2. Script — either LLM-generated or custom
+        # 2. Script - either LLM-generated or custom
         if custom_script and custom_script.strip():
             _log("SCRIPT", "Using custom script (bypassing LLM generation)...", cb)
             words = custom_script.strip().split()
@@ -682,7 +682,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
                 "category": "Education",
             }
             db.set_script(video_id, title=script_data["title"], description=script_data["description"], script=narration)
-            _log("SCRIPT", f"✅ Custom script ready — {len(words)} words (~{estimated_duration}s)", cb)
+            _log("SCRIPT", f"✅ Custom script ready - {len(words)} words (~{estimated_duration}s)", cb)
         else:
             _log("SCRIPT", f"Generating short script for: '{prompt}'" + (f" [{angle[:30]}...]" if angle else ""), cb)
             script_data = generate_short_script(prompt, angle=angle)
@@ -692,7 +692,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
                 description=script_data["description"],
                 script=script_data["full_narration"],
             )
-            _log("SCRIPT", f"✅ Script ready — {len(script_data['full_narration'].split())} words (~{script_data['estimated_duration']}s)", cb)
+            _log("SCRIPT", f"✅ Script ready - {len(script_data['full_narration'].split())} words (~{script_data['estimated_duration']}s)", cb)
 
         # 3. Voice
         _log("VOICE", "Synthesizing audio narration...", cb)
@@ -702,7 +702,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         db.set_audio_ready(video_id, duration_seconds=int(duration))
         _log("VOICE", f"✅ Audio ready: {duration:.1f}s", cb)
 
-        # 3a. Enforce 90-second limit — speed up audio if needed
+        # 3a. Enforce 90-second limit - speed up audio if needed
         if duration > SHORT_MAX_DURATION:
             _log("VOICE", f"⚡ Fitting audio to {SHORT_MAX_DURATION}s (was {duration:.1f}s)...", cb)
             duration = tts.fit_audio_to_duration(audio_path, float(SHORT_MAX_DURATION))
@@ -717,14 +717,14 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         except Exception as e:
             _log("VOICE", f"⚠️ Narration upload skipped: {e}", cb)
 
-        # 3c. Narration delay — prepend silence to audio
+        # 3c. Narration delay - prepend silence to audio
         if music_delay > 0:
             from pipeline.music_mixer import apply_narration_delay
             _log("DELAY", f"Delaying narration by {music_delay:.1f}s...", cb)
             delayed_voice = str(config.AUDIO_OUTPUT_DIR / f"{video_id}_delayed.mp3")
             audio_path    = apply_narration_delay(audio_path, music_delay, delayed_voice)
 
-        # 4. Generate portrait 9:16 visual — matches audio duration
+        # 4. Generate portrait 9:16 visual - matches audio duration
         _ambience       = "rain" if use_stickfigures else ambience
         visual_duration = int(duration + music_delay) + 2
         _log("VISUALS", f"Generating portrait visual: {_ambience} ({visual_duration}s)...", cb)
@@ -776,7 +776,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
         if use_captions:
             captioned_path = step_burn_captions(visual_path, audio_path, video_id, cb, is_short=True)
         else:
-            _log("CAPTIONS", "Captions disabled — skipping", cb)
+            _log("CAPTIONS", "Captions disabled - skipping", cb)
             captioned_path = visual_path
             db.update_video(video_id, captions_disabled=True)
 
@@ -828,7 +828,7 @@ def run_short_pipeline(prompt: str, ambience: str = "rain", video_id: str = None
             step_upload_youtube(final_path, script_data, label_data, thumb_path, video_id, cb)
         else:
             db.set_ready(video_id)
-            _log("READY", "⚡ Short is ready — review in Shorts tab before uploading.", cb)
+            _log("READY", "⚡ Short is ready - review in Shorts tab before uploading.", cb)
 
         elapsed = time.time() - start_time
         _log("DONE", f"✅ Short pipeline complete in {elapsed:.0f}s", cb)

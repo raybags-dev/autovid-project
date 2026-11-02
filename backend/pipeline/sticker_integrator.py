@@ -129,7 +129,7 @@ def assemble_paragraph_visuals(
     # ── 2. Find matching stickers ────────────────────────────────────────────
     stickers = _find_top_stickers(paragraph_text, top_n=2)
     if not stickers:
-        print("[sticker_integrator] No matching stickers — returning background only.")
+        print("[sticker_integrator] No matching stickers - returning background only.")
         bg_clip.close()
         return bg_path
 

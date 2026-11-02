@@ -1,5 +1,5 @@
 """
-AutoVid — Compilation Pipeline
+AutoVid - Compilation Pipeline
 Combines multiple existing videos into one longer video.
 - Downloads source videos from Supabase URLs
 - Applies basic trim (start/end time per clip)
@@ -152,7 +152,7 @@ def create_compilation(
             is_remote = fp.startswith("http://") or fp.startswith("https://")
             if not fp or (not is_remote and not os.path.exists(fp)):
                 raise ValueError(
-                    f"Clip {i+1} '{(clip.get('title') or '')[:30]}': video file not found — "
+                    f"Clip {i+1} '{(clip.get('title') or '')[:30]}': video file not found - "
                     f"it may have been cleaned up after processing. "
                     f"Only videos with cloud storage URLs can be used in compilations."
                 )
@@ -318,7 +318,7 @@ def create_mp3_compilation(
             elif file_path:
                 is_remote = file_path.startswith("http://") or file_path.startswith("https://")
                 if not is_remote and not os.path.exists(file_path):
-                    _log("AUDIO", f"⚠️ Clip {i+1} '{clip_title}': local file no longer exists — skipping", cb)
+                    _log("AUDIO", f"⚠️ Clip {i+1} '{clip_title}': local file no longer exists - skipping", cb)
                     continue
                 _log("AUDIO", f"Clip {i+1}/{len(clips)} '{clip_title}': extracting audio from video...", cb)
                 _extract_audio(file_path, dest)
@@ -328,7 +328,7 @@ def create_mp3_compilation(
                 _log("AUDIO", f"⚠️ Clip {i+1} '{clip_title}': no audio source, skipping", cb)
 
         if not audio_files:
-            raise ValueError("No audio sources found — all clips were skipped")
+            raise ValueError("No audio sources found - all clips were skipped")
 
         # Concatenate
         db.update_video(compilation_id, status="voiced")
@@ -345,7 +345,7 @@ def create_mp3_compilation(
         from pipeline.storage import upload_narration_to_storage
         narration_url_out = upload_narration_to_storage(output_mp3, compilation_id)
 
-        # Store in BOTH narration_url and file_path — file_path ends in _narration.mp3
+        # Store in BOTH narration_url and file_path - file_path ends in _narration.mp3
         db.update_video(compilation_id,
                         narration_url=narration_url_out,
                         file_path=narration_url_out,

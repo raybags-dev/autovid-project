@@ -555,7 +555,7 @@ export const listCustomContent = async (includeArchived = false) => {
   return data;
 };
 
-/** Step 1: ask backend for a signed Supabase upload URL — no file bytes sent here */
+/** Step 1: ask backend for a signed Supabase upload URL - no file bytes sent here */
 export const requestCCUpload = async ({ title, description, tags, category, privacy }) => {
   const { data } = await api.post("/custom-content/request-upload", {
     title, description: description || "", tags: tags || "",
@@ -584,7 +584,7 @@ export const uploadFileToSignedUrl = (signedUrl, file, onProgress) =>
     xhr.send(file);
   });
 
-/** Step 3: notify backend the file is in storage — triggers ffprobe in background */
+/** Step 3: notify backend the file is in storage - triggers ffprobe in background */
 export const finalizeCCUpload = async (itemId) => {
   const { data } = await api.post(`/custom-content/${itemId}/finalize`);
   return data;

@@ -1,10 +1,10 @@
 -- ============================================================
--- AutoVid — Supabase Security Hardening Migration
+-- AutoVid - Supabase Security Hardening Migration
 -- Run once in: Supabase Dashboard → SQL Editor
 -- URL: https://supabase.com/dashboard/project/euvbtarnzicrrbxqzhud/sql
 --
 -- SAFE TO RUN: the backend always uses service_role which
--- bypasses RLS entirely — no app functionality is affected.
+-- bypasses RLS entirely - no app functionality is affected.
 -- ============================================================
 
 
@@ -32,11 +32,11 @@ $$;
 -- Re-enable RLS (in case it was toggled off)
 ALTER TABLE public.videos ENABLE ROW LEVEL SECURITY;
 
--- No anon SELECT policy — service_role bypasses RLS so the backend
+-- No anon SELECT policy - service_role bypasses RLS so the backend
 -- continues to work; direct API calls with anon key are denied.
 
 -- Defense-in-depth: revoke internal columns even if a SELECT policy
--- is ever added back — these will NEVER be readable by anon/authenticated.
+-- is ever added back - these will NEVER be readable by anon/authenticated.
 REVOKE SELECT (
     script,
     error_message,
@@ -84,7 +84,7 @@ ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
 -- ── 6. STORAGE BUCKETS ───────────────────────────────────────
 -- Current state (confirmed by audit):
---   • narrations, videos, stickfigures — public READ (required for playback)
+--   • narrations, videos, stickfigures - public READ (required for playback)
 --   • anon CANNOT upload or delete (already blocked by storage RLS)
 -- No changes needed for storage.
 

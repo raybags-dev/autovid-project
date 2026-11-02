@@ -1,4 +1,4 @@
-# Test-only dependencies — lean install for CI (no torch, whisper, moviepy, etc.)
+# Test-only dependencies - lean install for CI (no torch, whisper, moviepy, etc.)
 # Heavy pipeline modules are mocked in tests/conftest.py.
 
 # ── Web framework ─────────────────────────────────────────────────────────────
